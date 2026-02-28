@@ -1,0 +1,24 @@
+{
+  "name": "inkio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm build:packages && pnpm docs:build",
+    "build:packages": "pnpm -r --filter './packages/*' build",
+    "examples:build": "pnpm -r --filter './examples/*' build",
+    "test": "pnpm -r --filter './packages/*' test",
+    "lint": "pnpm -r --if-present --filter './packages/*' lint && pnpm docs:typecheck",
+    "dev": "pnpm --filter docs dev",
+    "dev:packages": "pnpm -r --parallel --filter @inkio/editor --filter @inkio/extension dev",
+    "dev:all": "pnpm -r --parallel --filter @inkio/editor --filter @inkio/extension --filter docs dev",
+    "docs:build": "pnpm --filter docs build",
+    "docs:typecheck": "pnpm --filter docs exec tsc --noEmit",
+    "release:smoke": "node ./scripts/release-smoke.mjs",
+    "publish:core": "pnpm --filter @inkio/editor publish --access public --provenance --registry https://registry.npmjs.org/",
+    "publish:extensions": "pnpm --filter @inkio/extension publish --access public --provenance --registry https://registry.npmjs.org/",
+    "publish:server": "pnpm --filter @inkio/server publish --access public --provenance --registry https://registry.npmjs.org/",
+    "publish:packages": "pnpm publish:core && pnpm publish:extensions",
+    "publish:r1": "pnpm publish:core && pnpm publish:extensions"
+  }
+}

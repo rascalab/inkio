@@ -1,0 +1,50 @@
+{
+  "name": "@inkio/server",
+  "version": "0.0.3",
+  "description": "Server-side utilities for Inkio",
+  "license": "MIT",
+  "keywords": [
+    "inkio",
+    "editor",
+    "tiptap",
+    "server",
+    "parser",
+    "transformer"
+  ],
+  "homepage": "https://rascalab.github.io/inkio/",
+  "bugs": {
+    "url": "https://github.com/rascalab/inkio/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rascalab/inkio.git",
+    "directory": "packages/server"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "dependencies": {
+    "@tiptap/core": "^3.20.0"
+  },
+  "peerDependencies": {
+    "@inkio/editor": "^0.0.1"
+  }
+}

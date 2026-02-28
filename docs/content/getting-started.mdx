@@ -1,0 +1,121 @@
+# 시작하기
+
+이 가이드는 Inkio를 프로젝트에 통합하는 최소 단계만 설명합니다.
+
+## 설치
+
+```bash
+npm install @inkio/editor @inkio/extension react react-dom
+```
+
+## 스타일 선택
+
+```tsx
+import '@inkio/editor/minimal.css';
+import '@inkio/extension/style.css';
+```
+
+## 기본 사용
+
+```tsx
+import { useMemo, useState } from 'react';
+import {
+  Editor,
+  inkioIconRegistry,
+  type InkioMessageOverrides,
+} from '@inkio/editor';
+import { getDefaultInkioExtensions } from '@inkio/extension';
+import '@inkio/editor/minimal.css';
+import '@inkio/extension/style.css';
+
+const locale = 'en-US,en;q=0.9';
+
+const messages: InkioMessageOverrides = {
+  core: {
+    suggestion: {
+      empty: 'No matching items.',
+    },
+  },
+  extensions: {
+    commentComposer: {
+      placeholder: 'Share feedback...',
+    },
+  },
+};
+
+const icons = {
+  comment: inkioIconRegistry.comment,
+};
+
+export function MyEditorPage() {
+  const [content, setContent] = useState('');
+
+  const extensions = useMemo(
+    () =>
+      getDefaultInkioExtensions({
+        placeholder: 'Start typing...',
+        blockHandle: true,
+        locale,
+        messages,
+        icons,
+      }),
+    [],
+  );
+
+  return (
+    <Editor
+      content={content}
+      extensions={extensions}
+      locale={locale}
+      messages={messages}
+      icons={icons}
+      showBubbleMenu
+      showFloatingMenu
+      onUpdate={setContent}
+    />
+  );
+}
+```
+
+## i18n 전략
+
+Inkio 기본 내장 메시지는 영어(`en`)만 제공합니다.
+
+- `locale`은 `unknown` 입력을 받습니다.
+- `locale`은 문자열, Accept-Language 문자열, 배열, `Intl.Locale`, locale-like 객체를 해석합니다.
+- 다국어 메시지는 소비자가 `messages` prop으로 주입합니다.
+- 해석 실패/메시지 누락 시 영어 기본값으로 폴백합니다.
+
+자세한 규칙은 [`i18n-locale`](/i18n-locale) 문서를 참고하세요.
+
+## Controlled / Uncontrolled
+
+```tsx
+import { Editor } from '@inkio/editor';
+
+// controlled
+<Editor content={content} onUpdate={setContent} />
+
+// uncontrolled
+<Editor initialContent={initialContent} onUpdate={setContent} />
+```
+
+`content`와 `initialContent`는 동시에 사용할 수 없습니다.
+
+## 트러블슈팅
+
+### 스타일이 안 보일 때
+
+스타일 엔트리를 반드시 import했는지 확인하세요.
+
+### 확장 UI가 깨질 때
+
+`@inkio/extension/style.css`가 import되어 있는지 확인하세요.
+
+### 이미지 편집 UI가 깨질 때
+
+`@inkio/extension/style.css`가 import되어 있는지 확인하세요.
+
+### SSR 오류(`window is not defined`)
+
+에디터는 클라이언트 컴포넌트에서만 사용해야 합니다.

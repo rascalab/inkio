@@ -1,0 +1,5 @@
+/* Tailwind Preflight Only */
+@import "tailwindcss";
+
+/* Optional: If you want some utilities, uncomment below */
+/* @import "tailwindcss/utilities"; */

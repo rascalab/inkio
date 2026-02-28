@@ -1,0 +1,35 @@
+# Node / package manager
+node_modules/
+.pnpm-store/
+
+# Build artifacts
+packages/*/dist/
+docs/out/
+docs/.next/
+docs/.next-pages/
+examples/*/.next/
+dist/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Test / tooling cache
+coverage/
+.vitest/
+.vite/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# omc
+**/.omc/*
+!**/.omc/skills/
+!**/.omc/skills/**

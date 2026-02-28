@@ -1,0 +1,7 @@
+packages:
+  - 'packages/*'
+  - 'docs'
+  - 'examples/*'
+autoInstallPeers: false
+preferWorkspacePackages: true
+linkWorkspacePackages: true

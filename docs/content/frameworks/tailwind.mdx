@@ -1,0 +1,81 @@
+---
+title: Tailwind CSS
+---
+
+# Tailwind CSS 통합
+
+[Tailwind CSS](https://tailwindcss.com)의 유틸리티 클래스로 레이아웃을 구성하고, 내부에 Inkio 에디터를 배치하는 예제입니다.
+
+## 설치
+
+```bash
+pnpm add tailwindcss @inkio/editor @inkio/extension
+```
+
+## CSS 임포트
+
+```tsx
+// Inkio 스타일 — minimal.css 사용 (Tailwind preflight와 충돌하지 않는 minimal 버전)
+import '@inkio/editor/minimal.css';
+import '@inkio/extension/style.css';
+```
+
+> **팁**: Tailwind를 사용할 때는 `style.css` 대신 `minimal.css`를 사용하세요. `style.css`에는 자체 preflight가 포함되어 Tailwind의 preflight와 충돌할 수 있습니다.
+
+## 전체 코드
+
+```tsx
+import '@inkio/editor/minimal.css';
+import '@inkio/extension/style.css';
+
+import { Editor } from '@inkio/editor';
+import { getDefaultInkioExtensions } from '@inkio/extension';
+import { useMemo } from 'react';
+
+export default function TailwindEditor() {
+  const extensions = useMemo(
+    () => getDefaultInkioExtensions({ placeholder: 'Start typing...' }),
+    [],
+  );
+
+  return (
+    <div className="min-h-[520px] rounded-2xl bg-slate-950 p-6 text-slate-100">
+      <h2 className="text-2xl font-semibold">My Editor</h2>
+      <p className="mt-2 text-sm text-slate-300">
+        Tailwind layout with Inkio editor content.
+      </p>
+
+      <div className="mt-6 rounded-xl border border-slate-700 bg-white p-4 text-slate-900">
+        <Editor
+          extensions={extensions}
+          initialContent="<p>Hello from Tailwind!</p>"
+          showBubbleMenu
+          showFloatingMenu
+        />
+      </div>
+    </div>
+  );
+}
+```
+
+## Tailwind v4 설정
+
+Tailwind v4를 사용하는 경우 Vite 플러그인을 사용합니다:
+
+```ts
+// vite.config.ts
+import tailwindcss from '@tailwindcss/vite';
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+});
+```
+
+```css
+/* app.css */
+@import 'tailwindcss';
+```
+
+## 다크 모드
+
+Tailwind의 `dark:` 변형과 Inkio의 `.dark` 클래스는 동일한 메커니즘(`document.documentElement.classList`)을 사용하므로 자동으로 연동됩니다.
