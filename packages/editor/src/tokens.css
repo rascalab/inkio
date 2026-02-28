@@ -1,0 +1,469 @@
+/* ============================
+   inkio Design Tokens
+   Semantic CSS variables for theming
+   ============================ */
+
+.inkio {
+  /* ============================
+     Light theme raw values
+     Palette based on Radix UI Colors light scales.
+     ============================ */
+
+  /* Background — slate 1/3/2/12 */
+  --inkio-bg: #fcfcfd;
+  --inkio-bg-muted: #f0f0f3;
+  --inkio-bg-subtle: #f9f9fb;
+  --inkio-bg-inverse: #1c2024;
+
+  /* Text — slate 11/12/9/2 */
+  --inkio-text: #60646c;
+  --inkio-text-heading: #1c2024;
+  --inkio-text-muted: #8b8d98;
+  --inkio-text-inverse: #f9f9fb;
+
+  /* Border — slate 6 / blue 9 */
+  --inkio-border: #d9d9e0;
+  --inkio-border-focus: #0090ff;
+
+  /* Primary — blue 9/10/3 */
+  --inkio-primary: #0090ff;
+  --inkio-primary-hover: #0588f0;
+  --inkio-primary-bg: #e6f4fe;
+
+  /* Danger — red 9/3/12/4 */
+  --inkio-danger: #e5484d;
+  --inkio-danger-bg: #feebec;
+  --inkio-danger-text: #641723;
+  --inkio-danger-hover-bg: #ffdbdc;
+  /* Success — green 9/3/5/11 */
+  --inkio-success: #30a46c;
+  --inkio-success-bg: #e6f6eb;
+  --inkio-success-hover: #c4e8d1;
+  --inkio-success-text: #218358;
+  /* Warning — amber 9/3/12 */
+  --inkio-warning: #ffc53d;
+  --inkio-warning-bg: #fff7c2;
+  --inkio-warning-text: #4f3422;
+  /* Info — blue 9/3 */
+  --inkio-info: #0090ff;
+  --inkio-info-bg: #e6f4fe;
+
+  /* Note — slate 2/8/12 */
+  --inkio-note-bg: #f9f9fb;
+  --inkio-note-border: #b9bbc6;
+  --inkio-note-text: #1c2024;
+
+  /* Mention — blue 4/12 */
+  --inkio-mention-bg: #d5efff;
+  --inkio-mention-text: #113264;
+
+  /* Hashtag — violet 3/11/4 */
+  --inkio-hashtag-bg: #f4f0fe;
+  --inkio-hashtag-text: #6550b9;
+  --inkio-hashtag-hover-bg: #ebe4ff;
+
+  /* Wiki Link — green 11/3/5/10 */
+  --inkio-wikilink-text: #218358;
+  --inkio-wikilink-bg: #e6f6eb;
+  --inkio-wikilink-hover-bg: #c4e8d1;
+  --inkio-wikilink-hover-text: #2b9a66;
+
+  /* Comment — amber 5/6/3/4/9/12 */
+  --inkio-comment-bg: #fbe577;
+  --inkio-comment-resolved-bg: #f3d673;
+  --inkio-comment-quote-bg: #fff7c2;
+  --inkio-comment-quote-hover-bg: #ffee9c;
+  --inkio-comment-quote-bar: #ffc53d;
+  --inkio-comment-quote-text: #4f3422;
+
+  /* Radius & Shadow */
+  --inkio-radius-xs: 0.125rem;
+  --inkio-radius-sm: 0.25rem;
+  --inkio-radius: 0.375rem;
+  --inkio-radius-md: 0.5rem;
+  --inkio-radius-lg: 0.75rem;
+  --inkio-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --inkio-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+  --inkio-shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.2);
+
+  /* Layer system */
+  --inkio-layer-base: 1;
+  --inkio-layer-content: 10;
+  --inkio-layer-overlay: 140;
+  --inkio-layer-suggestion: 145;
+  --inkio-layer-popover: 150;
+  --inkio-layer-modal: 180;
+  --inkio-layer-modal-backdrop: 190;
+  --inkio-layer-modal-content: 200;
+
+  /* Focus ring — blue 9 */
+  --inkio-ring: 0 0 0 3px rgba(0, 144, 255, 0.15);
+
+  /* Transition */
+  --inkio-transition-fast: 0.15s ease;
+
+  /* Highlight — amber 5 */
+  --inkio-highlight-bg: #fbe577;
+
+  /* Selection — blue 5 */
+  --inkio-selection-bg: #c2e5ff;
+
+  /* Text on primary (button text) */
+  --inkio-text-on-primary: #ffffff;
+
+  /* Overlay */
+  --inkio-overlay-bg: rgba(0, 0, 0, 0.6);
+  --inkio-overlay-heavy-bg: rgba(0, 0, 0, 0.8);
+  --inkio-overlay-text: #ffffff;
+  --inkio-overlay-spinner-border: rgba(255, 255, 255, 0.2);
+
+  /* Avatar — indigo 9 / violet 9 */
+  --inkio-avatar-gradient-from: #3e63dd;
+  --inkio-avatar-gradient-to: #6e56cf;
+
+  /* Layer */
+  --inkio-layer-sidebar: 120;
+
+  /* Code block — slate 12/2 (inverted for contrast) */
+  --inkio-code-bg: #1c2024;
+  --inkio-code-text: #f9f9fb;
+
+  /* ============================
+     Dark theme raw values (single source of truth)
+     Palette based on Radix UI Colors dark scales.
+     Change these to update dark mode colors everywhere.
+     ============================ */
+
+  /* Background — slateDark 1/2/3 */
+  --inkio-dark-bg: #111113;
+  --inkio-dark-bg-muted: #18191b;
+  --inkio-dark-bg-subtle: #212225;
+  --inkio-dark-bg-inverse: #edeef0;
+
+  /* Text — slateDark 12/12/9/1 */
+  --inkio-dark-text: #b0b4ba;
+  --inkio-dark-text-heading: #edeef0;
+  --inkio-dark-text-muted: #696e77;
+  --inkio-dark-text-inverse: #111113;
+
+  /* Border — slateDark 6/blueDark 9 */
+  --inkio-dark-border: #363a3f;
+  --inkio-dark-border-focus: #0090ff;
+
+  /* Primary — blueDark 10/3 */
+  --inkio-dark-primary-hover: #3b9eff;
+  --inkio-dark-primary-bg: #0d2847;
+
+  /* Danger — redDark 9/10/3/11/4 */
+  --inkio-dark-danger: #e5484d;
+  --inkio-dark-danger-hover: #f2555a;
+  --inkio-dark-danger-bg: #3b1219;
+  --inkio-dark-danger-text: #ff9592;
+  --inkio-dark-danger-hover-bg: #500f1c;
+  /* Success — greenDark 9/10/3/11 */
+  --inkio-dark-success: #30a46c;
+  --inkio-dark-success-hover: #3cb179;
+  --inkio-dark-success-bg: #132d21;
+  --inkio-dark-success-text: #3dd68c;
+  /* Warning — amberDark 9/3/11 */
+  --inkio-dark-warning: #ffc53d;
+  --inkio-dark-warning-bg: #302008;
+  --inkio-dark-warning-text: #ffca16;
+  /* Info — blueDark 9/3 */
+  --inkio-dark-info: #0090ff;
+  --inkio-dark-info-bg: #0d2847;
+
+  /* Note — slateDark 2/7/11 */
+  --inkio-dark-note-bg: #18191b;
+  --inkio-dark-note-border: #43484e;
+  --inkio-dark-note-text: #b0b4ba;
+
+  /* Mention — blueDark 3/11 */
+  --inkio-dark-mention-bg: #0d2847;
+  --inkio-dark-mention-text: #70b8ff;
+
+  /* Hashtag — violetDark 3/11/4 */
+  --inkio-dark-hashtag-bg: #291f43;
+  --inkio-dark-hashtag-text: #baa7ff;
+  --inkio-dark-hashtag-hover-bg: #33255b;
+
+  /* Wiki Link — greenDark 11/3/4/10 */
+  --inkio-dark-wikilink-text: #3dd68c;
+  --inkio-dark-wikilink-bg: #132d21;
+  --inkio-dark-wikilink-hover-bg: #113b29;
+  --inkio-dark-wikilink-hover-text: #33b074;
+
+  /* Comment — amberDark 7/6/4/3/9/12 */
+  --inkio-dark-comment-bg: #714f19;
+  --inkio-dark-comment-resolved-bg: #5c3d05;
+  --inkio-dark-comment-quote-bg: #3f2700;
+  --inkio-dark-comment-quote-hover-bg: #302008;
+  --inkio-dark-comment-quote-bar: #ffc53d;
+  --inkio-dark-comment-quote-text: #ffe7b3;
+
+  /* Selection/Highlight — blueDark 4 / amberDark 5 */
+  --inkio-dark-selection-bg: #003362;
+  --inkio-dark-highlight-bg: #4d3000;
+
+  /* Overlay & misc */
+  --inkio-dark-text-on-primary: #ffffff;
+  --inkio-dark-overlay-bg: rgba(0, 0, 0, 0.7);
+  --inkio-dark-overlay-heavy-bg: rgba(0, 0, 0, 0.8);
+  --inkio-dark-overlay-text: #ffffff;
+  --inkio-dark-overlay-spinner-border: rgba(255, 255, 255, 0.3);
+  /* Avatar — indigoDark 9 / violetDark 9 */
+  --inkio-dark-avatar-gradient-from: #3e63dd;
+  --inkio-dark-avatar-gradient-to: #6e56cf;
+
+  /* Shadow & Ring */
+  --inkio-dark-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --inkio-dark-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  --inkio-dark-shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+  --inkio-dark-ring: 0 0 0 3px rgba(0, 144, 255, 0.2);
+
+  /* Code — slateDark 1/12 */
+  --inkio-dark-code-bg: #111113;
+  --inkio-dark-code-text: #edeef0;
+
+  /* Callout Colors */
+  --inkio-callout-blue: #dbeafe;
+  --inkio-callout-blue-border: #3b82f6;
+  --inkio-callout-yellow: #fef3c7;
+  --inkio-callout-yellow-border: #f59e0b;
+  --inkio-callout-red: #fee2e2;
+  --inkio-callout-red-border: #ef4444;
+  --inkio-callout-green: #dcfce7;
+  --inkio-callout-green-border: #22c55e;
+  --inkio-callout-purple: #f3e8ff;
+  --inkio-callout-purple-border: #a855f7;
+  --inkio-callout-gray: #f3f4f6;
+  --inkio-callout-gray-border: #9ca3af;
+
+  /* Callout Colors — Dark */
+  --inkio-dark-callout-blue: #1e3a5f;
+  --inkio-dark-callout-blue-border: #60a5fa;
+  --inkio-dark-callout-yellow: #422006;
+  --inkio-dark-callout-yellow-border: #fbbf24;
+  --inkio-dark-callout-red: #450a0a;
+  --inkio-dark-callout-red-border: #f87171;
+  --inkio-dark-callout-green: #052e16;
+  --inkio-dark-callout-green-border: #4ade80;
+  --inkio-dark-callout-purple: #2e1065;
+  --inkio-dark-callout-purple-border: #c084fc;
+  --inkio-dark-callout-gray: #1f2937;
+  --inkio-dark-callout-gray-border: #6b7280;
+
+  /* Image Editor */
+  --inkio-ie-canvas-bg: #1e1e1e;
+  --inkio-dark-ie-canvas-bg: #111111;
+
+  /* Typography */
+  --inkio-font-family: inherit;
+  --inkio-font-size-base: 1rem;
+  --inkio-font-size-sm: 0.875rem;
+  --inkio-font-size-lg: 1.125rem;
+  --inkio-line-height-base: 1.75;
+  --inkio-line-height-tight: 1.3;
+}
+
+/* ============================
+   Dark Theme
+   Activated by any of:
+   1. data-theme="dark" attribute on .inkio (direct control)
+   2. .dark or .dark-theme class on any ancestor (Radix UI, next-themes, etc.)
+   3. data-theme="auto" + OS prefers-color-scheme: dark (opt-in system preference)
+
+   All values reference --inkio-dark-* intermediate variables defined above.
+   To change a dark-mode color, edit the --inkio-dark-* definition only.
+   ============================ */
+
+/* Explicit dark: attribute on root OR ancestor class */
+.inkio[data-theme="dark"],
+:is(.dark, .dark-theme) .inkio:not([data-theme="light"]) {
+  --inkio-bg: var(--inkio-dark-bg);
+  --inkio-bg-muted: var(--inkio-dark-bg-muted);
+  --inkio-bg-subtle: var(--inkio-dark-bg-subtle);
+  --inkio-bg-inverse: var(--inkio-dark-bg-inverse);
+
+  --inkio-text: var(--inkio-dark-text);
+  --inkio-text-heading: var(--inkio-dark-text-heading);
+  --inkio-text-muted: var(--inkio-dark-text-muted);
+  --inkio-text-inverse: var(--inkio-dark-text-inverse);
+
+  --inkio-border: var(--inkio-dark-border);
+  --inkio-border-focus: var(--inkio-dark-border-focus);
+
+  --inkio-primary-hover: var(--inkio-dark-primary-hover);
+  --inkio-primary-bg: var(--inkio-dark-primary-bg);
+
+  --inkio-danger: var(--inkio-dark-danger);
+  --inkio-danger-hover: var(--inkio-dark-danger-hover);
+  --inkio-danger-bg: var(--inkio-dark-danger-bg);
+  --inkio-danger-text: var(--inkio-dark-danger-text);
+  --inkio-danger-hover-bg: var(--inkio-dark-danger-hover-bg);
+  --inkio-success: var(--inkio-dark-success);
+  --inkio-success-hover: var(--inkio-dark-success-hover);
+  --inkio-success-bg: var(--inkio-dark-success-bg);
+  --inkio-success-text: var(--inkio-dark-success-text);
+  --inkio-warning: var(--inkio-dark-warning);
+  --inkio-warning-bg: var(--inkio-dark-warning-bg);
+  --inkio-warning-text: var(--inkio-dark-warning-text);
+  --inkio-info: var(--inkio-dark-info);
+  --inkio-info-bg: var(--inkio-dark-info-bg);
+
+  --inkio-note-bg: var(--inkio-dark-note-bg);
+  --inkio-note-border: var(--inkio-dark-note-border);
+  --inkio-note-text: var(--inkio-dark-note-text);
+
+  --inkio-mention-bg: var(--inkio-dark-mention-bg);
+  --inkio-mention-text: var(--inkio-dark-mention-text);
+
+  --inkio-hashtag-bg: var(--inkio-dark-hashtag-bg);
+  --inkio-hashtag-text: var(--inkio-dark-hashtag-text);
+  --inkio-hashtag-hover-bg: var(--inkio-dark-hashtag-hover-bg);
+
+  --inkio-wikilink-text: var(--inkio-dark-wikilink-text);
+  --inkio-wikilink-bg: var(--inkio-dark-wikilink-bg);
+  --inkio-wikilink-hover-bg: var(--inkio-dark-wikilink-hover-bg);
+  --inkio-wikilink-hover-text: var(--inkio-dark-wikilink-hover-text);
+
+  --inkio-comment-bg: var(--inkio-dark-comment-bg);
+  --inkio-comment-resolved-bg: var(--inkio-dark-comment-resolved-bg);
+  --inkio-comment-quote-bg: var(--inkio-dark-comment-quote-bg);
+  --inkio-comment-quote-hover-bg: var(--inkio-dark-comment-quote-hover-bg);
+  --inkio-comment-quote-bar: var(--inkio-dark-comment-quote-bar);
+  --inkio-comment-quote-text: var(--inkio-dark-comment-quote-text);
+
+  --inkio-selection-bg: var(--inkio-dark-selection-bg);
+  --inkio-highlight-bg: var(--inkio-dark-highlight-bg);
+
+  --inkio-shadow: var(--inkio-dark-shadow);
+  --inkio-shadow-lg: var(--inkio-dark-shadow-lg);
+  --inkio-shadow-xl: var(--inkio-dark-shadow-xl);
+  --inkio-ring: var(--inkio-dark-ring);
+
+  --inkio-code-bg: var(--inkio-dark-code-bg);
+  --inkio-code-text: var(--inkio-dark-code-text);
+
+  --inkio-text-on-primary: var(--inkio-dark-text-on-primary);
+  --inkio-overlay-bg: var(--inkio-dark-overlay-bg);
+  --inkio-overlay-heavy-bg: var(--inkio-dark-overlay-heavy-bg);
+  --inkio-overlay-text: var(--inkio-dark-overlay-text);
+  --inkio-overlay-spinner-border: var(--inkio-dark-overlay-spinner-border);
+  --inkio-avatar-gradient-from: var(--inkio-dark-avatar-gradient-from);
+  --inkio-avatar-gradient-to: var(--inkio-dark-avatar-gradient-to);
+
+  --inkio-callout-blue: var(--inkio-dark-callout-blue);
+  --inkio-callout-blue-border: var(--inkio-dark-callout-blue-border);
+  --inkio-callout-yellow: var(--inkio-dark-callout-yellow);
+  --inkio-callout-yellow-border: var(--inkio-dark-callout-yellow-border);
+  --inkio-callout-red: var(--inkio-dark-callout-red);
+  --inkio-callout-red-border: var(--inkio-dark-callout-red-border);
+  --inkio-callout-green: var(--inkio-dark-callout-green);
+  --inkio-callout-green-border: var(--inkio-dark-callout-green-border);
+  --inkio-callout-purple: var(--inkio-dark-callout-purple);
+  --inkio-callout-purple-border: var(--inkio-dark-callout-purple-border);
+  --inkio-callout-gray: var(--inkio-dark-callout-gray);
+  --inkio-callout-gray-border: var(--inkio-dark-callout-gray-border);
+
+  --inkio-ie-canvas-bg: var(--inkio-dark-ie-canvas-bg);
+}
+
+/* System preference: opt-in via data-theme="auto"
+   NOTE: This block intentionally duplicates the explicit-dark overrides above.
+   CSS natively cannot share declarations between a media query and a plain
+   selector list, so the repetition is required.  When changing a dark-mode
+   value, always update the --inkio-dark-* intermediate variable defined in
+   .inkio above — both blocks reference those variables, so a single
+   edit propagates everywhere. */
+@media (prefers-color-scheme: dark) {
+  .inkio[data-theme="auto"] {
+    --inkio-bg: var(--inkio-dark-bg);
+    --inkio-bg-muted: var(--inkio-dark-bg-muted);
+    --inkio-bg-subtle: var(--inkio-dark-bg-subtle);
+    --inkio-bg-inverse: var(--inkio-dark-bg-inverse);
+
+    --inkio-text: var(--inkio-dark-text);
+    --inkio-text-heading: var(--inkio-dark-text-heading);
+    --inkio-text-muted: var(--inkio-dark-text-muted);
+    --inkio-text-inverse: var(--inkio-dark-text-inverse);
+
+    --inkio-border: var(--inkio-dark-border);
+    --inkio-border-focus: var(--inkio-dark-border-focus);
+
+    --inkio-primary-hover: var(--inkio-dark-primary-hover);
+    --inkio-primary-bg: var(--inkio-dark-primary-bg);
+
+    --inkio-danger: var(--inkio-dark-danger);
+    --inkio-danger-hover: var(--inkio-dark-danger-hover);
+    --inkio-danger-bg: var(--inkio-dark-danger-bg);
+    --inkio-danger-text: var(--inkio-dark-danger-text);
+    --inkio-danger-hover-bg: var(--inkio-dark-danger-hover-bg);
+    --inkio-success: var(--inkio-dark-success);
+    --inkio-success-hover: var(--inkio-dark-success-hover);
+    --inkio-success-bg: var(--inkio-dark-success-bg);
+    --inkio-success-text: var(--inkio-dark-success-text);
+    --inkio-warning: var(--inkio-dark-warning);
+    --inkio-warning-bg: var(--inkio-dark-warning-bg);
+    --inkio-warning-text: var(--inkio-dark-warning-text);
+    --inkio-info: var(--inkio-dark-info);
+    --inkio-info-bg: var(--inkio-dark-info-bg);
+
+    --inkio-note-bg: var(--inkio-dark-note-bg);
+    --inkio-note-border: var(--inkio-dark-note-border);
+    --inkio-note-text: var(--inkio-dark-note-text);
+
+    --inkio-mention-bg: var(--inkio-dark-mention-bg);
+    --inkio-mention-text: var(--inkio-dark-mention-text);
+
+    --inkio-hashtag-bg: var(--inkio-dark-hashtag-bg);
+    --inkio-hashtag-text: var(--inkio-dark-hashtag-text);
+    --inkio-hashtag-hover-bg: var(--inkio-dark-hashtag-hover-bg);
+
+    --inkio-wikilink-text: var(--inkio-dark-wikilink-text);
+    --inkio-wikilink-bg: var(--inkio-dark-wikilink-bg);
+    --inkio-wikilink-hover-bg: var(--inkio-dark-wikilink-hover-bg);
+    --inkio-wikilink-hover-text: var(--inkio-dark-wikilink-hover-text);
+
+    --inkio-comment-bg: var(--inkio-dark-comment-bg);
+    --inkio-comment-resolved-bg: var(--inkio-dark-comment-resolved-bg);
+    --inkio-comment-quote-bg: var(--inkio-dark-comment-quote-bg);
+    --inkio-comment-quote-hover-bg: var(--inkio-dark-comment-quote-hover-bg);
+    --inkio-comment-quote-bar: var(--inkio-dark-comment-quote-bar);
+    --inkio-comment-quote-text: var(--inkio-dark-comment-quote-text);
+
+    --inkio-selection-bg: var(--inkio-dark-selection-bg);
+    --inkio-highlight-bg: var(--inkio-dark-highlight-bg);
+
+    --inkio-shadow: var(--inkio-dark-shadow);
+    --inkio-shadow-lg: var(--inkio-dark-shadow-lg);
+    --inkio-shadow-xl: var(--inkio-dark-shadow-xl);
+    --inkio-ring: var(--inkio-dark-ring);
+
+    --inkio-code-bg: var(--inkio-dark-code-bg);
+    --inkio-code-text: var(--inkio-dark-code-text);
+
+    --inkio-text-on-primary: var(--inkio-dark-text-on-primary);
+    --inkio-overlay-bg: var(--inkio-dark-overlay-bg);
+    --inkio-overlay-heavy-bg: var(--inkio-dark-overlay-heavy-bg);
+    --inkio-overlay-text: var(--inkio-dark-overlay-text);
+    --inkio-overlay-spinner-border: var(--inkio-dark-overlay-spinner-border);
+    --inkio-avatar-gradient-from: var(--inkio-dark-avatar-gradient-from);
+    --inkio-avatar-gradient-to: var(--inkio-dark-avatar-gradient-to);
+
+    --inkio-callout-blue: var(--inkio-dark-callout-blue);
+    --inkio-callout-blue-border: var(--inkio-dark-callout-blue-border);
+    --inkio-callout-yellow: var(--inkio-dark-callout-yellow);
+    --inkio-callout-yellow-border: var(--inkio-dark-callout-yellow-border);
+    --inkio-callout-red: var(--inkio-dark-callout-red);
+    --inkio-callout-red-border: var(--inkio-dark-callout-red-border);
+    --inkio-callout-green: var(--inkio-dark-callout-green);
+    --inkio-callout-green-border: var(--inkio-dark-callout-green-border);
+    --inkio-callout-purple: var(--inkio-dark-callout-purple);
+    --inkio-callout-purple-border: var(--inkio-dark-callout-purple-border);
+    --inkio-callout-gray: var(--inkio-dark-callout-gray);
+    --inkio-callout-gray-border: var(--inkio-dark-callout-gray-border);
+
+    --inkio-ie-canvas-bg: var(--inkio-dark-ie-canvas-bg);
+  }
+}

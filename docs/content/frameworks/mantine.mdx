@@ -1,0 +1,81 @@
+---
+title: Mantine
+---
+
+# Mantine 통합
+
+[Mantine](https://mantine.dev)의 Provider와 컴포넌트 안에서 Inkio 에디터를 사용하는 예제입니다.
+
+## 설치
+
+```bash
+pnpm add @mantine/core @inkio/editor @inkio/extension
+```
+
+## CSS 임포트 순서
+
+```tsx
+// Mantine 스타일 먼저
+import '@mantine/core/styles.css';
+
+// 그 다음 Inkio 스타일
+import '@inkio/editor/minimal.css';
+import '@inkio/extension/style.css';
+```
+
+> **중요**: Mantine CSS를 Inkio CSS보다 먼저 임포트해야 합니다. 순서가 바뀌면 Mantine의 글로벌 리셋이 에디터 스타일을 덮어씁니다.
+
+## 전체 코드
+
+```tsx
+import '@mantine/core/styles.css';
+import '@inkio/editor/minimal.css';
+import '@inkio/extension/style.css';
+
+import { Card, Container, MantineProvider, Stack, Text, Title } from '@mantine/core';
+import { Editor } from '@inkio/editor';
+import { getDefaultInkioExtensions } from '@inkio/extension';
+import { useMemo } from 'react';
+
+export default function MantineEditor({ theme }: { theme?: 'light' | 'dark' }) {
+  const extensions = useMemo(
+    () => getDefaultInkioExtensions({ placeholder: 'Start typing...' }),
+    [],
+  );
+
+  return (
+    <MantineProvider forceColorScheme={theme ?? 'light'}>
+      <Container size="lg" py="md">
+        <Stack>
+          <div>
+            <Title order={2}>My Editor</Title>
+            <Text c="dimmed" size="sm">
+              Mantine + Inkio
+            </Text>
+          </div>
+
+          <Card withBorder shadow="sm" radius="md" p="md">
+            <Editor
+              extensions={extensions}
+              initialContent="<p>Hello from Mantine!</p>"
+              showBubbleMenu
+              showFloatingMenu
+            />
+          </Card>
+        </Stack>
+      </Container>
+    </MantineProvider>
+  );
+}
+```
+
+## 테마 연동
+
+Mantine의 `forceColorScheme` prop을 사용하여 다크/라이트 모드를 제어합니다.
+Inkio는 `document.documentElement`의 `.dark` 클래스를 감지하므로, Mantine 테마와 함께 클래스를 토글하면 됩니다:
+
+```tsx
+useEffect(() => {
+  document.documentElement.classList.toggle('dark', theme === 'dark');
+}, [theme]);
+```

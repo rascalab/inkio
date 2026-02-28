@@ -1,0 +1,14 @@
+export default {
+  index: '소개',
+  'getting-started': '시작하기',
+  development: '개발 가이드',
+  components: '컴포넌트',
+  'i18n-locale': 'i18n & Locale',
+  'overlay-positioning': 'Overlay Positioning',
+  extensions: '확장',
+  adapter: '어댑터',
+  serialization: '직렬화',
+  frameworks: '프레임워크 통합',
+  recipes: '레시피',
+  playground: '플레이그라운드',
+};

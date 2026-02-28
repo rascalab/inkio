@@ -1,0 +1,33 @@
+---
+title: Basic React
+---
+
+# Basic React Recipe
+
+가장 작은 시작점이 필요하면 `examples/basic-react`를 기준으로 시작하세요.
+
+적합한 경우:
+
+- Vite + React
+- core editor만 먼저 붙이고 싶을 때
+- AI에게 최소한의 기준 파일을 주고 싶을 때
+
+실행:
+
+```bash
+pnpm install
+pnpm --filter example-basic-react dev
+```
+
+핵심 포인트:
+
+- `@inkio/editor/minimal.css`를 import합니다.
+- `getDefaultCoreExtensions()`로 기본 editor 구성을 시작합니다.
+- `Editor`는 uncontrolled 상태로 `initialContent`를 받고, `onUpdate`로 현재 값을 받습니다.
+
+주요 파일:
+
+- `examples/basic-react/src/App.tsx`
+- `examples/basic-react/src/main.tsx`
+
+AI에게 요청할 때는 `AI_CONTEXT.md`와 함께 `examples/basic-react/src/App.tsx`를 기준으로 수정하라고 주는 방식이 가장 안정적입니다.

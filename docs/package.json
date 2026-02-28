@@ -1,0 +1,37 @@
+{
+  "name": "docs",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0",
+    "build": "next build --webpack",
+    "postbuild": "node ./scripts/postbuild-pagefind.mjs",
+    "start": "next start",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@inkio/editor": "workspace:*",
+    "@inkio/extension": "workspace:*",
+    "@stackblitz/sdk": "^1.11.0",
+    "next": "^16.1.6",
+    "next-themes": "^0.4.6",
+    "nextra": "^4.6.1",
+    "nextra-theme-docs": "^4.6.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-icons": "^5.6.0"
+  },
+  "devDependencies": {
+    "@tiptap/core": "^3.20.1",
+    "@tiptap/react": "^3.20.1",
+    "@types/node": "^25.4.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "autoprefixer": "^10.4.27",
+    "pagefind": "^1.4.0",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^4.2.1",
+    "typescript": "^5.9.3"
+  }
+}

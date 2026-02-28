@@ -1,0 +1,117 @@
+# 어댑터
+
+Inkio는 코어 수명주기와 확장 기능 어댑터를 분리합니다.
+
+## 1) Core: `InkioAdapter` (`@inkio/editor`)
+
+코어 어댑터는 에디터 수명주기/에러 처리만 담당합니다.
+
+```ts
+import type { InkioAdapter } from '@inkio/editor';
+
+const coreAdapter: InkioAdapter = {
+  onCreate: (editor) => {
+    console.log('Editor ready', editor);
+  },
+  onUpdate: (content) => {
+    console.log('Updated JSON', content);
+  },
+  onError: (error, ctx) => {
+    console.error(`[${ctx.source}]`, error);
+  },
+  locale: 'ko',
+};
+```
+
+## 2) Extensions: `ExtensionsAdapter` (`@inkio/extension`)
+
+파일 업로드, suggestion, wiki link 이동, comment 같은 부가 기능은 `ExtensionsAdapter`에서 다룹니다.
+
+```ts
+import type { ExtensionsAdapter } from '@inkio/extension';
+
+const extensionsAdapter: ExtensionsAdapter = {
+  onError: (error, ctx) => {
+    console.error(`[${ctx.source}]`, error);
+  },
+  file: {
+    uploadFile: async (file) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const { url } = await res.json();
+      return url;
+    },
+    maxFileSize: 10 * 1024 * 1024,
+    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+  },
+  suggestion: {
+    mentionItems: async (query) => searchUsers(query),
+    hashtagItems: async (query) => searchTags(query),
+    slashCommands: async (query) => searchCommands(query),
+  },
+  navigation: {
+    onWikiLinkClick: (href) => router.push(`/wiki/${href}`),
+  },
+  comment: {
+    onCommentCreate: (threadId, selection) => {
+      console.log('create', threadId, selection);
+    },
+  },
+};
+```
+
+## `getDefaultInkioExtensions`와 함께 사용
+
+```tsx
+import { Editor } from '@inkio/editor';
+import { getDefaultInkioExtensions, type ExtensionsAdapter } from '@inkio/extension';
+
+const adapter: ExtensionsAdapter = {
+  suggestion: {
+    mentionItems: async (query) => searchUsers(query),
+  },
+};
+
+const extensions = getDefaultInkioExtensions(adapter);
+
+export default function Page() {
+  return <Editor extensions={extensions} />;
+}
+```
+
+## 기존 확장 배열에 적용 (`applyExtensionsAdapter`)
+
+```tsx
+import { Editor } from '@inkio/editor';
+import {
+  Mention,
+  WikiLink,
+  applyExtensionsAdapter,
+  type ExtensionsAdapter,
+} from '@inkio/extension';
+
+const base = [Mention, WikiLink];
+
+const adapter: ExtensionsAdapter = {
+  navigation: { onWikiLinkClick: (href) => router.push(`/wiki/${href}`) },
+};
+
+const extensions = applyExtensionsAdapter(base, adapter);
+
+export default function Page() {
+  return <Editor extensions={extensions} />;
+}
+```
+
+## InkioProvider
+
+`InkioProvider`는 코어 어댑터(`InkioAdapter`) 공유에 사용합니다.
+
+```tsx
+import { InkioProvider } from '@inkio/editor';
+
+<InkioProvider adapter={{ locale: 'ko' }}>
+  <App />
+</InkioProvider>;
+```

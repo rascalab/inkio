@@ -1,0 +1,19 @@
+---
+title: 프레임워크 통합
+---
+
+# 프레임워크 통합 가이드
+
+Inkio 에디터는 프레임워크에 독립적입니다. 어떤 React UI 라이브러리와도 함께 사용할 수 있습니다.
+
+아래 가이드에서는 각 프레임워크에서 Inkio를 통합하는 방법을 코드 예제와 함께 설명합니다.
+
+- [Mantine](/frameworks/mantine) — Mantine UI 컴포넌트와 함께 사용
+- [Radix UI](/frameworks/radix) — Radix Themes와 함께 사용
+- [Tailwind CSS](/frameworks/tailwind) — Tailwind 유틸리티 클래스로 래핑
+
+## 핵심 원칙
+
+1. **CSS 임포트 순서가 중요합니다** — 프레임워크 CSS를 먼저, Inkio CSS를 나중에 임포트하세요.
+2. **`Editor`는 래퍼 안에 배치** — 프레임워크의 Card, Container 등으로 감싸면 됩니다.
+3. **테마 연동** — 프레임워크의 테마 provider에서 `colorScheme`이나 `appearance`를 Inkio의 `.dark` 클래스와 맞추세요.
