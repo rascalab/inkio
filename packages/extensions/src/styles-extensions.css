@@ -1,0 +1,1009 @@
+/* ============================
+   Extension Node Structures
+   ============================ */
+
+/* Callout */
+.inkio-callout {
+  padding: 1rem 1.25rem;
+  border-radius: var(--inkio-radius-md, 8px);
+  border-left: 4px solid var(--inkio-callout-border, var(--inkio-border, #e5e7eb));
+  background: var(--inkio-callout-bg, var(--inkio-surface-secondary, #f9fafb));
+  margin: 0.75rem 0;
+}
+
+.inkio-callout[data-callout-color="blue"] {
+  --inkio-callout-bg: var(--inkio-callout-blue);
+  --inkio-callout-border: var(--inkio-callout-blue-border);
+}
+.inkio-callout[data-callout-color="yellow"] {
+  --inkio-callout-bg: var(--inkio-callout-yellow);
+  --inkio-callout-border: var(--inkio-callout-yellow-border);
+}
+.inkio-callout[data-callout-color="red"] {
+  --inkio-callout-bg: var(--inkio-callout-red);
+  --inkio-callout-border: var(--inkio-callout-red-border);
+}
+.inkio-callout[data-callout-color="green"] {
+  --inkio-callout-bg: var(--inkio-callout-green);
+  --inkio-callout-border: var(--inkio-callout-green-border);
+}
+.inkio-callout[data-callout-color="purple"] {
+  --inkio-callout-bg: var(--inkio-callout-purple);
+  --inkio-callout-border: var(--inkio-callout-purple-border);
+}
+.inkio-callout[data-callout-color="gray"] {
+  --inkio-callout-bg: var(--inkio-callout-gray);
+  --inkio-callout-border: var(--inkio-callout-gray-border);
+}
+.inkio-callout[data-callout-color="custom"] {
+  border-left-color: color-mix(in srgb, var(--inkio-callout-bg) 80%, black);
+}
+
+/* Callout icon (emoji) display */
+.inkio-callout[data-callout-icon]::before {
+  content: attr(data-callout-icon);
+  display: inline-block;
+  margin-right: 0.5rem;
+  font-size: 1.2em;
+}
+
+.inkio .ProseMirror [data-type="mention"] {
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-weight: 500;
+  font-size: 0.875em;
+  white-space: nowrap;
+}
+
+.inkio .ProseMirror [data-type="hashTag"] {
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-weight: 500;
+  font-size: 0.875em;
+}
+
+.inkio .ProseMirror [data-wiki-link] {
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--inkio-radius-sm);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.inkio .ProseMirror .image-block-view {
+  margin: 1.5rem 0;
+}
+
+.inkio .ProseMirror .image-block-view img {
+  border-radius: var(--inkio-radius-md);
+  max-width: 100%;
+  height: auto;
+  box-shadow: var(--inkio-shadow);
+}
+
+/* ============================
+   Extension Node Colors
+   ============================ */
+
+.inkio .ProseMirror [data-type="mention"] {
+  background-color: var(--inkio-mention-bg);
+  color: var(--inkio-mention-text);
+}
+
+.inkio .ProseMirror [data-type="hashTag"] {
+  background-color: var(--inkio-hashtag-bg);
+  color: var(--inkio-hashtag-text);
+  transition: background-color var(--inkio-transition-fast);
+}
+
+.inkio .ProseMirror [data-type="hashTag"]:hover {
+  background-color: var(--inkio-hashtag-hover-bg);
+}
+
+.inkio .ProseMirror [data-wiki-link] {
+  color: var(--inkio-wikilink-text);
+  background-color: var(--inkio-wikilink-bg);
+  transition: all var(--inkio-transition-fast);
+}
+
+.inkio .ProseMirror [data-wiki-link]:hover {
+  background-color: var(--inkio-wikilink-hover-bg);
+  color: var(--inkio-wikilink-hover-text);
+}
+
+/* ============================
+   Comment Mark Styles
+   ============================ */
+
+.inkio-comment {
+  background-color: var(--inkio-comment-bg);
+  cursor: pointer;
+}
+
+.inkio-comment-resolved {
+  background-color: var(--inkio-comment-resolved-bg);
+}
+
+/* ============================
+   Comment Panel UI
+   ============================ */
+
+.inkio-comment-panel {
+  font-family: inherit;
+  font-size: 0.8125rem;
+  color: var(--inkio-text);
+}
+
+.inkio-comment-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.inkio-comment-panel-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.inkio-comment-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 0.375rem;
+  border-radius: 9999px;
+  background: var(--inkio-primary);
+  color: var(--inkio-bg);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.inkio-comment-filters {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.inkio-comment-filter-btn {
+  padding: 0.25rem 0.625rem;
+  border: none;
+  border-radius: var(--inkio-radius);
+  background: transparent;
+  color: var(--inkio-text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all var(--inkio-transition-fast);
+}
+
+.inkio-comment-filter-btn:hover {
+  background: var(--inkio-bg-muted);
+}
+
+.inkio-comment-filter-btn.is-active {
+  background: var(--inkio-border);
+  color: var(--inkio-text-heading);
+  font-weight: 600;
+}
+
+.inkio-comment-empty {
+  padding: 1.25rem 0.75rem;
+  text-align: center;
+  color: var(--inkio-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.inkio-comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.inkio-comment-thread {
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-lg);
+  overflow: hidden;
+  transition: all var(--inkio-transition-fast);
+}
+
+.inkio-comment-thread:hover {
+  border-color: var(--inkio-border);
+  box-shadow: var(--inkio-shadow);
+  cursor: default;
+}
+
+.inkio-comment-thread.is-active {
+  border-color: var(--inkio-primary);
+  box-shadow: var(--inkio-ring);
+}
+
+.inkio-comment-thread.is-resolved {
+  opacity: 0.55;
+}
+
+.inkio-comment-thread-quote {
+  display: flex;
+  align-items: stretch;
+  padding: 0.5rem 0.75rem;
+  background: var(--inkio-comment-quote-bg);
+  cursor: pointer;
+  transition: background var(--inkio-transition-fast);
+}
+
+.inkio-comment-thread-quote:hover {
+  background: var(--inkio-comment-quote-hover-bg);
+}
+
+.inkio-comment-quote-bar {
+  width: 3px;
+  min-height: 100%;
+  background: var(--inkio-comment-quote-bar);
+  border-radius: var(--inkio-radius-xs);
+  margin-right: 0.625rem;
+  flex-shrink: 0;
+}
+
+.inkio-comment-quote-text {
+  font-size: 0.75rem;
+  color: var(--inkio-comment-quote-text);
+  line-height: 1.4;
+  font-style: italic;
+}
+
+.inkio-comment-messages {
+  padding: 0.5rem 0.75rem 0.25rem;
+}
+
+.inkio-comment-no-messages {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.6875rem;
+  color: var(--inkio-text-muted);
+  font-style: italic;
+}
+
+.inkio-comment-msg {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.inkio-comment-msg-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--inkio-avatar-gradient-from), var(--inkio-avatar-gradient-to));
+  color: var(--inkio-text-on-primary);
+  font-size: 0.625rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.inkio-comment-msg-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.inkio-comment-msg-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  margin-bottom: 0.125rem;
+}
+
+.inkio-comment-msg-author {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--inkio-text-heading);
+}
+
+.inkio-comment-msg-time {
+  font-size: 0.625rem;
+  color: var(--inkio-text-muted);
+}
+
+.inkio-comment-msg-text {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--inkio-text);
+  word-break: break-word;
+}
+
+.inkio-comment-reply-row {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem 0.5rem;
+}
+
+.inkio-comment-reply-input {
+  flex: 1;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius);
+  font-size: 0.75rem;
+  color: var(--inkio-text-heading);
+  background-color: transparent;
+  outline: none;
+  transition: border-color var(--inkio-transition-fast);
+}
+
+.inkio-comment-reply-input:focus {
+  border-color: var(--inkio-primary);
+  box-shadow: var(--inkio-ring);
+}
+
+.inkio-comment-reply-send {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--inkio-radius);
+  background: var(--inkio-primary);
+  color: var(--inkio-bg);
+  font-size: 0.875rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--inkio-transition-fast);
+}
+
+.inkio-comment-reply-send:hover {
+  background: var(--inkio-primary-hover);
+}
+
+.inkio-comment-thread-actions {
+  display: flex;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem 0.5rem;
+}
+
+.inkio-comment-action-btn {
+  padding: 0.1875rem 0.5rem;
+  border: none;
+  border-radius: var(--inkio-radius-sm);
+  font-size: 0.6875rem;
+  cursor: pointer;
+  transition: background-color var(--inkio-transition-fast);
+}
+
+.inkio-comment-action-btn.resolve {
+  background: var(--inkio-success-bg);
+  color: var(--inkio-success-text);
+}
+
+.inkio-comment-action-btn.resolve:hover {
+  background: var(--inkio-success-hover);
+}
+
+.inkio-comment-action-btn.delete {
+  background: var(--inkio-danger-bg);
+  color: var(--inkio-danger-text);
+}
+
+.inkio-comment-action-btn.delete:hover {
+  background: var(--inkio-danger-hover-bg);
+}
+
+/* ============================
+   Comment Composer
+   ============================ */
+
+.inkio-comment-composer {
+  width: 320px;
+  animation: inkio-composer-in 0.15s ease-out;
+}
+
+@keyframes inkio-composer-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.inkio-comment-composer-inner {
+  background: var(--inkio-bg);
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-lg);
+  box-shadow: var(--inkio-shadow-lg);
+  overflow: hidden;
+}
+
+.inkio-comment-composer-input {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 0.875rem 0.5rem;
+  border: none;
+  outline: none;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--inkio-text-heading);
+  background-color: transparent;
+  resize: none;
+  overflow: hidden;
+  min-height: 2.25rem;
+  max-height: 7.5rem;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.inkio-comment-composer-input::placeholder {
+  color: var(--inkio-text-muted);
+}
+
+.inkio-comment-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.375rem;
+  padding: 0.375rem 0.625rem 0.625rem;
+}
+
+.inkio-comment-composer-cancel {
+  padding: 0.3125rem 0.75rem;
+  border: none;
+  border-radius: var(--inkio-radius);
+  background: transparent;
+  color: var(--inkio-text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background var(--inkio-transition-fast);
+}
+
+.inkio-comment-composer-cancel:hover {
+  background: var(--inkio-bg-muted);
+}
+
+.inkio-comment-composer-submit {
+  padding: 0.3125rem 0.875rem;
+  border: none;
+  border-radius: var(--inkio-radius);
+  background: var(--inkio-primary);
+  color: var(--inkio-bg);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--inkio-transition-fast);
+}
+
+.inkio-comment-composer-submit:hover:not(:disabled) {
+  background: var(--inkio-primary-hover);
+}
+
+.inkio-comment-composer-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================
+   Comment Thread Popover
+   ============================ */
+
+.inkio-thread-popover {
+  width: 340px;
+  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+  background: var(--inkio-bg);
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-lg);
+  box-shadow: var(--inkio-shadow-lg);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  color: var(--inkio-text);
+  animation: inkio-thread-popover-in 0.15s ease-out;
+}
+
+@keyframes inkio-thread-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.inkio-thread-popover-quote {
+  display: flex;
+  align-items: stretch;
+  padding: 0.5rem 0.75rem;
+  background: var(--inkio-comment-quote-bg);
+  border-radius: var(--inkio-radius-lg) var(--inkio-radius-lg) 0 0;
+}
+
+.inkio-thread-popover-quote-bar {
+  width: 3px;
+  min-height: 100%;
+  background: var(--inkio-comment-quote-bar);
+  border-radius: var(--inkio-radius-xs);
+  margin-right: 0.625rem;
+  flex-shrink: 0;
+}
+
+.inkio-thread-popover-quote-text {
+  font-size: 0.75rem;
+  color: var(--inkio-comment-quote-text);
+  line-height: 1.4;
+  font-style: italic;
+}
+
+.inkio-thread-popover-messages {
+  padding: 0.5rem 0.75rem;
+  overflow-y: auto;
+  max-height: 240px;
+}
+
+.inkio-thread-popover-msg {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.inkio-thread-popover-msg:last-child {
+  margin-bottom: 0;
+}
+
+.inkio-thread-popover-msg-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--inkio-avatar-gradient-from), var(--inkio-avatar-gradient-to));
+  color: var(--inkio-text-on-primary);
+  font-size: 0.625rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.inkio-thread-popover-msg-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.inkio-thread-popover-msg-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  margin-bottom: 0.125rem;
+}
+
+.inkio-thread-popover-msg-author {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--inkio-text-heading);
+}
+
+.inkio-thread-popover-msg-time {
+  font-size: 0.625rem;
+  color: var(--inkio-text-muted);
+}
+
+.inkio-thread-popover-msg-text {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--inkio-text);
+  word-break: break-word;
+}
+
+.inkio-thread-popover-empty {
+  padding: 0.5rem 0;
+  font-size: 0.6875rem;
+  color: var(--inkio-text-muted);
+  font-style: italic;
+}
+
+.inkio-thread-popover-reply {
+  padding: 0.375rem 0.75rem 0.5rem;
+  border-top: 1px solid var(--inkio-border);
+}
+
+.inkio-thread-popover-reply-input {
+  width: 100%;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius);
+  font-size: 0.75rem;
+  color: var(--inkio-text-heading);
+  background-color: transparent;
+  outline: none;
+  resize: none;
+  font-family: inherit;
+  min-height: 2rem;
+  box-sizing: border-box;
+  transition: border-color var(--inkio-transition-fast);
+}
+
+.inkio-thread-popover-reply-input:focus {
+  border-color: var(--inkio-primary);
+  box-shadow: var(--inkio-ring);
+}
+
+.inkio-thread-popover-actions {
+  display: flex;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem 0.5rem;
+}
+
+.inkio-thread-popover-action-btn {
+  padding: 0.1875rem 0.5rem;
+  border: none;
+  border-radius: var(--inkio-radius-sm);
+  font-size: 0.6875rem;
+  cursor: pointer;
+  transition: background-color var(--inkio-transition-fast);
+}
+
+.inkio-thread-popover-action-btn.resolve {
+  background: var(--inkio-success-bg);
+  color: var(--inkio-success-text);
+}
+
+.inkio-thread-popover-action-btn.resolve:hover {
+  background: var(--inkio-success-hover);
+}
+
+.inkio-thread-popover-action-btn.delete {
+  background: var(--inkio-danger-bg);
+  color: var(--inkio-danger-text);
+}
+
+.inkio-thread-popover-action-btn.delete:hover {
+  background: var(--inkio-danger-hover-bg);
+}
+
+/* ============================
+   ImageBlock Component Styles
+   ============================ */
+
+.inkio-image-block-container {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.inkio-image-block-container.is-selected {
+  outline: 2px solid var(--inkio-primary);
+  border-radius: var(--inkio-radius-sm);
+}
+
+.inkio-image-block-img {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--inkio-radius-sm);
+  box-shadow: var(--inkio-shadow);
+  display: block;
+}
+
+.inkio-image-block-resize-handle {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 16px;
+  height: 16px;
+  background-color: var(--inkio-bg);
+  border: 2px solid var(--inkio-primary);
+  border-radius: 50%;
+  cursor: se-resize;
+  z-index: var(--inkio-layer-content);
+  opacity: 0;
+  transition: opacity var(--inkio-transition-fast);
+}
+
+.inkio-image-block-resize-handle.is-visible {
+  opacity: 1;
+}
+
+.inkio-image-block-caption {
+  width: 100%;
+  text-align: center;
+  margin-top: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  line-height: 20px;
+  color: var(--inkio-text-muted);
+  border: none;
+  background-color: transparent;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.inkio-image-block-toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background-color: var(--inkio-bg);
+  box-shadow: var(--inkio-shadow-lg);
+  border-radius: var(--inkio-radius);
+  padding: 4px;
+  display: flex;
+  gap: 4px;
+  z-index: var(--inkio-layer-overlay);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--inkio-transition-fast);
+}
+
+.inkio-image-block-toolbar.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.inkio-image-block-toolbar-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--inkio-radius-sm);
+  border: none;
+  background-color: transparent;
+  color: var(--inkio-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background-color var(--inkio-transition-fast), color var(--inkio-transition-fast);
+}
+
+.inkio-image-block-toolbar-btn svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.inkio-image-block-toolbar-btn:hover {
+  background-color: var(--inkio-bg-muted);
+  color: var(--inkio-text);
+}
+
+.inkio-image-block-toolbar-btn.is-active {
+  color: var(--inkio-primary);
+  background-color: var(--inkio-primary-bg);
+}
+
+.inkio-image-block-toolbar-divider {
+  width: 1px;
+  background-color: var(--inkio-border);
+  margin: 0 4px;
+  height: 16px;
+  align-self: center;
+}
+
+/* ============================
+   Bookmark
+   ============================ */
+
+.inkio-bookmark-wrapper {
+  margin: 0.75rem 0;
+}
+
+.inkio-bookmark-card {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-md);
+  padding: 0.75rem;
+  background-color: transparent;
+  text-decoration: none;
+  color: inherit;
+  transition: background-color var(--inkio-transition-fast);
+}
+
+.inkio-bookmark-card:hover {
+  background-color: var(--inkio-bg-muted);
+}
+
+.inkio-bookmark-image {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: var(--inkio-radius-sm);
+}
+
+.inkio-bookmark-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--inkio-text);
+}
+
+.inkio-bookmark-description {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--inkio-text-muted);
+}
+
+.inkio-bookmark-fallback {
+  color: var(--inkio-primary);
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+/* ============================
+   Equation
+   ============================ */
+
+.inkio-equation-block {
+  margin: 0.75rem 0;
+  padding: 0.5rem 0;
+  text-align: center;
+}
+
+.inkio-equation-inline {
+  display: inline-block;
+  margin: 0 0.125rem;
+}
+
+.inkio-equation-fallback {
+  color: var(--inkio-text);
+  font-size: 0.95em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* ============================
+   Callout Toolbar
+   ============================ */
+
+.inkio-callout-toolbar-wrapper {
+  pointer-events: auto;
+}
+
+.inkio-callout-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.5rem;
+  background: var(--inkio-bg);
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-md);
+  box-shadow: var(--inkio-shadow);
+  animation: inkio-callout-toolbar-in 0.15s ease-out;
+}
+
+@keyframes inkio-callout-toolbar-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.inkio-callout-toolbar-colors {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.inkio-callout-color-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: none;
+  border-radius: var(--inkio-radius-sm);
+  cursor: pointer;
+  padding: 2px;
+}
+
+.inkio-callout-color-btn:hover {
+  background: var(--inkio-bg-muted);
+}
+
+.inkio-callout-color-btn.is-active {
+  outline: 2px solid var(--inkio-primary);
+  outline-offset: 1px;
+}
+
+.inkio-callout-color-swatch {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+
+.inkio-callout-icon-input {
+  width: 36px;
+  height: 24px;
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-sm);
+  text-align: center;
+  font-size: 14px;
+  background: var(--inkio-bg);
+  color: var(--inkio-text);
+  padding: 0;
+}
+
+.inkio-callout-icon-input:focus {
+  outline: 2px solid var(--inkio-primary);
+  outline-offset: -1px;
+}
+
+/* ============================
+   Toggle List (Details)
+   ============================ */
+
+.inkio .ProseMirror [data-type="details"] {
+  margin: 0.5rem 0;
+  position: relative;
+}
+
+.inkio .ProseMirror [data-type="details"] > button {
+  position: absolute;
+  /* Center 1.25rem button within first line (line-height 1.75) */
+  top: calc((1.75em - 1.25rem) / 2);
+  left: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--inkio-text-muted);
+  transition: transform var(--inkio-transition-fast);
+}
+
+.inkio .ProseMirror [data-type="details"] > button::before {
+  content: '';
+  display: block;
+  width: 0;
+  height: 0;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform var(--inkio-transition-fast);
+}
+
+.inkio .ProseMirror [data-type="details"].is-open > button::before {
+  transform: rotate(90deg);
+}
+
+/* Content wrapper — single indentation past the toggle button */
+.inkio .ProseMirror [data-type="details"] > div {
+  padding-left: 1.5rem;
+}
+
+.inkio .ProseMirror [data-type="details"] summary {
+  cursor: text;
+  outline: none;
+  list-style: none;
+}
+
+.inkio .ProseMirror [data-type="details"] summary::-webkit-details-marker {
+  display: none;
+}
+
+.inkio .ProseMirror [data-type="detailsContent"][hidden] {
+  display: none;
+}
+
+

@@ -1,0 +1,122 @@
+# 직렬화
+
+`@inkio/editor`는 기본 직렬화 유틸리티를 제공하고, 멘션/해시태그 추출은 `@inkio/extension`에서 제공합니다.
+
+```tsx
+import {
+  toPlainText,
+  toSummary,
+  getContentStats,
+} from '@inkio/editor';
+import { extractMentions, extractHashtags } from '@inkio/extension';
+```
+
+## toPlainText
+
+에디터 JSON을 일반 텍스트로 변환합니다.
+
+```tsx
+const text = toPlainText(editorContent);
+// '제목
+본문 내용...'
+```
+
+텍스트 노드와 하드 브레이크를 기준으로 일반 텍스트를 생성합니다.
+
+## toSummary
+
+콘텐츠의 요약 텍스트를 생성합니다.
+
+```tsx
+const summary = toSummary(editorContent); // 기본 140자
+const shortSummary = toSummary(editorContent, 80); // 80자 제한
+// '제목 본문 내용...'
+```
+
+`maxLength`를 초과하면 `...`이 붙습니다.
+
+## getContentStats
+
+콘텐츠 통계를 반환합니다.
+
+```tsx
+const stats = getContentStats(editorContent);
+// { words: 42, chars: 256, blocks: 8 }
+```
+
+| 필드 | 설명 |
+|------|------|
+| `words` | 공백 기준 단어 수 |
+| `chars` | 총 문자 수 |
+| `blocks` | 블록 노드 수 (paragraph, heading, list 등) |
+
+## extractMentions
+
+콘텐츠에서 멘션을 추출합니다.
+
+```tsx
+const mentions = extractMentions(editorContent);
+// [{ id: '1', label: 'Alice' }, { id: '2', label: 'Bob' }]
+```
+
+중복은 자동으로 제거됩니다.
+
+## extractHashtags
+
+콘텐츠에서 해시태그를 추출합니다.
+
+```tsx
+const tags = extractHashtags(editorContent);
+// ['react', 'typescript', 'frontend']
+```
+
+`#` 접두사가 제거된 상태로 반환됩니다.
+
+## 활용 예시
+
+### 검색 인덱싱
+
+```tsx
+async function indexDocument(docId: string, content: JSONContent) {
+  const plainText = toPlainText(content);
+  const mentions = extractMentions(content);
+  const hashtags = extractHashtags(content);
+
+  await searchIndex.upsert({
+    id: docId,
+    text: plainText,
+    mentions: mentions.map(m => m.id),
+    tags: hashtags,
+  });
+}
+```
+
+### 미리보기 생성
+
+```tsx
+function DocumentCard({ content }: { content: JSONContent }) {
+  const summary = toSummary(content, 120);
+  const stats = getContentStats(content);
+
+  return (
+    <div>
+      <p>{summary}</p>
+      <span>{stats.words}단어 · {stats.blocks}블록</span>
+    </div>
+  );
+}
+```
+
+### 알림 텍스트
+
+```tsx
+function buildNotification(content: JSONContent, authorName: string) {
+  const mentions = extractMentions(content);
+  const summary = toSummary(content, 50);
+
+  return mentions.map(m => ({
+    userId: m.id,
+    message: `${authorName}님이 회원님을 멘션했습니다: "${summary}"`,
+  }));
+}
+```

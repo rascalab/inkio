@@ -1,0 +1,64 @@
+# Overlay Positioning
+
+Inkio의 팝오버/플로팅 UI는 공통 오버레이 엔진을 사용합니다.
+
+## 보장 범위
+
+- 뷰포트 경계 충돌 시 flip
+- 경계 바깥으로 벗어나는 경우 shift(clamp)
+- 스크롤/리사이즈/엘리먼트 리사이즈 시 자동 재계산
+- `position: fixed` 기반 계산으로 inline/inline-block 컨텍스트에서도 안정적 동작
+
+## 사용 API
+
+```tsx
+import {
+  computeOverlayPosition,
+  autoUpdateOverlayPosition,
+} from '@inkio/editor';
+```
+
+### `computeOverlayPosition`
+
+핵심 위치 계산 함수입니다.
+
+```tsx
+const result = computeOverlayPosition({
+  anchorRect,
+  floatingRect,
+  placement: 'top',
+  align: 'center',
+  offset: 8,
+  padding: 8,
+  flip: true,
+  shift: true,
+});
+```
+
+### `autoUpdateOverlayPosition`
+
+스크롤/리사이즈/ResizeObserver 기반 자동 업데이트 유틸입니다.
+
+```tsx
+const cleanup = autoUpdateOverlayPosition({
+  update: updatePosition,
+  elements: [editorElement, popupElement],
+});
+
+// unmount 시
+cleanup();
+```
+
+## 적용 컴포넌트
+
+- `BubbleMenu`
+- `FloatingMenu`
+- `SuggestionPopup`
+- `CommentComposer`
+- `BlockHandle` 기본 메뉴
+
+## 권장사항
+
+- anchor는 가능하면 `getBoundingClientRect()` 기반으로 계산
+- 포털로 렌더링하는 오버레이는 `position: fixed` 사용
+- `z-index`는 토큰(`--inkio-layer-*`)을 통해 일관되게 관리

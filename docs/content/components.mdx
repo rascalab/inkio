@@ -1,0 +1,138 @@
+# 컴포넌트
+
+## 공통 UI 계약
+
+`@inkio/editor` UI 컴포넌트는 공통으로 아래 override를 지원합니다.
+
+- `locale?: unknown`
+- `messages?: InkioMessageOverrides` (또는 core 전용 partial)
+- `icons?: Partial<InkioIconRegistry>`
+
+권장 패턴은 한 번 정의한 값을 `Editor`, `CommentPanel`, `CommentComposer`, `ImageEditorModal`, `getDefaultInkioExtensions()`에 동일하게 전달하는 것입니다.
+
+```tsx
+import {
+  Editor,
+  inkioIconRegistry,
+  type InkioMessageOverrides,
+} from '@inkio/editor';
+import { getDefaultInkioExtensions } from '@inkio/extension';
+
+const locale = 'en-US,en;q=0.9';
+
+const messages: InkioMessageOverrides = {
+  core: {
+    suggestion: { empty: 'No matching items.' },
+  },
+  extensions: {
+    commentComposer: { placeholder: 'Share feedback...' },
+  },
+};
+
+const icons = {
+  comment: inkioIconRegistry.comment,
+};
+
+const extensions = getDefaultInkioExtensions({
+  blockHandle: true,
+  locale,
+  messages,
+  icons,
+});
+
+<Editor
+  extensions={extensions}
+  locale={locale}
+  messages={messages}
+  icons={icons}
+  showBubbleMenu
+  showFloatingMenu
+/>
+```
+
+## @inkio/editor
+
+### Editor
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `content` | `string \| JSONContent` | controlled 콘텐츠 |
+| `initialContent` | `string \| JSONContent` | uncontrolled 초기값 |
+| `extensions` | `Extensions` | 적용할 확장 목록 |
+| `editable` | `boolean` | 편집 가능 여부 |
+| `onUpdate` | `(content: JSONContent) => void` | 변경 콜백 |
+| `onCreate` | `(editor: Editor) => void` | 생성 콜백 |
+| `className` | `string` | 에디터 콘텐츠 클래스 |
+| `style` | `React.CSSProperties` | 컨테이너 스타일 |
+| `unstyled` | `boolean` | 기본 컨테이너 스타일(`minHeight`, `padding` 등 inline CSS) 비활성화 |
+| `showBubbleMenu` | `boolean` | 텍스트 선택 시 BubbleMenu 표시 여부 |
+| `showFloatingMenu` | `boolean` | 빈 줄에 FloatingMenu 표시 여부 |
+| `locale` | `unknown` | locale 입력 |
+| `messages` | `InkioMessageOverrides` | 메시지 override |
+| `icons` | `Partial<InkioIconRegistry>` | 아이콘 override |
+
+### 스타일링 아키텍처 (Styling Architecture)
+
+Inkio는 유연한 스타일링을 위해 CSS와 Inline Style을 구분하여 제공합니다.
+
+1. **내장 CSS (Built-in CSS):**
+   - `@inkio/editor/style.css`: 타이포그래피, 마크다운 요소(p, h1, blockquote), 기본 토큰 변수가 모두 포함된 완전한 스타일입니다.
+   - `@inkio/editor/minimal.css`: 핵심 에디터 동작과 플로팅 메뉴 등 필수 레이아웃만 포함되어 있으며 폰트 디자인은 제외됩니다.
+   - 호스트 앱은 이 CSS 파일들을 `import` 하여 문서 디자인을 손쉽게 완성할 수 있습니다.
+
+2. **unstyled Prop의 역할:**
+   - `<Editor>`와 `<Viewer>`는 기본적으로 에디터 영역 확보를 위해 인라인 스타일(`minHeight: 200px`, `cursor: text` 등)을 주입합니다.
+   - `unstyled={true}`를 전달하면 이러한 **컴포넌트 인라인 스타일이 완전히 제거**됩니다. 즉, CSS 파일 로드 여부와 상관없이 컨테이너의 크기를 `100%` 커스텀하고 싶을 때 사용합니다.
+
+3. **사용자 정의 (Host App Customization):**
+   - 폰트 종류(`font-family`), 다크 모드 토글 체계(`data-theme="dark"`), 에디터 외부 레이아웃은 전적으로 사용자가 제어해야 합니다. (디자인 토큰 오버라이드 방식 권장)
+
+### Viewer
+
+읽기 전용 컴포넌트입니다.
+
+### BubbleMenu / FloatingMenu
+
+각 UI 컴포넌트는 `locale/messages/icons` override를 직접 받을 수 있습니다.
+
+## 단일 레지스트리
+
+툴바/버블/플로팅 메뉴 액션은 하나의 스키마로 관리됩니다.
+
+```tsx
+import {
+  inkioToolbarSchema,
+  inkioIconRegistry,
+  type InkioToolbarActionId,
+  type InkioIconId,
+} from '@inkio/editor';
+```
+
+- `inkioToolbarSchema`: 액션 정의(표시 surface, 실행 command, 그룹)
+- `inkioIconRegistry`: 액션 아이콘 맵
+- `InkioToolbarActionId`, `InkioIconId`: 타입 안전한 ID
+
+## i18n 기본 메시지
+
+기본 내장 메시지는 영어만 제공합니다.
+
+```tsx
+import { enCoreMessages } from '@inkio/editor';
+import { enExtensionsMessages } from '@inkio/extension';
+```
+
+다국어는 소비자가 `messages` prop으로 주입하는 방식입니다.
+
+## @inkio/extension
+
+다음 확장을 루트 또는 서브패스로 import할 수 있습니다.
+
+- `Mention` (`@inkio/extension/mention`)
+- `HashTag` (`@inkio/extension/hashtag`)
+- `SlashCommand` (`@inkio/extension/slash-command`)
+- `WikiLink` (`@inkio/extension/wikilink`)
+- `Callout` (`@inkio/extension/callout`)
+- `CommentPanel`, `CommentComposer` (`@inkio/extension`)
+- `ImageEditorModal`, `ImageEditor` (`@inkio/extension/image`)
+
+> 레거시 `CommentSidebar`, `CommentPopover` export는 제거되었습니다.
