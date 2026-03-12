@@ -859,7 +859,7 @@
 .inkio-equation-fallback {
   color: var(--inkio-text);
   font-size: 0.95em;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--inkio-font-mono);
 }
 
 /* ============================

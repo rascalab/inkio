@@ -89,14 +89,14 @@
 
 /* Code with colors */
 .inkio .ProseMirror code {
-  font-family: 'Fira Code', 'JetBrains Mono', 'Monaco', monospace;
+  font-family: var(--inkio-font-mono);
   background-color: var(--inkio-bg-muted);
   color: var(--inkio-danger);
   font-weight: 500;
 }
 
 .inkio .ProseMirror pre {
-  font-family: 'Fira Code', 'JetBrains Mono', 'Monaco', monospace;
+  font-family: var(--inkio-font-mono);
   background-color: var(--inkio-code-bg);
   color: var(--inkio-code-text);
 }
