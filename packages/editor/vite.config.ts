@@ -39,12 +39,12 @@ export default defineConfig({
         this.emitFile({
           type: 'asset',
           fileName: 'style-minimal.css',
-          source: inlineCssImports(resolve(__dirname, 'src/styles-core-minimal.css')),
+          source: inlineCssImports(resolve(__dirname, 'src/minimal.css')),
         });
         this.emitFile({
           type: 'asset',
           fileName: 'style.css',
-          source: inlineCssImports(resolve(__dirname, 'src/styles-full.css')),
+          source: inlineCssImports(resolve(__dirname, 'src/style.css')),
         });
       },
     },
