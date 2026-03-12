@@ -38,8 +38,8 @@ try {
   run('pnpm', ['--filter', '@inkio/extension', 'pack', '--pack-destination', tarballDir], repoRoot);
 
   const tarballs = readdirSync(tarballDir);
-  const coreTarball = tarballs.find((file) => file.startsWith('inkio-core-') && file.endsWith('.tgz'));
-  const extensionsTarball = tarballs.find((file) => file.startsWith('inkio-extensions-') && file.endsWith('.tgz'));
+  const coreTarball = tarballs.find((file) => file.startsWith('inkio-editor-') && file.endsWith('.tgz'));
+  const extensionsTarball = tarballs.find((file) => file.startsWith('inkio-extension-') && file.endsWith('.tgz'));
 
   if (!coreTarball || !extensionsTarball) {
     throw new Error('Failed to create release tarballs for @inkio/editor and @inkio/extension.');
