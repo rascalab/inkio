@@ -34,18 +34,10 @@ export default defineConfig({
     {
       name: 'copy-css',
       generateBundle() {
-        const cssFiles = [
-          'src/extensions.css',
-          'src/styles-block-handle.css',
-          'src/styles-image-editor.css',
-        ];
-        const combined = cssFiles
-          .map((f) => readFileSync(resolve(__dirname, f), 'utf-8'))
-          .join('\n');
         this.emitFile({
           type: 'asset',
           fileName: 'style.css',
-          source: combined,
+          source: readFileSync(resolve(__dirname, 'src/extensions.css'), 'utf-8'),
         });
       },
     },
