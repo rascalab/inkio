@@ -3,8 +3,8 @@
    Includes all styles for ready-to-use appearance
    ============================ */
 
-/* All core styles from styles-core-minimal.css are included here */
-@import "./styles-core-minimal.css";
+/* All core styles from minimal.css are included here */
+@import "./minimal.css";
 
 /* ============================
    Visual Design Overrides for core styles
