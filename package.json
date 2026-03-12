@@ -15,9 +15,9 @@
     "docs:build": "pnpm --filter docs build",
     "docs:typecheck": "pnpm --filter docs exec tsc --noEmit",
     "release:smoke": "node ./scripts/release-smoke.mjs",
-    "publish:core": "pnpm --filter @inkio/editor publish --access public --provenance --registry https://registry.npmjs.org/",
-    "publish:extensions": "pnpm --filter @inkio/extension publish --access public --provenance --registry https://registry.npmjs.org/",
-    "publish:server": "pnpm --filter @inkio/server publish --access public --provenance --registry https://registry.npmjs.org/",
+    "publish:core": "pnpm --filter @inkio/editor publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
+    "publish:extensions": "pnpm --filter @inkio/extension publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
+    "publish:server": "pnpm --filter @inkio/server publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
     "publish:packages": "pnpm publish:core && pnpm publish:extensions",
     "publish:r1": "pnpm publish:core && pnpm publish:extensions"
   }
