@@ -259,6 +259,7 @@
 
   /* Typography */
   --inkio-font-family: inherit;
+  --inkio-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --inkio-font-size-base: 1rem;
   --inkio-font-size-sm: 0.875rem;
   --inkio-font-size-lg: 1.125rem;

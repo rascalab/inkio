@@ -124,14 +124,14 @@
 
 /* Code - Basic styles */
 .inkio .ProseMirror code {
-  font-family: monospace;
+  font-family: var(--inkio-font-mono);
   font-size: 0.875em;
   padding: 0.125rem 0.375rem;
   border-radius: var(--inkio-radius-sm);
 }
 
 .inkio .ProseMirror pre {
-  font-family: monospace;
+  font-family: var(--inkio-font-mono);
   padding: 1rem 1.25rem;
   border-radius: var(--inkio-radius-md);
   overflow-x: auto;
