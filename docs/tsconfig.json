@@ -27,7 +27,7 @@
         "../packages/editor/src/index.ts"
       ],
       "@inkio/extension": [
-        "../packages/extensions/src/index.ts"
+        "../packages/extension/src/index.ts"
       ]
     },
     "plugins": [

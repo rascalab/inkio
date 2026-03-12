@@ -15,7 +15,7 @@ importers:
         version: link:../packages/editor
       '@inkio/extension':
         specifier: workspace:*
-        version: link:../packages/extensions
+        version: link:../packages/extension
       '@stackblitz/sdk':
         specifier: ^1.11.0
         version: 1.11.0
@@ -107,7 +107,7 @@ importers:
         version: link:../../packages/editor
       '@inkio/extension':
         specifier: workspace:*
-        version: link:../../packages/extensions
+        version: link:../../packages/extension
       next:
         specifier: ^16.1.6
         version: 16.1.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -291,7 +291,7 @@ importers:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.4.0)(jsdom@28.1.0)(yaml@2.8.2)
 
-  packages/extensions:
+  packages/extension:
     dependencies:
       '@radix-ui/react-dialog':
         specifier: ^1.1.15
