@@ -35,7 +35,7 @@ export default defineConfig({
       name: 'copy-css',
       generateBundle() {
         const cssFiles = [
-          'src/styles-extensions.css',
+          'src/extensions.css',
           'src/styles-block-handle.css',
           'src/styles-image-editor.css',
         ];
