@@ -49,7 +49,8 @@
   ],
   "scripts": {
     "dev": "vite build --watch",
-    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "build": "pnpm typecheck && vite build",
     "test": "vitest run"
   },
   "peerDependencies": {

@@ -19,46 +19,37 @@ import '@inkio/extension/style.css';
 
 ```tsx
 import { useMemo, useState } from 'react';
-import {
-  Editor,
-  inkioIconRegistry,
-  type InkioMessageOverrides,
-} from '@inkio/editor';
-import { getDefaultInkioExtensions } from '@inkio/extension';
+import { Editor, getDefaultCoreExtensions } from '@inkio/editor';
+import { Callout } from '@inkio/extension/callout';
+import { HashTag } from '@inkio/extension/hashtag';
+import { SlashCommand } from '@inkio/extension/slash-command';
+import { WikiLink } from '@inkio/extension/wikilink';
 import '@inkio/editor/minimal.css';
 import '@inkio/extension/style.css';
 
-const locale = 'en-US,en;q=0.9';
-
-const messages: InkioMessageOverrides = {
-  core: {
-    suggestion: {
-      empty: 'No matching items.',
-    },
-  },
-  extensions: {
-    commentComposer: {
-      placeholder: 'Share feedback...',
-    },
-  },
-};
-
-const icons = {
-  comment: inkioIconRegistry.comment,
-};
+const tags = ['inkio', 'editor', 'react', 'nextjs'];
 
 export function MyEditorPage() {
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState({
+    type: 'doc',
+    content: [{ type: 'paragraph' }],
+  });
 
   const extensions = useMemo(
-    () =>
-      getDefaultInkioExtensions({
+    () => [
+      ...getDefaultCoreExtensions({
         placeholder: 'Start typing...',
-        blockHandle: true,
-        locale,
-        messages,
-        icons,
       }),
+      Callout,
+      HashTag.configure({
+        items: ({ query }) =>
+          tags
+            .filter((tag) => tag.includes(query.toLowerCase()))
+            .map((tag) => ({ id: tag, label: `#${tag}` })),
+      }),
+      SlashCommand,
+      WikiLink,
+    ],
     [],
   );
 
@@ -66,9 +57,6 @@ export function MyEditorPage() {
     <Editor
       content={content}
       extensions={extensions}
-      locale={locale}
-      messages={messages}
-      icons={icons}
       showBubbleMenu
       showFloatingMenu
       onUpdate={setContent}
@@ -76,6 +64,10 @@ export function MyEditorPage() {
   );
 }
 ```
+
+`getDefaultInkioExtensions()`는 편의용 full preset입니다. 빠르게 전 기능을 붙일 때는 유용하지만, 시작점으로는 `getDefaultCoreExtensions()`에 필요한 extension만 직접 조합하는 방식을 권장합니다.
+`HashTag`는 `#`와 heading markdown shortcut 충돌 때문에 opt-in입니다.
+`ImageBlock`은 core 기본 구성에 포함되며, 필요하면 `@inkio/editor`에서 직접 import해서 옵션을 덮어쓸 수 있습니다.
 
 ## i18n 전략
 
@@ -110,7 +102,7 @@ import { Editor } from '@inkio/editor';
 
 ### 확장 UI가 깨질 때
 
-`@inkio/extension/style.css`가 import되어 있는지 확인하세요.
+`@inkio/extension/style.css`가 import되어 있는지 확인하세요. `SlashCommand`, `HashTag`, `BlockHandle`, `Comment`, `ImageEditorModal`에 필요합니다.
 
 ### 이미지 편집 UI가 깨질 때
 
@@ -118,4 +110,4 @@ import { Editor } from '@inkio/editor';
 
 ### SSR 오류(`window is not defined`)
 
-에디터는 클라이언트 컴포넌트에서만 사용해야 합니다.
+에디터는 클라이언트 컴포넌트에서만 사용해야 합니다. Next.js App Router라면 파일 상단에 `'use client';`를 선언하세요.

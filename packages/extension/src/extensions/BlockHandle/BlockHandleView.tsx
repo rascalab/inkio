@@ -13,6 +13,7 @@ import {
 } from '@inkio/editor';
 import { NodeSelection } from '@tiptap/pm/state';
 import { defaultBlockMenuIcons, type BlockMenuIcons, type BlockMenuIconId } from './icons';
+import { runOptionalChainCommand, type InkioOptionalChainCommand } from '../optionalCommands';
 
 interface AnchorRect {
   top: number;
@@ -107,36 +108,24 @@ export const BlockHandleActionMenu = ({
     };
   }, [iconOverrides]);
 
-  const focusBlockForTransform = useCallback(() => {
-    const chain = editor?.chain?.().focus();
-    if (!chain) return null;
-
-    const setTextSelection = (chain as Record<string, unknown>).setTextSelection;
-    if (typeof setTextSelection === 'function') {
-      return (setTextSelection as (position: number) => any).call(chain, Math.max(1, blockPos + 1));
-    }
-
-    return chain;
-  }, [blockPos, editor]);
-
   const turnInto = useCallback(
-    (command: string, attrs?: Record<string, unknown>) => {
-      const chain = focusBlockForTransform();
-      if (!chain) return;
+    (command: InkioOptionalChainCommand, attrs?: Record<string, unknown>) => {
+      const didRun = runOptionalChainCommand(editor, command, {
+        args: attrs,
+        prepare: (chain) => {
+          const setTextSelection = (chain as Record<string, unknown>).setTextSelection;
+          if (typeof setTextSelection === 'function') {
+            return (setTextSelection as (position: number) => typeof chain).call(chain, Math.max(1, blockPos + 1));
+          }
+          return chain;
+        },
+      });
 
-      const fn = (chain as Record<string, unknown>)[command];
-      if (typeof fn !== 'function') return;
-
-      const result = attrs
-        ? (fn as (value: Record<string, unknown>) => any).call(chain, attrs)
-        : (fn as () => any).call(chain);
-
-      if (result && typeof result.run === 'function') {
-        result.run();
+      if (didRun) {
         onClose();
       }
     },
-    [focusBlockForTransform, onClose],
+    [blockPos, editor, onClose],
   );
 
   const deleteBlock = useCallback(() => {

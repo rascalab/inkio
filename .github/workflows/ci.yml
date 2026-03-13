@@ -27,8 +27,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
-        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
 
       - name: Test
         run: pnpm test
@@ -43,5 +43,15 @@ jobs:
         env:
           NEXT_TELEMETRY_DISABLED: '1'
 
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: E2E smoke
+        run: pnpm e2e
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
       - name: Release smoke
         run: pnpm release:smoke
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'

@@ -30,8 +30,36 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify release
-        run: pnpm test && pnpm build && pnpm release:smoke
+      - name: Typecheck
+        run: pnpm typecheck
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+      - name: Test
+        run: pnpm test
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+      - name: Build workspace
+        run: pnpm build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+      - name: Build examples
+        run: pnpm examples:build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: E2E smoke
+        run: pnpm e2e
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+      - name: Release smoke
+        run: pnpm release:smoke
         env:
           NEXT_TELEMETRY_DISABLED: '1'
 

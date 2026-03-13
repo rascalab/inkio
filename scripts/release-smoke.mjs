@@ -88,6 +88,57 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) {
+            return undefined;
+          }
+
+          if (
+            id.includes('/react/') ||
+            id.includes('/react-dom/') ||
+            id.includes('/scheduler/')
+          ) {
+            return 'react-vendor';
+          }
+
+          if (
+            id.includes('/@tiptap/') ||
+            id.includes('/prosemirror-') ||
+            id.includes('/orderedmap/') ||
+            id.includes('/rope-sequence/') ||
+            id.includes('/w3c-keyname/')
+          ) {
+            return 'tiptap-vendor';
+          }
+
+          if (
+            id.includes('/@radix-ui/') ||
+            id.includes('/clsx/') ||
+            id.includes('/tailwind-merge/') ||
+            id.includes('/lucide-react/')
+          ) {
+            return 'ui-vendor';
+          }
+
+          if (id.includes('/katex/')) {
+            return 'katex-vendor';
+          }
+
+          if (
+            id.includes('/konva/') ||
+            id.includes('/react-konva/')
+          ) {
+            return 'image-vendor';
+          }
+
+          return undefined;
+        },
+      },
+    },
+  },
 });
 `,
   );
@@ -114,11 +165,8 @@ export default defineConfig({
     `import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Editor, Viewer, getDefaultCoreExtensions } from '@inkio/editor';
-import {
-  getDefaultInkioExtensions,
-  type CommentMessage,
-  type CommentThreadData,
-} from '@inkio/extension';
+import { getDefaultInkioExtensions } from '@inkio/extension';
+import type { CommentMessage, CommentThreadData } from '@inkio/extension/comment';
 import '@inkio/editor/style.css';
 import '@inkio/extension/style.css';
 

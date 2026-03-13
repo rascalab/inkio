@@ -24,7 +24,8 @@ pnpm --filter example-next-app-router dev
 - 에디터는 `use client` 컴포넌트 안에서 렌더링합니다.
 - `app/layout.tsx`에서 `@inkio/editor/minimal.css`, `@inkio/extension/style.css`를 import합니다.
 - `next.config.mjs`에서 `@inkio/editor`, `@inkio/extension`를 `transpilePackages`에 넣습니다.
-- `getDefaultInkioExtensions()` 위에 필요한 callback만 덧붙이는 식으로 확장합니다.
+- `getDefaultCoreExtensions()`에 필요한 extension만 서브패스로 조합하는 방식을 기준으로 사용합니다.
+- full preset이 더 편하면 `getDefaultInkioExtensions()`도 쓸 수 있지만, bundle 크기가 중요하면 selective composition이 더 안전합니다.
 
 주요 파일:
 
