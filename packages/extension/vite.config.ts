@@ -10,9 +10,16 @@ const __dirname = dirname(__filename);
 
 const entries = {
   index: resolve(__dirname, 'src/index.ts'),
+  'block-handle': resolve(__dirname, 'src/entries/block-handle.ts'),
+  bookmark: resolve(__dirname, 'src/entries/bookmark.ts'),
+  comment: resolve(__dirname, 'src/entries/comment.ts'),
   mention: resolve(__dirname, 'src/entries/mention.ts'),
   hashtag: resolve(__dirname, 'src/entries/hashtag.ts'),
+  equation: resolve(__dirname, 'src/entries/equation.ts'),
+  'keyboard-shortcuts': resolve(__dirname, 'src/entries/keyboard-shortcuts.ts'),
   'slash-command': resolve(__dirname, 'src/entries/slash-command.ts'),
+  'simple-table': resolve(__dirname, 'src/entries/simple-table.ts'),
+  'toggle-list': resolve(__dirname, 'src/entries/toggle-list.ts'),
   wikilink: resolve(__dirname, 'src/entries/wikilink.ts'),
   callout: resolve(__dirname, 'src/entries/callout.ts'),
   image: resolve(__dirname, 'src/entries/image.ts')
@@ -22,6 +29,7 @@ export default defineConfig({
   plugins: [
     react(),
     dts({
+      entryRoot: 'src',
       include: ['src'],
       exclude: [
         'src/**/__tests__/**',

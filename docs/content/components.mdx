@@ -50,6 +50,8 @@ const extensions = getDefaultInkioExtensions({
 />
 ```
 
+이 예제는 override 전달 패턴을 보여주기 위해 full preset을 사용합니다. 시작점이나 번들 최적화가 중요하면 `getDefaultCoreExtensions()`와 필요한 extension 서브패스 import를 직접 조합하는 쪽이 더 적합합니다.
+
 ## @inkio/editor
 
 ### Editor
@@ -132,7 +134,8 @@ import { enExtensionsMessages } from '@inkio/extension';
 - `SlashCommand` (`@inkio/extension/slash-command`)
 - `WikiLink` (`@inkio/extension/wikilink`)
 - `Callout` (`@inkio/extension/callout`)
-- `CommentPanel`, `CommentComposer` (`@inkio/extension`)
+- `BlockHandle`, `BlockHandleActionMenu` (`@inkio/extension/block-handle`)
+- `Comment`, `CommentPanel`, `CommentComposer` (`@inkio/extension/comment`)
 - `ImageEditorModal`, `ImageEditor` (`@inkio/extension/image`)
 
 > 레거시 `CommentSidebar`, `CommentPopover` export는 제거되었습니다.

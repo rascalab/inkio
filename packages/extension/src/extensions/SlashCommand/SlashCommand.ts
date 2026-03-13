@@ -3,6 +3,7 @@ import Suggestion from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
 import type { ReactNode } from 'react';
 import { createSuggestionRenderer, toError, type InkioErrorHandler } from '@inkio/editor';
+import { runOptionalChainCommand, runOptionalEditorCommand } from '../optionalCommands';
 
 export interface SlashCommandItem {
   id: string;
@@ -31,7 +32,10 @@ export const defaultSlashCommands: SlashCommandItem[] = [
     label: 'Heading 1',
     description: 'Large section heading',
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).setNode('heading', { level: 1 }).run();
+      runOptionalChainCommand(editor, 'setHeading', {
+        args: { level: 1 },
+        prepare: (chain) => chain.deleteRange(range),
+      });
     },
   },
   {
@@ -39,7 +43,10 @@ export const defaultSlashCommands: SlashCommandItem[] = [
     label: 'Heading 2',
     description: 'Medium section heading',
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).setNode('heading', { level: 2 }).run();
+      runOptionalChainCommand(editor, 'setHeading', {
+        args: { level: 2 },
+        prepare: (chain) => chain.deleteRange(range),
+      });
     },
   },
   {
@@ -47,7 +54,10 @@ export const defaultSlashCommands: SlashCommandItem[] = [
     label: 'Heading 3',
     description: 'Small section heading',
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).setNode('heading', { level: 3 }).run();
+      runOptionalChainCommand(editor, 'setHeading', {
+        args: { level: 3 },
+        prepare: (chain) => chain.deleteRange(range),
+      });
     },
   },
   {
@@ -55,7 +65,9 @@ export const defaultSlashCommands: SlashCommandItem[] = [
     label: 'Bullet List',
     description: 'Create a simple list',
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).toggleBulletList().run();
+      runOptionalChainCommand(editor, 'toggleBulletList', {
+        prepare: (chain) => chain.deleteRange(range),
+      });
     },
   },
   {
@@ -63,7 +75,9 @@ export const defaultSlashCommands: SlashCommandItem[] = [
     label: 'Numbered List',
     description: 'Create a numbered list',
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).toggleOrderedList().run();
+      runOptionalChainCommand(editor, 'toggleOrderedList', {
+        prepare: (chain) => chain.deleteRange(range),
+      });
     },
   },
   {
@@ -71,7 +85,9 @@ export const defaultSlashCommands: SlashCommandItem[] = [
     label: 'Task List',
     description: 'Create a to-do list',
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).toggleTaskList().run();
+      runOptionalChainCommand(editor, 'toggleTaskList', {
+        prepare: (chain) => chain.deleteRange(range),
+      });
     },
   },
   {
@@ -79,7 +95,9 @@ export const defaultSlashCommands: SlashCommandItem[] = [
     label: 'Code Block',
     description: 'Add a code snippet',
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).toggleCodeBlock().run();
+      runOptionalChainCommand(editor, 'toggleCodeBlock', {
+        prepare: (chain) => chain.deleteRange(range),
+      });
     },
   },
   {
@@ -87,7 +105,9 @@ export const defaultSlashCommands: SlashCommandItem[] = [
     label: 'Divider',
     description: 'Add a horizontal rule',
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).setHorizontalRule().run();
+      runOptionalChainCommand(editor, 'setHorizontalRule', {
+        prepare: (chain) => chain.deleteRange(range),
+      });
     },
   },
   {
@@ -95,7 +115,9 @@ export const defaultSlashCommands: SlashCommandItem[] = [
     label: 'Callout',
     description: 'Add a callout block',
     command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).setCallout().run();
+      runOptionalChainCommand(editor, 'setCallout', {
+        prepare: (chain) => chain.deleteRange(range),
+      });
     },
   },
   {
@@ -126,15 +148,11 @@ export const defaultSlashCommands: SlashCommandItem[] = [
         const files = (e.target as HTMLInputElement).files;
         if (files && files.length > 0) {
           const fileArray = Array.from(files);
-          // Only proceed if the editor has the uploadImageBlock command
-          if ('uploadImageBlock' in editor.commands) {
-            requestAnimationFrame(() => {
-              if (!editor.isDestroyed && 'uploadImageBlock' in editor.commands) {
-                const cmds = editor.commands as Record<string, (...args: unknown[]) => boolean>;
-                cmds.uploadImageBlock(fileArray);
-              }
-            });
-          }
+          requestAnimationFrame(() => {
+            if (!editor.isDestroyed) {
+              runOptionalEditorCommand(editor, 'uploadImageBlock', fileArray);
+            }
+          });
         }
       };
       input.click();

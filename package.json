@@ -4,11 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "typecheck": "pnpm --filter @inkio/editor typecheck && pnpm --filter @inkio/extension typecheck && pnpm --filter docs typecheck && pnpm --filter example-basic-react typecheck && pnpm --filter example-next-app-router typecheck",
+    "verify": "pnpm typecheck && pnpm test && pnpm build && pnpm examples:build && pnpm e2e && pnpm release:smoke",
     "build": "pnpm build:packages && pnpm docs:build",
     "build:packages": "pnpm -r --filter './packages/*' build",
     "examples:build": "pnpm -r --filter './examples/*' build",
+    "e2e": "playwright test",
+    "e2e:install": "playwright install chromium",
     "test": "pnpm -r --filter './packages/*' test",
-    "lint": "pnpm -r --if-present --filter './packages/*' lint && pnpm docs:typecheck",
+    "lint": "pnpm typecheck",
     "dev": "pnpm --filter docs dev",
     "dev:packages": "pnpm -r --parallel --filter @inkio/editor --filter @inkio/extension dev",
     "dev:all": "pnpm -r --parallel --filter @inkio/editor --filter @inkio/extension --filter docs dev",
@@ -20,5 +24,8 @@
     "publish:server": "pnpm --filter @inkio/server publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
     "publish:packages": "pnpm publish:core && pnpm publish:extensions",
     "publish:r1": "pnpm publish:core && pnpm publish:extensions"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
   }
 }

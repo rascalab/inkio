@@ -21,7 +21,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/rascalab/inkio.git",
-    "directory": "packages/extensions"
+    "directory": "packages/extension"
   },
   "type": "module",
   "files": [
@@ -42,6 +42,21 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
+    "./block-handle": {
+      "types": "./dist/block-handle.d.ts",
+      "import": "./dist/block-handle.js",
+      "require": "./dist/block-handle.cjs"
+    },
+    "./bookmark": {
+      "types": "./dist/bookmark.d.ts",
+      "import": "./dist/bookmark.js",
+      "require": "./dist/bookmark.cjs"
+    },
+    "./comment": {
+      "types": "./dist/comment.d.ts",
+      "import": "./dist/comment.js",
+      "require": "./dist/comment.cjs"
+    },
     "./mention": {
       "types": "./dist/mention.d.ts",
       "import": "./dist/mention.js",
@@ -52,10 +67,30 @@
       "import": "./dist/hashtag.js",
       "require": "./dist/hashtag.cjs"
     },
+    "./equation": {
+      "types": "./dist/equation.d.ts",
+      "import": "./dist/equation.js",
+      "require": "./dist/equation.cjs"
+    },
+    "./keyboard-shortcuts": {
+      "types": "./dist/keyboard-shortcuts.d.ts",
+      "import": "./dist/keyboard-shortcuts.js",
+      "require": "./dist/keyboard-shortcuts.cjs"
+    },
     "./slash-command": {
       "types": "./dist/slash-command.d.ts",
       "import": "./dist/slash-command.js",
       "require": "./dist/slash-command.cjs"
+    },
+    "./simple-table": {
+      "types": "./dist/simple-table.d.ts",
+      "import": "./dist/simple-table.js",
+      "require": "./dist/simple-table.cjs"
+    },
+    "./toggle-list": {
+      "types": "./dist/toggle-list.d.ts",
+      "import": "./dist/toggle-list.js",
+      "require": "./dist/toggle-list.cjs"
     },
     "./wikilink": {
       "types": "./dist/wikilink.d.ts",
@@ -79,11 +114,12 @@
   ],
   "scripts": {
     "dev": "vite build --watch",
-    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "build": "pnpm typecheck && vite build",
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@inkio/editor": "^0.0.1",
+    "@inkio/editor": "^0.0.3",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0"
   },
@@ -107,6 +143,8 @@
   },
   "devDependencies": {
     "@inkio/editor": "workspace:^",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@tiptap/extension-document": "^3.20.1",
     "@tiptap/extension-paragraph": "^3.20.1",
