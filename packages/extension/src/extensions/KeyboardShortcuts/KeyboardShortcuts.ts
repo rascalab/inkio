@@ -1,6 +1,7 @@
-import { Extension, type Editor, type ChainedCommands } from '@tiptap/core';
+import { Extension, type Editor } from '@tiptap/core';
 import { Fragment, type Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { TextSelection, type EditorState } from '@tiptap/pm/state';
+import { runOptionalChainCommand } from '../optionalCommands';
 
 interface BlockContext {
   blockIndex: number;
@@ -110,29 +111,24 @@ const moveCurrentBlock = (editor: Editor, direction: -1 | 1): boolean => {
   return true;
 };
 
-const runChain = (editor: Editor, action: (chain: ChainedCommands) => ChainedCommands): boolean => {
-  const chain = editor.chain().focus();
-  return Boolean(action(chain).run());
-};
-
 export const KeyboardShortcuts = Extension.create({
   name: 'keyboardShortcuts',
 
   addKeyboardShortcuts() {
     return {
-      'Mod-Shift-s': ({ editor }) => runChain(editor, (chain) => chain.toggleStrike()),
-      'Mod-e': ({ editor }) => runChain(editor, (chain) => chain.toggleCode()),
-      'Mod-Shift-h': ({ editor }) => runChain(editor, (chain) => chain.toggleHighlight()),
+      'Mod-Shift-s': ({ editor }) => runOptionalChainCommand(editor, 'toggleStrike'),
+      'Mod-e': ({ editor }) => runOptionalChainCommand(editor, 'toggleCode'),
+      'Mod-Shift-h': ({ editor }) => runOptionalChainCommand(editor, 'toggleHighlight'),
       'Mod-d': ({ editor }) => duplicateCurrentBlock(editor),
       'Mod-Shift-ArrowUp': ({ editor }) => moveCurrentBlock(editor, -1),
       'Mod-Shift-ArrowDown': ({ editor }) => moveCurrentBlock(editor, 1),
-      'Mod-Alt-1': ({ editor }) => runChain(editor, (chain) => chain.setHeading({ level: 1 })),
-      'Mod-Alt-2': ({ editor }) => runChain(editor, (chain) => chain.setHeading({ level: 2 })),
-      'Mod-Alt-3': ({ editor }) => runChain(editor, (chain) => chain.setHeading({ level: 3 })),
-      'Mod-Alt-4': ({ editor }) => runChain(editor, (chain) => chain.setHeading({ level: 4 })),
-      'Mod-Alt-5': ({ editor }) => runChain(editor, (chain) => chain.setHeading({ level: 5 })),
-      'Mod-Alt-6': ({ editor }) => runChain(editor, (chain) => chain.setHeading({ level: 6 })),
-      'Mod-Alt-0': ({ editor }) => runChain(editor, (chain) => chain.setParagraph()),
+      'Mod-Alt-1': ({ editor }) => runOptionalChainCommand(editor, 'setHeading', { args: { level: 1 } }),
+      'Mod-Alt-2': ({ editor }) => runOptionalChainCommand(editor, 'setHeading', { args: { level: 2 } }),
+      'Mod-Alt-3': ({ editor }) => runOptionalChainCommand(editor, 'setHeading', { args: { level: 3 } }),
+      'Mod-Alt-4': ({ editor }) => runOptionalChainCommand(editor, 'setHeading', { args: { level: 4 } }),
+      'Mod-Alt-5': ({ editor }) => runOptionalChainCommand(editor, 'setHeading', { args: { level: 5 } }),
+      'Mod-Alt-6': ({ editor }) => runOptionalChainCommand(editor, 'setHeading', { args: { level: 6 } }),
+      'Mod-Alt-0': ({ editor }) => runOptionalChainCommand(editor, 'setParagraph'),
     };
   },
 });

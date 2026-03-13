@@ -17,6 +17,8 @@ dist/
 coverage/
 .vitest/
 .vite/
+playwright-report/
+test-results/
 
 # Logs
 npm-debug.log*

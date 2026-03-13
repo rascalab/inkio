@@ -19,8 +19,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@inkio/editor": ["../core/src/index.ts"],
-      "@inkio/editor/*": ["../core/src/*"]
+      "@inkio/editor": ["../editor/src/index.ts"],
+      "@inkio/editor/*": ["../editor/src/*"]
     }
   },
   "include": ["src"],

@@ -120,6 +120,7 @@ const extensions = [
 
 확장 익스텐션은 [`@inkio/extension`](https://www.npmjs.com/package/@inkio/extension) 패키지를 참고하세요.
 멘션/해시태그 추출 유틸(`extractMentions`, `extractHashtags`)도 `@inkio/extension`에서 제공합니다.
+`ImageBlock`은 `@inkio/editor`에서 직접 export되며, `@inkio/extension`에서는 하위 호환용으로 re-export됩니다.
 
 ## CSS
 

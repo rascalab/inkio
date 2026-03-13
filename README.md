@@ -3,7 +3,7 @@
 Inkio is a Tiptap-based rich text editor toolkit split into packages:
 
 - `@inkio/editor`: editor/viewer UI, default core extensions, hooks
-- `@inkio/extension`: feature extensions (mention, hashtag, slash, callout, wiki link, image block)
+- `@inkio/extension`: feature extensions and UI (hashtag, slash, callout, wiki link, comment, block handle, image editor)
 - `@inkio/server`: server-side conversion adapter surface (phase 2)
 
 Docs: https://rascalab.github.io/inkio/
@@ -37,17 +37,30 @@ pnpm --filter example-next-app-router dev
 
 ```tsx
 import { Editor, getDefaultCoreExtensions } from '@inkio/editor';
-import { ImageBlock, Mention, HashTag, SlashCommand, Callout, WikiLink } from '@inkio/extension';
+import { Callout } from '@inkio/extension/callout';
+import { HashTag } from '@inkio/extension/hashtag';
+import { SlashCommand } from '@inkio/extension/slash-command';
+import { WikiLink } from '@inkio/extension/wikilink';
 import '@inkio/editor/minimal.css';
 import '@inkio/extension/style.css';
 
+const tags = ['inkio', 'editor', 'react', 'nextjs'];
+
 const extensions = [
-  ...getDefaultCoreExtensions({ placeholder: 'Write something...' }),
-  ImageBlock,
-  Mention,
-  HashTag,
-  SlashCommand,
+  ...getDefaultCoreExtensions({
+    placeholder: 'Write something...',
+    imageBlock: {
+      onUpload: async (file) => URL.createObjectURL(file),
+    },
+  }),
   Callout,
+  HashTag.configure({
+    items: ({ query }) =>
+      tags
+        .filter((tag) => tag.includes(query.toLowerCase()))
+        .map((tag) => ({ id: tag, label: `#${tag}` })),
+  }),
+  SlashCommand,
   WikiLink,
 ];
 
@@ -55,6 +68,11 @@ export function MyEditor() {
   return <Editor extensions={extensions} />;
 }
 ```
+
+권장 시작점은 위처럼 `getDefaultCoreExtensions()`에 필요한 확장만 직접 조합하는 방식입니다.
+`getDefaultInkioExtensions()`는 빠른 프로토타이핑용 full preset이며, 번들 크기가 중요하면 selective composition을 권장합니다.
+`HashTag`는 `#`와 heading markdown shortcut 충돌 때문에 기본 preset에 자동 포함되지 않습니다.
+`ImageBlock`은 `@inkio/editor`에 포함되어 있으며, `@inkio/extension`에서는 하위 호환용으로 re-export됩니다.
 
 ## Using With AI
 
@@ -77,10 +95,12 @@ AI에게 같이 주면 좋은 파일:
 
 AI가 자주 놓치는 규칙:
 
-- `@inkio/extension`를 쓸 때는 `@inkio/extension/style.css`를 같이 import해야 합니다.
+- extension UI, block handle, comment, image editor를 쓸 때는 `@inkio/extension/style.css`를 같이 import해야 합니다.
 - `@inkio/extension`는 `katex`, `konva`, `react-konva`를 내부 의존성으로 포함하므로 별도 설치가 필요 없습니다.
 - Next.js App Router에서는 에디터를 반드시 `use client` 컴포넌트 안에서 렌더링해야 합니다.
 - `content`와 `initialContent`는 동시에 쓰지 않습니다.
+- `HashTag`는 필요할 때만 명시적으로 추가합니다.
+- `ImageBlock`은 `@inkio/editor`에서 직접 import할 수 있습니다.
 
 ## Controlled / Uncontrolled
 
@@ -102,7 +122,11 @@ import { Editor } from '@inkio/editor';
 import { Mention } from '@inkio/extension';
 // or
 import { Mention } from '@inkio/extension/mention';
+import { BlockHandle } from '@inkio/extension/block-handle';
+import { CommentPanel } from '@inkio/extension/comment';
 ```
+
+서브패스 import를 기본값으로 잡으면 필요한 확장만 앱 번들에 포함시키기 쉽습니다.
 
 ## Examples
 
@@ -115,7 +139,7 @@ import { Mention } from '@inkio/extension/mention';
 | Package | Description |
 |---|---|
 | [`@inkio/editor`](https://www.npmjs.com/package/@inkio/editor) | 에디터/뷰어 코어 |
-| [`@inkio/extension`](https://www.npmjs.com/package/@inkio/extension) | Mention, HashTag, SlashCommand, Callout, WikiLink, ImageBlock |
+| [`@inkio/extension`](https://www.npmjs.com/package/@inkio/extension) | HashTag, SlashCommand, Callout, WikiLink, Comment, BlockHandle, ImageEditorModal |
 | [`@inkio/server`](https://www.npmjs.com/package/@inkio/server) | 서버사이드 유틸리티 |
 
 ## License

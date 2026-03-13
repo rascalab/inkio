@@ -8,28 +8,45 @@
 ## 빠른 구성
 
 ```tsx
-import { Editor } from '@inkio/editor';
-import { getDefaultInkioExtensions } from '@inkio/extension';
+import { Editor, getDefaultCoreExtensions } from '@inkio/editor';
+import { BlockHandle } from '@inkio/extension/block-handle';
+import { Callout } from '@inkio/extension/callout';
+import { HashTag } from '@inkio/extension/hashtag';
+import { SlashCommand } from '@inkio/extension/slash-command';
+import { WikiLink } from '@inkio/extension/wikilink';
 import '@inkio/editor/minimal.css';
 import '@inkio/extension/style.css';
 
-const extensions = getDefaultInkioExtensions({
-  placeholder: 'Start typing...',
-  blockHandle: true,
-  locale: 'en-US,en;q=0.9',
-  messages: {
-    extensions: {
-      blockHandle: {
-        transformSection: 'Convert to',
-      },
-    },
-  },
-});
+const tags = ['inkio', 'editor', 'react'];
+
+const extensions = [
+  ...getDefaultCoreExtensions({
+    placeholder: 'Start typing...',
+  }),
+  Callout,
+  HashTag.configure({
+    items: ({ query }) =>
+      tags
+        .filter((tag) => tag.includes(query.toLowerCase()))
+        .map((tag) => ({ id: tag, label: `#${tag}` })),
+  }),
+  SlashCommand,
+  WikiLink,
+  BlockHandle,
+];
 
 export function Page() {
   return <Editor initialContent="" extensions={extensions} />;
 }
 ```
+
+선택 기준:
+
+- 빠른 프로토타이핑: `getDefaultInkioExtensions()`
+- 번들 크기와 명시적 제어: `getDefaultCoreExtensions()` + 필요한 서브패스 import
+
+`HashTag`는 `#`와 heading markdown shortcut 충돌 때문에 기본 preset에서 opt-in입니다.
+`ImageBlock`은 `@inkio/editor`에 구현되어 있고 `@inkio/extension`에서는 하위 호환용으로 re-export됩니다.
 
 ## 제공 확장
 
@@ -69,7 +86,7 @@ export function Page() {
 ### BlockHandle 커스터마이징
 
 ```tsx
-import { BlockHandle } from '@inkio/editor';
+import { BlockHandle } from '@inkio/extension/block-handle';
 
 const customBlockHandle = BlockHandle.configure({
   locale: 'en-US',

@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Root } from 'react-dom/client';
+import { createRoot, type Root } from 'react-dom/client';
 import { SuggestionProps, SuggestionKeyDownProps, type SuggestionOptions } from '@tiptap/suggestion';
 import { SuggestionList, SuggestionItem, SuggestionListRef } from './SuggestionList';
 import {
@@ -14,18 +14,6 @@ import {
   computeOverlayPosition,
   toRectLike,
 } from '../../overlay/positioning';
-
-type CreateRootFn = (container: Element) => Root;
-let _createRoot: CreateRootFn | null = null;
-
-function getCreateRoot(): Promise<CreateRootFn> {
-  if (_createRoot) return Promise.resolve(_createRoot);
-
-  return import('react-dom/client').then((mod) => {
-    _createRoot = mod.createRoot;
-    return _createRoot;
-  });
-}
 
 export interface CreateSuggestionRendererOptions {
   /** Custom header text */
@@ -56,7 +44,6 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
     let popup: HTMLDivElement | null = null;
     let root: Root | null = null;
     let component: SuggestionListRef | null = null;
-    let readyPromise: Promise<void> | null = null;
     let cleanupAutoUpdate: (() => void) | null = null;
     let latestProps: SuggestionProps<any, I> | null = null;
 
@@ -135,14 +122,8 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
           elements: [props.editor.view.dom, popup],
         });
 
-        readyPromise = getCreateRoot().then((createRootFn) => {
-          if (!popup) {
-            return;
-          }
-
-          root = createRootFn(popup);
-          renderList(props);
-        });
+        root = createRoot(popup);
+        renderList(props);
       },
 
       onUpdate: (props: SuggestionProps<any, I>) => {
@@ -153,9 +134,6 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
           return;
         }
 
-        if (readyPromise) {
-          readyPromise.then(() => renderList(props));
-        }
       },
 
       onKeyDown: (props: SuggestionKeyDownProps): boolean => {
@@ -176,7 +154,6 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
         popup = null;
         root = null;
         component = null;
-        readyPromise = null;
         latestProps = null;
 
         queueMicrotask(() => {
