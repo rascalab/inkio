@@ -6,6 +6,7 @@ import {
   TEXT_FONT_FAMILY,
   TEXT_LINE_HEIGHT,
   TEXT_PADDING,
+  getPreferredTextAnnotationWidth,
   getScaledTextWidth,
   getTextAnnotationMinHeight,
   getTextFontStyle,
@@ -58,7 +59,14 @@ export function TextEditOverlay({ annotationScale }: TextEditOverlayProps) {
     if (!newText) {
       dispatch({ type: 'DELETE_ANNOTATION', id: annotation.id });
     } else if (newText !== annotation.text) {
-      dispatch({ type: 'UPDATE_ANNOTATION_COMMIT', id: annotation.id, updates: { text: newText } });
+      dispatch({
+        type: 'UPDATE_ANNOTATION_COMMIT',
+        id: annotation.id,
+        updates: {
+          text: newText,
+          width: getPreferredTextAnnotationWidth({ ...annotation, text: newText }),
+        },
+      });
     }
     dispatch({ type: 'SET_EDITING_TEXT', id: null });
   }, [annotation, dispatch]);
