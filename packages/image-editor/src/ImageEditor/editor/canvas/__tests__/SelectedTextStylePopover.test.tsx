@@ -8,6 +8,7 @@ import { ImageEditorContext } from '../../ImageEditorContext';
 import { DEFAULT_LOCALE } from '../../constants';
 import { SelectedTextStylePopover } from '../SelectedTextStylePopover';
 import type { ImageEditorContextValue } from '../../ImageEditorContext';
+import { getPreferredTextAnnotationWidth } from '../../utils/textMetrics';
 
 afterEach(() => {
   cleanup();
@@ -77,7 +78,15 @@ describe('SelectedTextStylePopover', () => {
     expect(dispatch).toHaveBeenCalledWith({
       type: 'UPDATE_ANNOTATION_COMMIT',
       id: 'text-1',
-      updates: { fontStyle: 'bold' },
+      updates: {
+        fontStyle: 'bold',
+        width: getPreferredTextAnnotationWidth({
+          text: 'Hello',
+          fontSize: 24,
+          fontStyle: 'bold',
+          width: 160,
+        }),
+      },
     });
   });
 
