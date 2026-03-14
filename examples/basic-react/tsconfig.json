@@ -10,7 +10,19 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "strict": true
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@inkio/simple": [
+        "../../packages/simple/src/index.ts"
+      ],
+      "@inkio/core": [
+        "../../packages/core/src/index.ts"
+      ],
+      "@inkio/core/*": [
+        "../../packages/core/src/*"
+      ]
+    }
   },
   "include": ["src"]
 }

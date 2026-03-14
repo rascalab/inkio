@@ -1,33 +1,23 @@
 # i18n & Locale
 
-Inkio의 locale 입력은 `locale?: unknown` 단일 prop으로 통일되어 있습니다.
+Inkio는 `locale`과 `messages` prop으로 UI 문구를 제어합니다.
 
-## 해석 가능한 입력 형식
+## locale 입력
 
-- 문자열: `en`, `ko-KR`, `en_US`
-- Accept-Language 스타일 문자열: `ko-KR,ko;q=0.9,en;q=0.8`
-- 배열: `['ko-KR', 'en']`
+- 문자열: `en`, `ko-KR`
+- Accept-Language 문자열
+- 배열
 - `Intl.Locale`
-- locale-like 객체 (`locale`, `locales`, `language`, `lang`, `toString()`)
+- locale-like object
 
-## 메시지 선택 규칙
-
-1. `resolveLocaleInput(input)`으로 locale 후보 리스트를 생성합니다.
-2. `pickMessageLocale(input, available)`가 후보와 메시지셋 키를 매칭합니다.
-3. exact 매칭 실패 시 language-level 매칭(`en-US` -> `en`)을 시도합니다.
-4. 모두 실패하면 `en`을 우선 사용하고, 없으면 첫 메시지셋을 사용합니다.
-
-## 메시지 공급 전략
-
-- 내장 기본 메시지셋: 영어(`en`)만 제공
-- 다국어: 소비자가 `messages` prop으로 주입
+## 메시지 override
 
 ```tsx
 import type { InkioMessageOverrides } from '@inkio/editor';
 
 const messages: InkioMessageOverrides = {
   core: {
-    toolbar: {
+    actions: {
       comment: 'Discuss',
     },
   },
@@ -35,17 +25,17 @@ const messages: InkioMessageOverrides = {
     commentComposer: {
       placeholder: 'Leave a note...',
     },
+    imageEditor: {
+      save: 'Apply',
+    },
   },
 };
 ```
 
-## Export
+## 기본 메시지셋
 
 ```tsx
-import {
-  resolveLocaleInput,
-  pickMessageLocale,
-  enCoreMessages,
-} from '@inkio/editor';
-import { enExtensionsMessages } from '@inkio/extension';
+import { enCoreMessages } from '@inkio/editor';
+import { enCommentMessages } from '@inkio/advanced';
+import { enImageEditorMessages } from '@inkio/image-editor';
 ```

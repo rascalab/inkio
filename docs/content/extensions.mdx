@@ -1,153 +1,69 @@
 # 확장
 
-`@inkio/extension`는 선택형 확장 모음입니다.
+Inkio 확장은 두 층으로 나뉩니다.
 
-- 루트 import: `@inkio/extension`
-- 서브패스 import: `@inkio/extension/mention` 등
+- `@inkio/essential`
+  - callout
+  - details/toggle
+  - table
+  - keyboard shortcuts
+- `@inkio/advanced`
+  - essential 전부 포함
+  - slash command
+  - block handle
+  - mention
+  - hashtag
+  - wiki link
+  - bookmark
+  - comment
 
-## 빠른 구성
+## 권장 시작점
+
+- classic editor가 필요하면 `@inkio/simple`
+- notion-like editor가 필요하면 `@inkio/editor`
+- low-level 조합이 필요하면 `@inkio/core` + `@inkio/essential` 또는 `@inkio/advanced`
+
+## 조합 예시
 
 ```tsx
-import { Editor, getDefaultCoreExtensions } from '@inkio/editor';
-import { BlockHandle } from '@inkio/extension/block-handle';
-import { Callout } from '@inkio/extension/callout';
-import { HashTag } from '@inkio/extension/hashtag';
-import { SlashCommand } from '@inkio/extension/slash-command';
-import { WikiLink } from '@inkio/extension/wikilink';
-import '@inkio/editor/minimal.css';
-import '@inkio/extension/style.css';
+import { Editor } from '@inkio/core';
+import { getDefaultExtensions } from '@inkio/advanced';
+import '@inkio/core/minimal.css';
+import '@inkio/advanced/style.css';
 
-const tags = ['inkio', 'editor', 'react'];
-
-const extensions = [
-  ...getDefaultCoreExtensions({
-    placeholder: 'Start typing...',
-  }),
-  Callout,
-  HashTag.configure({
-    items: ({ query }) =>
-      tags
-        .filter((tag) => tag.includes(query.toLowerCase()))
-        .map((tag) => ({ id: tag, label: `#${tag}` })),
-  }),
-  SlashCommand,
-  WikiLink,
-  BlockHandle,
-];
+const extensions = getDefaultExtensions({
+  hashtagItems: ({ query }) => [{ id: query || 'inkio', label: `#${query || 'inkio'}` }],
+});
 
 export function Page() {
-  return <Editor initialContent="" extensions={extensions} />;
+  return <Editor extensions={extensions} initialContent="<p>Hello Inkio</p>" />;
 }
 ```
 
-선택 기준:
-
-- 빠른 프로토타이핑: `getDefaultInkioExtensions()`
-- 번들 크기와 명시적 제어: `getDefaultCoreExtensions()` + 필요한 서브패스 import
-
-`HashTag`는 `#`와 heading markdown shortcut 충돌 때문에 기본 preset에서 opt-in입니다.
-`ImageBlock`은 `@inkio/editor`에 구현되어 있고 `@inkio/extension`에서는 하위 호환용으로 re-export됩니다.
-
-## 제공 확장
-
-- `Mention`
-- `HashTag`
-- `SlashCommand`
-- `Callout`
-- `WikiLink`
-- `ImageBlock`
-- `KeyboardShortcuts`
-- `ToggleList`
-- `SimpleTable`
-- `Bookmark`
-- `EquationBlock`
-- `EquationInline`
-- `Comment`
-- `BlockHandle`
-
-## BlockHandle 기본 메뉴
-
-`blockHandle: true`를 켜면 드래그 핸들과 기본 액션 메뉴가 함께 활성화됩니다.
-
-기본 메뉴는 다음을 포함합니다.
-
-- 삭제 / 복제
-- Paragraph / Heading 변환
-- Bullet / Ordered list 변환
-- Quote / Callout / Code block 변환
-
-동작 특성:
-
-- 뷰포트 경계 충돌 시 flip/shift 클램프 적용
-- 스크롤/리사이즈 중 위치 자동 업데이트
-- `Escape`, `ArrowUp/Down`, `Enter`, `Space` 키보드 탐색 지원
-- 기존 커스텀 이벤트(`inkio:block-menu`)도 계속 발행
-
-### BlockHandle 커스터마이징
+## Image editor
 
 ```tsx
-import { BlockHandle } from '@inkio/extension/block-handle';
+import { Editor } from '@inkio/editor';
+import { ImageEditorModal } from '@inkio/image-editor';
+import '@inkio/image-editor/style.css';
 
-const customBlockHandle = BlockHandle.configure({
-  locale: 'en-US',
-  messages: {
-    extensions: {
-      blockHandle: {
-        duplicate: 'Clone',
-      },
-    },
-  },
-  icons: {
-    duplicate: <span>+</span>,
-  },
-});
+export function Page() {
+  return (
+    <Editor
+      defaultExtensionsOptions={{
+        imageBlock: {
+          onUpload: async (file) => URL.createObjectURL(file),
+          imageEditor: ImageEditorModal,
+        },
+      }}
+    />
+  );
+}
 ```
 
-> `icons`는 `BlockMenuIcons` 형태입니다.
+## CSS
 
-## Comment UI
-
-`CommentPanel`, `CommentComposer`는 `locale/messages/icons`를 직접 받습니다.
-
-```tsx
-<CommentPanel
-  editor={editor}
-  threads={threads}
-  locale="en-US"
-  messages={{
-    extensions: {
-      commentPanel: {
-        resolve: 'Done',
-      },
-    },
-  }}
-  onReply={onReply}
-  onResolve={onResolve}
-  onDelete={onDelete}
-/>
-```
-
-## ImageEditor
-
-`ImageEditorModal`은 `locale/messages/icons`를 지원합니다.
-
-```tsx
-<ImageEditorModal
-  isOpen={open}
-  imageSrc={src}
-  locale="en-US,en;q=0.8"
-  messages={{
-    extensions: {
-      imageEditor: {
-        save: 'Apply',
-      },
-    },
-  }}
-  onSave={handleSave}
-  onClose={handleClose}
-/>
-```
-
-## 레거시 Comment export 변경
-
-`CommentSidebar`, `CommentPopover` export는 제거되었습니다.
+- `@inkio/simple/minimal.css`
+- `@inkio/editor/minimal.css`
+- `@inkio/advanced/style.css` for direct `@inkio/core` + `@inkio/advanced` composition
+- `@inkio/image-editor/style.css`

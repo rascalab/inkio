@@ -1,212 +1,189 @@
 'use client';
 
-import { useState, useCallback, useRef, useMemo, Suspense } from 'react';
+import { Suspense, useCallback, useMemo, useRef, useState } from 'react';
 import {
-  Editor,
-  Viewer,
-  getDefaultCoreExtensions,
-  inkioIconRegistry,
-  type InkioIconRegistry,
+  Editor as InkioEditor,
+  Viewer as InkioViewer,
+  type DefaultExtensionsOptions as EditorDefaultExtensionsOptions,
   type InkioMessageOverrides,
+  type TiptapEditor,
 } from '@inkio/editor';
+import { inkioIconRegistry, type InkioIconRegistry } from '@inkio/editor/icons';
+import {
+  Editor as SimpleEditor,
+  Viewer as SimpleViewer,
+  type DefaultExtensionsOptions as SimpleDefaultExtensionsOptions,
+} from '@inkio/simple';
 import {
   CommentPanel,
-  getDefaultInkioExtensions,
   type CommentMessage,
   type CommentThreadData,
-} from '@inkio/extension';
-import type { Editor as TiptapEditor } from '@tiptap/react';
+} from '@inkio/advanced';
+import { ImageEditorModal } from '@inkio/image-editor';
 import '@inkio/editor/style.css';
-import '@inkio/extension/style.css';
+import '@inkio/simple/minimal.css';
+import '@inkio/image-editor/style.css';
 import './Playground.css';
 
-type PlaygroundMode = 'full' | 'core';
+type PlaygroundMode = 'editor' | 'simple';
 
-const CORE_CONTENT = `<h2>Inkio Core Playground</h2>
-<p>기본 에디터를 체험해보세요. <code>@inkio/editor</code> 패키지만 사용합니다.</p>
+const SIMPLE_CONTENT = `<h2>Inkio Simple Playground</h2>
+<p>Classic WYSIWYG preset for regular document editing.</p>
 <ul>
-  <li><strong>Bold</strong>, <em>Italic</em>, <u>Underline</u>, <s>Strikethrough</s></li>
-  <li><code>Inline code</code> and <mark>Highlight</mark></li>
-  <li>Task list, ordered/unordered lists</li>
-</ul>
-<blockquote><p>Tip: 확장 기능(슬래시 커맨드, 멘션, 해시태그 등)은 "Full" 모드에서 사용할 수 있습니다.</p></blockquote>`;
+  <li>Toolbar-first editing</li>
+  <li>Headings, lists, tasks, links, code blocks</li>
+  <li>Image uploads with optional image-editor integration</li>
+</ul>`;
 
-const FULL_CONTENT = `<h2>Inkio Playground</h2>
-<p>리치 텍스트 에디터를 직접 체험해보세요.</p>
-<ul>
-  <li><strong>Bold</strong>, <em>Italic</em>, <u>Underline</u>, <s>Strikethrough</s></li>
-  <li><code>Inline code</code> and <mark>Highlight</mark></li>
-  <li>Task list, ordered/unordered lists</li>
-</ul>
-<p>Try these features:</p>
+const EDITOR_CONTENT = `<h2>Inkio Editor Playground</h2>
+<p>Opinionated notion-like preset for production content workflows.</p>
 <ul>
   <li><code>/</code> for slash commands</li>
-  <li><code>@</code> for mentions</li>
-  <li><code>#</code> for hashtags</li>
-  <li><code>::info </code> for callout blocks</li>
+  <li><code>#</code> for hashtag suggestions</li>
   <li><code>[[page]]</code> for wiki links</li>
-  <li>Select text and press <code>Ctrl+Cmd+M</code> to add a comment</li>
-  <li>Drag &amp; drop an image to test the image editor</li>
-</ul>
-<blockquote><p>Tip: Use the theme toggle in the navbar to switch between light and dark mode.</p></blockquote>`;
+  <li>Select text and press <code>Mod+Shift+M</code> for comments</li>
+  <li>Drag &amp; drop images to test the image editor</li>
+</ul>`;
 
 function createId(): string {
   if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
   }
+
   return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export default function Playground({ initialContent: initialContentProp }: { initialContent?: string } = {}) {
-  const [mode, setMode] = useState<PlaygroundMode>('full');
+  const [mode, setMode] = useState<PlaygroundMode>('editor');
   const [content, setContent] = useState<any>(null);
   const [showViewer, setShowViewer] = useState(false);
   const [showJSON, setShowJSON] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const [editorKey, setEditorKey] = useState(0);
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
   const [commentThreads, setCommentThreads] = useState<CommentThreadData[]>([]);
   const commentThreadsRef = useRef<CommentThreadData[]>([]);
   commentThreadsRef.current = commentThreads;
-  const localeInput = 'en-US,en;q=0.9';
-  const [editorKey, setEditorKey] = useState(0);
-  const [tabBehavior, setTabBehavior] = useState<'indent' | 'default'>('indent');
 
+  const locale = 'en-US,en;q=0.9';
   const iconOverrides = useMemo<Partial<InkioIconRegistry>>(
     () => ({ comment: inkioIconRegistry.comment }),
     [],
   );
-
-  const messageOverrides = useMemo<InkioMessageOverrides>(
+  const messages = useMemo<InkioMessageOverrides>(
     () => ({
       core: {
-        suggestion: {
-          empty: 'No matching items.',
-        },
+        suggestion: { empty: 'No matching items.' },
       },
       extensions: {
-        commentComposer: {
-          placeholder: 'Share feedback...',
-        },
+        commentComposer: { placeholder: 'Share feedback...' },
       },
     }),
     [],
   );
 
-  const handleReply = useCallback((commentId: string, text: string) => {
+  const handleReply = useCallback((threadId: string, text: string) => {
     const message: CommentMessage = { id: createId(), author: 'You', text, createdAt: new Date() };
-    setCommentThreads((prev) => prev.map((thread) => {
-      if (thread.id !== commentId) return thread;
-      return { ...thread, messages: [...thread.messages, message] };
-    }));
+    setCommentThreads((prev) =>
+      prev.map((thread) =>
+        thread.id === threadId ? { ...thread, messages: [...thread.messages, message] } : thread,
+      ),
+    );
   }, []);
 
-  const handleResolve = useCallback((commentId: string) => {
-    setCommentThreads((prev) => prev.map((thread) => {
-      if (thread.id !== commentId) return thread;
-      return { ...thread, resolved: true };
-    }));
+  const handleResolve = useCallback((threadId: string) => {
+    setCommentThreads((prev) =>
+      prev.map((thread) => (thread.id === threadId ? { ...thread, resolved: true } : thread)),
+    );
   }, []);
 
-  const handleDelete = useCallback((commentId: string) => {
-    setCommentThreads((prev) => prev.filter((thread) => thread.id !== commentId));
+  const handleDelete = useCallback((threadId: string) => {
+    setCommentThreads((prev) => prev.filter((thread) => thread.id !== threadId));
   }, []);
 
-  const coreExtensions = useMemo(
-    () => getDefaultCoreExtensions({ placeholder: 'Start typing...', tabBehavior }),
-    [tabBehavior],
+  const simpleDefaultExtensionsOptions = useMemo<SimpleDefaultExtensionsOptions>(
+    () => ({
+      placeholder: 'Write a document...',
+      imageBlock: {
+        onUpload: async (file: File) => URL.createObjectURL(file),
+        imageEditor: ImageEditorModal,
+      },
+    }),
+    [],
   );
 
-  const fullExtensions = useMemo(
-    () =>
-      getDefaultInkioExtensions({
-        placeholder: 'Start typing... try /, @, # and image upload',
-        blockHandle: true,
-        tabBehavior,
-        locale: localeInput,
-        messages: messageOverrides,
+  const editorDefaultExtensionsOptions = useMemo<EditorDefaultExtensionsOptions>(
+    () => ({
+      placeholder: 'Try /, #, [[page]], comments, and image editing...',
+      locale,
+      messages,
+      icons: iconOverrides,
+      hashtagItems: ({ query }: { query: string }) => {
+        const tags = ['inkio', 'tiptap', 'editor', 'react', 'markdown', 'playground'];
+        return tags
+          .filter((tag) => tag.toLowerCase().includes(query.toLowerCase()))
+          .map((tag) => ({ id: tag, label: `#${tag}` }));
+      },
+      imageBlock: {
+        onUpload: async (file: File) => URL.createObjectURL(file),
+        imageEditor: ImageEditorModal,
+      },
+      comment: {
         icons: iconOverrides,
-        hashtagItems: ({ query }: { query: string }) => {
-          const tags = ['inkio', 'tiptap', 'editor', 'react', 'prosemirror', 'markdown', 'playground'];
-          return tags
-            .filter((tag) => tag.toLowerCase().includes(query.toLowerCase()))
-            .map((tag) => ({ id: tag, label: `#${tag}` }));
+        locale,
+        messages,
+        currentUser: 'You',
+        onCommentSubmit: (threadId: string, text: string) => {
+          const message: CommentMessage = { id: createId(), author: 'You', text, createdAt: new Date() };
+          setCommentThreads((prev) => [...prev, { id: threadId, messages: [message], resolved: false }]);
         },
-        comment: {
-          onCommentCreate: (_threadId: string, _selection: string) => {},
-          onCommentSubmit: (threadId: string, text: string, _selection: string) => {
-            const message: CommentMessage = { id: createId(), author: 'You', text, createdAt: new Date() };
-            setCommentThreads((prev) => [...prev, { id: threadId, messages: [message], resolved: false }]);
-          },
-          getThread: (threadId: string) => commentThreadsRef.current.find((t) => t.id === threadId) ?? null,
-          onCommentReply: handleReply,
-          onCommentResolve: handleResolve,
-          onCommentDelete: handleDelete,
-          currentUser: 'You',
-        },
-      }),
-    [iconOverrides, localeInput, messageOverrides, handleReply, handleResolve, handleDelete, tabBehavior],
+        getThread: (threadId: string) =>
+          commentThreadsRef.current.find((thread) => thread.id === threadId) ?? null,
+        onCommentReply: handleReply,
+        onCommentResolve: handleResolve,
+        onCommentDelete: handleDelete,
+      },
+    }),
+    [handleDelete, handleReply, handleResolve, iconOverrides, locale, messages],
   );
 
-  const extensions = mode === 'core' ? coreExtensions : fullExtensions;
-  const defaultContent = mode === 'core' ? CORE_CONTENT : FULL_CONTENT;
+  const defaultContent = mode === 'simple' ? SIMPLE_CONTENT : EDITOR_CONTENT;
 
   const handleModeChange = useCallback((newMode: PlaygroundMode) => {
     setMode(newMode);
     setContent(null);
     setEditorInstance(null);
     setCommentThreads([]);
-    setEditorKey((k) => k + 1);
-  }, []);
-
-  const handleUpdate = useCallback((json: any) => {
-    setContent(json);
+    setEditorKey((current) => current + 1);
   }, []);
 
   return (
-    <div ref={rootRef} className="inkio playground-root">
-      {/* Header */}
+    <div className="inkio playground-root">
       <header className="playground-header">
         <div className="playground-header-left">
           <h1 className="playground-title">Inkio Playground</h1>
           <div className="playground-mode-switch">
             <button
               type="button"
-              className={`playground-mode-btn${mode === 'core' ? ' is-active' : ''}`}
-              onClick={() => handleModeChange('core')}
+              className={`playground-mode-btn${mode === 'simple' ? ' is-active' : ''}`}
+              onClick={() => handleModeChange('simple')}
             >
-              Core
+              Simple
             </button>
             <button
               type="button"
-              className={`playground-mode-btn${mode === 'full' ? ' is-active' : ''}`}
-              onClick={() => handleModeChange('full')}
+              className={`playground-mode-btn${mode === 'editor' ? ' is-active' : ''}`}
+              onClick={() => handleModeChange('editor')}
             >
-              Full
+              Editor
             </button>
           </div>
         </div>
         <div className="playground-header-right">
-          <div className="playground-mode-switch">
-            <button
-              type="button"
-              className={`playground-mode-btn${tabBehavior === 'indent' ? ' is-active' : ''}`}
-              onClick={() => { setTabBehavior('indent'); setEditorKey((k) => k + 1); }}
-            >
-              Tab: Indent
-            </button>
-            <button
-              type="button"
-              className={`playground-mode-btn${tabBehavior === 'default' ? ' is-active' : ''}`}
-              onClick={() => { setTabBehavior('default'); setEditorKey((k) => k + 1); }}
-            >
-              Tab: Default
-            </button>
-          </div>
           <label className="playground-toggle-label">
             <input
               type="checkbox"
               checked={showViewer}
-              onChange={() => setShowViewer((v) => !v)}
+              onChange={() => setShowViewer((value) => !value)}
               className="playground-toggle-input"
             />
             <span>Viewer</span>
@@ -215,7 +192,7 @@ export default function Playground({ initialContent: initialContentProp }: { ini
             <input
               type="checkbox"
               checked={showJSON}
-              onChange={() => setShowJSON((v) => !v)}
+              onChange={() => setShowJSON((value) => !value)}
               className="playground-toggle-input"
             />
             <span>JSON</span>
@@ -223,61 +200,71 @@ export default function Playground({ initialContent: initialContentProp }: { ini
         </div>
       </header>
 
-      {/* Editor */}
       <main className="playground-main">
         <section className="playground-section">
           <div className="playground-section-label">
             Editor
             <span className="playground-mode-badge">
-              {mode === 'core' ? '@inkio/editor' : '@inkio/editor + @inkio/extension'}
+              {mode === 'simple' ? '@inkio/simple' : '@inkio/editor'}
+              {mode === 'editor' ? ' + direct CommentPanel + @inkio/image-editor' : ' + @inkio/image-editor'}
             </span>
           </div>
-          <Suspense
-            fallback={
-              <div className="playground-loading">Loading editor...</div>
-            }
-          >
-            <Editor
-              key={editorKey}
-              extensions={extensions}
-              initialContent={initialContentProp ?? defaultContent}
-              locale={localeInput}
-              messages={messageOverrides}
-              icons={iconOverrides}
-              showBubbleMenu
-              showFloatingMenu={true}
-              onCreate={setEditorInstance}
-              onUpdate={handleUpdate}
-            />
+          <Suspense fallback={<div className="playground-loading">Loading editor...</div>}>
+            {mode === 'simple' ? (
+              <SimpleEditor
+                key={editorKey}
+                initialContent={initialContentProp ?? defaultContent}
+                defaultExtensionsOptions={simpleDefaultExtensionsOptions}
+                locale={locale}
+                messages={messages}
+                icons={iconOverrides}
+                showToolbar
+                onCreate={setEditorInstance}
+                onUpdate={(next: unknown) => setContent(next)}
+              />
+            ) : (
+              <InkioEditor
+                key={editorKey}
+                initialContent={initialContentProp ?? defaultContent}
+                defaultExtensionsOptions={editorDefaultExtensionsOptions}
+                locale={locale}
+                messages={messages}
+                icons={iconOverrides}
+                showBubbleMenu
+                showFloatingMenu
+                onCreate={setEditorInstance}
+                onUpdate={(next: unknown) => setContent(next)}
+              />
+            )}
           </Suspense>
         </section>
 
-        {/* Viewer */}
         {showViewer && content && (
           <section className="playground-section">
-            <div className="playground-section-label">Viewer (read-only)</div>
-            <Viewer extensions={extensions} content={content} />
+            <div className="playground-section-label">Viewer</div>
+            {mode === 'simple' ? (
+              <SimpleViewer content={content} defaultExtensionsOptions={simpleDefaultExtensionsOptions} />
+            ) : (
+              <InkioViewer content={content} defaultExtensionsOptions={editorDefaultExtensionsOptions} />
+            )}
           </section>
         )}
 
-        {/* JSON Output */}
         {showJSON && content && (
           <section className="playground-section">
             <div className="playground-section-label">JSON Output</div>
-            <pre className="playground-json">
-              {JSON.stringify(content, null, 2)}
-            </pre>
+            <pre className="playground-json">{JSON.stringify(content, null, 2)}</pre>
           </section>
         )}
-        {/* Comments (full mode only) */}
-        {mode === 'full' && (
+
+        {mode === 'editor' && (
           <section className="playground-section">
             <div className="playground-section-label">Comments</div>
             <CommentPanel
               editor={editorInstance}
               threads={commentThreads}
-              locale={localeInput}
-              messages={messageOverrides}
+              locale={locale}
+              messages={messages}
               icons={iconOverrides}
               onReply={handleReply}
               onResolve={handleResolve}
@@ -287,7 +274,6 @@ export default function Playground({ initialContent: initialContentProp }: { ini
           </section>
         )}
       </main>
-
     </div>
   );
 }

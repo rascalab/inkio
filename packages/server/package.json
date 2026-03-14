@@ -1,6 +1,6 @@
 {
   "name": "@inkio/server",
-  "version": "0.0.3",
+  "version": "0.0.5",
   "description": "Server-side utilities for Inkio",
   "license": "MIT",
   "keywords": [
@@ -37,14 +37,14 @@
     "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
-    "@types/node": "^25.3.3",
+    "@types/node": "^25.5.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.0"
   },
   "dependencies": {
-    "@tiptap/core": "^3.20.0"
+    "@tiptap/core": "^3.20.1"
   },
   "peerDependencies": {
-    "@inkio/editor": "^0.0.1"
+    "@inkio/editor": "^0.0.5"
   }
 }

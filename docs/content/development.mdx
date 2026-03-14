@@ -1,85 +1,43 @@
 # 개발 가이드
 
-Inkio는 모노레포 구조로 운영됩니다.
-
-## 프로젝트 구조
+## 패키지 구조
 
 ```text
-editor/
-├── packages/
-│   ├── core/         # @inkio/editor
-│   ├── extensions/   # @inkio/extension
-│   └── server/       # @inkio/server
-├── docs/             # 문서 사이트 (Next.js + Nextra)
-├── package.json      # workspace orchestration
-└── pnpm-workspace.yaml
+packages/
+  core/         # low-level foundation
+  essential/    # markdown-friendly document extensions
+  advanced/     # notion-like and integration-heavy extensions
+  simple/       # classic WYSIWYG entry point
+  editor/       # notion-like entry point
+  image-editor/ # optional image editing UI
 ```
 
-## 로컬 개발
+## 역할 분리
+
+- `@inkio/core`
+  - primitives, menus, icons, markdown, `ImageBlock`
+- `@inkio/essential`
+  - callout, details/toggle, table, keyboard shortcuts
+- `@inkio/advanced`
+  - slash command, block handle, mention, hashtag, wiki link, bookmark, comment
+- `@inkio/simple`
+  - core-only classic editor
+- `@inkio/editor`
+  - advanced를 포함한 notion-like editor
+
+## dependency 정책
+
+- `react`, `react-dom`만 peer
+- Inkio가 직접 쓰는 Tiptap runtime은 각 패키지 `dependencies`
+- `@inkio/core`는 published package지만 일반 사용자에게 직접 시작점으로 안내하지 않습니다
+
+## 검증
 
 ```bash
-pnpm install
-pnpm build:packages
-pnpm examples:build
-pnpm docs:typecheck
-pnpm build
+pnpm typecheck
 pnpm test
+pnpm build
+pnpm examples:build
+pnpm e2e
 pnpm release:smoke
 ```
-
-개발 서버는 기본적으로 아래처럼 실행합니다.
-
-```bash
-# docs dev (기본)
-pnpm dev
-```
-
-패키지 watch가 필요한 경우:
-
-```bash
-# core/extensions watch만 실행
-pnpm dev:packages
-
-# core/extensions + docs 동시 실행
-pnpm dev:all
-```
-
-## 의존성 정책
-
-- `@inkio/editor` peer: `react`, `react-dom`
-- `@inkio/extension` peer: `@inkio/editor`, `react`, `react-dom`
-- Tiptap 런타임(`@tiptap/core`, `@tiptap/react`, `@tiptap/pm`, `@tiptap/suggestion`, `@tiptap/extension-table*`)과 `katex`, `konva`, `react-konva`는 `@inkio/extension` `dependencies`로 관리
-
-즉 소비자는 보통 아래를 설치해야 합니다.
-
-```bash
-npm install @inkio/editor @inkio/extension react react-dom
-```
-
-## 빌드 산출물
-
-- 각 패키지 산출물: `packages/*/dist`
-- 문서 정적 산출물: `docs/out` (레포 관리 대상 아님)
-
-## 릴리즈 체크리스트
-
-1. `pnpm build` 통과
-2. `pnpm test` 통과
-3. `pnpm examples:build` 통과
-4. `pnpm release:smoke` 통과
-5. `pnpm docs:build` 통과
-6. API/문서 동기화 확인
-7. 브레이킹 변경 시 `MIGRATION.md` 갱신
-
-## 릴리즈 플로우
-
-- `main` 브랜치에서는 workspace source 기준으로 개발하고 docs를 확인합니다.
-- 실제 배포 검증은 `pnpm release:smoke`로 tarball 소비자 환경을 따로 검증합니다.
-- npm publish는 `main` push가 아니라 `v*` 태그 push에서만 실행됩니다.
-
-## 문서 앱 참고
-
-`docs/next.config.mjs`에서 다음 패키지를 transpile 대상으로 사용합니다.
-
-- `@inkio/editor`
-- `@inkio/extension`

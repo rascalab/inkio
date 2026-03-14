@@ -1,0 +1,609 @@
+/* ============================
+   inkio Complete Styles
+   Includes all styles for ready-to-use appearance
+   ============================ */
+
+/* All core styles from minimal.css are included here */
+@import "./minimal.css";
+
+/* ============================
+   Visual Design Overrides for core styles
+   ============================ */
+
+/* ProseMirror Editor with design */
+.inkio .ProseMirror {
+  min-height: 200px;
+  padding: 1rem;
+  font-family: var(--inkio-font-family);
+  font-size: var(--inkio-font-size-base);
+}
+
+/* Typography with colors and fonts */
+.inkio .ProseMirror h1 {
+  font-size: 2.25rem;
+  color: var(--inkio-text-heading);
+}
+
+.inkio .ProseMirror h2 {
+  font-size: 1.875rem;
+  color: var(--inkio-text-heading);
+}
+
+.inkio .ProseMirror h3 {
+  font-size: 1.5rem;
+  color: var(--inkio-text);
+}
+
+.inkio .ProseMirror h4 {
+  font-size: 1.25rem;
+  color: var(--inkio-text);
+}
+
+.inkio .ProseMirror p {
+  font-size: 1rem;
+  color: var(--inkio-text);
+}
+
+/* Text Formatting with colors */
+.inkio .ProseMirror strong {
+  color: var(--inkio-text-heading);
+}
+
+.inkio .ProseMirror u {
+  text-underline-offset: 2px;
+}
+
+.inkio .ProseMirror s {
+  color: var(--inkio-text-muted);
+}
+
+.inkio .ProseMirror mark {
+  background-color: var(--inkio-highlight-bg);
+  padding: 0.125rem 0.25rem;
+  border-radius: var(--inkio-radius-xs);
+}
+
+/* Links with colors */
+.inkio .ProseMirror a {
+  color: var(--inkio-primary);
+  text-underline-offset: 2px;
+  transition: color var(--inkio-transition-fast);
+}
+
+.inkio .ProseMirror a:hover {
+  color: var(--inkio-primary-hover);
+}
+
+/* Blockquote with colors */
+.inkio .ProseMirror blockquote {
+  border-color: var(--inkio-primary);
+  color: var(--inkio-text);
+  background-color: var(--inkio-bg-muted);
+  padding: 1rem 1rem 1rem 1.5rem;
+}
+
+/* Horizontal Rule with colors */
+.inkio .ProseMirror hr {
+  border-color: var(--inkio-border);
+}
+
+/* Code with colors */
+.inkio .ProseMirror code {
+  font-family: var(--inkio-font-mono);
+  background-color: var(--inkio-bg-muted);
+  color: var(--inkio-danger);
+  font-weight: 500;
+}
+
+.inkio .ProseMirror pre {
+  font-family: var(--inkio-font-mono);
+  background-color: var(--inkio-code-bg);
+  color: var(--inkio-code-text);
+}
+
+/* Tables with borders and header emphasis */
+.inkio .ProseMirror table {
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-md);
+  overflow: hidden;
+  margin: 1rem 0;
+}
+
+.inkio .ProseMirror td,
+.inkio .ProseMirror th {
+  border: 1px solid var(--inkio-border);
+  padding: 0.625rem 0.75rem;
+  background-color: var(--inkio-bg);
+}
+
+.inkio .ProseMirror th {
+  font-weight: 600;
+  color: var(--inkio-text-heading);
+  background-color: var(--inkio-bg-muted);
+}
+
+.inkio .ProseMirror .selectedCell {
+  background-color: color-mix(in srgb, var(--inkio-primary) 14%, var(--inkio-bg));
+}
+
+.inkio .ProseMirror .column-resize-handle {
+  background-color: var(--inkio-border-strong, #d1d5db);
+}
+
+/* Task List — React NodeView checkbox button */
+.inkio .ProseMirror .inkio-task-checkbox-btn:hover {
+  border-color: var(--inkio-primary, #3b82f6);
+}
+
+.inkio .ProseMirror .inkio-task-checkbox-btn.is-checked:hover {
+  background-color: var(--inkio-primary-hover, #2563eb);
+  border-color: var(--inkio-primary-hover, #2563eb);
+}
+
+/* Legacy native checkbox fallback (when not using React NodeView) */
+.inkio .ProseMirror ul[data-type="taskList"] li>label input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 1.5px solid var(--inkio-border-strong, #d1d5db);
+  border-radius: 4px;
+  background: var(--inkio-bg, #fff);
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+
+.inkio .ProseMirror ul[data-type="taskList"] li>label input[type="checkbox"]:hover {
+  border-color: var(--inkio-primary, #3b82f6);
+}
+
+.inkio .ProseMirror ul[data-type="taskList"] li>label input[type="checkbox"]:checked {
+  background-color: var(--inkio-primary, #3b82f6);
+  border-color: var(--inkio-primary, #3b82f6);
+}
+
+.inkio .ProseMirror ul[data-type="taskList"] li[data-checked="true"]>div {
+  color: var(--inkio-text-muted);
+}
+
+/* Placeholder with opacity */
+.inkio .ProseMirror p.is-editor-empty:first-child::before {
+  color: var(--inkio-text-muted);
+}
+
+/* Selection */
+.inkio .ProseMirror ::selection {
+  background-color: var(--inkio-selection-bg);
+}
+
+/* ============================
+   Editor Container with design
+   ============================ */
+
+/* Shared base for editor & viewer — same document appearance */
+.inkio-editor,
+.inkio-viewer {
+  border-color: var(--inkio-border);
+  color: var(--inkio-text);
+}
+
+.inkio-viewer-with-toc {
+  display: flex;
+  gap: 1rem;
+}
+
+.inkio-viewer--toc-top {
+  display: block;
+}
+
+.inkio-viewer-body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.inkio-viewer-toc {
+  flex: 0 0 15rem;
+  align-self: flex-start;
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-md);
+  padding: 0.875rem;
+  background: color-mix(in srgb, var(--inkio-bg) 94%, var(--inkio-bg-muted));
+  box-shadow: var(--inkio-shadow);
+}
+
+.inkio-viewer--toc-top .inkio-viewer-toc {
+  margin-bottom: 1rem;
+}
+
+.inkio-viewer-toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.inkio-viewer-toc-item {
+  padding-left: calc((var(--inkio-toc-level, 1) - 1) * 0.75rem);
+}
+
+.inkio-viewer-toc-item + .inkio-viewer-toc-item {
+  margin-top: 0.25rem;
+}
+
+.inkio-viewer-toc-link {
+  width: 100%;
+  display: block;
+  padding: 0.375rem 0.5rem;
+  border: 0;
+  border-radius: var(--inkio-radius-sm);
+  background: transparent;
+  color: var(--inkio-text);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--inkio-transition-fast), color var(--inkio-transition-fast);
+}
+
+.inkio-viewer-toc-link:hover,
+.inkio-viewer-toc-link:focus-visible {
+  outline: none;
+  background: var(--inkio-primary-bg);
+  color: var(--inkio-primary-hover);
+}
+
+/* Editor-only: interactive feedback */
+.inkio-editor {
+  box-shadow: var(--inkio-shadow);
+  transition: border-color var(--inkio-transition-fast), box-shadow var(--inkio-transition-fast);
+}
+
+.inkio-editor:focus-within {
+  border-color: var(--inkio-primary);
+  box-shadow: var(--inkio-ring);
+}
+
+.inkio-toolbar {
+  background-color: color-mix(in srgb, var(--inkio-bg) 92%, var(--inkio-bg-muted));
+  border-bottom: 1px solid var(--inkio-border);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--inkio-border) 65%, transparent);
+}
+
+.inkio-toolbar-divider {
+  background-color: var(--inkio-border);
+}
+
+.inkio-toolbar-color-indicator {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--inkio-bg) 80%, transparent);
+}
+
+.inkio-color-popover {
+  color: var(--inkio-text);
+}
+
+.inkio-color-swatch {
+  transition: transform var(--inkio-transition-fast), border-color var(--inkio-transition-fast);
+}
+
+.inkio-color-swatch:hover {
+  transform: translateY(-1px);
+}
+
+.inkio-color-swatch--clear {
+  border-style: dashed;
+}
+
+.inkio-color-input {
+  cursor: pointer;
+}
+
+/* ============================
+   Popup & Suggestion UI Styles
+   ============================ */
+.inkio-suggestion-container {
+  background-color: var(--inkio-bg);
+  border-radius: var(--inkio-radius-md);
+  box-shadow: var(--inkio-shadow-lg);
+  border: 1px solid var(--inkio-border);
+  overflow: hidden;
+  min-width: 200px;
+  max-width: 320px;
+}
+
+.inkio-suggestion-header {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--inkio-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--inkio-bg-muted);
+}
+
+.inkio-suggestion-list {
+  padding: 0.25rem;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.inkio-suggestion-empty {
+  padding: 0.75rem 1rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--inkio-text-muted);
+}
+
+.inkio-suggestion-item {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.inkio-suggestion-item-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--inkio-radius);
+  transition: background-color var(--inkio-transition-fast);
+  background-color: transparent;
+  color: var(--inkio-text);
+}
+
+.inkio-suggestion-item-content.is-selected {
+  background-color: var(--inkio-primary-bg);
+  color: var(--inkio-primary-hover);
+}
+
+.inkio-suggestion-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--inkio-text-muted);
+}
+
+.inkio-suggestion-label {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inkio-suggestion-description {
+  font-size: 0.75rem;
+  color: var(--inkio-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================
+   Bubble Menu & Popover Styles
+   ============================ */
+.inkio-bubble-menu {
+  background-color: var(--inkio-bg);
+  box-shadow: var(--inkio-shadow-lg);
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-md);
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  z-index: var(--inkio-layer-overlay);
+}
+
+.inkio-bubble-btn {
+  padding: 0.5rem;
+  border-radius: var(--inkio-radius-sm);
+  color: var(--inkio-text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color var(--inkio-transition-fast), color var(--inkio-transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inkio-bubble-btn:hover {
+  background-color: var(--inkio-bg-muted);
+}
+
+.inkio-bubble-btn.is-active {
+  background-color: var(--inkio-bg-muted);
+  color: var(--inkio-primary);
+}
+
+.inkio-bubble-btn.is-focused {
+  background-color: var(--inkio-bg-muted);
+  color: var(--inkio-primary);
+  outline: 2px solid var(--inkio-ring, #3b82f6);
+  outline-offset: -2px;
+}
+
+.inkio-bubble-btn.is-danger {
+  color: var(--inkio-danger);
+}
+
+.inkio-bubble-divider {
+  width: 1px;
+  height: 1.5rem;
+  background-color: var(--inkio-border);
+  margin: 0 0.25rem;
+}
+
+/* Link Input Popover */
+.inkio-link-popover {
+  background-color: var(--inkio-bg);
+  box-shadow: var(--inkio-shadow-lg);
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-md);
+  padding: 0.75rem;
+  min-width: 300px;
+  z-index: var(--inkio-layer-popover);
+}
+
+.inkio-link-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.inkio-link-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius);
+  outline: none;
+  transition: border-color var(--inkio-transition-fast);
+  box-sizing: border-box;
+  font-size: 0.875rem;
+  background-color: transparent;
+  color: inherit;
+}
+
+.inkio-link-input:focus {
+  border-color: var(--inkio-primary);
+  box-shadow: var(--inkio-ring);
+}
+
+.inkio-link-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.inkio-link-btn-cancel {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--inkio-text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color var(--inkio-transition-fast);
+}
+
+.inkio-link-btn-cancel:hover {
+  color: var(--inkio-text-heading);
+}
+
+.inkio-link-btn-save {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  background-color: var(--inkio-primary);
+  color: var(--inkio-text-on-primary);
+  border-radius: var(--inkio-radius-sm);
+  border: none;
+  cursor: pointer;
+  transition: background-color var(--inkio-transition-fast);
+}
+
+.inkio-link-btn-save:hover:not(:disabled) {
+  background-color: var(--inkio-primary-hover);
+}
+
+.inkio-link-btn-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.inkio-table-anchor {
+  position: fixed;
+}
+
+.inkio-table-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 2.5rem;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-md);
+  background-color: var(--inkio-bg);
+  color: var(--inkio-text);
+  box-shadow: var(--inkio-shadow);
+  cursor: pointer;
+}
+
+.inkio-table-trigger:hover,
+.inkio-table-trigger.is-open {
+  background-color: var(--inkio-bg-muted);
+}
+
+.inkio-table-trigger-chevron {
+  transition: transform var(--inkio-transition-fast);
+}
+
+.inkio-table-trigger.is-open .inkio-table-trigger-chevron {
+  transform: rotate(90deg);
+}
+
+.inkio-table-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.25rem;
+  width: 12rem;
+  padding: 0.375rem;
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-md);
+  background-color: var(--inkio-bg);
+  box-shadow: var(--inkio-shadow-lg);
+}
+
+.inkio-table-panel--start {
+  left: 0;
+}
+
+.inkio-table-panel--end {
+  right: 0;
+}
+
+.inkio-table-action {
+  min-height: 2.25rem;
+}
+
+.inkio-table-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ============================
+   Overlay Utility
+   ============================ */
+
+.inkio-floating-overlay {
+  position: fixed;
+  z-index: var(--inkio-layer-overlay);
+  transition: opacity var(--inkio-transition-fast), visibility var(--inkio-transition-fast);
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+}
+
+.inkio-floating-overlay.is-visible {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ============================
+   Suggestion Utility
+   ============================ */
+
+.inkio-suggestion-text-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Radix portal content rendered outside .inkio — global unscoped */
+.inkio-popover-content {
+  z-index: var(--inkio-layer-popover, 150);
+}

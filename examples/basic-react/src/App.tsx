@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Editor, getDefaultCoreExtensions } from '@inkio/editor';
+import { Editor, getDefaultExtensions } from '@inkio/simple';
 
 const initialContent = `<h2>Hello Inkio</h2>
-<p>This example starts with <code>@inkio/editor</code> only.</p>
+<p>This example starts with <code>@inkio/simple</code>.</p>
 <ul>
-  <li>Use the bubble and floating menus</li>
-  <li>Write headings, lists, tasks, code blocks, and links</li>
+  <li>Use the persistent toolbar for common document formatting</li>
+  <li>Write headings, lists, tasks, code blocks, links, and tables</li>
   <li>Read the JSON output while you edit</li>
 </ul>`;
 
@@ -13,7 +13,7 @@ export default function App() {
   const [json, setJson] = useState<unknown>(null);
 
   const extensions = useMemo(
-    () => getDefaultCoreExtensions({ placeholder: 'Write something...' }),
+    () => getDefaultExtensions({ placeholder: 'Write something...' }),
     [],
   );
 
@@ -21,9 +21,9 @@ export default function App() {
     <main className="app-shell">
       <section className="hero-card">
         <p className="eyebrow">Example</p>
-        <h1>Basic React + Inkio Core</h1>
+        <h1>Basic React + Inkio Simple</h1>
         <p className="hero-copy">
-          Start here if you only need the editor, viewer, and default core extensions.
+          Start here if you want a classic WYSIWYG editor without notion-like UI.
         </p>
       </section>
 
@@ -31,8 +31,6 @@ export default function App() {
         <Editor
           extensions={extensions}
           initialContent={initialContent}
-          showBubbleMenu
-          showFloatingMenu
           onUpdate={(next: unknown) => setJson(next)}
         />
       </section>
