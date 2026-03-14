@@ -6,9 +6,9 @@ import {
   type SVGProps,
 } from 'react';
 import {
-  AlignCenterHorizontal,
-  AlignEndHorizontal,
-  AlignStartHorizontal,
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
   ArrowDownToLine,
   ArrowLeftToLine,
   ArrowRightToLine,
@@ -206,9 +206,9 @@ export function createInkioIconElement(
   return element;
 }
 
-export const AlignCenterIconNode = AlignCenterHorizontal as InkioIconNode;
-export const AlignLeftIconNode = AlignStartHorizontal as InkioIconNode;
-export const AlignRightIconNode = AlignEndHorizontal as InkioIconNode;
+export const AlignCenterIconNode = AlignCenter as InkioIconNode;
+export const AlignLeftIconNode = AlignLeft as InkioIconNode;
+export const AlignRightIconNode = AlignRight as InkioIconNode;
 export const AddColumnAfterIconNode = ArrowRightToLine as InkioIconNode;
 export const AddColumnBeforeIconNode = ArrowLeftToLine as InkioIconNode;
 export const AddRowAfterIconNode = ArrowDownToLine as InkioIconNode;
