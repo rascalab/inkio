@@ -12,7 +12,7 @@ const withNextra = nextra({
 
 export default withNextra({
   reactStrictMode: true,
-  transpilePackages: ['@inkio/editor', '@inkio/extension'],
+  transpilePackages: ['@inkio/editor', '@inkio/simple', '@inkio/advanced', '@inkio/image-editor'],
   distDir: isGitHubPages ? '.next-pages' : '.next',
   output: 'export',
   trailingSlash: true,

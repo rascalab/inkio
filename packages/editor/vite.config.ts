@@ -8,7 +8,6 @@ import { readFileSync } from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-/** Read a CSS file and recursively inline its @import "./..." statements. */
 function inlineCssImports(filePath: string, visited = new Set<string>()): string {
   const resolved = resolve(filePath);
   if (visited.has(resolved)) throw new Error(`CSS import cycle detected: ${resolved}`);
@@ -29,7 +28,6 @@ export default defineConfig({
         'src/**/__tests__/**',
         'src/**/*.test.ts',
         'src/**/*.test.tsx',
-        'src/test-setup.ts',
       ],
       insertTypesEntry: true,
     }),
@@ -50,33 +48,43 @@ export default defineConfig({
     },
   ],
   resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src'),
-    },
+    alias: [
+      { find: /^@inkio\/core\/icons$/, replacement: resolve(__dirname, '../core/src/icons/index.ts') },
+      { find: /^@inkio\/core\/markdown$/, replacement: resolve(__dirname, '../core/src/markdown/index.ts') },
+      { find: /^@inkio\/core$/, replacement: resolve(__dirname, '../core/src/index.ts') },
+      { find: /^@inkio\/advanced$/, replacement: resolve(__dirname, '../advanced/src/index.ts') },
+      { find: /^@inkio\/advanced\//, replacement: `${resolve(__dirname, '../advanced/src')}/` },
+      { find: '@', replacement: resolve(__dirname, 'src') },
+    ],
   },
   build: {
     lib: {
-      entry: resolve(__dirname, 'src/index.ts'),
-      name: 'InkioCore',
-      fileName: 'index',
-      formats: ['es', 'cjs'],
+      entry: {
+        index: resolve(__dirname, 'src/index.ts'),
+        icons: resolve(__dirname, 'src/icons/index.ts'),
+        markdown: resolve(__dirname, 'src/markdown/index.ts'),
+      },
     },
     rollupOptions: {
       external: (id) => {
         if (id === 'react' || id.startsWith('react/')) return true;
         if (id === 'react-dom' || id.startsWith('react-dom/')) return true;
-        if (id === 'lucide' || id.startsWith('lucide/')) return true;
-        if (id === 'lucide-react' || id.startsWith('lucide-react/')) return true;
-        if (id.startsWith('@tiptap/')) return true;
-        if (id.startsWith('@radix-ui/')) return true;
+        if (id === '@inkio/core' || id.startsWith('@inkio/core/')) return true;
+        if (id === '@inkio/advanced' || id.startsWith('@inkio/advanced/')) return true;
         return false;
       },
-      output: {
-        globals: {
-          react: 'React',
-          'react-dom': 'ReactDOM',
+      output: [
+        {
+          format: 'es',
+          entryFileNames: '[name].js',
+          chunkFileNames: 'chunks/[name]-[hash].js',
         },
-      },
+        {
+          format: 'cjs',
+          entryFileNames: '[name].cjs',
+          chunkFileNames: 'chunks/[name]-[hash].cjs',
+        },
+      ],
     },
     copyPublicDir: false,
   },

@@ -1,59 +1,58 @@
 # Inkio
 
-React 기반의 커스터마이즈 가능한 리치 텍스트 에디터 라이브러리입니다.
+Inkio는 Tiptap 기반의 레이어드 에디터 패키지 모음입니다.
 
-## 주요 기능
+## 시작점
 
-- 🎨 **Headless 디자인** - 완전한 스타일 커스터마이징
-- 📝 **풍부한 포맷팅** - Bold, Italic, Underline, Highlight, Link 등
-- 🖼️ **고급 이미지 편집** - 드래그앤드롭, 리사이즈, Crop, 마크업
-- 💬 **Callout 블록** - Info, Warning, Tip, Danger 타입 지원
-- 🔗 **위키 링크** - `[[페이지]]` 형식의 내부 링크
-- 👤 **멘션 시스템** - `@사용자` 태그 지원
-- #️⃣ **해시태그** - `#태그` 지원
-- ⌨️ **슬래시 커맨드** - `/` 입력으로 빠른 블록 삽입
-- 📋 **태스크 리스트** - 체크박스 기반 할일 목록
-- 🎯 **Tree-shakable** - 필요한 기능만 번들링
+- `@inkio/simple`
+  - classic WYSIWYG
+  - toolbar-first
+  - 가장 쉬운 시작점
+- `@inkio/editor`
+  - notion-like
+  - bubble/floating menu, slash command, block handle 중심
+- `@inkio/advanced`
+  - comments, mention, hashtag, wiki link 같은 고급 확장
+- `@inkio/image-editor`
+  - `ImageBlock`용 이미지 편집 UI
 
-## 빠른 시작
+## 빠른 설치
+
+Classic:
 
 ```bash
-npm install @inkio/editor @inkio/extension react react-dom
+npm install @inkio/simple react react-dom
 ```
 
-`@inkio/extension`는 `@inkio/editor`, `react`, `react-dom`만 peer로 요구합니다.
-Tiptap 런타임과 `katex`, `konva`, `react-konva`는 `@inkio/extension` 내부 의존성으로 제공됩니다.
+Notion-like:
+
+```bash
+npm install @inkio/editor react react-dom
+```
+
+옵션 패키지:
+
+```bash
+npm install @inkio/image-editor
+```
+
+`CommentPanel` 같은 advanced export를 앱 코드에서 직접 import할 때만 `@inkio/advanced`를 추가 설치합니다.
+
+## 예제
 
 ```tsx
-import { Editor, getDefaultCoreExtensions } from '@inkio/editor';
-import '@inkio/editor/style.css';
+import { Editor } from '@inkio/simple';
+import '@inkio/simple/minimal.css';
 
-function MyEditor() {
-  return (
-    <Editor
-      extensions={getDefaultCoreExtensions()}
-      onUpdate={(json) => console.log(json)}
-    />
-  );
+export function Page() {
+  return <Editor initialContent="<p>Hello Inkio</p>" />;
 }
 ```
 
-## 데모
+Markdown은 서브패스로 제공합니다.
 
-[플레이그라운드](/playground)에서 모든 기능을 직접 체험해보세요.
+```tsx
+import { parseMarkdown, stringifyMarkdown } from '@inkio/simple/markdown';
+```
 
-## 예제로 시작하기
-
-AI와 함께 붙이거나 빠르게 통합하려면 설명형 문서보다 실행 가능한 예제를 먼저 보는 편이 안정적입니다.
-
-- [레시피](/recipes)에서 런타임별 시작점을 고를 수 있습니다.
-- 레포에서는 `examples/basic-react`, `examples/next-app-router`를 기준 예제로 제공합니다.
-- AI에게 코드를 맡길 때는 루트의 `AI_CONTEXT.md`를 예제 파일과 함께 주는 방식을 권장합니다.
-
-## 기술 스택
-
-- [Tiptap](https://tiptap.dev) v3 - ProseMirror 기반 에디터 프레임워크
-- [React](https://react.dev) 19+ - UI 라이브러리
-- [TypeScript](https://www.typescriptlang.org) - 타입 안전성
-- [Tailwind CSS](https://tailwindcss.com) v4 - 스타일링
-- [Konva](https://konvajs.org) + [react-konva](https://konvajs.org/docs/react/) - 이미지 편집 (Crop, Rotate, Draw, Shapes, Text)
+구현은 `remark/unified` 기반이며 markdown과 `JSONContent`를 직접 변환합니다.

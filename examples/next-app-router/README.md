@@ -1,7 +1,7 @@
 # Next App Router Example
 
-Next.js App Router에서 Inkio를 붙이는 기준 예제입니다.
-`getDefaultCoreExtensions()`에 필요한 extension만 직접 조합하는 방식을 보여줍니다.
+Next.js App Router에서 `@inkio/editor`를 붙이는 기준 예제입니다.
+notion-like preset, comments, image editor integration을 함께 보여줍니다.
 
 실행:
 

@@ -11,8 +11,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@inkio/advanced": "workspace:*",
     "@inkio/editor": "workspace:*",
-    "@inkio/extension": "workspace:*",
+    "@inkio/image-editor": "workspace:*",
+    "@inkio/simple": "workspace:*",
     "@stackblitz/sdk": "^1.11.0",
     "next": "^16.1.6",
     "next-themes": "^0.4.6",
@@ -23,9 +25,7 @@
     "react-icons": "^5.6.0"
   },
   "devDependencies": {
-    "@tiptap/core": "^3.20.1",
-    "@tiptap/react": "^3.20.1",
-    "@types/node": "^25.4.0",
+    "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.4.27",
