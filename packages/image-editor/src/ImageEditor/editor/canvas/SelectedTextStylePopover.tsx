@@ -4,6 +4,7 @@ import { useImageEditor } from '../hooks/useImageEditor';
 import type { TextAnnotationData } from '../types';
 import { BoldIcon, ItalicIcon } from '../icons';
 import { COLOR_PRESETS } from '../toolbar/options/colorPresets';
+import { getPreferredTextAnnotationWidth } from '../utils/textMetrics';
 
 interface SelectedTextStylePopoverProps {
   stageRef: RefObject<Konva.Stage | null>;
@@ -84,7 +85,15 @@ export function SelectedTextStylePopover({ stageRef }: SelectedTextStylePopoverP
       return;
     }
 
-    dispatch({ type: 'UPDATE_ANNOTATION_COMMIT', id: annotation.id, updates });
+    const nextAnnotation = { ...annotation, ...updates };
+    dispatch({
+      type: 'UPDATE_ANNOTATION_COMMIT',
+      id: annotation.id,
+      updates: {
+        ...updates,
+        width: getPreferredTextAnnotationWidth(nextAnnotation),
+      },
+    });
   }, [annotation, dispatch]);
 
   const previewFontSize = useCallback((fontSize: number) => {
@@ -92,7 +101,14 @@ export function SelectedTextStylePopover({ stageRef }: SelectedTextStylePopoverP
       return;
     }
 
-    dispatch({ type: 'UPDATE_ANNOTATION', id: annotation.id, updates: { fontSize } });
+    dispatch({
+      type: 'UPDATE_ANNOTATION',
+      id: annotation.id,
+      updates: {
+        fontSize,
+        width: getPreferredTextAnnotationWidth({ ...annotation, fontSize }),
+      },
+    });
   }, [annotation, dispatch]);
 
   const commitFontSize = useCallback((fontSize: number) => {
