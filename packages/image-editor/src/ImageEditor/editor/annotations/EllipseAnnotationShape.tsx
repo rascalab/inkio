@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { Ellipse } from 'react-konva';
 import type Konva from 'konva';
 import type { EllipseAnnotation, Annotation } from '../types';
-import { getIEColors, handleCursorPointer, handleCursorDefault } from '../theme';
+import { handleCursorPointer, handleCursorDefault } from '../theme';
 
 interface Props {
   annotation: EllipseAnnotation;
@@ -14,13 +14,12 @@ interface Props {
 
 export function EllipseAnnotationShape({
   annotation,
-  isSelected,
+  isSelected: _isSelected,
   onSelect,
   onChange,
   scale,
 }: Props) {
   const shapeRef = useRef<Konva.Ellipse>(null);
-  const colors = getIEColors();
 
   return (
     <Ellipse
@@ -31,7 +30,7 @@ export function EllipseAnnotationShape({
       radiusX={annotation.radiusX * scale}
       radiusY={annotation.radiusY * scale}
       fill={annotation.fill}
-      stroke={isSelected ? colors.selection : annotation.stroke}
+      stroke={annotation.stroke}
       strokeWidth={annotation.strokeWidth}
       rotation={annotation.rotation}
       draggable

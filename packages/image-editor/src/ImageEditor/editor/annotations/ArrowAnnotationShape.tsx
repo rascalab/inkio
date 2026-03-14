@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { Arrow } from 'react-konva';
 import type Konva from 'konva';
 import type { ArrowAnnotation, Annotation } from '../types';
-import { getIEColors, handleCursorPointer, handleCursorDefault } from '../theme';
+import { handleCursorPointer, handleCursorDefault } from '../theme';
 
 interface Props {
   annotation: ArrowAnnotation;
@@ -14,22 +14,21 @@ interface Props {
 
 export function ArrowAnnotationShape({
   annotation,
-  isSelected,
+  isSelected: _isSelected,
   onSelect,
   onChange,
   scale,
 }: Props) {
   const shapeRef = useRef<Konva.Arrow>(null);
-  const colors = getIEColors();
 
   return (
     <Arrow
       ref={shapeRef}
       id={annotation.id}
       points={annotation.points.map((p) => p * scale)}
-      stroke={isSelected ? colors.selection : annotation.stroke}
+      stroke={annotation.stroke}
       strokeWidth={annotation.strokeWidth}
-      fill={isSelected ? colors.selection : annotation.stroke}
+      fill={annotation.stroke}
       pointerLength={10}
       pointerWidth={10}
       draggable

@@ -153,40 +153,66 @@ export function ShapeOptionsPanel() {
         <label htmlFor={strokeWidthId} className="inkio-ie-field-label">
           {locale.stroke} <span className="inkio-ie-field-value">{strokeWidth}</span>
         </label>
-        <input
-          id={strokeWidthId}
-          type="range"
-          className="inkio-ie-range-input"
-          min={1}
-          max={20}
-          value={strokeWidth}
-          onChange={(event) => {
-            const nextStrokeWidth = parseInt(event.target.value, 10);
-            if (selectedShape) {
-              updateSelectedPreview({ strokeWidth: nextStrokeWidth });
-              return;
-            }
+        <div className="inkio-ie-range-row">
+          <input
+            id={strokeWidthId}
+            type="range"
+            className="inkio-ie-range-input"
+            min={1}
+            max={20}
+            value={strokeWidth}
+            onChange={(event) => {
+              const nextStrokeWidth = parseInt(event.target.value, 10);
+              if (selectedShape) {
+                updateSelectedPreview({ strokeWidth: nextStrokeWidth });
+                return;
+              }
 
-            dispatch({
-              type: 'SET_SHAPE_OPTIONS',
-              options: { strokeWidth: nextStrokeWidth },
-            });
-          }}
-          onPointerUp={(event) => {
-            if (!selectedShape) {
-              return;
-            }
+              dispatch({
+                type: 'SET_SHAPE_OPTIONS',
+                options: { strokeWidth: nextStrokeWidth },
+              });
+            }}
+            onPointerUp={(event) => {
+              if (!selectedShape) {
+                return;
+              }
 
-            updateSelectedCommit({ strokeWidth: parseInt((event.target as HTMLInputElement).value, 10) });
-          }}
-          onKeyUp={(event) => {
-            if (!selectedShape) {
-              return;
-            }
+              updateSelectedCommit({ strokeWidth: parseInt((event.target as HTMLInputElement).value, 10) });
+            }}
+            onKeyUp={(event) => {
+              if (!selectedShape) {
+                return;
+              }
 
-            updateSelectedCommit({ strokeWidth: parseInt((event.target as HTMLInputElement).value, 10) });
-          }}
-        />
+              updateSelectedCommit({ strokeWidth: parseInt((event.target as HTMLInputElement).value, 10) });
+            }}
+          />
+          <input
+            type="number"
+            className="inkio-ie-range-number"
+            min={1}
+            max={20}
+            value={strokeWidth}
+            onChange={(event) => {
+              const nextStrokeWidth = parseInt(event.target.value, 10);
+              if (Number.isNaN(nextStrokeWidth)) {
+                return;
+              }
+
+              if (selectedShape) {
+                updateSelectedCommit({ strokeWidth: nextStrokeWidth });
+                return;
+              }
+
+              dispatch({
+                type: 'SET_SHAPE_OPTIONS',
+                options: { strokeWidth: nextStrokeWidth },
+              });
+            }}
+            aria-label={locale.stroke}
+          />
+        </div>
       </div>
     </div>
   );

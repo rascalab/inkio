@@ -12,6 +12,35 @@ import {
 
 export type { ImageEditorModalProps };
 
+function resolvePortalTheme(): 'light' | 'dark' {
+  if (typeof document === 'undefined') {
+    return 'light';
+  }
+
+  const inkioRoot = document.querySelector('.inkio');
+  const explicitTheme = inkioRoot?.getAttribute('data-theme');
+  if (explicitTheme === 'light' || explicitTheme === 'dark') {
+    return explicitTheme;
+  }
+
+  if (
+    document.documentElement.classList.contains('dark')
+    || document.documentElement.classList.contains('dark-theme')
+  ) {
+    return 'dark';
+  }
+
+  if (
+    explicitTheme === 'auto'
+    && typeof window !== 'undefined'
+    && window.matchMedia?.('(prefers-color-scheme: dark)').matches
+  ) {
+    return 'dark';
+  }
+
+  return 'light';
+}
+
 function isImageEditorLocaleOverrides(value: unknown): value is Partial<ImageEditorLocale> {
   return (
     typeof value === 'object'
@@ -58,6 +87,7 @@ export function ImageEditorModal({
     [localeOverrides, ui.messages.imageEditor],
   );
   const [isDirty, setIsDirty] = useState(false);
+  const portalTheme = useMemo(resolvePortalTheme, []);
 
   const requestClose = useCallback(() => {
     if (isDirty && !window.confirm(resolvedImageEditorLocale.closeConfirm ?? 'Discard your image edits?')) {
@@ -70,35 +100,37 @@ export function ImageEditorModal({
   return (
     <Dialog.Root open={isOpen} onOpenChange={(open) => { if (!open) requestClose(); }}>
       <Dialog.Portal>
-        <Dialog.Overlay className="inkio-ie-modal-overlay" />
-        <Dialog.Content
-          className="inkio-ie-modal-content"
-          aria-describedby={undefined}
-          onPointerDownOutside={(event) => {
-            event.preventDefault();
-            requestClose();
-          }}
-          onEscapeKeyDown={(event) => {
-            event.preventDefault();
-            requestClose();
-          }}
-        >
-          <Dialog.Title className="inkio-ie-sr-only">Image editor</Dialog.Title>
-          <ImageEditor
-            src={imageSrc}
-            onSave={(dataUrl) => {
-              onSave(dataUrl);
-              onClose();
+        <div className="inkio inkio-ie-portal-theme" data-theme={portalTheme} style={{ colorScheme: portalTheme }}>
+          <Dialog.Overlay className="inkio-ie-modal-overlay" />
+          <Dialog.Content
+            className="inkio-ie-modal-content"
+            aria-describedby={undefined}
+            onPointerDownOutside={(event) => {
+              event.preventDefault();
+              requestClose();
             }}
-            onCancel={requestClose}
-            outputFormat={imageFormat}
-            outputQuality={imageQuality}
-            tools={tools}
-            locale={resolvedImageEditorLocale}
-            className="inkio-ie-modal-editor"
-            onDirtyChange={setIsDirty}
-          />
-        </Dialog.Content>
+            onEscapeKeyDown={(event) => {
+              event.preventDefault();
+              requestClose();
+            }}
+          >
+            <Dialog.Title className="inkio-ie-sr-only">Image editor</Dialog.Title>
+            <ImageEditor
+              src={imageSrc}
+              onSave={(dataUrl) => {
+                onSave(dataUrl);
+                onClose();
+              }}
+              onCancel={requestClose}
+              outputFormat={imageFormat}
+              outputQuality={imageQuality}
+              tools={tools}
+              locale={resolvedImageEditorLocale}
+              className="inkio-ie-modal-editor"
+              onDirtyChange={setIsDirty}
+            />
+          </Dialog.Content>
+        </div>
       </Dialog.Portal>
     </Dialog.Root>
   );
