@@ -42,7 +42,7 @@ export function clearIEColorCache(): void {
  *  Results are cached and only re-resolved when the theme attribute changes. */
 export function getIEColors(): IEColors {
   if (typeof document === 'undefined') return FALLBACK_COLORS;
-  const root = document.querySelector('.inkio');
+  const root = document.querySelector('.inkio-ie-portal-theme') ?? document.querySelector('.inkio');
   if (!root) return _cache ?? FALLBACK_COLORS;
   const dataTheme = root.getAttribute('data-theme') ?? '';
   const darkClass = document.documentElement.classList.contains('dark')

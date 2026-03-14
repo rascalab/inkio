@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { Rect } from 'react-konva';
 import type Konva from 'konva';
 import type { RectAnnotation, Annotation } from '../types';
-import { getIEColors, handleCursorPointer, handleCursorDefault } from '../theme';
+import { handleCursorPointer, handleCursorDefault } from '../theme';
 
 interface Props {
   annotation: RectAnnotation;
@@ -14,13 +14,12 @@ interface Props {
 
 export function RectAnnotationShape({
   annotation,
-  isSelected,
+  isSelected: _isSelected,
   onSelect,
   onChange,
   scale,
 }: Props) {
   const shapeRef = useRef<Konva.Rect>(null);
-  const colors = getIEColors();
 
   return (
     <Rect
@@ -31,7 +30,7 @@ export function RectAnnotationShape({
       width={annotation.width * scale}
       height={annotation.height * scale}
       fill={annotation.fill}
-      stroke={isSelected ? colors.selection : annotation.stroke}
+      stroke={annotation.stroke}
       strokeWidth={annotation.strokeWidth}
       rotation={annotation.rotation}
       draggable
