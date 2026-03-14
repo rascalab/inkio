@@ -23,6 +23,7 @@
   --inkio-ie-primary-hover: var(--inkio-primary-hover);
   --inkio-ie-border: var(--inkio-border);
   --inkio-ie-radius: 6px;
+  --inkio-ie-panel-height: 228px;
 
   display: flex;
   flex-direction: column;
@@ -43,11 +44,11 @@
 }
 
 .inkio-ie-main {
-  display: flex;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) var(--inkio-ie-panel-height);
   flex: 1;
   min-width: 0;
   min-height: 0;
-  flex-direction: column;
 }
 
 .inkio-ie-canvas-area {
@@ -140,11 +141,14 @@
   align-items: stretch;
   justify-content: stretch;
   border-radius: 18px;
-  background: var(--inkio-ie-shell-bg);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--inkio-bg) 90%, rgba(255, 255, 255, 0.35)), color-mix(in srgb, var(--inkio-bg-muted) 94%, rgba(255, 255, 255, 0.2))),
+    var(--inkio-ie-shell-bg);
   border: 1px solid color-mix(in srgb, var(--inkio-ie-frame-border) 80%, transparent);
   box-shadow:
-    0 18px 40px rgba(15, 23, 42, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    0 18px 40px rgba(15, 23, 42, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 0 0 1px color-mix(in srgb, var(--inkio-bg-inverse) 8%, transparent);
   overflow: hidden;
 }
 
@@ -155,14 +159,15 @@
   background: var(--inkio-ie-frame-bg);
   border: 1px solid color-mix(in srgb, var(--inkio-ie-frame-border) 72%, transparent);
   overflow: hidden;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--inkio-bg-inverse) 10%, transparent);
 }
 
 .inkio-ie-stage-checkerboard {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(45deg, rgba(148, 163, 184, 0.16) 25%, transparent 25%, transparent 75%, rgba(148, 163, 184, 0.16) 75%) 0 0 / 18px 18px,
-    linear-gradient(45deg, rgba(148, 163, 184, 0.16) 25%, transparent 25%, transparent 75%, rgba(148, 163, 184, 0.16) 75%) 9px 9px / 18px 18px,
+    linear-gradient(45deg, rgba(148, 163, 184, 0.22) 25%, transparent 25%, transparent 75%, rgba(148, 163, 184, 0.22) 75%) 0 0 / 18px 18px,
+    linear-gradient(45deg, rgba(148, 163, 184, 0.22) 25%, transparent 25%, transparent 75%, rgba(148, 163, 184, 0.22) 75%) 9px 9px / 18px 18px,
     color-mix(in srgb, var(--inkio-bg) 94%, transparent);
   pointer-events: none;
 }
@@ -237,13 +242,14 @@
   width: 100%;
   background-color: var(--inkio-ie-options-bg);
   border-top: 1px solid var(--inkio-ie-options-border);
-  padding: 16px;
+  padding: 16px 18px;
   overflow-y: auto;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  min-height: 160px;
-  max-height: 240px;
+  height: var(--inkio-ie-panel-height);
+  min-height: var(--inkio-ie-panel-height);
+  max-height: var(--inkio-ie-panel-height);
 }
 
 .inkio-ie-options-empty {
@@ -416,6 +422,31 @@
   border-radius: 50%;
   background: var(--inkio-ie-primary);
   cursor: pointer;
+}
+
+.inkio-ie-range-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px;
+  gap: 10px;
+  align-items: center;
+}
+
+.inkio-ie-range-number {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--inkio-ie-border);
+  border-radius: var(--inkio-ie-radius);
+  background: color-mix(in srgb, var(--inkio-bg) 96%, transparent);
+  color: var(--inkio-ie-text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.inkio-ie-range-number:focus {
+  border-color: var(--inkio-ie-primary);
+  box-shadow: var(--inkio-ring);
+  outline: none;
 }
 
 /* ---- Text Popover ---- */
@@ -628,18 +659,17 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 95vw;
-  height: 85vh;
-  max-width: 1400px;
-  max-height: calc(100vh - 48px);
+  width: min(1200px, calc(100vw - 64px));
+  height: min(820px, calc(100vh - 64px));
   border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--inkio-border) 82%, transparent);
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--inkio-bg) 98%, transparent), color-mix(in srgb, var(--inkio-bg-muted) 94%, transparent));
+    linear-gradient(180deg, color-mix(in srgb, var(--inkio-bg) 88%, rgba(255, 255, 255, 0.72)), color-mix(in srgb, var(--inkio-bg-muted) 92%, rgba(255, 255, 255, 0.48)));
   box-shadow: var(--inkio-shadow-xl);
   overflow: hidden;
   z-index: var(--inkio-layer-modal-content);
   animation: inkio-ie-scale-in 0.2s ease-out;
+  backdrop-filter: blur(14px);
 }
 
 .inkio-ie-modal-editor {
@@ -660,6 +690,10 @@
 }
 
 @media (max-width: 900px) {
+  .inkio-ie-root {
+    --inkio-ie-panel-height: 188px;
+  }
+
   .inkio-ie-body {
     flex-direction: column;
   }
@@ -686,8 +720,14 @@
   }
 
   .inkio-ie-options-panel {
-    min-height: 140px;
-    max-height: 200px;
+    height: var(--inkio-ie-panel-height);
+    min-height: var(--inkio-ie-panel-height);
+    max-height: var(--inkio-ie-panel-height);
+  }
+
+  .inkio-ie-modal-content {
+    width: calc(100vw - 24px);
+    height: calc(100vh - 24px);
   }
 }
 

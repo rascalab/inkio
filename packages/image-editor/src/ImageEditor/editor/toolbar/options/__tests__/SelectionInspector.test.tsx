@@ -7,6 +7,7 @@ import { DEFAULT_LOCALE } from '../../../constants';
 import { DrawOptionsPanel } from '../DrawOptionsPanel';
 import { ShapeOptionsPanel } from '../ShapeOptionsPanel';
 import { TextOptionsPanel } from '../TextOptionsPanel';
+import { getPreferredTextAnnotationWidth } from '../../../utils/textMetrics';
 
 afterEach(() => {
   cleanup();
@@ -63,8 +64,9 @@ describe('image editor selection-first inspector', () => {
       </ImageEditorContext.Provider>,
     );
 
-    fireEvent.change(screen.getByLabelText(/Brush size/i), { target: { value: '12' } });
-    fireEvent.pointerUp(screen.getByLabelText(/Brush size/i), { target: { value: '12' } });
+    const brushSlider = screen.getAllByLabelText(/Brush size/i)[0];
+    fireEvent.change(brushSlider, { target: { value: '12' } });
+    fireEvent.pointerUp(brushSlider, { target: { value: '12' } });
 
     expect(dispatch).toHaveBeenCalledWith({
       type: 'UPDATE_ANNOTATION',
@@ -129,18 +131,35 @@ describe('image editor selection-first inspector', () => {
       </ImageEditorContext.Provider>,
     );
 
-    fireEvent.change(screen.getByLabelText(/Font size/i), { target: { value: '28' } });
-    fireEvent.pointerUp(screen.getByLabelText(/Font size/i), { target: { value: '28' } });
+    const fontSizeSlider = screen.getAllByLabelText(/Font size/i)[0];
+    fireEvent.change(fontSizeSlider, { target: { value: '28' } });
+    fireEvent.pointerUp(fontSizeSlider, { target: { value: '28' } });
 
     expect(dispatch).toHaveBeenCalledWith({
       type: 'UPDATE_ANNOTATION',
       id: 'text-1',
-      updates: { fontSize: 28 },
+      updates: {
+        fontSize: 28,
+        width: getPreferredTextAnnotationWidth({
+          text: 'Inkio',
+          fontSize: 28,
+          fontStyle: 'normal',
+          width: 160,
+        }),
+      },
     });
     expect(dispatch).toHaveBeenCalledWith({
       type: 'UPDATE_ANNOTATION_COMMIT',
       id: 'text-1',
-      updates: { fontSize: 28 },
+      updates: {
+        fontSize: 28,
+        width: getPreferredTextAnnotationWidth({
+          text: 'Inkio',
+          fontSize: 28,
+          fontStyle: 'normal',
+          width: 160,
+        }),
+      },
     });
   });
 });

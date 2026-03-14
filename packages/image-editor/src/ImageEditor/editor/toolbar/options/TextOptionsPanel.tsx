@@ -5,6 +5,7 @@ import { BoldIcon, ItalicIcon } from '../../icons';
 import { COLOR_PRESETS } from './colorPresets';
 import type { TextAnnotationData } from '../../types';
 import { getSelectedAnnotation, isTextAnnotation } from '../../utils/annotationTypes';
+import { getPreferredTextAnnotationWidth } from '../../utils/textMetrics';
 
 export function TextOptionsPanel() {
   const { state, dispatch, locale } = useImageEditor();
@@ -24,7 +25,15 @@ export function TextOptionsPanel() {
       return;
     }
 
-    dispatch({ type: 'UPDATE_ANNOTATION', id: selectedText.id, updates });
+    const nextAnnotation = { ...selectedText, ...updates };
+    dispatch({
+      type: 'UPDATE_ANNOTATION',
+      id: selectedText.id,
+      updates: {
+        ...updates,
+        width: getPreferredTextAnnotationWidth(nextAnnotation),
+      },
+    });
   };
 
   const updateSelectedCommit = (updates: Partial<TextAnnotationData>) => {
@@ -32,7 +41,15 @@ export function TextOptionsPanel() {
       return;
     }
 
-    dispatch({ type: 'UPDATE_ANNOTATION_COMMIT', id: selectedText.id, updates });
+    const nextAnnotation = { ...selectedText, ...updates };
+    dispatch({
+      type: 'UPDATE_ANNOTATION_COMMIT',
+      id: selectedText.id,
+      updates: {
+        ...updates,
+        width: getPreferredTextAnnotationWidth(nextAnnotation),
+      },
+    });
   };
 
   const updateFontStyle = (bold: boolean, italic: boolean) => {
@@ -95,40 +112,66 @@ export function TextOptionsPanel() {
         <label htmlFor={fontSizeId} className="inkio-ie-field-label">
           {locale.fontSize} <span className="inkio-ie-field-value">{fontSize}px</span>
         </label>
-        <input
-          id={fontSizeId}
-          type="range"
-          className="inkio-ie-range-input"
-          min={8}
-          max={120}
-          value={fontSize}
-          onChange={(e) => {
-            const nextFontSize = parseInt(e.target.value, 10);
-            if (selectedText) {
-              updateSelectedPreview({ fontSize: nextFontSize });
-              return;
-            }
+        <div className="inkio-ie-range-row">
+          <input
+            id={fontSizeId}
+            type="range"
+            className="inkio-ie-range-input"
+            min={8}
+            max={120}
+            value={fontSize}
+            onChange={(e) => {
+              const nextFontSize = parseInt(e.target.value, 10);
+              if (selectedText) {
+                updateSelectedPreview({ fontSize: nextFontSize });
+                return;
+              }
 
-            dispatch({
-              type: 'SET_TEXT_OPTIONS',
-              options: { fontSize: nextFontSize },
-            });
-          }}
-          onPointerUp={(e) => {
-            if (!selectedText) {
-              return;
-            }
+              dispatch({
+                type: 'SET_TEXT_OPTIONS',
+                options: { fontSize: nextFontSize },
+              });
+            }}
+            onPointerUp={(e) => {
+              if (!selectedText) {
+                return;
+              }
 
-            updateSelectedCommit({ fontSize: parseInt((e.target as HTMLInputElement).value, 10) });
-          }}
-          onKeyUp={(e) => {
-            if (!selectedText) {
-              return;
-            }
+              updateSelectedCommit({ fontSize: parseInt((e.target as HTMLInputElement).value, 10) });
+            }}
+            onKeyUp={(e) => {
+              if (!selectedText) {
+                return;
+              }
 
-            updateSelectedCommit({ fontSize: parseInt((e.target as HTMLInputElement).value, 10) });
-          }}
-        />
+              updateSelectedCommit({ fontSize: parseInt((e.target as HTMLInputElement).value, 10) });
+            }}
+          />
+          <input
+            type="number"
+            className="inkio-ie-range-number"
+            min={8}
+            max={120}
+            value={fontSize}
+            onChange={(e) => {
+              const nextFontSize = parseInt(e.target.value, 10);
+              if (Number.isNaN(nextFontSize)) {
+                return;
+              }
+
+              if (selectedText) {
+                updateSelectedCommit({ fontSize: nextFontSize });
+                return;
+              }
+
+              dispatch({
+                type: 'SET_TEXT_OPTIONS',
+                options: { fontSize: nextFontSize },
+              });
+            }}
+            aria-label={locale.fontSize}
+          />
+        </div>
       </div>
 
       <div className="inkio-ie-options-row inkio-ie-options-row--gap">

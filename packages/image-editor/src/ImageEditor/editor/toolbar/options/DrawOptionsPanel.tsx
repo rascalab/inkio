@@ -77,40 +77,66 @@ export function DrawOptionsPanel() {
         <label htmlFor={brushSizeId} className="inkio-ie-field-label">
           {locale.brushSize} <span className="inkio-ie-field-value">{strokeWidth}</span>
         </label>
-        <input
-          id={brushSizeId}
-          type="range"
-          className="inkio-ie-range-input"
-          min={1}
-          max={50}
-          value={strokeWidth}
-          onChange={(e) => {
-            const nextStrokeWidth = parseInt(e.target.value, 10);
-            if (selectedDraw) {
-              updateSelectedPreview({ strokeWidth: nextStrokeWidth });
-              return;
-            }
+        <div className="inkio-ie-range-row">
+          <input
+            id={brushSizeId}
+            type="range"
+            className="inkio-ie-range-input"
+            min={1}
+            max={50}
+            value={strokeWidth}
+            onChange={(e) => {
+              const nextStrokeWidth = parseInt(e.target.value, 10);
+              if (selectedDraw) {
+                updateSelectedPreview({ strokeWidth: nextStrokeWidth });
+                return;
+              }
 
-            dispatch({
-              type: 'SET_DRAW_OPTIONS',
-              options: { strokeWidth: nextStrokeWidth },
-            });
-          }}
-          onPointerUp={(e) => {
-            if (!selectedDraw) {
-              return;
-            }
+              dispatch({
+                type: 'SET_DRAW_OPTIONS',
+                options: { strokeWidth: nextStrokeWidth },
+              });
+            }}
+            onPointerUp={(e) => {
+              if (!selectedDraw) {
+                return;
+              }
 
-            updateSelectedCommit({ strokeWidth: parseInt((e.target as HTMLInputElement).value, 10) });
-          }}
-          onKeyUp={(e) => {
-            if (!selectedDraw) {
-              return;
-            }
+              updateSelectedCommit({ strokeWidth: parseInt((e.target as HTMLInputElement).value, 10) });
+            }}
+            onKeyUp={(e) => {
+              if (!selectedDraw) {
+                return;
+              }
 
-            updateSelectedCommit({ strokeWidth: parseInt((e.target as HTMLInputElement).value, 10) });
-          }}
-        />
+              updateSelectedCommit({ strokeWidth: parseInt((e.target as HTMLInputElement).value, 10) });
+            }}
+          />
+          <input
+            type="number"
+            className="inkio-ie-range-number"
+            min={1}
+            max={50}
+            value={strokeWidth}
+            onChange={(e) => {
+              const nextStrokeWidth = parseInt(e.target.value, 10);
+              if (Number.isNaN(nextStrokeWidth)) {
+                return;
+              }
+
+              if (selectedDraw) {
+                updateSelectedCommit({ strokeWidth: nextStrokeWidth });
+                return;
+              }
+
+              dispatch({
+                type: 'SET_DRAW_OPTIONS',
+                options: { strokeWidth: nextStrokeWidth },
+              });
+            }}
+            aria-label={locale.brushSize}
+          />
+        </div>
       </div>
       <div className="inkio-ie-field">
         <label htmlFor={opacityId} className="inkio-ie-field-label">

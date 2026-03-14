@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { Line } from 'react-konva';
 import type Konva from 'konva';
 import type { LineAnnotation, Annotation } from '../types';
-import { getIEColors, handleCursorPointer, handleCursorDefault } from '../theme';
+import { handleCursorPointer, handleCursorDefault } from '../theme';
 
 interface Props {
   annotation: LineAnnotation;
@@ -14,20 +14,19 @@ interface Props {
 
 export function LineAnnotationShape({
   annotation,
-  isSelected,
+  isSelected: _isSelected,
   onSelect,
   onChange,
   scale,
 }: Props) {
   const shapeRef = useRef<Konva.Line>(null);
-  const colors = getIEColors();
 
   return (
     <Line
       ref={shapeRef}
       id={annotation.id}
       points={annotation.points.map((p) => p * scale)}
-      stroke={isSelected ? colors.selection : annotation.stroke}
+      stroke={annotation.stroke}
       strokeWidth={annotation.strokeWidth}
       lineCap="round"
       lineJoin="round"
