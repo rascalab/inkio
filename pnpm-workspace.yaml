@@ -1,5 +1,11 @@
 packages:
-  - 'packages/*'
+  - 'packages/core'
+  - 'packages/essential'
+  - 'packages/advanced'
+  - 'packages/simple'
+  - 'packages/editor'
+  - 'packages/image-editor'
+  - 'packages/server'
   - 'docs'
   - 'examples/*'
 autoInstallPeers: false

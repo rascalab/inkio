@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "types": ["vitest/globals"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@inkio/core": ["../core/src/index.ts"],
+      "@inkio/core/*": ["../core/src/*"],
+      "@inkio/core/icons": ["../core/src/icons/index.ts"],
+      "@inkio/essential": ["../essential/src/index.ts"],
+      "@inkio/essential/*": ["../essential/src/*"]
+    }
+  },
+  "include": [
+    "src/index.ts",
+    "src/defaults.ts",
+    "src/entries/**/*.ts",
+    "src/entries/**/*.tsx",
+    "src/comment/**/*.ts",
+    "src/comment/**/*.tsx"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

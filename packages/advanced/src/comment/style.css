@@ -1,0 +1,560 @@
+
+/* ============================
+   Comment Mark Styles
+   ============================ */
+
+.inkio-comment {
+  background-color: var(--inkio-comment-bg);
+  cursor: pointer;
+}
+
+.inkio-comment-resolved {
+  background-color: var(--inkio-comment-resolved-bg);
+}
+
+/* ============================
+   Comment Panel UI
+   ============================ */
+
+.inkio-comment-panel {
+  font-family: inherit;
+  font-size: 0.8125rem;
+  color: var(--inkio-text);
+}
+
+.inkio-comment-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.inkio-comment-panel-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.inkio-comment-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 0.375rem;
+  border-radius: 9999px;
+  background: var(--inkio-primary);
+  color: var(--inkio-bg);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.inkio-comment-filters {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.inkio-comment-filter-btn {
+  padding: 0.25rem 0.625rem;
+  border: none;
+  border-radius: var(--inkio-radius);
+  background: transparent;
+  color: var(--inkio-text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all var(--inkio-transition-fast);
+}
+
+.inkio-comment-filter-btn:hover {
+  background: var(--inkio-bg-muted);
+}
+
+.inkio-comment-filter-btn.is-active {
+  background: var(--inkio-border);
+  color: var(--inkio-text-heading);
+  font-weight: 600;
+}
+
+.inkio-comment-empty {
+  padding: 1.25rem 0.75rem;
+  text-align: center;
+  color: var(--inkio-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.inkio-comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.inkio-comment-thread {
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-lg);
+  overflow: hidden;
+  transition: all var(--inkio-transition-fast);
+}
+
+.inkio-comment-thread:hover {
+  border-color: var(--inkio-border);
+  box-shadow: var(--inkio-shadow);
+  cursor: default;
+}
+
+.inkio-comment-thread.is-active {
+  border-color: var(--inkio-primary);
+  box-shadow: var(--inkio-ring);
+}
+
+.inkio-comment-thread.is-resolved {
+  opacity: 0.55;
+}
+
+.inkio-comment-thread-quote {
+  display: flex;
+  align-items: stretch;
+  padding: 0.5rem 0.75rem;
+  background: var(--inkio-comment-quote-bg);
+  cursor: pointer;
+  transition: background var(--inkio-transition-fast);
+}
+
+.inkio-comment-thread-quote:hover {
+  background: var(--inkio-comment-quote-hover-bg);
+}
+
+.inkio-comment-quote-bar {
+  width: 3px;
+  min-height: 100%;
+  background: var(--inkio-comment-quote-bar);
+  border-radius: var(--inkio-radius-xs);
+  margin-right: 0.625rem;
+  flex-shrink: 0;
+}
+
+.inkio-comment-quote-text {
+  font-size: 0.75rem;
+  color: var(--inkio-comment-quote-text);
+  line-height: 1.4;
+  font-style: italic;
+}
+
+.inkio-comment-messages {
+  padding: 0.5rem 0.75rem 0.25rem;
+}
+
+.inkio-comment-no-messages {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.6875rem;
+  color: var(--inkio-text-muted);
+  font-style: italic;
+}
+
+.inkio-comment-msg {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.inkio-comment-msg-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--inkio-avatar-gradient-from), var(--inkio-avatar-gradient-to));
+  color: var(--inkio-text-on-primary);
+  font-size: 0.625rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.inkio-comment-msg-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.inkio-comment-msg-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  margin-bottom: 0.125rem;
+}
+
+.inkio-comment-msg-author {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--inkio-text-heading);
+}
+
+.inkio-comment-msg-time {
+  font-size: 0.625rem;
+  color: var(--inkio-text-muted);
+}
+
+.inkio-comment-msg-text {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--inkio-text);
+  word-break: break-word;
+}
+
+.inkio-comment-reply-row {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem 0.5rem;
+}
+
+.inkio-comment-reply-input {
+  flex: 1;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius);
+  font-size: 0.75rem;
+  color: var(--inkio-text-heading);
+  background-color: transparent;
+  outline: none;
+  transition: border-color var(--inkio-transition-fast);
+}
+
+.inkio-comment-reply-input:focus {
+  border-color: var(--inkio-primary);
+  box-shadow: var(--inkio-ring);
+}
+
+.inkio-comment-reply-send {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--inkio-radius);
+  background: var(--inkio-primary);
+  color: var(--inkio-bg);
+  font-size: 0.875rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--inkio-transition-fast);
+}
+
+.inkio-comment-reply-send:hover {
+  background: var(--inkio-primary-hover);
+}
+
+.inkio-comment-thread-actions {
+  display: flex;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem 0.5rem;
+}
+
+.inkio-comment-action-btn {
+  padding: 0.1875rem 0.5rem;
+  border: none;
+  border-radius: var(--inkio-radius-sm);
+  font-size: 0.6875rem;
+  cursor: pointer;
+  transition: background-color var(--inkio-transition-fast);
+}
+
+.inkio-comment-action-btn.resolve {
+  background: var(--inkio-success-bg);
+  color: var(--inkio-success-text);
+}
+
+.inkio-comment-action-btn.resolve:hover {
+  background: var(--inkio-success-hover);
+}
+
+.inkio-comment-action-btn.delete {
+  background: var(--inkio-danger-bg);
+  color: var(--inkio-danger-text);
+}
+
+.inkio-comment-action-btn.delete:hover {
+  background: var(--inkio-danger-hover-bg);
+}
+
+/* ============================
+   Comment Composer
+   ============================ */
+
+.inkio-comment-composer {
+  width: 320px;
+  animation: inkio-composer-in 0.15s ease-out;
+}
+
+@keyframes inkio-composer-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.inkio-comment-composer-inner {
+  background: var(--inkio-bg);
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-lg);
+  box-shadow: var(--inkio-shadow-lg);
+  overflow: hidden;
+}
+
+.inkio-comment-composer-input {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 0.875rem 0.5rem;
+  border: none;
+  outline: none;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--inkio-text-heading);
+  background-color: transparent;
+  resize: none;
+  overflow: hidden;
+  min-height: 2.25rem;
+  max-height: 7.5rem;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.inkio-comment-composer-input::placeholder {
+  color: var(--inkio-text-muted);
+}
+
+.inkio-comment-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.375rem;
+  padding: 0.375rem 0.625rem 0.625rem;
+}
+
+.inkio-comment-composer-cancel {
+  padding: 0.3125rem 0.75rem;
+  border: none;
+  border-radius: var(--inkio-radius);
+  background: transparent;
+  color: var(--inkio-text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background var(--inkio-transition-fast);
+}
+
+.inkio-comment-composer-cancel:hover {
+  background: var(--inkio-bg-muted);
+}
+
+.inkio-comment-composer-submit {
+  padding: 0.3125rem 0.875rem;
+  border: none;
+  border-radius: var(--inkio-radius);
+  background: var(--inkio-primary);
+  color: var(--inkio-bg);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--inkio-transition-fast);
+}
+
+.inkio-comment-composer-submit:hover:not(:disabled) {
+  background: var(--inkio-primary-hover);
+}
+
+.inkio-comment-composer-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================
+   Comment Thread Popover
+   ============================ */
+
+.inkio-thread-popover {
+  width: 340px;
+  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+  background: var(--inkio-bg);
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-lg);
+  box-shadow: var(--inkio-shadow-lg);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  color: var(--inkio-text);
+  animation: inkio-thread-popover-in 0.15s ease-out;
+}
+
+@keyframes inkio-thread-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.inkio-thread-popover-quote {
+  display: flex;
+  align-items: stretch;
+  padding: 0.5rem 0.75rem;
+  background: var(--inkio-comment-quote-bg);
+  border-radius: var(--inkio-radius-lg) var(--inkio-radius-lg) 0 0;
+}
+
+.inkio-thread-popover-quote-bar {
+  width: 3px;
+  min-height: 100%;
+  background: var(--inkio-comment-quote-bar);
+  border-radius: var(--inkio-radius-xs);
+  margin-right: 0.625rem;
+  flex-shrink: 0;
+}
+
+.inkio-thread-popover-quote-text {
+  font-size: 0.75rem;
+  color: var(--inkio-comment-quote-text);
+  line-height: 1.4;
+  font-style: italic;
+}
+
+.inkio-thread-popover-messages {
+  padding: 0.5rem 0.75rem;
+  overflow-y: auto;
+  max-height: 240px;
+}
+
+.inkio-thread-popover-msg {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.inkio-thread-popover-msg:last-child {
+  margin-bottom: 0;
+}
+
+.inkio-thread-popover-msg-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--inkio-avatar-gradient-from), var(--inkio-avatar-gradient-to));
+  color: var(--inkio-text-on-primary);
+  font-size: 0.625rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.inkio-thread-popover-msg-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.inkio-thread-popover-msg-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  margin-bottom: 0.125rem;
+}
+
+.inkio-thread-popover-msg-author {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--inkio-text-heading);
+}
+
+.inkio-thread-popover-msg-time {
+  font-size: 0.625rem;
+  color: var(--inkio-text-muted);
+}
+
+.inkio-thread-popover-msg-text {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--inkio-text);
+  word-break: break-word;
+}
+
+.inkio-thread-popover-empty {
+  padding: 0.5rem 0;
+  font-size: 0.6875rem;
+  color: var(--inkio-text-muted);
+  font-style: italic;
+}
+
+.inkio-thread-popover-reply {
+  padding: 0.375rem 0.75rem 0.5rem;
+  border-top: 1px solid var(--inkio-border);
+}
+
+.inkio-thread-popover-reply-input {
+  width: 100%;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius);
+  font-size: 0.75rem;
+  color: var(--inkio-text-heading);
+  background-color: transparent;
+  outline: none;
+  resize: none;
+  font-family: inherit;
+  min-height: 2rem;
+  box-sizing: border-box;
+  transition: border-color var(--inkio-transition-fast);
+}
+
+.inkio-thread-popover-reply-input:focus {
+  border-color: var(--inkio-primary);
+  box-shadow: var(--inkio-ring);
+}
+
+.inkio-thread-popover-actions {
+  display: flex;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem 0.5rem;
+}
+
+.inkio-thread-popover-action-btn {
+  padding: 0.1875rem 0.5rem;
+  border: none;
+  border-radius: var(--inkio-radius-sm);
+  font-size: 0.6875rem;
+  cursor: pointer;
+  transition: background-color var(--inkio-transition-fast);
+}
+
+.inkio-thread-popover-action-btn.resolve {
+  background: var(--inkio-success-bg);
+  color: var(--inkio-success-text);
+}
+
+.inkio-thread-popover-action-btn.resolve:hover {
+  background: var(--inkio-success-hover);
+}
+
+.inkio-thread-popover-action-btn.delete {
+  background: var(--inkio-danger-bg);
+  color: var(--inkio-danger-text);
+}
+
+.inkio-thread-popover-action-btn.delete:hover {
+  background: var(--inkio-danger-hover-bg);
+}
+

@@ -4,74 +4,15 @@ title: Radix UI
 
 # Radix UI 통합
 
-[Radix Themes](https://www.radix-ui.com/themes)의 Theme provider 안에서 Inkio 에디터를 사용하는 예제입니다.
-
-## 설치
+Radix Themes 안에서는 `@inkio/editor` 또는 `@inkio/simple`을 그대로 배치하면 됩니다.
 
 ```bash
-pnpm add @radix-ui/themes @inkio/editor @inkio/extension
+pnpm add @radix-ui/themes @inkio/editor react react-dom
 ```
 
-## CSS 임포트 순서
-
-```tsx
-// Radix 스타일 먼저
-import '@radix-ui/themes/styles.css';
-
-// 그 다음 Inkio 스타일
-import '@inkio/editor/minimal.css';
-import '@inkio/extension/style.css';
-```
-
-## 전체 코드
+스타일:
 
 ```tsx
 import '@radix-ui/themes/styles.css';
 import '@inkio/editor/minimal.css';
-import '@inkio/extension/style.css';
-
-import { Box, Card, Container, Heading, Text, Theme } from '@radix-ui/themes';
-import { Editor } from '@inkio/editor';
-import { getDefaultInkioExtensions } from '@inkio/extension';
-import { useMemo } from 'react';
-
-export default function RadixEditor({ theme }: { theme?: 'light' | 'dark' }) {
-  const extensions = useMemo(
-    () => getDefaultInkioExtensions({ placeholder: 'Start typing...' }),
-    [],
-  );
-
-  return (
-    <Theme appearance={theme ?? 'light'} accentColor="blue" grayColor="slate" radius="medium">
-      <Container size="3" p="6">
-        <Box mb="4">
-          <Heading size="6">My Editor</Heading>
-          <Text size="2" color="gray">
-            Radix Themes + Inkio
-          </Text>
-        </Box>
-
-        <Card size="3">
-          <Editor
-            extensions={extensions}
-            initialContent="<p>Hello from Radix!</p>"
-            showBubbleMenu
-            showFloatingMenu
-          />
-        </Card>
-      </Container>
-    </Theme>
-  );
-}
-```
-
-## 테마 연동
-
-Radix의 `Theme` 컴포넌트는 `appearance` prop으로 테마를 제어합니다.
-Inkio의 다크 모드와 연동하려면:
-
-```tsx
-useEffect(() => {
-  document.documentElement.classList.toggle('dark', theme === 'dark');
-}, [theme]);
 ```

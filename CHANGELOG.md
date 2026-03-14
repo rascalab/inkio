@@ -2,14 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
-Versioning is unified across `@inkio/editor`, `@inkio/extension`, and `@inkio/server`.
+Versioning is unified across the publishable Inkio packages.
 
-## [0.0.3] - 2026-03-12
+## [0.0.5] - 2026-03-15
 
-### Initial Release
+### Layered Package Layout
 
-- `@inkio/editor`: Core editor and viewer components — paragraphs, headings, lists, task lists, images, blockquotes, code blocks, marks (bold, italic, underline, strike, highlight, code, link)
-- `@inkio/extension`: Mention, HashTag, SlashCommand, Callout, Equation, ImageEditor, Comment, BlockHandle, ToggleList, WikiLink, Bookmark, Table
+- `@inkio/core`: low-level editor/viewer foundation, toolbar/menu primitives, markdown helpers
+- `@inkio/essential`: markdown-friendly document extensions
+- `@inkio/advanced`: notion-like and integration-heavy extensions, including comment UI
+- `@inkio/simple`: classic WYSIWYG entry point
+- `@inkio/editor`: notion-like high-level entry point
+- `@inkio/image-editor`: optional image editing UI
+
+### Breaking Changes
+
+- removed `@inkio/extension`
+- removed `@inkio/comment`
+- markdown helpers moved to `@inkio/core/markdown` and are re-exported from `@inkio/simple/markdown` and `@inkio/editor/markdown`
+- markdown import/export now uses `remark/unified` with direct `JSONContent <-> mdast` mapping instead of an HTML bridge
+- `justify` alignment is unsupported
+- first-party math support was removed; use Tiptap Mathematics directly if needed
+- `@inkio/editor` CSS now owns the advanced preset styles it depends on
 
 ### Security
 
@@ -17,4 +31,3 @@ Versioning is unified across `@inkio/editor`, `@inkio/extension`, and `@inkio/se
 - **ImageBlock**: Reject dangerous protocols in `src` attribute
 - **LinkClickHandler**: Block `javascript:`/`data:`/`vbscript:` protocols on link clicks
 - **Callout**: CSS injection prevention via color value validation
-- **Equation**: KaTeX sandboxing with `trust: false`, `strict: 'warn'`

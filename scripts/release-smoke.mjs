@@ -1,12 +1,21 @@
-import { mkdtempSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
+
+const PACKAGE_FILTERS = [
+  '@inkio/core',
+  '@inkio/essential',
+  '@inkio/advanced',
+  '@inkio/simple',
+  '@inkio/editor',
+  '@inkio/image-editor',
+];
 
 function run(command, args, cwd) {
   const result = spawnSync(command, args, {
@@ -24,6 +33,10 @@ function writeJson(filePath, value) {
   writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function pickTarball(tarballs, prefix) {
+  return tarballs.find((file) => file.startsWith(prefix) && file.endsWith('.tgz'));
+}
+
 const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'inkio-release-smoke-'));
 const tarballDir = path.join(tempRoot, 'tarballs');
 const appDir = path.join(tempRoot, 'app');
@@ -32,17 +45,21 @@ try {
   mkdirSync(tarballDir, { recursive: true });
   mkdirSync(path.join(appDir, 'src'), { recursive: true });
 
-  run('pnpm', ['--filter', '@inkio/editor', 'build'], repoRoot);
-  run('pnpm', ['--filter', '@inkio/extension', 'build'], repoRoot);
-  run('pnpm', ['--filter', '@inkio/editor', 'pack', '--pack-destination', tarballDir], repoRoot);
-  run('pnpm', ['--filter', '@inkio/extension', 'pack', '--pack-destination', tarballDir], repoRoot);
+  for (const filter of PACKAGE_FILTERS) {
+    run('pnpm', ['--filter', filter, 'build'], repoRoot);
+    run('pnpm', ['--filter', filter, 'pack', '--pack-destination', tarballDir], repoRoot);
+  }
 
   const tarballs = readdirSync(tarballDir);
-  const coreTarball = tarballs.find((file) => file.startsWith('inkio-editor-') && file.endsWith('.tgz'));
-  const extensionsTarball = tarballs.find((file) => file.startsWith('inkio-extension-') && file.endsWith('.tgz'));
+  const coreTarball = pickTarball(tarballs, 'inkio-core-');
+  const essentialTarball = pickTarball(tarballs, 'inkio-essential-');
+  const advancedTarball = pickTarball(tarballs, 'inkio-advanced-');
+  const simpleTarball = pickTarball(tarballs, 'inkio-simple-');
+  const editorTarball = pickTarball(tarballs, 'inkio-editor-');
+  const imageEditorTarball = pickTarball(tarballs, 'inkio-image-editor-');
 
-  if (!coreTarball || !extensionsTarball) {
-    throw new Error('Failed to create release tarballs for @inkio/editor and @inkio/extension.');
+  if (!coreTarball || !essentialTarball || !advancedTarball || !simpleTarball || !editorTarball || !imageEditorTarball) {
+    throw new Error('Failed to create release tarballs for the layered Inkio packages.');
   }
 
   writeJson(path.join(appDir, 'package.json'), {
@@ -53,17 +70,31 @@ try {
       build: 'tsc --noEmit && vite build',
     },
     dependencies: {
-      '@inkio/editor': `file:../tarballs/${coreTarball}`,
-      '@inkio/extension': `file:../tarballs/${extensionsTarball}`,
+      '@inkio/core': `file:../tarballs/${coreTarball}`,
+      '@inkio/essential': `file:../tarballs/${essentialTarball}`,
+      '@inkio/advanced': `file:../tarballs/${advancedTarball}`,
+      '@inkio/simple': `file:../tarballs/${simpleTarball}`,
+      '@inkio/editor': `file:../tarballs/${editorTarball}`,
+      '@inkio/image-editor': `file:../tarballs/${imageEditorTarball}`,
       react: '^19.2.4',
       'react-dom': '^19.2.4',
+    },
+    pnpm: {
+      overrides: {
+        '@inkio/core': `file:../tarballs/${coreTarball}`,
+        '@inkio/essential': `file:../tarballs/${essentialTarball}`,
+        '@inkio/advanced': `file:../tarballs/${advancedTarball}`,
+        '@inkio/simple': `file:../tarballs/${simpleTarball}`,
+        '@inkio/editor': `file:../tarballs/${editorTarball}`,
+        '@inkio/image-editor': `file:../tarballs/${imageEditorTarball}`,
+      },
     },
     devDependencies: {
       '@types/react': '^19.2.14',
       '@types/react-dom': '^19.2.3',
-      '@vitejs/plugin-react': '^5.1.4',
+      '@vitejs/plugin-react': '^6.0.1',
       typescript: '^5.9.3',
-      vite: '^7.3.1',
+      vite: '^8.0.0',
     },
   });
 
@@ -89,6 +120,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   build: {
+    chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -96,42 +128,38 @@ export default defineConfig({
             return undefined;
           }
 
-          if (
-            id.includes('/react/') ||
-            id.includes('/react-dom/') ||
-            id.includes('/scheduler/')
-          ) {
+          const isPackage = (name) =>
+            id.includes(\`/node_modules/\${name}/\`) || id.includes(\`/node_modules/.pnpm/\${name.replace('/', '+')}@\`);
+
+          if (isPackage('react') || isPackage('react-dom') || isPackage('scheduler')) {
             return 'react-vendor';
           }
 
           if (
-            id.includes('/@tiptap/') ||
-            id.includes('/prosemirror-') ||
-            id.includes('/orderedmap/') ||
-            id.includes('/rope-sequence/') ||
-            id.includes('/w3c-keyname/')
+            id.includes('/node_modules/@tiptap/') ||
+            id.includes('/node_modules/.pnpm/@tiptap+') ||
+            id.includes('/node_modules/prosemirror-') ||
+            id.includes('/node_modules/.pnpm/prosemirror-') ||
+            id.includes('/node_modules/orderedmap/') ||
+            id.includes('/node_modules/.pnpm/orderedmap@') ||
+            id.includes('/node_modules/rope-sequence/') ||
+            id.includes('/node_modules/.pnpm/rope-sequence@') ||
+            id.includes('/node_modules/w3c-keyname/') ||
+            id.includes('/node_modules/.pnpm/w3c-keyname@')
           ) {
             return 'tiptap-vendor';
           }
 
+          if (id.includes('/konva/') || id.includes('/react-konva/')) {
+            return 'image-vendor';
+          }
+
           if (
-            id.includes('/@radix-ui/') ||
-            id.includes('/clsx/') ||
-            id.includes('/tailwind-merge/') ||
-            id.includes('/lucide-react/')
+            id.includes('/node_modules/@radix-ui/') ||
+            id.includes('/node_modules/.pnpm/@radix-ui+') ||
+            isPackage('lucide')
           ) {
             return 'ui-vendor';
-          }
-
-          if (id.includes('/katex/')) {
-            return 'katex-vendor';
-          }
-
-          if (
-            id.includes('/konva/') ||
-            id.includes('/react-konva/')
-          ) {
-            return 'image-vendor';
           }
 
           return undefined;
@@ -162,50 +190,198 @@ export default defineConfig({
 
   writeFileSync(
     path.join(appDir, 'src/main.tsx'),
-    `import { StrictMode } from 'react';
+    `import { StrictMode, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Editor, Viewer, getDefaultCoreExtensions } from '@inkio/editor';
-import { getDefaultInkioExtensions } from '@inkio/extension';
-import type { CommentMessage, CommentThreadData } from '@inkio/extension/comment';
+import {
+  Editor,
+  Viewer as InkioViewer,
+  type InkioMessageOverrides,
+  type TiptapEditor,
+} from '@inkio/editor';
+import {
+  parseMarkdown as parseCoreMarkdown,
+  stringifyMarkdown as stringifyCoreMarkdown,
+} from '@inkio/core/markdown';
+import {
+  parseMarkdown as parseEditorMarkdown,
+  stringifyMarkdown as stringifyEditorMarkdown,
+} from '@inkio/editor/markdown';
+import { inkioIconRegistry } from '@inkio/editor/icons';
+import { Editor as SimpleEditor, Viewer as SimpleViewer } from '@inkio/simple';
+import {
+  parseMarkdown as parseSimpleMarkdown,
+  stringifyMarkdown as stringifySimpleMarkdown,
+} from '@inkio/simple/markdown';
+import {
+  CommentPanel,
+  type CommentMessage,
+  type CommentThreadData,
+} from '@inkio/advanced';
+import { ImageEditorModal } from '@inkio/image-editor';
 import '@inkio/editor/style.css';
-import '@inkio/extension/style.css';
+import '@inkio/simple/minimal.css';
+import '@inkio/image-editor/style.css';
 
-const thread: CommentThreadData = {
-  id: 'thread-1',
-  resolved: false,
-  messages: [
-    {
-      id: 'message-1',
-      author: 'Smoke Test',
-      text: 'Release fixture comment',
-      createdAt: new Date(),
-    } satisfies CommentMessage,
-  ],
-};
+const coreMarkdown = '### Core markdown\\n\\n| a | b |\\n| - | - |\\n| 1 | 2 |';
+const editorMarkdown = ':::callout{color="blue"}\\nEditor mode callout\\n:::\\n\\n## Hello Inkio';
+const simpleMarkdown = '## Simple mode\\n\\n- toolbar\\n- lists\\n- links';
 
-const coreExtensions = getDefaultCoreExtensions({ placeholder: 'Core smoke test' });
-const fullExtensions = getDefaultInkioExtensions({
-  placeholder: 'Extensions smoke test',
-  hashtagItems: ({ query }: { query: string }) => [
-    { id: query || 'smoke', label: \`#\${query || 'smoke'}\` },
-  ],
-  comment: {
-    onCommentCreate: (_threadId: string, _selection: string) => {},
-    onCommentSubmit: (_threadId: string, _text: string, _selection: string) => {},
-    getThread: (threadId: string) => (thread.id === threadId ? thread : null),
-    currentUser: 'Smoke Test',
-  },
-});
+function createId() {
+  if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return \`id-\${Date.now().toString(36)}-\${Math.random().toString(36).slice(2, 8)}\`;
+}
 
 function App() {
+  const [coreContent] = useState(parseCoreMarkdown(coreMarkdown));
+  const [editorContent, setEditorContent] = useState(parseEditorMarkdown(editorMarkdown));
+  const [simpleContent, setSimpleContent] = useState(parseSimpleMarkdown(simpleMarkdown));
+  const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
+  const [commentThreads, setCommentThreads] = useState<CommentThreadData[]>([]);
+  const commentThreadsRef = useRef<CommentThreadData[]>([]);
+  commentThreadsRef.current = commentThreads;
+
+  const locale = 'en-US,en;q=0.9';
+  const icons = useMemo(() => ({ comment: inkioIconRegistry.comment }), []);
+  const messages = useMemo<InkioMessageOverrides>(
+    () => ({
+      core: {
+        suggestion: { empty: 'No matching items.' },
+      },
+      extensions: {
+        commentComposer: { placeholder: 'Leave a comment...' },
+      },
+    }),
+    [],
+  );
+
+  const editorDefaultExtensionsOptions = useMemo(
+    () => ({
+      placeholder: 'Editor smoke',
+      locale,
+      messages,
+      icons,
+      hashtagItems: ({ query }: { query: string }) => [
+        { id: query || 'smoke', label: \`#\${query || 'smoke'}\` },
+      ],
+      imageBlock: {
+        onUpload: async (file: File) => URL.createObjectURL(file),
+        imageEditor: ImageEditorModal,
+      },
+      comment: {
+        locale,
+        messages,
+        icons,
+        currentUser: 'Smoke Test',
+        onCommentSubmit: (threadId: string, text: string) => {
+          const message: CommentMessage = {
+            id: createId(),
+            author: 'Smoke Test',
+            text,
+            createdAt: new Date(),
+          };
+          setCommentThreads((prev) => [...prev, { id: threadId, messages: [message], resolved: false }]);
+        },
+        getThread: (threadId: string) =>
+          commentThreadsRef.current.find((thread) => thread.id === threadId) ?? null,
+        onCommentReply: (threadId: string, text: string) => {
+          const message: CommentMessage = {
+            id: createId(),
+            author: 'Smoke Test',
+            text,
+            createdAt: new Date(),
+          };
+          setCommentThreads((prev) =>
+            prev.map((thread) =>
+              thread.id === threadId ? { ...thread, messages: [...thread.messages, message] } : thread,
+            ),
+          );
+        },
+        onCommentResolve: (threadId: string) => {
+          setCommentThreads((prev) =>
+            prev.map((thread) => (thread.id === threadId ? { ...thread, resolved: true } : thread)),
+          );
+        },
+        onCommentDelete: (threadId: string) => {
+          setCommentThreads((prev) => prev.filter((thread) => thread.id !== threadId));
+        },
+      },
+    }),
+    [icons, locale, messages],
+  );
+
+  const simpleDefaultExtensionsOptions = useMemo(
+    () => ({
+      placeholder: 'Simple smoke',
+      imageBlock: {
+        onUpload: async (file: File) => URL.createObjectURL(file),
+        imageEditor: ImageEditorModal,
+      },
+    }),
+    [],
+  );
+
   return (
-    <div>
-      <Editor extensions={coreExtensions} initialContent="<p>Core smoke</p>" />
-      <Editor extensions={fullExtensions} initialContent="<p>Extensions smoke</p>" />
-      <Viewer
-        extensions={fullExtensions}
-        content={{ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Viewer smoke' }] }] }}
-      />
+    <div style={{ display: 'grid', gap: 24, padding: 24 }}>
+      <section>
+        <h1>Inkio layered release smoke</h1>
+        <p>{stringifyCoreMarkdown(coreContent)}</p>
+        <p>{stringifyEditorMarkdown(editorContent)}</p>
+        <p>{stringifySimpleMarkdown(simpleContent)}</p>
+      </section>
+
+      <section>
+        <h2>@inkio/editor</h2>
+        <Editor
+          initialContent={editorContent}
+          defaultExtensionsOptions={editorDefaultExtensionsOptions}
+          locale={locale}
+          messages={messages}
+          icons={icons}
+          showBubbleMenu
+          showFloatingMenu
+          onCreate={setEditorInstance}
+          onUpdate={setEditorContent}
+        />
+        <CommentPanel
+          editor={editorInstance}
+          threads={commentThreads}
+          locale={locale}
+          messages={messages}
+          icons={icons}
+          currentUser="Smoke Test"
+          onReply={(threadId: string, text: string) => {
+            const message: CommentMessage = { id: createId(), author: 'Smoke Test', text, createdAt: new Date() };
+            setCommentThreads((prev) =>
+              prev.map((thread) =>
+                thread.id === threadId ? { ...thread, messages: [...thread.messages, message] } : thread,
+              ),
+            );
+          }}
+          onResolve={(threadId: string) => {
+            setCommentThreads((prev) =>
+              prev.map((thread) => (thread.id === threadId ? { ...thread, resolved: true } : thread)),
+            );
+          }}
+          onDelete={(threadId: string) => {
+            setCommentThreads((prev) => prev.filter((thread) => thread.id !== threadId));
+          }}
+        />
+        <InkioViewer content={editorContent} defaultExtensionsOptions={editorDefaultExtensionsOptions} />
+      </section>
+
+      <section>
+        <h2>@inkio/simple</h2>
+        <SimpleEditor
+          initialContent={simpleContent}
+          defaultExtensionsOptions={simpleDefaultExtensionsOptions}
+          showToolbar
+          onUpdate={setSimpleContent}
+        />
+        <SimpleViewer content={simpleContent} defaultExtensionsOptions={simpleDefaultExtensionsOptions} />
+      </section>
     </div>
   );
 }
@@ -218,8 +394,8 @@ createRoot(document.getElementById('root')!).render(
 `,
   );
 
-  run('pnpm', ['install', '--no-frozen-lockfile'], appDir);
+  run('pnpm', ['install'], appDir);
   run('pnpm', ['build'], appDir);
 } finally {
-  rmSync(tempRoot, { recursive: true, force: true });
+  // Keep the temp directory around on failure for inspection.
 }

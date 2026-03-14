@@ -1,0 +1,112 @@
+{
+  "name": "@inkio/advanced",
+  "version": "0.0.5",
+  "description": "Advanced notion-like and integration-aware extensions for Inkio",
+  "license": "MIT",
+  "homepage": "https://rascalab.github.io/inkio/",
+  "bugs": {
+    "url": "https://github.com/rascalab/inkio/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rascalab/inkio.git",
+    "directory": "packages/advanced"
+  },
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./block-handle": {
+      "types": "./dist/block-handle.d.ts",
+      "import": "./dist/block-handle.js",
+      "require": "./dist/block-handle.cjs"
+    },
+    "./bookmark": {
+      "types": "./dist/bookmark.d.ts",
+      "import": "./dist/bookmark.js",
+      "require": "./dist/bookmark.cjs"
+    },
+    "./mention": {
+      "types": "./dist/mention.d.ts",
+      "import": "./dist/mention.js",
+      "require": "./dist/mention.cjs"
+    },
+    "./hashtag": {
+      "types": "./dist/hashtag.d.ts",
+      "import": "./dist/hashtag.js",
+      "require": "./dist/hashtag.cjs"
+    },
+    "./slash-command": {
+      "types": "./dist/slash-command.d.ts",
+      "import": "./dist/slash-command.js",
+      "require": "./dist/slash-command.cjs"
+    },
+    "./wikilink": {
+      "types": "./dist/wikilink.d.ts",
+      "import": "./dist/wikilink.js",
+      "require": "./dist/wikilink.cjs"
+    },
+    "./comment": {
+      "types": "./dist/comment.d.ts",
+      "import": "./dist/comment.js",
+      "require": "./dist/comment.cjs"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "scripts": {
+    "dev": "vite build --watch",
+    "typecheck": "tsc --noEmit",
+    "build": "pnpm typecheck && vite build",
+    "test": "vitest run --passWithNoTests"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "dependencies": {
+    "@inkio/core": "workspace:^",
+    "@inkio/essential": "workspace:^",
+    "@tiptap/core": "^3.20.1",
+    "@tiptap/extension-mention": "^3.20.1",
+    "@tiptap/pm": "^3.20.1",
+    "@tiptap/react": "^3.20.1",
+    "@tiptap/suggestion": "^3.20.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@tiptap/extension-document": "^3.20.1",
+    "@tiptap/extension-paragraph": "^3.20.1",
+    "@tiptap/extension-text": "^3.20.1",
+    "@types/node": "^25.5.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "jsdom": "^28.1.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.0",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^4.1.0"
+  }
+}

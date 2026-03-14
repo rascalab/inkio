@@ -1,34 +1,40 @@
 # CLAUDE.md
 
-This file provides repository-specific guidance for Claude Code.
+This file provides repository-specific guidance for coding agents.
 
 ## Project Overview
 
-Inkio is a pnpm monorepo with three publishable packages and one docs app:
+Inkio is a pnpm monorepo with layered editor packages plus docs:
 
+- `@inkio/core`
+- `@inkio/essential`
+- `@inkio/advanced`
+- `@inkio/simple`
 - `@inkio/editor`
-- `@inkio/extension`
+- `@inkio/image-editor`
 - `@inkio/server`
 - `docs` (Next.js 16 + Nextra v4)
 
-Docs URL: https://pickst3r.github.io/inkio/
+Docs URL: https://rascalab.github.io/inkio/
 
 ## Commands
 
 ```bash
 pnpm dev             # docs dev server
-pnpm dev:packages    # watch core/extensions package builds
+pnpm dev:packages    # watch publishable package builds
 pnpm dev:all         # docs + package watch together
-pnpm lint            # package lint scripts + docs typecheck
+pnpm typecheck       # package + docs + example typecheck
 pnpm test            # package tests
 pnpm build           # package builds + docs static build
-pnpm docs:typecheck  # docs TypeScript check
-pnpm docs:build      # docs static build
+pnpm examples:build  # example app builds
+pnpm e2e             # Playwright smoke tests
+pnpm release:smoke   # packed-tarball install/build smoke test
+pnpm verify          # full validation pipeline
 ```
 
 ## Notes
 
 - `docs` is configured for GitHub Pages deployment under `/inkio`.
 - `docs` build runs `pagefind` in `postbuild` to generate search indexes.
-- `@inkio/editor` and `@inkio/extension` have automated tests with Vitest.
-- `@inkio/server` currently has no test files; the test script uses `--passWithNoTests`.
+- `@inkio/core`, `@inkio/essential`, `@inkio/advanced`, `@inkio/simple`, `@inkio/editor`, and `@inkio/image-editor` have Vitest coverage.
+- `@inkio/server` remains out of scope for the current layered editor work.
