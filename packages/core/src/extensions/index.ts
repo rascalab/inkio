@@ -1,4 +1,3 @@
 export * from './ClearMarksOnEnter';
 export * from './ListMerge';
-export * from './defaults';
-export * from './registry';
+export * from './get-extensions';

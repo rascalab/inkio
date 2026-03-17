@@ -34,22 +34,23 @@ export type { Editor as TiptapEditor } from '@tiptap/react';
 
 
 // Suggestion UI
-export { SuggestionList, createSuggestionRenderer } from './components/SuggestionList';
-export type { SuggestionItem, SuggestionListProps, SuggestionListRef, CreateSuggestionRendererOptions } from './components/SuggestionList';
+export { SuggestionList } from './components/SuggestionList';
+export type { SuggestionItem, SuggestionListProps, SuggestionListRef } from './components/SuggestionList';
+export { createSuggestionRenderer } from './components/create-suggestion-renderer';
+export type { CreateSuggestionRendererOptions } from './components/create-suggestion-renderer';
 
 // Hooks
-export { useInkioEditor } from './hooks/useInkioEditor';
-export type { UseInkioEditorOptions } from './hooks/useInkioEditor';
-
-// Adapter
-export type { InkioAdapter } from './adapter';
-export { isInkioAdapter } from './adapter';
+export { useInkioEditor } from './hooks/use-inkio-editor';
+export type { UseInkioEditorOptions } from './hooks/use-inkio-editor';
 
 // Context (Optional convenience)
-export { InkioProvider, useInkioAdapter, useInkioContext } from './context/InkioProvider';
-export type { InkioProviderProps, DefaultExtensionsFactory } from './context/InkioProvider';
-export { useInkioCoreUi } from './context/useInkioUi';
-export type { InkioCoreUiOverrides, ResolvedInkioCoreUi } from './context/useInkioUi';
+export { InkioProvider, useInkioContext } from './context/InkioProvider';
+export type { InkioProviderProps } from './context/InkioProvider';
+export { useInkioCoreUi } from './context/use-inkio-ui';
+export type { InkioCoreUiOverrides, ResolvedInkioCoreUi } from './context/use-inkio-ui';
+
+// Adapter (type-only — used by internal packages, not re-exported from wrapper packages)
+export type { InkioAdapter } from './adapter';
 
 // Errors
 export { InkioError } from './errors';
@@ -89,12 +90,10 @@ export type {
 } from './overlay/positioning';
 
 // Core Extensions
-export { getExtensions } from './extensions/defaults';
-export type { CoreExtensionOptions as ExtensionsOptions } from './extensions/defaults';
+export { getExtensions } from './extensions/get-extensions';
+export type { CoreExtensionOptions as ExtensionsOptions } from './extensions/get-extensions';
 export { LinkClickHandler } from './extensions/LinkClickHandler';
 export type { LinkClickHandlerOptions } from './extensions/LinkClickHandler';
-export { createInkioExtensionRegistry } from './extensions/registry';
-export type { InkioExtensionRegistry } from './extensions/registry';
 
 // ImageBlock
 export { ImageBlock } from './extensions/ImageBlock';

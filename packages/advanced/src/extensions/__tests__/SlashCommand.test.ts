@@ -1,5 +1,5 @@
 import type { Editor, Range } from '@tiptap/core';
-import { SlashCommand, SlashCommandItem, defaultSlashCommands } from '../SlashCommand/SlashCommand';
+import { SlashCommand, SlashCommandItem, defaultSlashCommands } from '../SlashCommand';
 
 function createMockEditor(commandNames: string[] = [], schemaNodes: string[] = []) {
   const chain = {
@@ -143,5 +143,54 @@ describe('SlashCommand extension', () => {
 
     expect(() => table!.command({ editor, range })).not.toThrow();
     expect(chain.run).not.toHaveBeenCalled();
+  });
+
+  it('image slash command uploads at the deleted slash-command position', () => {
+    const image = defaultSlashCommands.find((item) => item.id === 'image');
+    expect(image).toBeDefined();
+
+    const { editor, chain } = createMockEditor();
+    const uploadImageBlock = vi.fn(() => true);
+    (editor as unknown as { commands: { uploadImageBlock: typeof uploadImageBlock } }).commands = {
+      uploadImageBlock,
+    };
+
+    const createdInput = {
+      type: '',
+      accept: '',
+      files: null as FileList | null,
+      onchange: null as ((event: Event) => void) | null,
+      click: vi.fn(() => {
+        const file = new File(['image'], 'demo.png', { type: 'image/png' });
+        Object.defineProperty(createdInput, 'files', {
+          configurable: true,
+          value: [file],
+        });
+        createdInput.onchange?.({ target: createdInput } as unknown as Event);
+      }),
+    };
+
+    const originalCreateElement = document.createElement.bind(document);
+    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+      if (tagName === 'input') {
+        return createdInput as unknown as HTMLInputElement;
+      }
+
+      return originalCreateElement(tagName);
+    });
+
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+
+    image!.command({ editor, range });
+
+    expect(chain.deleteRange).toHaveBeenCalledWith(range);
+    expect(uploadImageBlock).toHaveBeenCalledTimes(1);
+    expect(uploadImageBlock).toHaveBeenCalledWith(expect.any(Array), range.from);
+
+    createElementSpy.mockRestore();
+    rafSpy.mockRestore();
   });
 });

@@ -1,6 +1,6 @@
 import { Extension } from '@tiptap/core';
 import type { Plugin } from '@tiptap/pm/state';
-import { createBlockHandlePlugin } from './BlockDragPlugin';
+import { createBlockHandlePlugin } from './block-drag-plugin';
 import type { BlockMenuIcons } from './icons';
 import type { InkioLocaleInput, InkioMessageOverrides, InkioCoreMessageOverrides } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';

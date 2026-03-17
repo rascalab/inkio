@@ -1,9 +1,9 @@
 export { Editor } from './components/Editor';
-export type { EditorProps, DefaultExtensionsOptions } from './components/Editor';
+export type { EditorProps } from './components/Editor';
 export { Viewer } from './components/Viewer';
 export type { ViewerProps } from './components/Viewer';
+export type { ExtensionsInput } from './types';
 export { getExtensions as getDefaultExtensions } from '@inkio/core';
-export type { ExtensionsOptions as DefaultExtensionsOptionsShape } from '@inkio/core';
 export {
   BubbleMenu,
   FloatingMenu,
@@ -15,7 +15,6 @@ export {
   enCoreMessages,
   ImageBlock,
   InkioProvider,
-  isInkioAdapter,
   pickMessageLocale,
   resolveLocaleInput,
   toPlainText,
@@ -28,7 +27,6 @@ export type {
   ToolbarProps,
   TableMenuProps,
   BuiltinInkioToolbarActionId,
-  InkioAdapter,
   InkioCoreLocaleId,
   InkioCoreMessages,
   InkioLocaleInput,

@@ -7,6 +7,7 @@ import { readFileSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const enableDts = process.env.INKIO_VITE_SKIP_DTS !== '1';
 
 function inlineCssImports(filePath: string, visited = new Set<string>()): string {
   const resolved = resolve(filePath);
@@ -22,21 +23,26 @@ function inlineCssImports(filePath: string, visited = new Set<string>()): string
 export default defineConfig({
   plugins: [
     react(),
-    dts({
-      include: ['src'],
-      exclude: [
-        'src/**/__tests__/**',
-        'src/**/*.test.ts',
-        'src/**/*.test.tsx',
-      ],
-      insertTypesEntry: true,
-    }),
+    ...(enableDts
+      ? [
+          dts({
+            entryRoot: 'src',
+            include: ['src'],
+            exclude: [
+              'src/**/__tests__/**',
+              'src/**/*.test.ts',
+              'src/**/*.test.tsx',
+            ],
+            insertTypesEntry: true,
+          }),
+        ]
+      : []),
     {
       name: 'copy-css',
       generateBundle() {
         this.emitFile({
           type: 'asset',
-          fileName: 'style-minimal.css',
+          fileName: 'minimal.css',
           source: inlineCssImports(resolve(__dirname, 'src/minimal.css')),
         });
         this.emitFile({
@@ -56,6 +62,7 @@ export default defineConfig({
     ],
   },
   build: {
+    outDir: process.env.INKIO_VITE_OUT_DIR ?? 'dist',
     lib: {
       entry: {
         index: resolve(__dirname, 'src/index.ts'),

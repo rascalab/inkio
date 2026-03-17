@@ -1,1 +1,1 @@
-export { Mention, MentionPluginKey, type MentionItem, type MentionOptions } from '../extensions/Mention/Mention';
+export { Mention, MentionPluginKey, type MentionItem, type MentionOptions } from '../extensions/Mention';

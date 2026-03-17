@@ -49,7 +49,9 @@
   "scripts": {
     "dev": "vite build --watch",
     "typecheck": "tsc --noEmit",
-    "build": "pnpm typecheck && vite build",
+    "bundle:smoke": "INKIO_VITE_SKIP_DTS=1 node ../../scripts/run-vite-package-build.mjs",
+    "bundle": "node ../../scripts/run-vite-package-build.mjs",
+    "build": "pnpm typecheck && pnpm bundle",
     "test": "vitest run --passWithNoTests"
   },
   "peerDependencies": {
