@@ -4,18 +4,25 @@ import dts from 'vite-plugin-dts';
 import { resolve } from 'path';
 import { readFileSync } from 'fs';
 
+const enableDts = process.env.INKIO_VITE_SKIP_DTS !== '1';
+
 export default defineConfig({
   plugins: [
     react(),
-    dts({
-      include: ['src'],
-      exclude: [
-        'src/**/__tests__/**',
-        'src/**/*.test.ts',
-        'src/**/*.test.tsx',
-      ],
-      insertTypesEntry: true,
-    }),
+    ...(enableDts
+      ? [
+          dts({
+            include: ['src'],
+            entryRoot: 'src',
+            exclude: [
+              'src/**/__tests__/**',
+              'src/**/*.test.ts',
+              'src/**/*.test.tsx',
+            ],
+            insertTypesEntry: true,
+          }),
+        ]
+      : []),
     {
       name: 'copy-css',
       generateBundle() {
@@ -35,6 +42,7 @@ export default defineConfig({
     ],
   },
   build: {
+    outDir: process.env.INKIO_VITE_OUT_DIR ?? 'dist',
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
       name: 'InkioImageEditor',
