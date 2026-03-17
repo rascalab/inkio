@@ -9,8 +9,8 @@ export type {
   InkioImageEditorMessages,
   InkioImageEditorMessageOverrides,
 } from './messages';
-export { useInkioImageEditorUi } from './useInkioImageEditorUi';
+export { useInkioImageEditorUi } from './use-inkio-image-editor-ui';
 export type {
   InkioImageEditorUiOverrides,
   ResolvedInkioImageEditorUi,
-} from './useInkioImageEditorUi';
+} from './use-inkio-image-editor-ui';
