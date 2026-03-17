@@ -1,6 +1,6 @@
-export { ImageEditorModal } from './ImageEditor/ImageEditorModal';
-export type { ImageEditorModalProps } from './ImageEditor/ImageEditorModal';
-export { ImageEditor } from './ImageEditor/editor';
+export { ImageEditorModal } from './ImageEditorModal';
+export type { ImageEditorModalProps } from './ImageEditorModal';
+export { ImageEditor } from './ImageEditor';
 export type {
   ImageEditorProps,
   ToolType,
@@ -18,7 +18,7 @@ export type {
   ShapeOptions,
   TextOptions,
   ImageEditorState,
-} from './ImageEditor/editor';
+} from './types';
 export {
   enImageEditorMessages,
   mergeImageEditorMessages,
