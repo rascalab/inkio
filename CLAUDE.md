@@ -12,7 +12,6 @@ Inkio is a pnpm monorepo with layered editor packages plus docs:
 - `@inkio/simple`
 - `@inkio/editor`
 - `@inkio/image-editor`
-- `@inkio/server`
 - `docs` (Next.js 16 + Nextra v4)
 
 Docs URL: https://rascalab.github.io/inkio/
@@ -37,4 +36,3 @@ pnpm verify          # full validation pipeline
 - `docs` is configured for GitHub Pages deployment under `/inkio`.
 - `docs` build runs `pagefind` in `postbuild` to generate search indexes.
 - `@inkio/core`, `@inkio/essential`, `@inkio/advanced`, `@inkio/simple`, `@inkio/editor`, and `@inkio/image-editor` have Vitest coverage.
-- `@inkio/server` remains out of scope for the current layered editor work.

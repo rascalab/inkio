@@ -26,8 +26,6 @@ Use this file when asking an AI assistant to generate or modify Inkio integratio
 - `@inkio/core`
   - low-level foundation
   - `Editor`, `Viewer`, `getExtensions()`, toolbar/menu primitives
-- `@inkio/server`
-  - Server-side utilities only
 
 ## Installation Rules
 
@@ -57,7 +55,7 @@ Use this file when asking an AI assistant to generate or modify Inkio integratio
   - `@inkio/editor` for notion-like editing
 - Use `@inkio/core`, `@inkio/essential`, `@inkio/advanced` only when composing a custom package surface.
 - `content` and `initialContent` are mutually exclusive.
-- Next.js App Router must render the editor in a `use client` component.
+- Next.js App Router should render the editor inside a client component, but the editor now server-prerenders static document HTML before hydration.
 - For local workspace development in this repo, docs resolve packages from `packages/*/src`.
 - For release validation, use `pnpm release:smoke`.
 - Markdown helpers live at:
