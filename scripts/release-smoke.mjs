@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -16,6 +16,56 @@ const PACKAGE_FILTERS = [
   '@inkio/editor',
   '@inkio/image-editor',
 ];
+const skipPackageBuilds = process.env.INKIO_RELEASE_SMOKE_SKIP_PACKAGE_BUILDS === '1';
+
+function getPackageDir(filter) {
+  return path.join(repoRoot, 'packages', filter.split('/')[1]);
+}
+
+function collectTypeTargets(value, targets) {
+  if (!value) {
+    return;
+  }
+
+  if (typeof value === 'string') {
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      collectTypeTargets(entry, targets);
+    }
+    return;
+  }
+
+  if (typeof value === 'object') {
+    if (typeof value.types === 'string') {
+      targets.add(value.types);
+    }
+
+    for (const child of Object.values(value)) {
+      collectTypeTargets(child, targets);
+    }
+  }
+}
+
+function hasReleaseReadyBuild(filter) {
+  const packageDir = getPackageDir(filter);
+  const manifest = JSON.parse(readFileSync(path.join(packageDir, 'package.json'), 'utf-8'));
+  const targets = new Set();
+
+  if (typeof manifest.types === 'string') {
+    targets.add(manifest.types);
+  }
+
+  collectTypeTargets(manifest.exports, targets);
+
+  if (targets.size === 0) {
+    return existsSync(path.join(packageDir, 'dist'));
+  }
+
+  return Array.from(targets).every((target) => existsSync(path.join(packageDir, target)));
+}
 
 function run(command, args, cwd) {
   const result = spawnSync(command, args, {
@@ -46,7 +96,11 @@ try {
   mkdirSync(path.join(appDir, 'src'), { recursive: true });
 
   for (const filter of PACKAGE_FILTERS) {
-    run('pnpm', ['--filter', filter, 'build'], repoRoot);
+    if (!skipPackageBuilds) {
+      run('pnpm', ['--filter', filter, 'build'], repoRoot);
+    } else if (!hasReleaseReadyBuild(filter)) {
+      throw new Error(`Missing release-ready build for ${filter}. Run pnpm build:packages or pnpm verify:full first, or unset INKIO_RELEASE_SMOKE_SKIP_PACKAGE_BUILDS.`);
+    }
     run('pnpm', ['--filter', filter, 'pack', '--pack-destination', tarballDir], repoRoot);
   }
 
