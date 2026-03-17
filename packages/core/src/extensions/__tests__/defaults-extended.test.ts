@@ -1,4 +1,4 @@
-import { getExtensions } from '../defaults';
+import { getExtensions } from '../get-extensions';
 
 describe('getExtensions — option flags', () => {
   it('returns an array of extensions by default', () => {

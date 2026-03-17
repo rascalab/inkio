@@ -1,4 +1,4 @@
-import { getExtensions } from '../defaults';
+import { getExtensions } from '../get-extensions';
 
 describe('defaults', () => {
   it('getExtensions should not include image extension by default', () => {

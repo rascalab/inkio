@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react';
-import { BubbleMenu } from '../BubbleMenu/BubbleMenu';
+import { BubbleMenu } from '../BubbleMenu';
 
 describe('BubbleMenu component', () => {
   it('should render null when editor is null', () => {

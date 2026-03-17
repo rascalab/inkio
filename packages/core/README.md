@@ -40,6 +40,8 @@ export function CoreEditor() {
 }
 ```
 
+`Editor`는 CSR 앱에서 그대로 사용할 수 있고, Next App Router 같은 SSR 환경에서는 hard refresh 시 static 문서 HTML을 먼저 렌더한 뒤 hydration 후 interactive editor로 전환됩니다.
+
 ## Viewer ToC
 
 ```tsx
@@ -50,6 +52,8 @@ export function CoreEditor() {
 ```
 
 Use `onHeadingsReady` if you want to render your own table of contents UI outside the built-in viewer layout.
+
+`Viewer`는 static HTML 기반이라 SSR/CSR 모두에서 같은 마크업 계약으로 동작합니다.
 
 ## Markdown
 

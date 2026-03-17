@@ -7,6 +7,7 @@ import { readFileSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const enableDts = process.env.INKIO_VITE_SKIP_DTS !== '1';
 
 const entries = {
   index: resolve(__dirname, 'src/index.ts'),
@@ -17,27 +18,32 @@ const entries = {
 export default defineConfig({
   plugins: [
     react(),
-    dts({
-      entryRoot: 'src',
-      include: [
-        'src/index.ts',
-        'src/defaults.ts',
-        'src/entries/callout.ts',
-        'src/entries/keyboard-shortcuts.ts',
-        'src/extensions/Callout.ts',
-        'src/extensions/CalloutToolbarPlugin.tsx',
-        'src/extensions/DetailsShortcut.ts',
-        'src/extensions/KeyboardShortcuts/**/*.ts',
-        'src/utils/createRoot.ts',
-      ],
-      exclude: [
-        'src/**/__tests__/**',
-        'src/**/*.test.ts',
-        'src/**/*.test.tsx',
-      ],
-      insertTypesEntry: true,
-      rollupTypes: false,
-    }),
+    ...(enableDts
+      ? [
+          dts({
+            entryRoot: 'src',
+            include: [
+              'src/index.ts',
+              'src/get-default-extensions.ts',
+              'src/entries/callout.ts',
+              'src/entries/keyboard-shortcuts.ts',
+              'src/extensions/Callout.ts',
+              'src/extensions/callout-toolbar-plugin.tsx',
+              'src/extensions/DetailsShortcut.ts',
+              'src/extensions/optional-commands.ts',
+              'src/extensions/KeyboardShortcuts.ts',
+              'src/utils/create-root.ts',
+            ],
+            exclude: [
+              'src/**/__tests__/**',
+              'src/**/*.test.ts',
+              'src/**/*.test.tsx',
+            ],
+            insertTypesEntry: true,
+            rollupTypes: false,
+          }),
+        ]
+      : []),
     {
       name: 'copy-css',
       generateBundle() {
@@ -57,6 +63,7 @@ export default defineConfig({
     ],
   },
   build: {
+    outDir: process.env.INKIO_VITE_OUT_DIR ?? 'dist',
     lib: {
       entry: entries,
       name: 'InkioExtensions',

@@ -23,6 +23,7 @@
 
   /* Border — slate 6 / blue 9 */
   --inkio-border: #d9d9e0;
+  --inkio-border-strong: color-mix(in srgb, var(--inkio-border) 90%, transparent);
   --inkio-border-focus: #0090ff;
 
   /* Primary — blue 9/10/3 */
@@ -85,6 +86,18 @@
   --inkio-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   --inkio-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
   --inkio-shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.2);
+
+  /* Shared chrome surface system */
+  --inkio-surface-shell: color-mix(in srgb, var(--inkio-bg) 84%, rgba(15, 23, 42, 0.18));
+  --inkio-surface-panel: color-mix(in srgb, var(--inkio-bg) 92%, rgba(15, 23, 42, 0.12));
+  --inkio-surface-field: color-mix(in srgb, var(--inkio-bg) 96%, rgba(15, 23, 42, 0.08));
+  --inkio-surface-border: color-mix(in srgb, var(--inkio-border) 72%, transparent);
+  --inkio-surface-border-strong: color-mix(in srgb, var(--inkio-border) 90%, transparent);
+  --inkio-surface-shadow: var(--inkio-shadow);
+  --inkio-surface-shadow-lg: var(--inkio-shadow-lg);
+  --inkio-surface-blur-shell: 18px;
+  --inkio-surface-blur-panel: 20px;
+  --inkio-surface-blur-field: 12px;
 
   /* Layer system */
   --inkio-layer-base: 1;

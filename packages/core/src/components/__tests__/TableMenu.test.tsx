@@ -1,5 +1,5 @@
 import { fireEvent, render, waitFor } from '@testing-library/react';
-import { TableMenu } from '../TableMenu/TableMenu';
+import { TableMenu } from '../TableMenu';
 
 function createMockEditor() {
   const addRowAfter = vi.fn(() => ({ run: () => true }));

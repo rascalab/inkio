@@ -1,5 +1,5 @@
 import { Extension, InputRule } from '@tiptap/core';
-import { runOptionalPreparedChainCommand } from './optionalCommands';
+import { runOptionalPreparedChainCommand } from './optional-commands';
 
 export const DetailsShortcut = Extension.create({
   name: 'detailsShortcut',

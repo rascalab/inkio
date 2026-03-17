@@ -11,8 +11,8 @@ export type {
   InkioCommentMessageOverrides,
   InkioTypedCommentMessageOverrides,
 } from './messages';
-export { useInkioCommentUi } from './useInkioCommentUi';
+export { useInkioCommentUi } from './use-inkio-comment-ui';
 export type {
   InkioCommentUiOverrides,
   ResolvedInkioCommentUi,
-} from './useInkioCommentUi';
+} from './use-inkio-comment-ui';

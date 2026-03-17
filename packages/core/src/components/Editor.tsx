@@ -1,10 +1,8 @@
+'use client';
+
 import { EditorContent, Extensions, JSONContent, Editor as TiptapEditor } from '@tiptap/react';
-import { useState } from 'react';
-import type { InkioAdapter } from '../adapter';
-import type { DefaultExtensionsFactory } from '../context/InkioProvider';
-import { useInkioContext } from '../context/InkioProvider';
-import { useInkioEditor } from '../hooks/useInkioEditor';
-import type { InkioExtensionRegistry } from '../extensions/registry';
+import { useEffect, useMemo, useState } from 'react';
+import { useInkioEditor } from '../hooks/use-inkio-editor';
 import { BubbleMenu } from './BubbleMenu';
 import type { BubbleMenuProps } from './BubbleMenu';
 import { FloatingMenu } from './FloatingMenu';
@@ -15,6 +13,11 @@ import { Toolbar } from './Toolbar';
 import type { ToolbarProps } from './Toolbar';
 import type { InkioCoreMessageOverrides, InkioLocaleInput, InkioMessageOverrides } from '../i18n/messages';
 import type { InkioIconRegistry } from '../icons/registry';
+import { resolveInkioExtensions } from '../extensions/resolve-extensions';
+import {
+  createEditorPlaceholderHtml,
+  renderInkioStaticContent,
+} from '../ssr/render-static-content';
 
 type EditorContentMode =
   | {
@@ -28,10 +31,6 @@ type EditorContentMode =
 
 export type EditorProps = EditorContentMode & {
   extensions?: Extensions;
-  extensionRegistry?: InkioExtensionRegistry;
-  adapter?: InkioAdapter;
-  /** Factory that returns the full extension set when adapter is provided. */
-  getDefaultExtensions?: DefaultExtensionsFactory;
   placeholder?: string;
   editable?: boolean;
   onUpdate?: (content: JSONContent) => void;
@@ -39,6 +38,8 @@ export type EditorProps = EditorContentMode & {
   className?: string;
   /** 에디터 컨테이너 스타일 */
   style?: React.CSSProperties;
+  /** Fill the parent container height instead of sizing to content. */
+  fill?: boolean;
   /** Show default container border and padding */
   bordered?: boolean;
   /** Whether to show the bubble menu */
@@ -69,15 +70,13 @@ export const Editor = ({
   content,
   initialContent,
   extensions = [],
-  extensionRegistry,
-  adapter,
-  getDefaultExtensions,
   placeholder,
   editable = true,
   onUpdate,
   onCreate,
   className = '',
   style,
+  fill = false,
   bordered = true,
   showToolbar = false,
   showBubbleMenu = false,
@@ -95,47 +94,74 @@ export const Editor = ({
     throw new Error('Inkio Editor: `content` and `initialContent` cannot be used together.');
   }
 
-  const ctx = useInkioContext();
-  const resolvedAdapter = adapter ?? ctx.adapter;
-  const resolvedFactory = getDefaultExtensions ?? ctx.getDefaultExtensions;
+  const resolvedExtensions = useMemo(
+    () => resolveInkioExtensions(extensions, placeholder),
+    [extensions, placeholder],
+  );
 
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   const editor = useInkioEditor({
     ...(content !== undefined ? { content } : { initialContent }),
-    extensions,
-    extensionRegistry,
-    adapter: resolvedAdapter,
-    getDefaultExtensions: resolvedFactory,
+    extensions: resolvedExtensions,
     placeholder,
     editable,
-    className,
     onUpdate,
     onCreate: (instance) => {
       setEditorInstance(instance);
       onCreate?.(instance);
     },
   });
+  const initialContentValue = content ?? initialContent;
+  const staticRender = useMemo(
+    () => renderInkioStaticContent(initialContentValue, resolvedExtensions),
+    [initialContentValue, resolvedExtensions],
+  );
+  const staticHtml = staticRender.html || (editable ? createEditorPlaceholderHtml(placeholder) : '<p></p>');
+  const showInteractiveRuntime = isHydrated && !!editor;
 
   return (
     <div
       style={style}
-      className={`inkio inkio-editor${bordered ? ' inkio-container-default' : ''}${className ? ` ${className}` : ''}`}
+      className={`inkio inkio-editor${fill ? ' inkio-editor--fill' : ''}${bordered ? ' inkio-container-default' : ''}${className ? ` ${className}` : ''}`}
     >
       {showToolbar && (
-        <Toolbar
-          editor={editorInstance}
-          className={toolbar?.className}
-          locale={toolbar?.locale ?? locale}
-          messages={toolbar?.messages ?? messages}
-          icons={toolbar?.icons ?? icons}
-          items={toolbar?.items}
-        >
-          {toolbar?.children}
-        </Toolbar>
+        showInteractiveRuntime ? (
+          <Toolbar
+            editor={editorInstance}
+            className={toolbar?.className}
+            locale={toolbar?.locale ?? locale}
+            messages={toolbar?.messages ?? messages}
+            icons={toolbar?.icons ?? icons}
+            items={toolbar?.items}
+          >
+            {toolbar?.children}
+          </Toolbar>
+        ) : (
+          <div
+            className={`inkio-toolbar inkio-toolbar--ssr-placeholder${toolbar?.className ? ` ${toolbar.className}` : ''}`}
+            role="presentation"
+            aria-hidden="true"
+          >
+            <div className="inkio-toolbar-group">
+              <span className="inkio-toolbar-skeleton-btn" />
+              <span className="inkio-toolbar-skeleton-btn" />
+              <span className="inkio-toolbar-skeleton-btn" />
+            </div>
+            <div className="inkio-toolbar-divider" />
+            <div className="inkio-toolbar-group">
+              <span className="inkio-toolbar-skeleton-btn inkio-toolbar-skeleton-btn--wide" />
+            </div>
+          </div>
+        )
       )}
 
-      {showBubbleMenu && (
+      {showInteractiveRuntime && showBubbleMenu && (
         <BubbleMenu
           editor={editorInstance}
           className={bubbleMenu?.className}
@@ -148,7 +174,7 @@ export const Editor = ({
         </BubbleMenu>
       )}
 
-      {showFloatingMenu && (
+      {showInteractiveRuntime && showFloatingMenu && (
         <FloatingMenu
           editor={editorInstance}
           className={floatingMenu?.className}
@@ -159,7 +185,7 @@ export const Editor = ({
         />
       )}
 
-      {showTableMenu && (
+      {showInteractiveRuntime && showTableMenu && (
         <TableMenu
           editor={editorInstance}
           className={tableMenu?.className}
@@ -169,7 +195,16 @@ export const Editor = ({
         />
       )}
 
-      <EditorContent editor={editor} />
+      {showInteractiveRuntime ? (
+        <EditorContent editor={editor} />
+      ) : (
+        <div className="tiptap inkio-editor-static-root" data-inkio-editor-static="">
+          <div
+            className="ProseMirror inkio-editor-static"
+            dangerouslySetInnerHTML={{ __html: staticHtml }}
+          />
+        </div>
+      )}
     </div>
   );
 };

@@ -7,6 +7,7 @@ import { readFileSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const enableDts = process.env.INKIO_VITE_SKIP_DTS !== '1';
 
 function inlineCssImports(filePath: string, visited = new Set<string>()): string {
   const resolved = resolve(filePath);
@@ -37,17 +38,21 @@ const entries = {
 export default defineConfig({
   plugins: [
     react(),
-    dts({
-      entryRoot: 'src',
-      include: ['src'],
-      exclude: [
-        'src/**/__tests__/**',
-        'src/**/*.test.ts',
-        'src/**/*.test.tsx',
-      ],
-      insertTypesEntry: true,
-      rollupTypes: false,
-    }),
+    ...(enableDts
+      ? [
+          dts({
+            entryRoot: 'src',
+            include: ['src'],
+            exclude: [
+              'src/**/__tests__/**',
+              'src/**/*.test.ts',
+              'src/**/*.test.tsx',
+            ],
+            insertTypesEntry: true,
+            rollupTypes: false,
+          }),
+        ]
+      : []),
     {
       name: 'copy-css',
       generateBundle() {
@@ -69,6 +74,7 @@ export default defineConfig({
     ],
   },
   build: {
+    outDir: process.env.INKIO_VITE_OUT_DIR ?? 'dist',
     lib: {
       entry: entries,
       name: 'InkioExtensions',

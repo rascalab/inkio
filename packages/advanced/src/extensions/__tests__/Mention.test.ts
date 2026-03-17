@@ -1,4 +1,4 @@
-import { Mention } from '../Mention/Mention';
+import { Mention } from '../Mention';
 import { getSchema } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
