@@ -3,15 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -H 0.0.0.0",
+    "dev": "INKIO_USE_SOURCE_PACKAGES=1 next dev --webpack -H 0.0.0.0",
     "build": "next build --webpack",
     "postbuild": "node ./scripts/postbuild-pagefind.mjs",
     "start": "next start",
-    "lint": "tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "lint": "tsc --noEmit -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.build.json"
   },
   "dependencies": {
     "@inkio/advanced": "workspace:*",
+    "@inkio/core": "workspace:*",
     "@inkio/editor": "workspace:*",
     "@inkio/image-editor": "workspace:*",
     "@inkio/simple": "workspace:*",

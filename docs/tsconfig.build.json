@@ -1,0 +1,51 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@/*": [
+        "./*"
+      ],
+      "@inkio/core": [
+        "../packages/core/src/index.ts"
+      ],
+      "@inkio/core/*": [
+        "../packages/core/src/*"
+      ],
+      "@inkio/essential": [
+        "../packages/essential/src/index.ts"
+      ],
+      "@inkio/essential/*": [
+        "../packages/essential/src/*"
+      ],
+      "@inkio/editor": [
+        "../packages/editor/src/index.ts"
+      ],
+      "@inkio/editor/icons": [
+        "../packages/editor/src/icons/index.ts"
+      ],
+      "@inkio/advanced": [
+        "../packages/advanced/src/index.ts"
+      ],
+      "@inkio/advanced/*": [
+        "../packages/advanced/src/*"
+      ],
+      "@inkio/simple": [
+        "../packages/simple/src/index.ts"
+      ],
+      "@inkio/simple/*": [
+        "../packages/simple/src/*"
+      ],
+      "@inkio/image-editor": [
+        "../packages/image-editor/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

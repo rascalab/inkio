@@ -25,6 +25,25 @@ packages/
 - `@inkio/editor`
   - advanced를 포함한 notion-like editor
 
+## 공통 chrome contract
+
+배치 구조는 패키지마다 유지합니다.
+
+- `simple`: classic toolbar-first
+- `editor`: notion-like
+- `image-editor`: fullscreen overlay
+
+대신 시각 시스템은 공통 surface 토큰을 기준으로 맞춥니다.
+
+- `surface-shell`
+  - toolbar, dock, command bar, sidebar
+- `surface-panel`
+  - popover, bubble menu, floating card, picker
+- `surface-field`
+  - input, select, textarea, search, segmented control
+
+focus ring, border, blur, shadow, field styling은 가능한 한 이 공용 contract를 따릅니다.
+
 ## dependency 정책
 
 - `react`, `react-dom`만 peer

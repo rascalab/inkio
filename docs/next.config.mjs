@@ -3,6 +3,7 @@ import nextra from 'nextra';
 const repoName = 'inkio';
 const isGitHubPages = process.env.GITHUB_PAGES === 'true';
 const basePath = isGitHubPages ? `/${repoName}` : '';
+const useSourcePackages = process.env.INKIO_USE_SOURCE_PACKAGES === '1';
 
 const withNextra = nextra({
   search: {
@@ -12,7 +13,10 @@ const withNextra = nextra({
 
 export default withNextra({
   reactStrictMode: true,
-  transpilePackages: ['@inkio/editor', '@inkio/simple', '@inkio/advanced', '@inkio/image-editor'],
+  transpilePackages: useSourcePackages ? ['@inkio/editor', '@inkio/simple', '@inkio/advanced', '@inkio/image-editor'] : [],
+  typescript: {
+    tsconfigPath: useSourcePackages ? 'tsconfig.json' : 'tsconfig.build.json',
+  },
   distDir: isGitHubPages ? '.next-pages' : '.next',
   output: 'export',
   trailingSlash: true,

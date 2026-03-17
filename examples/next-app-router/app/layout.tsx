@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import '@inkio/editor/minimal.css';
+import '@inkio/editor/style.css';
 import '@inkio/image-editor/style.css';
 import './globals.css';
 
