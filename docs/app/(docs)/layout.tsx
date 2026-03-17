@@ -1,4 +1,4 @@
-import { Footer, Layout, Navbar } from 'nextra-theme-docs';
+import { Layout, Navbar } from 'nextra-theme-docs';
 import { getPageMap } from 'nextra/page-map';
 import 'nextra-theme-docs/style.css';
 import type { ReactNode } from 'react';
@@ -21,13 +21,10 @@ const navbar = (
   </Navbar>
 );
 
-const footer = <Footer>MIT {new Date().getFullYear()} © Inkio</Footer>;
-
 export default async function DocsLayout({ children }: { children: ReactNode }) {
   return (
     <Layout
       navbar={navbar}
-      footer={footer}
       pageMap={await getPageMap()}
       darkMode={true}
       docsRepositoryBase="https://github.com/rascalab/inkio/tree/main/docs"

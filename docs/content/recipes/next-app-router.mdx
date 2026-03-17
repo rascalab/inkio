@@ -21,6 +21,9 @@ pnpm --filter example-next-app-router dev
 
 핵심 포인트:
 
-- editor는 `'use client';` 컴포넌트 안에서 렌더링
+- editor는 client component 안에서 렌더링
+- 서버 route 안에서도 hard refresh 시 static 문서 HTML이 먼저 보이고, hydration 후 interactive editor로 전환됨
+- `Viewer`는 static HTML 기반이라 SSR/CSR 모두 같은 계약으로 동작
 - `@inkio/editor/minimal.css`, `@inkio/image-editor/style.css` import
 - `transpilePackages`에 `@inkio/editor`, `@inkio/advanced`, `@inkio/image-editor` 추가
+- image editor 같은 무거운 확장은 lazy component로 넘겨 초기 본문 렌더를 막지 않게 구성

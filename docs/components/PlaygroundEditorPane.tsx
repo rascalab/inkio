@@ -3,37 +3,38 @@
 import dynamic from 'next/dynamic';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  Editor,
+  Editor as InkioEditor,
+  Viewer as InkioViewer,
   type InkioMessageOverrides,
   type TiptapEditor,
+  type CommentConfig,
 } from '@inkio/editor';
 import { inkioIconRegistry, type InkioIconRegistry } from '@inkio/editor/icons';
 import {
-  type CommentMessage,
   type CommentPanelProps,
+  type CommentMessage,
   type CommentThreadData,
-  type CommentConfig,
 } from '@inkio/advanced';
 import type { ImageEditorModalProps } from '@inkio/image-editor';
-
-const LazyCommentPanel = dynamic<CommentPanelProps>(
-  () => import('@inkio/advanced').then((mod) => mod.CommentPanel),
-  { loading: () => <div className="demo-loading">Loading comments...</div> },
-);
 
 const LazyImageEditorModal = dynamic<ImageEditorModalProps>(
   () => import('@inkio/image-editor').then((mod) => mod.ImageEditorModal),
   { ssr: false, loading: () => null },
 );
 
-const initialContent = `<h2>Inkio in Next.js</h2>
-<p>This example uses the opinionated <code>@inkio/editor</code> package.</p>
+const LazyCommentPanel = dynamic<CommentPanelProps>(
+  () => import('@inkio/advanced').then((mod) => mod.CommentPanel),
+  { loading: () => <div className="playground-loading">Loading comments...</div> },
+);
+
+const EDITOR_CONTENT = `<h2>Inkio Editor Playground</h2>
+<p>Opinionated notion-like preset for production content workflows.</p>
 <ul>
-  <li>Type <code>/</code> for slash commands</li>
-  <li>Type <code>#</code> for hashtag suggestions</li>
-  <li>Type <code>[[page]]</code> for wiki links</li>
-  <li>Select text and press <code>Mod+Shift+M</code> to open comments</li>
-  <li>Drop an image to open the image editor flow</li>
+  <li><code>/</code> for slash commands</li>
+  <li><code>#</code> for hashtag suggestions</li>
+  <li><code>[[page]]</code> for wiki links</li>
+  <li>Select text and press <code>Mod+Shift+M</code> for comments</li>
+  <li>Drag &amp; drop images to test the image editor</li>
 </ul>`;
 
 function createId(): string {
@@ -44,38 +45,28 @@ function createId(): string {
   return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function createDemoImageDataUrl(): string {
-  const canvas = document.createElement('canvas');
-  canvas.width = 160;
-  canvas.height = 120;
-  const context = canvas.getContext('2d');
-  if (!context) {
-    throw new Error('Failed to create demo image.');
-  }
+type PlaygroundEditorPaneProps = {
+  initialContent?: string;
+  showViewer: boolean;
+  showJSON: boolean;
+};
 
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = 'rgba(37, 99, 235, 0.88)';
-  context.fillRect(14, 18, 132, 84);
-  context.fillStyle = 'rgba(255, 255, 255, 0.92)';
-  context.beginPath();
-  context.arc(80, 60, 18, 0, Math.PI * 2);
-  context.fill();
-
-  return canvas.toDataURL('image/png');
-}
-
-export function EditorDemo() {
-  const [json, setJson] = useState<unknown>(null);
+export default function PlaygroundEditorPane({
+  initialContent,
+  showViewer,
+  showJSON,
+}: PlaygroundEditorPaneProps) {
+  const [content, setContent] = useState<unknown>(null);
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
   const [commentThreads, setCommentThreads] = useState<CommentThreadData[]>([]);
   const commentThreadsRef = useRef<CommentThreadData[]>([]);
   commentThreadsRef.current = commentThreads;
 
+  const locale = 'en-US,en;q=0.9';
   const iconOverrides = useMemo<Partial<InkioIconRegistry>>(
     () => ({ comment: inkioIconRegistry.comment }),
     [],
   );
-  const locale = 'en-US,en;q=0.9';
   const messages = useMemo<InkioMessageOverrides>(
     () => ({
       core: {
@@ -107,26 +98,14 @@ export function EditorDemo() {
     setCommentThreads((prev) => prev.filter((thread) => thread.id !== threadId));
   }, []);
 
-  const handleInsertDemoImage = useCallback(() => {
-    if (!editorInstance) {
-      return;
-    }
-
-    editorInstance
-      .chain()
-      .focus()
-      .setImageBlock({ src: createDemoImageDataUrl(), alt: 'Demo image' })
-      .run();
-  }, [editorInstance]);
-
   const comment = useMemo<CommentConfig>(
     () => ({
-      onSubmit: (threadId: string, text: string) => {
+      onSubmit: (commentId: string, text: string) => {
         const message: CommentMessage = { id: createId(), author: 'You', text, createdAt: new Date() };
-        setCommentThreads((prev) => [...prev, { id: threadId, messages: [message], resolved: false }]);
+        setCommentThreads((prev) => [...prev, { id: commentId, messages: [message], resolved: false }]);
       },
-      getComments: (threadId: string) =>
-        commentThreadsRef.current.find((thread) => thread.id === threadId) ?? null,
+      getComments: (commentId: string) =>
+        commentThreadsRef.current.find((thread) => thread.id === commentId) ?? null,
       onReply: handleReply,
       onResolve: handleResolve,
       onDelete: handleDelete,
@@ -136,25 +115,25 @@ export function EditorDemo() {
 
   return (
     <>
-      <section className="demo-card">
-        <div className="demo-card-header">
-          <p className="section-title">Editor</p>
-          <button
-            type="button"
-            className="demo-action-button"
-            data-testid="next-editor-insert-demo-image"
-            onClick={handleInsertDemoImage}
-            disabled={!editorInstance}
-          >
-            Insert demo image
-          </button>
+      <section className="playground-section">
+        <div className="playground-section-label">
+          Editor
+          <span className="playground-mode-badge">
+            @inkio/editor + lazy comments + lazy @inkio/image-editor
+          </span>
         </div>
-        <Editor
-          initialContent={initialContent}
-          placeholder="Type /, #, [[page]] and select text for comments..."
+        <InkioEditor
+          initialContent={initialContent ?? EDITOR_CONTENT}
+          placeholder="Try /, #, [[page]], comments, and image editing..."
           locale={locale}
+          ui={{
+            showBubbleMenu: true,
+            showFloatingMenu: true,
+            messages,
+            icons: iconOverrides,
+          }}
           hashtagItems={({ query }: { query: string }) => {
-            const tags = ['inkio', 'nextjs', 'tiptap', 'editor', 'ai'];
+            const tags = ['inkio', 'tiptap', 'editor', 'react', 'markdown', 'playground'];
             return tags
               .filter((tag) => tag.toLowerCase().includes(query.toLowerCase()))
               .map((tag) => ({ id: tag, label: `#${tag}` }));
@@ -162,36 +141,38 @@ export function EditorDemo() {
           onImageUpload={async (file: File) => URL.createObjectURL(file)}
           imageBlock={{ imageEditor: LazyImageEditorModal }}
           comment={comment}
-          ui={{
-            showToolbar: true,
-            showBubbleMenu: true,
-            showFloatingMenu: true,
-            messages,
-            icons: iconOverrides,
-          }}
           onCreate={setEditorInstance}
-          onUpdate={(next: unknown) => setJson(next)}
+          onUpdate={(next: unknown) => setContent(next)}
         />
       </section>
 
-      <section className="demo-card">
-        <p className="section-title">Comments (@inkio/advanced)</p>
+      {showViewer && content && (
+        <section className="playground-section">
+          <div className="playground-section-label">Viewer</div>
+          <InkioViewer content={content} />
+        </section>
+      )}
+
+      {showJSON && content && (
+        <section className="playground-section">
+          <div className="playground-section-label">JSON Output</div>
+          <pre className="playground-json">{JSON.stringify(content, null, 2)}</pre>
+        </section>
+      )}
+
+      <section className="playground-section">
+        <div className="playground-section-label">Comments</div>
         <LazyCommentPanel
           editor={editorInstance}
           threads={commentThreads}
-          icons={iconOverrides}
           locale={locale}
           messages={messages}
-          currentUser="You"
+          icons={iconOverrides}
           onReply={handleReply}
           onResolve={handleResolve}
           onDelete={handleDelete}
+          currentUser="You"
         />
-      </section>
-
-      <section className="json-card">
-        <p className="section-title">JSON Output</p>
-        <pre>{JSON.stringify(json, null, 2)}</pre>
       </section>
     </>
   );

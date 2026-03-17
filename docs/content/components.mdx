@@ -11,9 +11,25 @@
 - `FloatingMenu`
 - `TableMenu`
 
+## 공통 surface language
+
+패키지별 배치는 유지됩니다.
+
+- `@inkio/editor`는 notion-like 레이아웃
+- `@inkio/simple`은 classic toolbar-first 레이아웃
+- `@inkio/image-editor`는 fullscreen overlay 레이아웃
+
+대신 shell, panel, field 같은 chrome surface는 공통 Inkio token을 공유합니다.
+
+- `shell`: toolbar, dock, command bar, sidebar 같은 외곽 chrome
+- `panel`: popover, bubble menu, floating card, picker
+- `field`: input, select, textarea, search, segmented control
+
+패키지마다 정보 구조와 배치는 다를 수 있지만, focus, radius, shadow, blur, input styling은 같은 surface 계층 위에서 동작합니다.
+
 ## Viewer 목차
 
-`Viewer`는 built-in ToC를 지원합니다.
+`Viewer`는 built-in ToC를 지원하고, SSR에서도 static HTML을 바로 출력합니다.
 
 ```tsx
 import { Viewer } from '@inkio/editor';
@@ -28,11 +44,13 @@ import { Viewer } from '@inkio/editor';
 
 ## 공통 UI override
 
-공통 prop:
+`ui` prop으로 UI 관련 옵션을 묶어 전달합니다:
 
-- `locale`
-- `messages`
-- `icons`
+- `locale` (최상위 prop)
+- `ui.messages`
+- `ui.icons`
+- `ui.fill` (`Editor` 전용, 부모 높이 채움)
+- `ui.showToolbar`, `ui.showBubbleMenu`, `ui.showFloatingMenu`
 
 ```tsx
 import { Editor, type InkioMessageOverrides } from '@inkio/editor';
@@ -49,9 +67,30 @@ const icons = {
 };
 
 export function Page() {
-  return <Editor messages={messages} icons={icons} />;
+  return (
+    <Editor
+      ui={{
+        messages,
+        icons,
+        showBubbleMenu: true,
+        showFloatingMenu: true,
+      }}
+    />
+  );
 }
 ```
+
+부모 높이를 기준으로 에디터를 채우고 싶으면 `ui.fill`을 사용합니다. 이 prop은 viewport 기준이 아니라 **부모 컨테이너의 높이**를 기준으로 동작합니다.
+
+```tsx
+<section style={{ height: '640px' }}>
+  <Editor ui={{ fill: true }} />
+</section>
+```
+
+부모 쪽에 계산된 높이가 없으면 채울 대상이 없어서, 일반 auto-height처럼 보입니다.
+
+`Editor`는 client component 안에서 사용하는 것을 기준으로 하지만, SSR 환경에서도 hard refresh 시 빈 박스 대신 static 문서 HTML을 먼저 보여줍니다. `@inkio/image-editor` 같은 무거운 확장은 lazy component로 넘기는 구성이 기본 권장값입니다.
 
 ## 기본 메시지 export
 

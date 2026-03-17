@@ -1,9 +1,10 @@
 .playground-root {
+  width: 100%;
   padding: 0 24px 48px;
-  max-width: 960px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   min-height: 100vh;
-  color: var(--inkio-text, #374151);
+  color: var(--inkio-text);
   transition: background-color 0.2s, color 0.2s;
 }
 
@@ -12,7 +13,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 0;
-  border-bottom: 1px solid var(--inkio-border, #e5e7eb);
+  border-bottom: 1px solid var(--inkio-surface-border);
   margin-bottom: 24px;
   flex-wrap: wrap;
   gap: 12px;
@@ -34,7 +35,7 @@
   font-size: 20px;
   font-weight: 700;
   margin: 0;
-  color: var(--inkio-text-heading, #111827);
+  color: var(--inkio-text-heading);
 }
 
 .playground-badge {
@@ -44,8 +45,8 @@
   letter-spacing: 0.05em;
   padding: 2px 8px;
   border-radius: 9999px;
-  background: var(--inkio-primary-bg, #eff6ff);
-  color: var(--inkio-primary, #3b82f6);
+  background: var(--inkio-primary-bg);
+  color: var(--inkio-primary);
 }
 
 .playground-toggle-label {
@@ -54,13 +55,13 @@
   gap: 6px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--inkio-text-muted, #9ca3af);
+  color: var(--inkio-text-muted);
   cursor: pointer;
   user-select: none;
 }
 
 .playground-toggle-input {
-  accent-color: var(--inkio-primary, #3b82f6);
+  accent-color: var(--inkio-primary);
 }
 
 .playground-main {
@@ -80,27 +81,29 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--inkio-text-muted, #9ca3af);
+  color: var(--inkio-text-muted);
 }
 
 .playground-json {
   padding: 16px;
-  border-radius: 8px;
-  background: var(--inkio-bg-muted, #f3f4f6);
-  border: 1px solid var(--inkio-border, #e5e7eb);
+  border-radius: var(--inkio-radius-lg);
+  background: var(--inkio-surface-panel);
+  border: 1px solid var(--inkio-surface-border);
+  box-shadow: var(--inkio-surface-shadow);
+  backdrop-filter: blur(var(--inkio-surface-blur-panel));
   font-size: 12px;
   line-height: 1.5;
   overflow-x: auto;
   max-height: 400px;
   overflow-y: auto;
   margin: 0;
-  color: var(--inkio-text, #374151);
+  color: var(--inkio-text);
 }
 
 .playground-loading {
   padding: 40px;
   text-align: center;
-  color: var(--inkio-text-muted, #9ca3af);
+  color: var(--inkio-text-muted);
   font-size: 14px;
 }
 
@@ -108,8 +111,11 @@
   display: flex;
   gap: 2px;
   padding: 2px;
-  background: var(--inkio-bg-muted, #f3f4f6);
-  border-radius: 8px;
+  background: var(--inkio-surface-shell);
+  border: 1px solid var(--inkio-surface-border);
+  border-radius: var(--inkio-radius-md);
+  box-shadow: var(--inkio-surface-shadow);
+  backdrop-filter: blur(var(--inkio-surface-blur-shell));
 }
 
 .playground-mode-btn {
@@ -120,27 +126,24 @@
   border-radius: 6px;
   cursor: pointer;
   background: transparent;
-  color: var(--inkio-text-muted, #9ca3af);
+  color: var(--inkio-text-muted);
   transition: background 0.15s, color 0.15s;
 }
 
 .playground-mode-btn:hover {
-  color: var(--inkio-text, #374151);
+  color: var(--inkio-text);
 }
 
 .playground-mode-btn.is-active {
-  background: white;
-  color: var(--inkio-text, #374151);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  background: var(--inkio-surface-field);
+  color: var(--inkio-text);
+  box-shadow: var(--inkio-surface-shadow);
+  backdrop-filter: blur(var(--inkio-surface-blur-field));
 }
 
-.dark .playground-mode-switch {
-  background: var(--inkio-bg-muted, #1f2937);
-}
-
-.dark .playground-mode-btn.is-active {
-  background: var(--inkio-bg, #111827);
-  color: var(--inkio-text, #e5e7eb);
+.playground-mode-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--inkio-ring);
 }
 
 .playground-mode-badge {
@@ -149,8 +152,8 @@
   font-weight: 500;
   padding: 1px 6px;
   border-radius: 4px;
-  background: var(--inkio-bg-muted, #f3f4f6);
-  color: var(--inkio-text-muted, #9ca3af);
+  background: var(--inkio-surface-field);
+  color: var(--inkio-text-muted);
   text-transform: none;
   letter-spacing: normal;
 }

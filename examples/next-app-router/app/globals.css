@@ -87,11 +87,123 @@ code {
   padding: 24px;
 }
 
+.demo-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
 .json-card {
   margin-top: 20px;
 }
 
 .section-title {
-  margin: 0 0 14px;
+  margin: 0;
   font-weight: 700;
+}
+
+.demo-action-button {
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.96);
+  cursor: pointer;
+}
+
+.demo-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.image-editor-e2e-page {
+  min-height: 100vh;
+}
+
+.image-editor-e2e-controls,
+.image-editor-e2e-debug,
+.image-editor-e2e-saved {
+  margin-top: 20px;
+}
+
+.image-editor-e2e-control-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.image-editor-e2e-button {
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.96);
+  color: inherit;
+  cursor: pointer;
+}
+
+.image-editor-e2e-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.image-editor-e2e-debug-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.image-editor-e2e-debug-grid dt {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9a5808;
+}
+
+.image-editor-e2e-debug-grid dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.image-editor-e2e-debug pre {
+  min-height: 160px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  background: rgba(249, 250, 251, 0.92);
+}
+
+.image-editor-e2e-saved-image {
+  width: min(100%, 480px);
+  display: block;
+  border-radius: 18px;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+}
+
+.image-editor-e2e-page[data-theme='dark'] {
+  color: #e5e7eb;
+}
+
+.image-editor-e2e-page[data-theme='dark'] .page-intro,
+.image-editor-e2e-page[data-theme='dark'] .demo-card,
+.image-editor-e2e-page[data-theme='dark'] .json-card {
+  border-color: rgba(226, 232, 240, 0.12);
+  background: rgba(15, 23, 42, 0.82);
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.3);
+}
+
+.image-editor-e2e-page[data-theme='dark'] .page-copy,
+.image-editor-e2e-page[data-theme='dark'] .feature-list,
+.image-editor-e2e-page[data-theme='dark'] .image-editor-e2e-debug-grid dt {
+  color: rgba(226, 232, 240, 0.74);
+}
+
+.image-editor-e2e-page[data-theme='dark'] .image-editor-e2e-button,
+.image-editor-e2e-page[data-theme='dark'] .image-editor-e2e-debug pre {
+  border-color: rgba(226, 232, 240, 0.12);
+  background: rgba(15, 23, 42, 0.92);
+  color: inherit;
 }

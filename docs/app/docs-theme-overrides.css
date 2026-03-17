@@ -1,0 +1,97 @@
+.inkio-docs-root {
+  background:
+    radial-gradient(circle at top, color-mix(in srgb, var(--inkio-primary) 4%, transparent), transparent 28%),
+    color-mix(in srgb, var(--inkio-bg-subtle) 94%, var(--inkio-bg-muted));
+  color: var(--inkio-text);
+}
+
+.inkio-docs-root::selection {
+  background: var(--inkio-selection-bg);
+}
+
+.inkio-docs-root .nextra-navbar {
+  background: transparent !important;
+}
+
+.inkio-docs-root .nextra-navbar-blur {
+  border-bottom: 1px solid var(--inkio-surface-border) !important;
+  background: var(--inkio-surface-shell) !important;
+  box-shadow: var(--inkio-surface-shadow);
+  backdrop-filter: blur(var(--inkio-surface-blur-shell));
+}
+
+.inkio-docs-root aside.nextra-sidebar,
+.inkio-docs-root .nextra-mobile-nav,
+.inkio-docs-root .nextra-sidebar-footer {
+  background: var(--inkio-surface-shell) !important;
+  backdrop-filter: blur(var(--inkio-surface-blur-shell));
+}
+
+.inkio-docs-root aside.nextra-sidebar {
+  border-inline-end: 1px solid var(--inkio-surface-border);
+  box-shadow: var(--inkio-surface-shadow);
+}
+
+.inkio-docs-root .nextra-sidebar-footer {
+  border-top: 1px solid var(--inkio-surface-border) !important;
+}
+
+.inkio-docs-root input[type='search'],
+.inkio-docs-root button[title='Change theme'],
+.inkio-docs-root button[title='Change language'],
+.inkio-docs-root button[title='Collapse sidebar'] {
+  border: 1px solid var(--inkio-surface-border) !important;
+  background: var(--inkio-surface-field) !important;
+  color: var(--inkio-text) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(var(--inkio-surface-blur-field));
+}
+
+.inkio-docs-root input[type='search']::placeholder {
+  color: var(--inkio-text-muted);
+}
+
+.inkio-docs-root :is(button, a, input, textarea, select):focus-visible {
+  outline: none;
+  box-shadow: var(--inkio-ring);
+}
+
+.inkio-docs-root pre,
+.inkio-docs-root [data-rehype-pretty-code-fragment] pre {
+  border: 1px solid var(--inkio-surface-border);
+  border-radius: var(--inkio-radius-lg);
+  box-shadow: var(--inkio-surface-shadow);
+}
+
+.inkio-docs-root .nextra-scrollbar {
+  scrollbar-color: color-mix(in srgb, var(--inkio-surface-border-strong) 72%, transparent) transparent;
+}
+
+.inkio-docs-root:has(.inkio-docs-playground-page) .nextra-toc {
+  display: none;
+}
+
+.inkio-docs-root article:has(.inkio-docs-playground-page) {
+  max-width: none;
+  padding-inline: clamp(20px, 3vw, 32px);
+}
+
+.inkio-docs-root article:has(.inkio-docs-playground-page) > div {
+  display: none;
+}
+
+.inkio-docs-root article:has(.inkio-docs-playground-page) > main {
+  width: 100%;
+  max-width: none;
+}
+
+.inkio-docs-root .inkio-docs-playground-page {
+  width: 100%;
+  max-width: none;
+}
+
+@media (max-width: 767px) {
+  .inkio-docs-root article:has(.inkio-docs-playground-page) {
+    padding-inline: 16px;
+  }
+}
