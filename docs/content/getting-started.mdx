@@ -70,13 +70,10 @@ export function Page() {
   return (
     <Editor
       initialContent="<p>Hello Inkio</p>"
-      defaultExtensionsOptions={{
-        hashtagItems: ({ query }) => [
-          { id: query || 'inkio', label: `#${query || 'inkio'}` },
-        ],
-      }}
-      showBubbleMenu
-      showFloatingMenu
+      hashtagItems={({ query }) => [
+        { id: query || 'inkio', label: `#${query || 'inkio'}` },
+      ]}
+      ui={{ showBubbleMenu: true, showFloatingMenu: true }}
     />
   );
 }
@@ -87,6 +84,8 @@ export function Page() {
 - `content`와 `initialContent`는 동시에 넘기지 않습니다.
 - `@inkio/editor`는 notion-like surface 기본값을 가집니다.
 - `@inkio/simple`은 classic toolbar surface 기본값을 가집니다.
+- shell / panel / field 같은 chrome surface는 패키지 간에 공통 Inkio token을 공유합니다.
+- `@inkio/image-editor`는 fullscreen overlay 구조지만 같은 surface 계층을 씁니다.
 - `@inkio/editor` CSS는 advanced preset 스타일을 이미 포함합니다.
 - `justify` alignment는 지원하지 않습니다.
 - math는 내장하지 않습니다. 필요하면 [Tiptap Mathematics](https://tiptap.dev/docs/editor/extensions/nodes/mathematics)를 직접 조합하세요.

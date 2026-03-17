@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Editor, getDefaultExtensions } from '@inkio/simple';
+import { useState } from 'react';
+import { Editor } from '@inkio/simple';
 
 const initialContent = `<h2>Hello Inkio</h2>
 <p>This example starts with <code>@inkio/simple</code>.</p>
@@ -11,11 +11,6 @@ const initialContent = `<h2>Hello Inkio</h2>
 
 export default function App() {
   const [json, setJson] = useState<unknown>(null);
-
-  const extensions = useMemo(
-    () => getDefaultExtensions({ placeholder: 'Write something...' }),
-    [],
-  );
 
   return (
     <main className="app-shell">
@@ -29,7 +24,7 @@ export default function App() {
 
       <section className="editor-card">
         <Editor
-          extensions={extensions}
+          placeholder="Write something..."
           initialContent={initialContent}
           onUpdate={(next: unknown) => setJson(next)}
         />
