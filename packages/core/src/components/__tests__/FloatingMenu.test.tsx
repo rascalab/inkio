@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react';
-import { FloatingMenu } from '../FloatingMenu/FloatingMenu';
+import { FloatingMenu } from '../FloatingMenu';
 
 describe('FloatingMenu component', () => {
   it('should render null when editor is null', () => {

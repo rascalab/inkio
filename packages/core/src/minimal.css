@@ -14,6 +14,38 @@
   outline: none;
 }
 
+.inkio-editor--fill {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.inkio-editor--fill .tiptap {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.inkio-editor--fill .tiptap.ProseMirror,
+.inkio-editor--fill .ProseMirror {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 100%;
+  overflow-y: auto;
+}
+
+.inkio-editor-static-root,
+.inkio-viewer-static-root {
+  display: block;
+}
+
+.inkio-editor-static,
+.inkio-viewer-static {
+  outline: none;
+}
+
 /* Essential Typography Structure - No specific colors/fonts */
 .inkio .ProseMirror h1 {
   font-weight: 700;
@@ -296,6 +328,21 @@
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--inkio-border);
   flex-wrap: wrap;
+}
+
+.inkio-toolbar--ssr-placeholder {
+  pointer-events: none;
+}
+
+.inkio-toolbar-skeleton-btn {
+  display: inline-flex;
+  width: 1.875rem;
+  height: 1.875rem;
+  border-radius: var(--inkio-radius-sm);
+}
+
+.inkio-toolbar-skeleton-btn--wide {
+  width: 5rem;
 }
 
 .inkio-toolbar-group {

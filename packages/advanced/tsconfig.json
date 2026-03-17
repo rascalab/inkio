@@ -28,7 +28,7 @@
   },
   "include": [
     "src/index.ts",
-    "src/defaults.ts",
+    "src/get-default-extensions.ts",
     "src/entries/**/*.ts",
     "src/entries/**/*.tsx",
     "src/comment/**/*.ts",

@@ -1,5 +1,5 @@
 import { Node, mergeAttributes, wrappingInputRule } from '@tiptap/core';
-import { createCalloutToolbarPlugin } from './CalloutToolbarPlugin';
+import { createCalloutToolbarPlugin } from './callout-toolbar-plugin';
 
 const SAFE_CSS_COLOR = /^(#[0-9a-fA-F]{3,8}|rgba?\([0-9,.\s%]+\)|hsla?\([0-9,.\s%deg]+\)|[a-zA-Z]{1,20})$/;
 function isSafeColor(value: string): boolean {

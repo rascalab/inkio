@@ -1,9 +1,9 @@
 import type { Extensions } from '@tiptap/core';
 import type { InkioAdapter } from '@inkio/core';
-import type { SlashCommandItem } from './extensions/SlashCommand/SlashCommand';
-import type { SlashCommandTransform } from './extensions/SlashCommand/SlashCommand';
-import type { MentionItem } from './extensions/Mention/Mention';
-import type { HashTagItem } from './extensions/HashTag/HashTag';
+import type { SlashCommandItem } from './extensions/SlashCommand';
+import type { SlashCommandTransform } from './extensions/SlashCommand';
+import type { MentionItem } from './extensions/Mention';
+import type { HashTagItem } from './extensions/HashTag';
 
 export type ExtensionsUploadContext = {
   blockId?: string;

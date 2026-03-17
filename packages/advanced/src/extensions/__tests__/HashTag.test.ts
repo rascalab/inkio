@@ -1,4 +1,4 @@
-import { HashTag } from '../HashTag/HashTag';
+import { HashTag } from '../HashTag';
 import { getSchema } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';

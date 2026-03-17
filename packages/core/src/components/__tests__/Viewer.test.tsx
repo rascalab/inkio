@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import { renderToString } from 'react-dom/server';
 import { Viewer } from '../Viewer';
 
 describe('Viewer component', () => {
@@ -14,6 +15,13 @@ describe('Viewer component', () => {
   it('should render with HTML string content', () => {
     const { container } = render(<Viewer content="<p>Hello World</p>" />);
     expect(container.querySelector('.inkio-viewer')).toBeInTheDocument();
+  });
+
+  it('keeps wrapper className off the static viewer document root', () => {
+    const html = renderToString(<Viewer className="layout-shell" content="<p>Hello</p>" />);
+
+    expect(html).toContain('class="inkio inkio-viewer inkio-container-default layout-shell"');
+    expect(html).not.toContain('inkio-viewer-static layout-shell');
   });
 
   it('should accept empty string content (Fix #7)', () => {
@@ -81,8 +89,8 @@ describe('Viewer component', () => {
       expect(screen.getByRole('navigation', { name: 'Table of contents' })).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('button', { name: 'Overview' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Details' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Overview' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Details' })).toBeInTheDocument();
     expect(document.querySelector('.inkio-viewer--toc-left')).toBeInTheDocument();
   });
 
@@ -118,5 +126,18 @@ describe('Viewer component', () => {
       expect.objectContaining({ text: 'Intro', level: 1 }),
     ]);
     expect(typeof scrollToIndex).toBe('function');
+  });
+
+  it('renders HTML content on the server with heading anchors for the built-in TOC', () => {
+    const html = renderToString(
+      <Viewer
+        tableOfContents
+        content="<h2>Server heading</h2><p>SSR body</p>"
+      />
+    );
+
+    expect(html).toContain('Server heading');
+    expect(html).toContain('href="#server-heading"');
+    expect(html).toContain('id="server-heading"');
   });
 });

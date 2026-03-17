@@ -26,14 +26,15 @@
   },
   "include": [
     "src/index.ts",
-    "src/defaults.ts",
+    "src/get-default-extensions.ts",
     "src/entries/callout.ts",
     "src/entries/keyboard-shortcuts.ts",
     "src/extensions/Callout.ts",
-    "src/extensions/CalloutToolbarPlugin.tsx",
+    "src/extensions/callout-toolbar-plugin.tsx",
     "src/extensions/DetailsShortcut.ts",
-    "src/extensions/KeyboardShortcuts/**/*.ts",
-    "src/utils/createRoot.ts"
+    "src/extensions/optional-commands.ts",
+    "src/extensions/KeyboardShortcuts.ts",
+    "src/utils/create-root.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }

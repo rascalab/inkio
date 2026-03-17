@@ -54,6 +54,8 @@ export function EditorPage() {
 />
 ```
 
+Next App Router에서는 `Editor`를 client component 안에서 사용하되, hard refresh 시에도 초기 문서 HTML은 서버에서 먼저 렌더됩니다. `@inkio/image-editor` 같은 무거운 확장은 lazy component로 넘기는 구성을 권장합니다.
+
 ## Markdown
 
 ```tsx

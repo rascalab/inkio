@@ -1,5 +1,5 @@
-export { getDefaultExtensions } from './defaults';
-export type { DefaultExtensionsOptions } from './defaults';
+export { getDefaultExtensions } from './get-default-extensions';
+export type { DefaultExtensionsOptions } from './get-default-extensions';
 export {
   applyExtensionsAdapter,
   isExtensionsAdapter,
@@ -35,9 +35,12 @@ export {
   resolveCommentMessages,
   toCommentMessageOverrides,
   formatRelativeTime,
+  toCommentOptions,
 } from './comment';
 export type {
   CommentOptions,
+  CommentConfig,
+  CommentData,
   CommentPanelProps,
   CommentThreadData,
   CommentMessage,

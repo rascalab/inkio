@@ -1,5 +1,5 @@
-export { Comment } from './Comment';
-export type { CommentOptions } from './Comment';
+export { Comment, toCommentOptions } from './Comment';
+export type { CommentOptions, CommentConfig, CommentData } from './Comment';
 export {
   commentComposerPluginKey,
   commentThreadPopoverPluginKey,
@@ -8,14 +8,14 @@ export {
   CommentPanel,
   CommentComposer,
   CommentThreadPopover,
-} from './Comment/components';
+} from './components';
 export type {
   CommentPanelProps,
   CommentThreadData,
   CommentMessage,
   CommentComposerProps,
   CommentThreadPopoverProps,
-} from './Comment/components';
+} from './components';
 export {
   enCommentMessages,
   mergeCommentMessages,

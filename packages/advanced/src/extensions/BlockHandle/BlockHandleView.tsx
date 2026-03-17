@@ -13,7 +13,7 @@ import {
 } from '@inkio/core';
 import { NodeSelection } from '@tiptap/pm/state';
 import { defaultBlockMenuIcons, type BlockMenuIcons, type BlockMenuIconId } from './icons';
-import { runOptionalChainCommand, type InkioOptionalChainCommand } from '../optionalCommands';
+import { runOptionalChainCommand, type InkioOptionalChainCommand } from '../optional-commands';
 
 interface AnchorRect {
   top: number;
