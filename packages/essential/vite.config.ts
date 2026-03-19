@@ -3,8 +3,6 @@ import react from '@vitejs/plugin-react';
 import dts from 'vite-plugin-dts';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { readFileSync } from 'fs';
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const enableDts = process.env.INKIO_VITE_SKIP_DTS !== '1';
@@ -44,16 +42,6 @@ export default defineConfig({
           }),
         ]
       : []),
-    {
-      name: 'copy-css',
-      generateBundle() {
-        this.emitFile({
-          type: 'asset',
-          fileName: 'style.css',
-          source: readFileSync(resolve(__dirname, 'src/style.css'), 'utf-8'),
-        });
-      },
-    },
   ],
   resolve: {
     alias: [

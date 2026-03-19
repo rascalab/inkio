@@ -5,6 +5,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Editor as InkioEditor,
   Viewer as InkioViewer,
+  ToC,
   type InkioMessageOverrides,
   type TiptapEditor,
   type CommentConfig,
@@ -13,9 +14,10 @@ import { inkioIconRegistry, type InkioIconRegistry } from '@inkio/editor/icons';
 import {
   type CommentPanelProps,
   type CommentMessage,
-  type CommentThreadData,
+  type CommentData,
 } from '@inkio/advanced';
 import type { ImageEditorModalProps } from '@inkio/image-editor';
+import { PLAYGROUND_INITIAL_CONTENT } from './playground-content';
 
 const LazyImageEditorModal = dynamic<ImageEditorModalProps>(
   () => import('@inkio/image-editor').then((mod) => mod.ImageEditorModal),
@@ -26,16 +28,6 @@ const LazyCommentPanel = dynamic<CommentPanelProps>(
   () => import('@inkio/advanced').then((mod) => mod.CommentPanel),
   { loading: () => <div className="playground-loading">Loading comments...</div> },
 );
-
-const EDITOR_CONTENT = `<h2>Inkio Editor Playground</h2>
-<p>Opinionated notion-like preset for production content workflows.</p>
-<ul>
-  <li><code>/</code> for slash commands</li>
-  <li><code>#</code> for hashtag suggestions</li>
-  <li><code>[[page]]</code> for wiki links</li>
-  <li>Select text and press <code>Mod+Shift+M</code> for comments</li>
-  <li>Drag &amp; drop images to test the image editor</li>
-</ul>`;
 
 function createId(): string {
   if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
@@ -56,11 +48,12 @@ export default function PlaygroundEditorPane({
   showViewer,
   showJSON,
 }: PlaygroundEditorPaneProps) {
-  const [content, setContent] = useState<unknown>(null);
+  const [content, setContent] = useState<unknown>(initialContent ?? PLAYGROUND_INITIAL_CONTENT);
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
-  const [commentThreads, setCommentThreads] = useState<CommentThreadData[]>([]);
-  const commentThreadsRef = useRef<CommentThreadData[]>([]);
-  commentThreadsRef.current = commentThreads;
+  const [viewerInstance, setViewerInstance] = useState<TiptapEditor | null>(null);
+  const [comments, setComments] = useState<CommentData[]>([]);
+  const commentsRef = useRef<CommentData[]>([]);
+  commentsRef.current = comments;
 
   const locale = 'en-US,en;q=0.9';
   const iconOverrides = useMemo<Partial<InkioIconRegistry>>(
@@ -79,33 +72,33 @@ export default function PlaygroundEditorPane({
     [],
   );
 
-  const handleReply = useCallback((threadId: string, text: string) => {
+  const handleReply = useCallback((commentId: string, text: string) => {
     const message: CommentMessage = { id: createId(), author: 'You', text, createdAt: new Date() };
-    setCommentThreads((prev) =>
-      prev.map((thread) =>
-        thread.id === threadId ? { ...thread, messages: [...thread.messages, message] } : thread,
+    setComments((prev) =>
+      prev.map((comment) =>
+        comment.id === commentId ? { ...comment, messages: [...comment.messages, message] } : comment,
       ),
     );
   }, []);
 
-  const handleResolve = useCallback((threadId: string) => {
-    setCommentThreads((prev) =>
-      prev.map((thread) => (thread.id === threadId ? { ...thread, resolved: true } : thread)),
+  const handleResolve = useCallback((commentId: string) => {
+    setComments((prev) =>
+      prev.map((comment) => (comment.id === commentId ? { ...comment, resolved: true } : comment)),
     );
   }, []);
 
-  const handleDelete = useCallback((threadId: string) => {
-    setCommentThreads((prev) => prev.filter((thread) => thread.id !== threadId));
+  const handleDelete = useCallback((commentId: string) => {
+    setComments((prev) => prev.filter((comment) => comment.id !== commentId));
   }, []);
 
   const comment = useMemo<CommentConfig>(
     () => ({
       onSubmit: (commentId: string, text: string) => {
         const message: CommentMessage = { id: createId(), author: 'You', text, createdAt: new Date() };
-        setCommentThreads((prev) => [...prev, { id: commentId, messages: [message], resolved: false }]);
+        setComments((prev) => [...prev, { id: commentId, messages: [message], resolved: false }]);
       },
       getComments: (commentId: string) =>
-        commentThreadsRef.current.find((thread) => thread.id === commentId) ?? null,
+        commentsRef.current.find((c) => c.id === commentId) ?? null,
       onReply: handleReply,
       onResolve: handleResolve,
       onDelete: handleDelete,
@@ -122,11 +115,13 @@ export default function PlaygroundEditorPane({
             @inkio/editor + lazy comments + lazy @inkio/image-editor
           </span>
         </div>
+        <div className="playground-editor-with-toc">
         <InkioEditor
-          initialContent={initialContent ?? EDITOR_CONTENT}
+          initialContent={initialContent ?? PLAYGROUND_INITIAL_CONTENT}
           placeholder="Try /, #, [[page]], comments, and image editing..."
           locale={locale}
           ui={{
+            autoresize: true,
             showBubbleMenu: true,
             showFloatingMenu: true,
             messages,
@@ -144,12 +139,17 @@ export default function PlaygroundEditorPane({
           onCreate={setEditorInstance}
           onUpdate={(next: unknown) => setContent(next)}
         />
+        <ToC source={editorInstance} className="playground-toc" />
+        </div>
       </section>
 
       {showViewer && content && (
         <section className="playground-section">
           <div className="playground-section-label">Viewer</div>
-          <InkioViewer content={content} />
+          <div className="playground-editor-with-toc">
+            <InkioViewer content={content} onCreate={setViewerInstance} />
+            <ToC source={viewerInstance} className="playground-toc" />
+          </div>
         </section>
       )}
 
@@ -164,7 +164,7 @@ export default function PlaygroundEditorPane({
         <div className="playground-section-label">Comments</div>
         <LazyCommentPanel
           editor={editorInstance}
-          threads={commentThreads}
+          threads={comments}
           locale={locale}
           messages={messages}
           icons={iconOverrides}

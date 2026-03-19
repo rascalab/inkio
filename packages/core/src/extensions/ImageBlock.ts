@@ -274,9 +274,11 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
         getAttrs: (dom: HTMLElement) => {
           const img = dom.querySelector('img');
           if (!img) return false;
+          const rawSrc = img.getAttribute('src');
+          if (rawSrc && /^(javascript|data|vbscript):/i.test(rawSrc.trim())) return false;
           const figcaption = dom.querySelector('figcaption');
           return {
-            src: img.getAttribute('src'),
+            src: rawSrc,
             alt: img.getAttribute('alt'),
             title: img.getAttribute('title'),
             width: img.getAttribute('width') || dom.getAttribute('data-width'),
@@ -290,9 +292,11 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
         getAttrs: (dom: HTMLElement) => {
           const img = dom.querySelector('img');
           if (!img) return false;
+          const rawSrc = img.getAttribute('src');
+          if (rawSrc && /^(javascript|data|vbscript):/i.test(rawSrc.trim())) return false;
           const figcaption = dom.querySelector('figcaption');
           return {
-            src: img.getAttribute('src'),
+            src: rawSrc,
             alt: img.getAttribute('alt'),
             title: img.getAttribute('title'),
             caption: figcaption?.textContent || null,

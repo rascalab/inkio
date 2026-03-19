@@ -83,8 +83,8 @@ export function getDefaultExtensions(options: DefaultExtensionsOptions = {}) {
     ...(bookmark
       ? [Bookmark.configure({ onResolveBookmark })]
       : []),
-    ...(comment
-      ? [Comment.configure({ ...toCommentOptions(comment), locale, messages, icons })]
+    ...(comment !== false
+      ? [Comment.configure({ ...(comment ? toCommentOptions(comment) : {}), locale, messages, icons })]
       : []),
   ];
 

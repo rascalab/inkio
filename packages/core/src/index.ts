@@ -1,9 +1,8 @@
 // Core Components
 export { Editor } from './components/Editor';
 export type { EditorProps } from './components/Editor';
-export { Viewer } from './components/Viewer';
-export type { ViewerProps } from './components/Viewer';
 export type { HeadingItem, TableOfContentsConfig } from './components/ToC';
+export { getHeadingsFromContent } from './components/ToC';
 
 // Menus
 export { BubbleMenu } from './components/BubbleMenu';

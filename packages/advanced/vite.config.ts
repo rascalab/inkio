@@ -3,26 +3,11 @@ import react from '@vitejs/plugin-react';
 import dts from 'vite-plugin-dts';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { readFileSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const enableDts = process.env.INKIO_VITE_SKIP_DTS !== '1';
 
-function inlineCssImports(filePath: string, visited = new Set<string>()): string {
-  const resolved = resolve(filePath);
-  if (visited.has(resolved)) throw new Error(`CSS import cycle detected: ${resolved}`);
-  visited.add(resolved);
-  const content = readFileSync(resolved, 'utf-8');
-  const dir = dirname(resolved);
-  return content.replace(/@import\s+["']([^"']+)["']\s*;/g, (_match, rel) => {
-    if (!rel.startsWith('.')) {
-      return `@import "${rel}";`;
-    }
-
-    return inlineCssImports(resolve(dir, rel), visited);
-  });
-}
 
 const entries = {
   index: resolve(__dirname, 'src/index.ts'),
@@ -53,16 +38,6 @@ export default defineConfig({
           }),
         ]
       : []),
-    {
-      name: 'copy-css',
-      generateBundle() {
-        this.emitFile({
-          type: 'asset',
-          fileName: 'style.css',
-          source: inlineCssImports(resolve(__dirname, 'src/style.css')),
-        });
-      },
-    },
   ],
   resolve: {
     alias: [

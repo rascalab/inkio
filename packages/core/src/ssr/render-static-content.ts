@@ -1,4 +1,6 @@
-import { generateHTML, type Extensions, type JSONContent } from '@tiptap/core';
+import { type Extensions, type JSONContent } from '@tiptap/core';
+import { generateHTML } from '@tiptap/html';
+import sanitizeHtml from 'sanitize-html';
 import { getHeadingsFromContent, type HeadingItem } from '../components/ToC';
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] };
@@ -137,6 +139,43 @@ function injectHeadingIds(html: string, headings: HeadingItem[]): string {
   });
 }
 
+const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
+  allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+    'img', 'mark', 'sub', 'sup', 'pre', 'details', 'summary', 'input', 'figure', 'figcaption',
+  ]),
+  allowedAttributes: {
+    ...sanitizeHtml.defaults.allowedAttributes,
+    '*': ['class', 'id'],
+    a: ['href', 'target', 'rel'],
+    img: ['src', 'alt', 'title', 'width', 'height'],
+    input: ['type', 'checked', 'disabled'],
+    ol: ['start', 'type'],
+    span: ['data-comment-id', 'data-comment-resolved', 'data-wiki-link', 'data-color', 'data-id', 'data-label', 'data-mention-suggestion-char'],
+    div: ['data-bookmark-url', 'data-bookmark-title', 'data-bookmark-description', 'data-bookmark-image', 'data-bookmark-favicon', 'data-type'],
+    ul: ['data-type'],
+    li: ['data-type', 'data-checked'],
+    figure: ['data-type', 'data-align', 'data-width'],
+    h1: ['data-inkio-heading-index'],
+    h2: ['data-inkio-heading-index'],
+    h3: ['data-inkio-heading-index'],
+    h4: ['data-inkio-heading-index'],
+    h5: ['data-inkio-heading-index'],
+    h6: ['data-inkio-heading-index'],
+  },
+  allowedStyles: {
+    '*': {
+      color: [/.*/],
+      'background-color': [/.*/],
+      'text-align': [/^(left|center|right)$/],
+    },
+  },
+  allowedSchemes: ['http', 'https', 'mailto', 'tel'],
+};
+
+function sanitizeInkioHtml(html: string): string {
+  return html ? sanitizeHtml(html, SANITIZE_OPTIONS) : '';
+}
+
 export function renderInkioStaticContent(
   content: string | JSONContent | undefined,
   extensions: Extensions,
@@ -144,32 +183,21 @@ export function renderInkioStaticContent(
   const json = normalizeInkioContent(content);
   const jsonHeadings = getHeadingsFromContent(json);
 
-  try {
-    if (typeof content === 'string') {
-      const rawHtml = content.trim();
-      const headings = extractHeadingsFromHtml(rawHtml);
-      return {
-        json,
-        html: injectHeadingIds(rawHtml, headings),
-        headings,
-        shellOnly: false,
-      };
-    }
-
-    const html = isEmptyDoc(json) ? '' : injectHeadingIds(generateHTML(json, extensions), jsonHeadings);
-    return { json, html, headings: jsonHeadings, shellOnly: false };
-  } catch {
-    if (typeof content === 'string' && content.trim()) {
-      const rawHtml = content.trim();
-      const headings = extractHeadingsFromHtml(rawHtml);
-      return {
-        json,
-        html: injectHeadingIds(rawHtml, headings),
-        headings,
-        shellOnly: false,
-      };
-    }
-
-    return { json, html: '', headings: jsonHeadings, shellOnly: true };
+  if (typeof content === 'string') {
+    const rawHtml = sanitizeInkioHtml(content.trim());
+    const headings = extractHeadingsFromHtml(rawHtml);
+    return {
+      json,
+      html: injectHeadingIds(rawHtml, headings),
+      headings,
+      shellOnly: false,
+    };
   }
+
+  // generateHTML from @tiptap/html uses happy-dom internally.
+  // Text nodes are properly escaped via DOM APIs — no XSS risk.
+  const html = isEmptyDoc(json)
+    ? ''
+    : injectHeadingIds(generateHTML(json, extensions), jsonHeadings);
+  return { json, html, headings: jsonHeadings, shellOnly: false };
 }
