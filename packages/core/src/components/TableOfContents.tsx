@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Editor as TiptapEditor } from '@tiptap/react';
-import { getHeadingsFromContent } from '@inkio/core';
-import type { HeadingItem } from '@inkio/core';
+import { getHeadingsFromContent } from './ToC';
+import type { HeadingItem } from './ToC';
 
 export interface ToCProps {
   /** Editor or Viewer instance — used to find heading elements and extract content. */

@@ -37,6 +37,14 @@ import { ImageBlock } from './ImageBlock';
 import type { ImageBlockOptions } from './ImageBlock';
 import { LinkClickHandler } from './LinkClickHandler';
 import type { LinkClickHandlerOptions } from './LinkClickHandler';
+import { Details, DetailsContent, DetailsSummary } from '@tiptap/extension-details';
+import { Table } from '@tiptap/extension-table';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { TableRow } from '@tiptap/extension-table-row';
+import { Callout } from './Callout';
+import { KeyboardShortcuts } from './KeyboardShortcuts';
+import { DetailsShortcut } from './DetailsShortcut';
 
 export interface CoreExtensionOptions {
   /** Placeholder text shown when the editor is empty */
@@ -94,6 +102,14 @@ export interface CoreExtensionOptions {
   tabBehavior?: 'indent' | 'default';
   /** Custom icon component for the task list checkbox (checked state). Defaults to Lucide Check. */
   taskCheckIcon?: InkioIconComponent;
+  /** Set to `false` to disable the callout block extension */
+  callout?: false;
+  /** Set to `false` to disable the toggle list (details/summary) extension */
+  toggleList?: false;
+  /** Set to `false` to disable the table extension */
+  table?: false;
+  /** Set to `false` to disable keyboard shortcuts extension */
+  keyboardShortcuts?: false;
 }
 
 export const getExtensions = (options: CoreExtensionOptions = {}) => {
@@ -121,6 +137,10 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
     clearMarksOnEnter,
     imageBlock,
     linkClickHandler,
+    callout,
+    toggleList,
+    table,
+    keyboardShortcuts,
   } = options;
 
   const extensions: Extensions = [
@@ -231,6 +251,32 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
   if (link !== false && linkClickHandler !== false) {
     const linkClickOpts = typeof linkClickHandler === 'object' ? linkClickHandler : {};
     extensions.push(LinkClickHandler.configure(linkClickOpts));
+  }
+
+  if (callout !== false) {
+    extensions.push(Callout);
+  }
+
+  if (keyboardShortcuts !== false) {
+    extensions.push(KeyboardShortcuts);
+  }
+
+  if (toggleList !== false) {
+    extensions.push(
+      Details.configure({ persist: true, HTMLAttributes: {} }),
+      DetailsSummary,
+      DetailsContent,
+      DetailsShortcut,
+    );
+  }
+
+  if (table !== false) {
+    extensions.push(
+      Table.configure({ HTMLAttributes: {}, resizable: false, allowTableNodeSelection: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
+    );
   }
 
   if (options.tabBehavior !== 'default') {

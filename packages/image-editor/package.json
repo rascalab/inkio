@@ -1,6 +1,6 @@
 {
   "name": "@inkio/image-editor",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Image editor UI for Inkio image blocks",
   "license": "MIT",
   "homepage": "https://rascalab.github.io/inkio/",

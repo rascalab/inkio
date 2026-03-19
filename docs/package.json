@@ -1,6 +1,6 @@
 {
   "name": "docs",
-  "version": "0.1.0",
+  "version": "0.0.6",
   "private": true,
   "scripts": {
     "dev": "INKIO_USE_SOURCE_PACKAGES=1 next dev --webpack -H 0.0.0.0",

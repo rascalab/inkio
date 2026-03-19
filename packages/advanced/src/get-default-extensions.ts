@@ -6,9 +6,9 @@ import {
 } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import {
-  getDefaultExtensions as getEssentialDefaultExtensions,
-  type DefaultExtensionsOptions as EssentialDefaultExtensionsOptions,
-} from '@inkio/essential';
+  getExtensions as getEssentialDefaultExtensions,
+  type CoreExtensionOptions as EssentialDefaultExtensionsOptions,
+} from '@inkio/core';
 import { Mention, type MentionItem } from './extensions/Mention';
 import { HashTag, type HashTagItem } from './extensions/HashTag';
 import { SlashCommand } from './extensions/SlashCommand';
