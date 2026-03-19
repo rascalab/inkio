@@ -126,7 +126,7 @@ const markdown = stringifyMarkdown(initialContent);
   - toolbar off
   - slash command on
   - block handle on
-- `@inkio/editor/minimal.css` and `@inkio/editor/style.css` already include advanced preset styles.
+- `@inkio/editor/style.css` includes core + all extension styles (callout, comment, etc.). `@inkio/editor/minimal.css` includes core structure only (for custom theming).
 - `@inkio/simple` defaults to classic UI:
   - toolbar on
   - bubble/floating off
