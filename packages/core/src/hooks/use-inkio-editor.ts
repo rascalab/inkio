@@ -73,6 +73,11 @@ export function useInkioEditor({
     extensions: finalExtensions,
     content: startContent,
     editable,
+    editorProps: {
+      attributes: {
+        class: 'inkio-content',
+      },
+    },
     onCreate: ({ editor: editorInstance }) => {
       onCreateRef.current?.(editorInstance);
     },

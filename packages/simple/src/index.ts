@@ -20,6 +20,9 @@ export {
   toPlainText,
   toSummary,
   getContentStats,
+  parseMarkdown,
+  stringifyMarkdown,
+  createMarkdownAdapter,
 } from '@inkio/core';
 export type {
   BubbleMenuProps,
@@ -27,8 +30,10 @@ export type {
   ToolbarProps,
   TableMenuProps,
   BuiltinInkioToolbarActionId,
+  ImageBlockOptions,
   InkioCoreLocaleId,
   InkioCoreMessages,
+  InkioErrorHandler,
   InkioLocaleInput,
   InkioMessageOverrides,
   InkioProviderProps,

@@ -9,7 +9,6 @@ import {
   type InkioMessageOverrides,
   type InkioErrorHandler,
 } from '@inkio/core';
-import type { ToolbarProps } from '@inkio/core';
 import type { BubbleMenuProps } from '@inkio/core';
 import type { FloatingMenuProps } from '@inkio/core';
 import type { TableMenuProps } from '@inkio/core';
@@ -26,12 +25,11 @@ interface EditorUiOptions {
   className?: string;
   style?: React.CSSProperties;
   fill?: boolean;
+    autoresize?: boolean;
   bordered?: boolean;
-  showToolbar?: boolean;
   showBubbleMenu?: boolean;
   showFloatingMenu?: boolean;
   showTableMenu?: boolean;
-  toolbar?: Omit<ToolbarProps, 'editor'>;
   bubbleMenu?: Omit<BubbleMenuProps, 'editor'>;
   floatingMenu?: Omit<FloatingMenuProps, 'editor'>;
   tableMenu?: Omit<TableMenuProps, 'editor'>;
@@ -188,12 +186,12 @@ export function Editor({
     className: ui?.className,
     style: ui?.style,
     fill: ui?.fill,
+    autoresize: ui?.autoresize,
     bordered: ui?.bordered,
-    showToolbar: ui?.showToolbar ?? false,
+    showToolbar: false,
     showBubbleMenu: ui?.showBubbleMenu ?? true,
     showFloatingMenu: ui?.showFloatingMenu ?? true,
     showTableMenu: ui?.showTableMenu ?? true,
-    toolbar: ui?.toolbar,
     bubbleMenu: ui?.bubbleMenu,
     floatingMenu: ui?.floatingMenu,
     tableMenu: ui?.tableMenu,

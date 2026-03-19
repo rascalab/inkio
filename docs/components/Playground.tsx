@@ -16,8 +16,8 @@ const SimplePane = dynamic(() => import('./PlaygroundSimplePane'), {
 
 export default function Playground({ initialContent }: { initialContent?: string } = {}) {
   const [mode, setMode] = useState<PlaygroundMode>('editor');
-  const [showViewer, setShowViewer] = useState(false);
-  const [showJSON, setShowJSON] = useState(false);
+  const [showViewer, setShowViewer] = useState(true);
+  const [showJSON, setShowJSON] = useState(true);
 
   const handleModeChange = useCallback((nextMode: PlaygroundMode) => {
     setMode(nextMode);

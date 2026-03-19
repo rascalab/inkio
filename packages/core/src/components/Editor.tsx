@@ -1,6 +1,6 @@
 'use client';
 
-import { EditorContent, Extensions, JSONContent, Editor as TiptapEditor } from '@tiptap/react';
+import { EditorContent, type Extensions, type JSONContent, type Editor as TiptapEditor } from '@tiptap/react';
 import { useEffect, useMemo, useState } from 'react';
 import { useInkioEditor } from '../hooks/use-inkio-editor';
 import { BubbleMenu } from './BubbleMenu';
@@ -40,6 +40,8 @@ export type EditorProps = EditorContentMode & {
   style?: React.CSSProperties;
   /** Fill the parent container height instead of sizing to content. */
   fill?: boolean;
+  /** Automatically grow editor height to fit content. Mutually exclusive with `fill`. */
+  autoresize?: boolean;
   /** Show default container border and padding */
   bordered?: boolean;
   /** Whether to show the bubble menu */
@@ -77,6 +79,7 @@ export const Editor = ({
   className = '',
   style,
   fill = false,
+  autoresize = false,
   bordered = true,
   showToolbar = false,
   showBubbleMenu = false,
@@ -128,7 +131,7 @@ export const Editor = ({
   return (
     <div
       style={style}
-      className={`inkio inkio-editor${fill ? ' inkio-editor--fill' : ''}${bordered ? ' inkio-container-default' : ''}${className ? ` ${className}` : ''}`}
+      className={`inkio inkio-editor${fill ? ' inkio-editor--fill' : ''}${autoresize ? ' inkio-editor--autoresize' : ''}${bordered ? ' inkio-container-default' : ''}${className ? ` ${className}` : ''}`}
     >
       {showToolbar && (
         showInteractiveRuntime ? (
@@ -198,12 +201,10 @@ export const Editor = ({
       {showInteractiveRuntime ? (
         <EditorContent editor={editor} />
       ) : (
-        <div className="tiptap inkio-editor-static-root" data-inkio-editor-static="">
-          <div
-            className="ProseMirror inkio-editor-static"
-            dangerouslySetInnerHTML={{ __html: staticHtml }}
-          />
-        </div>
+        <div
+          className="tiptap ProseMirror inkio-content"
+          dangerouslySetInnerHTML={{ __html: staticHtml }}
+        />
       )}
     </div>
   );

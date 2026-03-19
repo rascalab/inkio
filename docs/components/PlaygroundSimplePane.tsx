@@ -7,19 +7,12 @@ import {
   Viewer as SimpleViewer,
 } from '@inkio/simple';
 import type { ImageEditorModalProps } from '@inkio/image-editor';
+import { PLAYGROUND_INITIAL_CONTENT } from './playground-content';
 
 const LazyImageEditorModal = dynamic<ImageEditorModalProps>(
   () => import('@inkio/image-editor').then((mod) => mod.ImageEditorModal),
   { ssr: false, loading: () => null },
 );
-
-const SIMPLE_CONTENT = `<h2>Inkio Simple Playground</h2>
-<p>Classic WYSIWYG preset for regular document editing.</p>
-<ul>
-  <li>Toolbar-first editing</li>
-  <li>Headings, lists, tasks, links, code blocks</li>
-  <li>Image uploads with optional image-editor integration</li>
-</ul>`;
 
 type PlaygroundSimplePaneProps = {
   initialContent?: string;
@@ -32,7 +25,7 @@ export default function PlaygroundSimplePane({
   showViewer,
   showJSON,
 }: PlaygroundSimplePaneProps) {
-  const [content, setContent] = useState<unknown>(null);
+  const [content, setContent] = useState<unknown>(initialContent ?? PLAYGROUND_INITIAL_CONTENT);
 
   return (
     <>
@@ -42,12 +35,12 @@ export default function PlaygroundSimplePane({
           <span className="playground-mode-badge">@inkio/simple + lazy @inkio/image-editor</span>
         </div>
         <SimpleEditor
-          initialContent={initialContent ?? SIMPLE_CONTENT}
+          initialContent={initialContent ?? PLAYGROUND_INITIAL_CONTENT}
           placeholder="Write a document..."
           locale="en-US,en;q=0.9"
           onImageUpload={async (file: File) => URL.createObjectURL(file)}
           imageBlock={{ imageEditor: LazyImageEditorModal }}
-          ui={{ showToolbar: true }}
+          ui={{ autoresize: true, showToolbar: true }}
           onUpdate={(next: unknown) => setContent(next)}
         />
       </section>

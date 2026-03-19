@@ -5,13 +5,24 @@
    Only essential editor styles without design system
    ============================ */
 
-/* ProseMirror Editor Core - Only functional styles */
-.inkio .ProseMirror {
+/* inkio-content Editor Core - Only functional styles */
+.inkio .inkio-content {
   outline: none;
 }
 
-.inkio .ProseMirror:focus {
+.inkio .inkio-content:focus {
   outline: none;
+}
+
+.inkio-editor--autoresize {
+  display: flex;
+  flex-direction: column;
+}
+
+.inkio-editor--autoresize .inkio-content {
+  min-height: 4rem;
+  height: auto;
+  overflow: visible;
 }
 
 .inkio-editor--fill {
@@ -21,148 +32,143 @@
   min-height: 0;
 }
 
-.inkio-editor--fill .tiptap {
+.inkio-editor--fill .inkio-content {
   display: flex;
   flex: 1 1 auto;
-  min-height: 0;
   flex-direction: column;
-}
-
-.inkio-editor--fill .tiptap.ProseMirror,
-.inkio-editor--fill .ProseMirror {
-  flex: 1 1 auto;
   height: 100%;
   min-height: 100%;
   overflow-y: auto;
 }
 
-.inkio-editor-static-root,
-.inkio-viewer-static-root {
-  display: block;
-}
 
-.inkio-editor-static,
-.inkio-viewer-static {
-  outline: none;
+/* Heading scroll offset — set --inkio-scroll-offset to your app's fixed header height */
+.inkio .inkio-content h1,
+.inkio .inkio-content h2,
+.inkio .inkio-content h3,
+.inkio .inkio-content h4,
+.inkio .inkio-content h5,
+.inkio .inkio-content h6 {
+  scroll-margin-top: var(--inkio-scroll-offset, 0px);
 }
 
 /* Essential Typography Structure - No specific colors/fonts */
-.inkio .ProseMirror h1 {
+.inkio .inkio-content h1 {
   font-weight: 700;
   line-height: 1.2;
   margin-top: 1.5rem;
   margin-bottom: 1rem;
 }
 
-.inkio .ProseMirror h2 {
+.inkio .inkio-content h2 {
   font-weight: 600;
   line-height: 1.3;
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
 }
 
-.inkio .ProseMirror h3 {
+.inkio .inkio-content h3 {
   font-weight: 600;
   line-height: 1.4;
   margin-top: 1.25rem;
   margin-bottom: 0.5rem;
 }
 
-.inkio .ProseMirror h4 {
+.inkio .inkio-content h4 {
   font-weight: 600;
   line-height: 1.5;
   margin-top: 1rem;
   margin-bottom: 0.5rem;
 }
 
-.inkio .ProseMirror p {
+.inkio .inkio-content p {
   line-height: 1.75;
   margin-bottom: 0.75rem;
 }
 
-.inkio .ProseMirror p:last-child {
+.inkio .inkio-content p:last-child {
   margin-bottom: 0;
 }
 
 /* Text Formatting - Minimal styles */
-.inkio .ProseMirror strong {
+.inkio .inkio-content strong {
   font-weight: 700;
 }
 
-.inkio .ProseMirror em {
+.inkio .inkio-content em {
   font-style: italic;
 }
 
-.inkio .ProseMirror u {
+.inkio .inkio-content u {
   text-decoration: underline;
 }
 
-.inkio .ProseMirror s {
+.inkio .inkio-content s {
   text-decoration: line-through;
 }
 
 /* Links - Basic functional styles */
-.inkio .ProseMirror a {
+.inkio .inkio-content a {
   text-decoration: underline;
   cursor: pointer;
 }
 
 /* Lists - Structure only */
-.inkio .ProseMirror ul {
+.inkio .inkio-content ul {
   list-style-type: disc;
   padding-left: 1.5rem;
   margin: 0.75rem 0;
 }
 
-.inkio .ProseMirror ol {
+.inkio .inkio-content ol {
   list-style-type: decimal;
   padding-left: 1.5rem;
   margin: 0.75rem 0;
 }
 
-.inkio .ProseMirror li {
+.inkio .inkio-content li {
   line-height: 1.6;
 }
 
-.inkio .ProseMirror li p {
+.inkio .inkio-content li p {
   margin-bottom: 0;
 }
 
-.inkio .ProseMirror ul ul,
-.inkio .ProseMirror ol ol,
-.inkio .ProseMirror ul ol,
-.inkio .ProseMirror ol ul {
+.inkio .inkio-content ul ul,
+.inkio .inkio-content ol ol,
+.inkio .inkio-content ul ol,
+.inkio .inkio-content ol ul {
   margin: 0.25rem 0;
 }
 
 /* Blockquote - Basic structure */
-.inkio .ProseMirror blockquote {
+.inkio .inkio-content blockquote {
   border-left: 4px solid;
-  padding-left: 1rem;
+  padding: 0.75rem 1rem;
   margin: 1rem 0;
   font-style: italic;
 }
 
-.inkio .ProseMirror blockquote p {
+.inkio .inkio-content blockquote p {
   margin-bottom: 0;
 }
 
 /* Horizontal Rule */
-.inkio .ProseMirror hr {
+.inkio .inkio-content hr {
   border: none;
   border-top: 2px solid;
   margin: 1.5rem 0;
 }
 
 /* Code - Basic styles */
-.inkio .ProseMirror code {
+.inkio .inkio-content code {
   font-family: var(--inkio-font-mono);
   font-size: 0.875em;
   padding: 0.125rem 0.375rem;
   border-radius: var(--inkio-radius-sm);
 }
 
-.inkio .ProseMirror pre {
+.inkio .inkio-content pre {
   font-family: var(--inkio-font-mono);
   padding: 1rem 1.25rem;
   border-radius: var(--inkio-radius-md);
@@ -172,7 +178,7 @@
   line-height: 1.6;
 }
 
-.inkio .ProseMirror pre code {
+.inkio .inkio-content pre code {
   background: transparent;
   color: inherit;
   padding: 0;
@@ -180,28 +186,103 @@
   font-weight: normal;
 }
 
+/* CodeBlock NodeView */
+.inkio .inkio-codeblock {
+  margin: 1rem 0;
+  border-radius: var(--inkio-radius-md);
+  overflow: hidden;
+}
+
+.inkio .inkio-codeblock pre {
+  margin: 0;
+  border-radius: 0;
+}
+
+.inkio .inkio-codeblock-content {
+  position: relative;
+}
+
+.inkio .inkio-codeblock-overlay {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  user-select: none;
+}
+
+.inkio .inkio-codeblock-lang {
+  border: none;
+  font-size: 0.6875rem;
+  font-family: var(--inkio-font-mono);
+  cursor: pointer;
+  padding: 0.25rem 0.375rem;
+  border-radius: var(--inkio-radius-sm);
+  outline: none;
+}
+
+.inkio .inkio-codeblock-lang-badge {
+  font-size: 0.625rem;
+  font-family: var(--inkio-font-mono);
+  padding: 0 0.375rem;
+  border-radius: var(--inkio-radius-sm);
+  height: 1.625rem;
+  display: flex;
+  align-items: center;
+}
+
+.inkio .inkio-codeblock-copy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--inkio-radius-sm);
+  padding: 0;
+}
+
+/* Viewer: overlay hidden until hover */
+.inkio .inkio-codeblock-overlay:has(.inkio-codeblock-copy) {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.inkio .inkio-codeblock-content:hover .inkio-codeblock-overlay:has(.inkio-codeblock-copy),
+.inkio .inkio-codeblock-copy.is-copied {
+  opacity: 1;
+}
+
+.inkio .inkio-codeblock-copy.is-copied {
+  cursor: default;
+}
+
 /* Task List - Essential functionality */
-.inkio .ProseMirror ul[data-type="taskList"] {
+.inkio .inkio-content ul[data-type="taskList"] {
   list-style: none;
   padding-left: 0;
 }
 
-.inkio .ProseMirror ul[data-type="taskList"] li {
+.inkio .inkio-content ul[data-type="taskList"] li {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
-  line-height: 1.75; /* match p line-height for consistent label alignment */
+  line-height: 1.75;
+  /* match p line-height for consistent label alignment */
 }
 
 /* Task item (React NodeView) */
-.inkio .ProseMirror .inkio-task-item {
+.inkio .inkio-content .inkio-task-item {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
   line-height: 1.75;
 }
 
-.inkio .ProseMirror .inkio-task-checkbox {
+.inkio .inkio-content .inkio-task-checkbox {
   display: flex;
   align-items: center;
   flex-shrink: 0;
@@ -210,7 +291,7 @@
   padding: 0;
 }
 
-.inkio .ProseMirror .inkio-task-checkbox-btn {
+.inkio .inkio-content .inkio-task-checkbox-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -225,23 +306,23 @@
   transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
 
-.inkio .ProseMirror .inkio-task-checkbox-btn.is-checked {
+.inkio .inkio-content .inkio-task-checkbox-btn.is-checked {
   background-color: var(--inkio-primary, #3b82f6);
   border-color: var(--inkio-primary, #3b82f6);
   color: white;
 }
 
-.inkio .ProseMirror .inkio-task-content {
+.inkio .inkio-content .inkio-task-content {
   flex: 1;
 }
 
-.inkio .ProseMirror .inkio-task-item[data-checked="true"] .inkio-task-content {
+.inkio .inkio-content .inkio-task-item[data-checked="true"] .inkio-task-content {
   text-decoration: line-through;
   color: var(--inkio-text-muted, #9ca3af);
 }
 
 /* Legacy native checkbox fallback (when not using React NodeView) */
-.inkio .ProseMirror ul[data-type="taskList"] li>label {
+.inkio .inkio-content ul[data-type="taskList"] li>label {
   display: flex;
   align-items: center;
   flex-shrink: 0;
@@ -250,46 +331,46 @@
   padding: 0;
 }
 
-.inkio .ProseMirror ul[data-type="taskList"] li>label input[type="checkbox"] {
+.inkio .inkio-content ul[data-type="taskList"] li>label input[type="checkbox"] {
   width: 1.125rem;
   height: 1.125rem;
   margin: 0;
   cursor: pointer;
 }
 
-.inkio .ProseMirror ul[data-type="taskList"] li>label span {
+.inkio .inkio-content ul[data-type="taskList"] li>label span {
   display: none;
 }
 
-.inkio .ProseMirror ul[data-type="taskList"] li>div {
+.inkio .inkio-content ul[data-type="taskList"] li>div {
   flex: 1;
 }
 
-.inkio .ProseMirror ul[data-type="taskList"] li[data-checked="true"]>div {
+.inkio .inkio-content ul[data-type="taskList"] li[data-checked="true"]>div {
   text-decoration: line-through;
 }
 
 /* Tables - Essential functionality */
-.inkio .ProseMirror table {
+.inkio .inkio-content table {
   border-collapse: collapse;
   table-layout: fixed;
   width: 100%;
   overflow: hidden;
 }
 
-.inkio .ProseMirror td,
-.inkio .ProseMirror th {
+.inkio .inkio-content td,
+.inkio .inkio-content th {
   vertical-align: top;
   box-sizing: border-box;
   position: relative;
   min-width: 200px;
 }
 
-.inkio .ProseMirror .selectedCell {
-  background-color: rgba(59, 130, 246, 0.12);
+.inkio .inkio-content .selectedCell {
+  background-color: rgba(0, 144, 255, 0.12);
 }
 
-.inkio .ProseMirror .column-resize-handle {
+.inkio .inkio-content .column-resize-handle {
   position: absolute;
   top: 0;
   right: -2px;
@@ -298,12 +379,12 @@
   pointer-events: none;
 }
 
-.inkio .ProseMirror.resize-cursor {
+.inkio .inkio-content.resize-cursor {
   cursor: col-resize;
 }
 
 /* Placeholder - Essential functionality */
-.inkio .ProseMirror p.is-editor-empty:first-child::before {
+.inkio .inkio-content p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   color: inherit;
   opacity: 0.5;
@@ -326,7 +407,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--inkio-border);
+  border-bottom: 1px solid var(--inkio-surface-border, var(--inkio-border));
   flex-wrap: wrap;
 }
 
@@ -355,7 +436,7 @@
 .inkio-toolbar-divider {
   width: 1px;
   align-self: stretch;
-  background-color: var(--inkio-border);
+  background-color: var(--inkio-surface-border, var(--inkio-border));
 }
 
 .inkio-toolbar-color-icon {
@@ -427,70 +508,6 @@
   background: transparent;
 }
 
-.inkio-viewer {
-  border: 1px solid;
-  border-radius: var(--inkio-radius-lg);
-  padding: 1rem;
-}
-
-.inkio-viewer-with-toc {
-  display: flex;
-  gap: 1rem;
-}
-
-.inkio-viewer--toc-top {
-  display: block;
-}
-
-.inkio-viewer-body {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.inkio-viewer-toc {
-  flex: 0 0 15rem;
-  align-self: flex-start;
-  border: 1px solid;
-  border-radius: var(--inkio-radius);
-  padding: 0.75rem;
-}
-
-.inkio-viewer--toc-top .inkio-viewer-toc {
-  margin-bottom: 1rem;
-}
-
-.inkio-viewer-toc-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.inkio-viewer-toc-item {
-  padding-left: calc((var(--inkio-toc-level, 1) - 1) * 0.75rem);
-}
-
-.inkio-viewer-toc-item + .inkio-viewer-toc-item {
-  margin-top: 0.25rem;
-}
-
-.inkio-viewer-toc-link {
-  width: 100%;
-  display: block;
-  padding: 0.375rem 0.5rem;
-  border: 0;
-  border-radius: var(--inkio-radius-sm);
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.inkio-viewer-toc-link:hover,
-.inkio-viewer-toc-link:focus-visible {
-  outline: none;
-  background: color-mix(in srgb, currentColor 10%, transparent);
-}
-
 .inkio-container-default {
   border: none;
   border-radius: 0;
@@ -509,7 +526,6 @@
 
 .inkio-bubble-btn:focus-visible,
 .inkio-bubble-btn.is-focused,
-.inkio-floating-btn:focus-visible,
 .inkio-table-trigger:focus-visible {
   outline: 2px solid var(--inkio-ring, #3b82f6);
   outline-offset: 2px;
@@ -526,6 +542,7 @@
    ============================ */
 
 @media (prefers-reduced-motion: reduce) {
+
   .inkio *,
   .inkio *::before,
   .inkio *::after {
@@ -675,3 +692,4 @@
     transform: rotate(360deg);
   }
 }
+

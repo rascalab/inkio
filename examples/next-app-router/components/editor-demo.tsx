@@ -11,7 +11,7 @@ import { inkioIconRegistry, type InkioIconRegistry } from '@inkio/editor/icons';
 import {
   type CommentMessage,
   type CommentPanelProps,
-  type CommentThreadData,
+  type CommentData,
   type CommentConfig,
 } from '@inkio/advanced';
 import type { ImageEditorModalProps } from '@inkio/image-editor';
@@ -67,9 +67,9 @@ function createDemoImageDataUrl(): string {
 export function EditorDemo() {
   const [json, setJson] = useState<unknown>(null);
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
-  const [commentThreads, setCommentThreads] = useState<CommentThreadData[]>([]);
-  const commentThreadsRef = useRef<CommentThreadData[]>([]);
-  commentThreadsRef.current = commentThreads;
+  const [comments, setComments] = useState<CommentData[]>([]);
+  const commentsRef = useRef<CommentData[]>([]);
+  commentsRef.current = comments;
 
   const iconOverrides = useMemo<Partial<InkioIconRegistry>>(
     () => ({ comment: inkioIconRegistry.comment }),
@@ -88,23 +88,23 @@ export function EditorDemo() {
     [],
   );
 
-  const handleReply = useCallback((threadId: string, text: string) => {
+  const handleReply = useCallback((commentId: string, text: string) => {
     const message: CommentMessage = { id: createId(), author: 'You', text, createdAt: new Date() };
-    setCommentThreads((prev) =>
-      prev.map((thread) =>
-        thread.id === threadId ? { ...thread, messages: [...thread.messages, message] } : thread,
+    setComments((prev) =>
+      prev.map((comment) =>
+        comment.id === commentId ? { ...comment, messages: [...comment.messages, message] } : comment,
       ),
     );
   }, []);
 
-  const handleResolve = useCallback((threadId: string) => {
-    setCommentThreads((prev) =>
-      prev.map((thread) => (thread.id === threadId ? { ...thread, resolved: true } : thread)),
+  const handleResolve = useCallback((commentId: string) => {
+    setComments((prev) =>
+      prev.map((comment) => (comment.id === commentId ? { ...comment, resolved: true } : comment)),
     );
   }, []);
 
-  const handleDelete = useCallback((threadId: string) => {
-    setCommentThreads((prev) => prev.filter((thread) => thread.id !== threadId));
+  const handleDelete = useCallback((commentId: string) => {
+    setComments((prev) => prev.filter((comment) => comment.id !== commentId));
   }, []);
 
   const handleInsertDemoImage = useCallback(() => {
@@ -121,12 +121,12 @@ export function EditorDemo() {
 
   const comment = useMemo<CommentConfig>(
     () => ({
-      onSubmit: (threadId: string, text: string) => {
+      onSubmit: (commentId: string, text: string) => {
         const message: CommentMessage = { id: createId(), author: 'You', text, createdAt: new Date() };
-        setCommentThreads((prev) => [...prev, { id: threadId, messages: [message], resolved: false }]);
+        setComments((prev) => [...prev, { id: commentId, messages: [message], resolved: false }]);
       },
-      getComments: (threadId: string) =>
-        commentThreadsRef.current.find((thread) => thread.id === threadId) ?? null,
+      getComments: (commentId: string) =>
+        commentsRef.current.find((c) => c.id === commentId) ?? null,
       onReply: handleReply,
       onResolve: handleResolve,
       onDelete: handleDelete,
@@ -163,7 +163,6 @@ export function EditorDemo() {
           imageBlock={{ imageEditor: LazyImageEditorModal }}
           comment={comment}
           ui={{
-            showToolbar: true,
             showBubbleMenu: true,
             showFloatingMenu: true,
             messages,
@@ -178,7 +177,7 @@ export function EditorDemo() {
         <p className="section-title">Comments (@inkio/advanced)</p>
         <LazyCommentPanel
           editor={editorInstance}
-          threads={commentThreads}
+          threads={comments}
           icons={iconOverrides}
           locale={locale}
           messages={messages}

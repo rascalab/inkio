@@ -20,6 +20,21 @@ function inlineCssImports(filePath: string, visited = new Set<string>()): string
   });
 }
 
+/** Collect all CSS files in the @import chain. */
+function collectCssFiles(filePath: string, visited = new Set<string>()): string[] {
+  const resolved = resolve(filePath);
+  if (visited.has(resolved)) return [];
+  visited.add(resolved);
+  const content = readFileSync(resolved, 'utf-8');
+  const dir = dirname(resolved);
+  const files = [resolved];
+  content.replace(/@import\s+["'](\.[^"']+)["']\s*;/g, (_match, rel) => {
+    files.push(...collectCssFiles(resolve(dir, rel), visited));
+    return '';
+  });
+  return files;
+}
+
 export default defineConfig({
   plugins: [
     react(),
@@ -39,6 +54,15 @@ export default defineConfig({
       : []),
     {
       name: 'copy-css',
+      buildStart() {
+        const cssFiles = new Set([
+          ...collectCssFiles(resolve(__dirname, 'src/minimal.css')),
+          ...collectCssFiles(resolve(__dirname, 'src/style.css')),
+        ]);
+        for (const file of cssFiles) {
+          this.addWatchFile(file);
+        }
+      },
       generateBundle() {
         this.emitFile({
           type: 'asset',

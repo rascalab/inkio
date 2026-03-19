@@ -5,6 +5,8 @@ export type { ViewerProps } from './components/Viewer';
 export type { ExtensionsInput } from './types';
 export { getDefaultExtensions } from '@inkio/advanced';
 export type { CommentConfig, CommentData } from '@inkio/advanced';
+export { ToC } from '@inkio/essential';
+export type { ToCProps } from '@inkio/essential';
 export {
   BubbleMenu,
   FloatingMenu,
@@ -21,6 +23,9 @@ export {
   toPlainText,
   toSummary,
   getContentStats,
+  parseMarkdown,
+  stringifyMarkdown,
+  createMarkdownAdapter,
 } from '@inkio/core';
 export type {
   BubbleMenuProps,
@@ -28,8 +33,10 @@ export type {
   ToolbarProps,
   TableMenuProps,
   BuiltinInkioToolbarActionId,
+  ImageBlockOptions,
   InkioCoreLocaleId,
   InkioCoreMessages,
+  InkioErrorHandler,
   InkioLocaleInput,
   InkioMessageOverrides,
   InkioProviderProps,

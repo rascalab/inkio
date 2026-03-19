@@ -22,7 +22,8 @@ import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import HorizontalRule from '@tiptap/extension-horizontal-rule';
 import HardBreak from '@tiptap/extension-hard-break';
-import CodeBlock from '@tiptap/extension-code-block';
+import Blockquote from '@tiptap/extension-blockquote';
+import { CodeBlock } from './CodeBlock';
 import Dropcursor from '@tiptap/extension-dropcursor';
 import Gapcursor from '@tiptap/extension-gapcursor';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -70,6 +71,8 @@ export interface CoreExtensionOptions {
   orderedList?: false;
   /** Set to `false` to disable task list */
   taskList?: false;
+  /** Set to `false` to disable blockquote */
+  blockquote?: false;
   /** Set to `false` to disable horizontal rule */
   horizontalRule?: false;
   /** Set to `false` to disable code block */
@@ -108,6 +111,7 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
     superscript,
     link,
     textAlign,
+    blockquote,
     bulletList,
     orderedList,
     taskList,
@@ -210,6 +214,7 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
     );
   }
 
+  if (blockquote !== false) extensions.push(Blockquote);
   if (horizontalRule !== false) extensions.push(HorizontalRule);
   if (codeBlock !== false) extensions.push(CodeBlock);
   if (history !== false) extensions.push(History);
