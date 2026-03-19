@@ -6,6 +6,7 @@ export default {
   'i18n-locale': 'i18n & Locale',
   'overlay-positioning': 'Overlay Positioning',
   extensions: '확장',
+  ssr: 'SSR',
   adapter: '어댑터',
   serialization: '직렬화',
   frameworks: '프레임워크 통합',
