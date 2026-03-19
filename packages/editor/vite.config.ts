@@ -82,6 +82,8 @@ export default defineConfig({
       { find: /^@inkio\/core\/icons$/, replacement: resolve(__dirname, '../core/src/icons/index.ts') },
       { find: /^@inkio\/core\/markdown$/, replacement: resolve(__dirname, '../core/src/markdown/index.ts') },
       { find: /^@inkio\/core$/, replacement: resolve(__dirname, '../core/src/index.ts') },
+      { find: /^@inkio\/essential$/, replacement: resolve(__dirname, '../essential/src/index.ts') },
+      { find: /^@inkio\/essential\//, replacement: `${resolve(__dirname, '../essential/src')}/` },
       { find: /^@inkio\/advanced$/, replacement: resolve(__dirname, '../advanced/src/index.ts') },
       { find: /^@inkio\/advanced\//, replacement: `${resolve(__dirname, '../advanced/src')}/` },
       { find: '@', replacement: resolve(__dirname, 'src') },
