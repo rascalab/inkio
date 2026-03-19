@@ -1,7 +1,8 @@
 import { type Extensions, type JSONContent } from '@tiptap/core';
 import { generateHTML } from '@tiptap/html';
 import sanitizeHtml from 'sanitize-html';
-import { getHeadingsFromContent, type HeadingItem } from '../components/ToC';
+import { getHeadingsFromContent, slugifyHeading, type HeadingItem } from '../components/ToC';
+import { escapeHtml } from '../utils/html';
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] };
 
@@ -11,15 +12,6 @@ export type StaticContentRenderResult = {
   headings: HeadingItem[];
   shellOnly: boolean;
 };
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 function createParagraphDoc(text: string): JSONContent {
   return {
@@ -58,27 +50,6 @@ export function normalizeInkioContent(
   }
 
   return createParagraphDoc(trimmed.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
-}
-
-function slugifyHeading(text: string, used: Set<string>): string {
-  const base = (
-    text
-      .trim()
-      .replace(/\s+/g, '-')
-      .replace(/^[^a-zA-Z0-9\uac00-\ud7a3]+/, '')
-      .replace(/[^a-zA-Z0-9\uac00-\ud7a3_-]/g, '')
-      || 'section'
-  ).toLowerCase();
-
-  let candidate = base;
-  let suffix = 1;
-
-  while (used.has(candidate)) {
-    candidate = `${base}-${suffix++}`;
-  }
-
-  used.add(candidate);
-  return candidate;
 }
 
 function decodeHtmlEntities(value: string): string {

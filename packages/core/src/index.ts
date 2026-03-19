@@ -57,6 +57,7 @@ export { InkioError } from './errors';
 // Shared Utilities
 export { toError } from './utils';
 export type { InkioErrorHandler } from './utils';
+export { isSafeUrl } from './utils/url-safety';
 
 // Serialization
 export { toPlainText, toSummary, getContentStats } from './serialization';

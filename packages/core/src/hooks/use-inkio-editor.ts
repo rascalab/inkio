@@ -21,6 +21,7 @@ export type UseInkioEditorOptions = InkioContentMode & {
 };
 
 function isSameContent(a: string | JSONContent | undefined, b: string | JSONContent | undefined) {
+  if (a === b) return true;
   if (typeof a === 'string' || typeof b === 'string') {
     return a === b;
   }

@@ -1,9 +1,9 @@
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { useEffect, useState } from 'react';
+import { isSafeUrl } from '@inkio/core';
 import type { BookmarkOptions, BookmarkPreview } from './Bookmark';
 
-const BLOCKED_PROTOCOLS = /^(javascript|data|vbscript):/i;
-const sanitizeUrl = (url: string) => (BLOCKED_PROTOCOLS.test(url.trim()) ? '' : url);
+const sanitizeUrl = (url: string) => (isSafeUrl(url) ? url : '');
 
 const resolvePreviewUpdate = (preview: BookmarkPreview): Record<string, string | null> => {
   const nextAttributes: Record<string, string | null> = {};

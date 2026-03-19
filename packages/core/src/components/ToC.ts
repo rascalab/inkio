@@ -28,7 +28,7 @@ function getTextFromNode(node: JSONContent | null | undefined): string {
   return '';
 }
 
-function slugifyHeading(text: string, used: Set<string>): string {
+export function slugifyHeading(text: string, used: Set<string>): string {
   const base = (
     text
       .trim()
