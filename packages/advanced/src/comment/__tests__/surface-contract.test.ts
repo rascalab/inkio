@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const commentCss = readFileSync(resolve(process.cwd(), 'src/comment/style.css'), 'utf8');
+const commentCss = readFileSync(resolve(process.cwd(), '../editor/src/style.css'), 'utf8');
 
 describe('comment surface contract', () => {
   it('uses the shared shell, panel, and field tokens for comment chrome', () => {

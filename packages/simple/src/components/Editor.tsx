@@ -37,6 +37,7 @@ export type EditorProps = EditorContentMode & {
     className?: string;
     style?: React.CSSProperties;
     fill?: boolean;
+    autoresize?: boolean;
     bordered?: boolean;
     showToolbar?: boolean;
     showBubbleMenu?: boolean;
@@ -69,6 +70,7 @@ export function Editor({
   ui,
   onImageUpload,
   imageBlock,
+  onError,
   extensions,
 }: EditorProps) {
   const coreExtensionOptions = useMemo<ExtensionsOptions>(() => {
@@ -77,12 +79,12 @@ export function Editor({
       tabBehavior,
     };
 
-    if (onImageUpload !== undefined || imageBlock) {
-      opts.imageBlock = { ...imageBlock, ...(onImageUpload ? { onUpload: onImageUpload } : {}) };
+    if (onImageUpload !== undefined || imageBlock !== undefined || onError !== undefined) {
+      opts.imageBlock = { ...imageBlock, ...(onImageUpload ? { onUpload: onImageUpload } : {}), ...(onError ? { onError } : {}) };
     }
 
     return opts;
-  }, [placeholder, tabBehavior, onImageUpload, imageBlock]);
+  }, [placeholder, tabBehavior, onImageUpload, imageBlock, onError]);
 
   const resolvedExtensions = useMemo(() => {
     const defaults = getExtensions(coreExtensionOptions);
@@ -102,6 +104,7 @@ export function Editor({
     className: ui?.className,
     style: ui?.style,
     fill: ui?.fill,
+    autoresize: ui?.autoresize,
     bordered: ui?.bordered,
     showToolbar: ui?.showToolbar ?? true,
     showBubbleMenu: ui?.showBubbleMenu ?? false,

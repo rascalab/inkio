@@ -71,7 +71,7 @@ export const WikiLink = Node.create<WikiLinkOptions>({
       const clickHandler = (event: Event) => {
         event.preventDefault();
         event.stopPropagation();
-        if (currentHref.length > 0 && !/^javascript:/i.test(currentHref)) {
+        if (currentHref.length > 0 && !/^(javascript|data|vbscript):/i.test(currentHref.trim())) {
           this.options.onClick?.(currentHref);
         }
       };

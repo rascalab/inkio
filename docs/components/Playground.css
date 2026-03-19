@@ -1,4 +1,5 @@
 .playground-root {
+  --inkio-scroll-offset: var(--nextra-navbar-height, 64px);
   width: 100%;
   padding: 0 24px 48px;
   max-width: none;
@@ -156,4 +157,36 @@
   color: var(--inkio-text-muted);
   text-transform: none;
   letter-spacing: normal;
+}
+
+.playground-editor-with-toc {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.playground-editor-with-toc > .inkio {
+  flex: 1;
+  min-width: 0;
+}
+
+.playground-toc {
+  position: sticky;
+  top: calc(var(--nextra-navbar-height, 64px) + 1rem);
+  flex: 0 0 12rem;
+  max-height: calc(100vh - var(--nextra-navbar-height, 64px) - 2rem);
+  overflow-y: auto;
+  padding: 0.5rem 0;
+}
+
+@media (max-width: 768px) {
+  .playground-editor-with-toc {
+    flex-direction: column;
+  }
+
+  .playground-toc {
+    position: static;
+    flex: none;
+    max-height: none;
+  }
 }

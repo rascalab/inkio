@@ -10,76 +10,72 @@
    Visual Design Overrides for core styles
    ============================ */
 
-/* ProseMirror Editor with design */
-.inkio .ProseMirror {
+/* inkio-content Editor with design */
+.inkio .inkio-content {
   min-height: 200px;
   padding: 1rem;
   font-family: var(--inkio-font-family);
   font-size: var(--inkio-font-size-base);
 }
 
-.inkio-editor--fill .ProseMirror {
-  min-height: 100%;
-}
-
 /* Typography with colors and fonts */
-.inkio .ProseMirror h1 {
+.inkio .inkio-content h1 {
   font-size: 2.25rem;
   color: var(--inkio-text-heading);
 }
 
-.inkio .ProseMirror h2 {
+.inkio .inkio-content h2 {
   font-size: 1.875rem;
   color: var(--inkio-text-heading);
 }
 
-.inkio .ProseMirror h3 {
+.inkio .inkio-content h3 {
   font-size: 1.5rem;
   color: var(--inkio-text);
 }
 
-.inkio .ProseMirror h4 {
+.inkio .inkio-content h4 {
   font-size: 1.25rem;
   color: var(--inkio-text);
 }
 
-.inkio .ProseMirror p {
+.inkio .inkio-content p {
   font-size: 1rem;
   color: var(--inkio-text);
 }
 
 /* Text Formatting with colors */
-.inkio .ProseMirror strong {
+.inkio .inkio-content strong {
   color: var(--inkio-text-heading);
 }
 
-.inkio .ProseMirror u {
+.inkio .inkio-content u {
   text-underline-offset: 2px;
 }
 
-.inkio .ProseMirror s {
+.inkio .inkio-content s {
   color: var(--inkio-text-muted);
 }
 
-.inkio .ProseMirror mark {
+.inkio .inkio-content mark {
   background-color: var(--inkio-highlight-bg);
   padding: 0.125rem 0.25rem;
   border-radius: var(--inkio-radius-xs);
 }
 
 /* Links with colors */
-.inkio .ProseMirror a {
+.inkio .inkio-content a {
   color: var(--inkio-primary);
   text-underline-offset: 2px;
   transition: color var(--inkio-transition-fast);
 }
 
-.inkio .ProseMirror a:hover {
+.inkio .inkio-content a:hover {
   color: var(--inkio-primary-hover);
 }
 
 /* Blockquote with colors */
-.inkio .ProseMirror blockquote {
+.inkio .inkio-content blockquote {
   border-color: var(--inkio-primary);
   color: var(--inkio-text);
   background-color: var(--inkio-bg-muted);
@@ -87,98 +83,190 @@
 }
 
 /* Horizontal Rule with colors */
-.inkio .ProseMirror hr {
+.inkio .inkio-content hr {
   border-color: var(--inkio-border);
 }
 
 /* Code with colors */
-.inkio .ProseMirror code {
-  font-family: var(--inkio-font-mono);
+.inkio .inkio-content code {
   background-color: var(--inkio-bg-muted);
   color: var(--inkio-danger);
   font-weight: 500;
 }
 
-.inkio .ProseMirror pre {
-  font-family: var(--inkio-font-mono);
+.inkio .inkio-content pre {
   background-color: var(--inkio-code-bg);
   color: var(--inkio-code-text);
 }
 
+/* CodeBlock NodeView */
+.inkio .inkio-codeblock {
+  background-color: var(--inkio-code-bg);
+}
+
+.inkio .inkio-codeblock-lang {
+  color: var(--inkio-code-text);
+  background: color-mix(in srgb, var(--inkio-code-text) 10%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.inkio .inkio-codeblock-lang:hover,
+.inkio .inkio-codeblock-lang:focus {
+  background: color-mix(in srgb, var(--inkio-code-text) 18%, transparent);
+}
+
+.inkio .inkio-codeblock-lang-badge {
+  color: var(--inkio-code-text);
+  background: color-mix(in srgb, var(--inkio-code-text) 8%, transparent);
+  opacity: 0.6;
+}
+
+.inkio .inkio-codeblock-copy {
+  color: var(--inkio-code-text);
+  background: color-mix(in srgb, var(--inkio-code-text) 10%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.inkio .inkio-codeblock-copy:hover:not(.is-copied) {
+  background: color-mix(in srgb, var(--inkio-code-text) 20%, transparent);
+}
+
+.inkio .inkio-codeblock-copy.is-copied {
+  color: var(--inkio-success, #22c55e);
+}
+
+/* Syntax Highlighting (lowlight / highlight.js) */
+.inkio .inkio-content .hljs-comment,
+.inkio .inkio-content .hljs-quote {
+  color: color-mix(in srgb, var(--inkio-code-text) 50%, transparent);
+  font-style: italic;
+}
+
+.inkio .inkio-content .hljs-keyword,
+.inkio .inkio-content .hljs-selector-tag,
+.inkio .inkio-content .hljs-built_in,
+.inkio .inkio-content .hljs-type {
+  color: var(--inkio-code-keyword, #c678dd);
+}
+
+.inkio .inkio-content .hljs-string,
+.inkio .inkio-content .hljs-attr,
+.inkio .inkio-content .hljs-symbol,
+.inkio .inkio-content .hljs-bullet,
+.inkio .inkio-content .hljs-addition,
+.inkio .inkio-content .hljs-template-tag,
+.inkio .inkio-content .hljs-template-variable {
+  color: var(--inkio-code-string, #98c379);
+}
+
+.inkio .inkio-content .hljs-number,
+.inkio .inkio-content .hljs-literal {
+  color: var(--inkio-code-number, #d19a66);
+}
+
+.inkio .inkio-content .hljs-title,
+.inkio .inkio-content .hljs-section,
+.inkio .inkio-content .hljs-name,
+.inkio .inkio-content .hljs-selector-id,
+.inkio .inkio-content .hljs-selector-class {
+  color: var(--inkio-code-function, #61afef);
+}
+
+.inkio .inkio-content .hljs-variable,
+.inkio .inkio-content .hljs-params {
+  color: var(--inkio-code-variable, #e06c75);
+}
+
+.inkio .inkio-content .hljs-meta {
+  color: color-mix(in srgb, var(--inkio-code-text) 70%, transparent);
+}
+
+.inkio .inkio-content .hljs-deletion {
+  color: var(--inkio-danger, #e5484d);
+}
+
+.inkio .inkio-content .hljs-tag {
+  color: var(--inkio-code-text);
+}
+
+.inkio .inkio-content .hljs-emphasis {
+  font-style: italic;
+}
+
+.inkio .inkio-content .hljs-strong {
+  font-weight: 700;
+}
+
 /* Tables with borders and header emphasis */
-.inkio .ProseMirror table {
+.inkio .inkio-content table {
   border: 1px solid var(--inkio-border);
   border-radius: var(--inkio-radius-md);
-  overflow: hidden;
   margin: 1rem 0;
 }
 
-.inkio .ProseMirror td,
-.inkio .ProseMirror th {
+.inkio .inkio-content td,
+.inkio .inkio-content th {
   border: 1px solid var(--inkio-border);
   padding: 0.625rem 0.75rem;
   background-color: var(--inkio-bg);
 }
 
-.inkio .ProseMirror th {
+.inkio .inkio-content th {
   font-weight: 600;
   color: var(--inkio-text-heading);
   background-color: var(--inkio-bg-muted);
 }
 
-.inkio .ProseMirror .selectedCell {
+.inkio .inkio-content .selectedCell {
   background-color: color-mix(in srgb, var(--inkio-primary) 14%, var(--inkio-bg));
 }
 
-.inkio .ProseMirror .column-resize-handle {
+.inkio .inkio-content .column-resize-handle {
   background-color: var(--inkio-border-strong, #d1d5db);
 }
 
 /* Task List — React NodeView checkbox button */
-.inkio .ProseMirror .inkio-task-checkbox-btn:hover {
+.inkio .inkio-content .inkio-task-checkbox-btn:hover {
   border-color: var(--inkio-primary, #3b82f6);
 }
 
-.inkio .ProseMirror .inkio-task-checkbox-btn.is-checked:hover {
+.inkio .inkio-content .inkio-task-checkbox-btn.is-checked:hover {
   background-color: var(--inkio-primary-hover, #2563eb);
   border-color: var(--inkio-primary-hover, #2563eb);
 }
 
 /* Legacy native checkbox fallback (when not using React NodeView) */
-.inkio .ProseMirror ul[data-type="taskList"] li>label input[type="checkbox"] {
+.inkio .inkio-content ul[data-type="taskList"] li>label input[type="checkbox"] {
   -webkit-appearance: none;
   appearance: none;
-  width: 1.125rem;
-  height: 1.125rem;
   border: 1.5px solid var(--inkio-border-strong, #d1d5db);
   border-radius: 4px;
   background: var(--inkio-bg, #fff);
-  cursor: pointer;
   position: relative;
   transition: background-color 0.15s, border-color 0.15s;
   flex-shrink: 0;
 }
 
-.inkio .ProseMirror ul[data-type="taskList"] li>label input[type="checkbox"]:hover {
+.inkio .inkio-content ul[data-type="taskList"] li>label input[type="checkbox"]:hover {
   border-color: var(--inkio-primary, #3b82f6);
 }
 
-.inkio .ProseMirror ul[data-type="taskList"] li>label input[type="checkbox"]:checked {
+.inkio .inkio-content ul[data-type="taskList"] li>label input[type="checkbox"]:checked {
   background-color: var(--inkio-primary, #3b82f6);
   border-color: var(--inkio-primary, #3b82f6);
 }
 
-.inkio .ProseMirror ul[data-type="taskList"] li[data-checked="true"]>div {
+.inkio .inkio-content ul[data-type="taskList"] li[data-checked="true"]>div {
   color: var(--inkio-text-muted);
 }
 
 /* Placeholder with opacity */
-.inkio .ProseMirror p.is-editor-empty:first-child::before {
+.inkio .inkio-content p.is-editor-empty:first-child::before {
   color: var(--inkio-text-muted);
 }
 
 /* Selection */
-.inkio .ProseMirror ::selection {
+.inkio .inkio-content ::selection {
   background-color: var(--inkio-selection-bg);
 }
 
@@ -186,74 +274,10 @@
    Editor Container with design
    ============================ */
 
-/* Shared base for editor & viewer — same document appearance */
-.inkio-editor,
-.inkio-viewer {
+/* Shared base for editor — document appearance */
+.inkio-editor {
   border-color: var(--inkio-border);
   color: var(--inkio-text);
-}
-
-.inkio-viewer-with-toc {
-  display: flex;
-  gap: 1rem;
-}
-
-.inkio-viewer--toc-top {
-  display: block;
-}
-
-.inkio-viewer-body {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.inkio-viewer-toc {
-  flex: 0 0 15rem;
-  align-self: flex-start;
-  border: 1px solid var(--inkio-surface-border);
-  border-radius: var(--inkio-radius-md);
-  padding: 0.875rem;
-  background: var(--inkio-surface-panel);
-  box-shadow: var(--inkio-surface-shadow);
-  backdrop-filter: blur(var(--inkio-surface-blur-panel));
-}
-
-.inkio-viewer--toc-top .inkio-viewer-toc {
-  margin-bottom: 1rem;
-}
-
-.inkio-viewer-toc-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.inkio-viewer-toc-item {
-  padding-left: calc((var(--inkio-toc-level, 1) - 1) * 0.75rem);
-}
-
-.inkio-viewer-toc-item + .inkio-viewer-toc-item {
-  margin-top: 0.25rem;
-}
-
-.inkio-viewer-toc-link {
-  width: 100%;
-  display: block;
-  padding: 0.375rem 0.5rem;
-  border: 0;
-  border-radius: var(--inkio-radius-sm);
-  background: transparent;
-  color: var(--inkio-text);
-  text-align: left;
-  cursor: pointer;
-  transition: background-color var(--inkio-transition-fast), color var(--inkio-transition-fast);
-}
-
-.inkio-viewer-toc-link:hover,
-.inkio-viewer-toc-link:focus-visible {
-  outline: none;
-  background: var(--inkio-primary-bg);
-  color: var(--inkio-primary-hover);
 }
 
 .inkio-toolbar--ssr-placeholder {
@@ -657,3 +681,4 @@
 .inkio-popover-content {
   z-index: var(--inkio-layer-popover, 150);
 }
+

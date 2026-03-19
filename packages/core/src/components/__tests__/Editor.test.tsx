@@ -43,7 +43,7 @@ describe('Editor component', () => {
     const html = renderToString(<Editor className="layout-shell" content="<p>Hello</p>" />);
 
     expect(html).toContain('class="inkio inkio-editor inkio-container-default layout-shell"');
-    expect(html).not.toContain('inkio-editor-static layout-shell');
+    expect(html).not.toContain('ProseMirror layout-shell');
   });
 
   it('should apply custom style', () => {
@@ -72,15 +72,20 @@ describe('Editor component', () => {
     const html = renderToString(<Editor content="<h2>SSR Heading</h2><p>Hello SSR</p>" showToolbar />);
 
     expect(html).toContain('SSR Heading');
-    expect(html).toContain('inkio-editor-static');
+    expect(html).toContain('inkio-content');
     expect(html).toContain('inkio-toolbar--ssr-placeholder');
   });
 
-  it('hydrates from static HTML into the interactive editor runtime', async () => {
+  it('hydrates onto the existing static shell element without DOM swap', async () => {
     const markup = renderToString(<Editor content="<p>Hydrate me</p>" showToolbar />);
     const container = document.createElement('div');
     container.innerHTML = markup;
     document.body.appendChild(container);
+
+    // Static shell should exist before hydration
+    const staticShell = container.querySelector('.inkio-content');
+    expect(staticShell).toBeTruthy();
+    expect(staticShell!.innerHTML).toContain('Hydrate me');
 
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     let root: ReturnType<typeof hydrateRoot> | null = null;
@@ -91,8 +96,9 @@ describe('Editor component', () => {
         await Promise.resolve();
       });
 
+      // Same element should still be in the DOM (no swap)
       await waitFor(() => {
-        expect(container.querySelector('[data-inkio-editor-static]')).not.toBeInTheDocument();
+        expect(container.querySelector('.tiptap.ProseMirror')).toBeInTheDocument();
       });
       expect(container.querySelector('.ProseMirror')).toBeInTheDocument();
       expect(consoleError).not.toHaveBeenCalled();
