@@ -1,60 +1,266 @@
 # 컴포넌트
 
-## 주요 표면
+## Editor
 
-`@inkio/editor`와 `@inkio/simple`은 둘 다 아래 core UI surface를 다시 export합니다.
+### @inkio/editor — Editor
 
-- `Editor`
-- `Viewer`
-- `Toolbar`
-- `BubbleMenu`
-- `FloatingMenu`
-- `TableMenu`
+Notion-like 에디터. bubble menu, floating menu, slash command, block handle이 기본으로 활성화됩니다.
 
-## 공통 surface language
+```tsx
+import { Editor } from '@inkio/editor';
+import '@inkio/editor/style.css';
+```
 
-패키지별 배치는 유지됩니다.
+| Prop | 타입 | 설명 |
+|------|------|------|
+| `content` | `string \| JSONContent` | 제어 모드 콘텐츠 (controlled) |
+| `initialContent` | `string \| JSONContent` | 비제어 모드 초기 콘텐츠 |
+| `editable` | `boolean` | 편집 가능 여부 (기본값: `true`) |
+| `placeholder` | `string` | 빈 에디터 placeholder 텍스트 |
+| `locale` | `InkioLocaleInput` | 로케일 |
+| `tabBehavior` | `'indent' \| 'default'` | Tab 키 동작 (기본값: `'indent'`) |
+| `onUpdate` | `(content: JSONContent) => void` | 콘텐츠 변경 콜백 |
+| `onCreate` | `(editor: TiptapEditor) => void` | 에디터 인스턴스 준비 콜백 |
+| `onError` | `InkioErrorHandler` | 에러 핸들러 |
+| `ui` | `EditorUiOptions` | UI 옵션 (아래 참고) |
+| `hashtagItems` | `(params: { query: string }) => HashTagItem[] \| Promise<HashTagItem[]>` | 해시태그 제안 |
+| `mentionItems` | `(params: { query: string }) => MentionItem[] \| Promise<MentionItem[]>` | 멘션 제안 |
+| `slashCommands` | `(query: string) => SlashCommandItem[] \| Promise<SlashCommandItem[]>` | 슬래시 커맨드 오버라이드 |
+| `transformSlashCommands` | `SlashCommandTransform` | 슬래시 커맨드 변환 |
+| `onWikiLinkClick` | `(href: string) => void` | 위키 링크 클릭 핸들러 |
+| `onImageUpload` | `(file: File) => Promise<string \| { src: string }>` | 이미지 업로드 핸들러 |
+| `imageBlock` | `Partial<ImageBlockOptions>` | ImageBlock 확장 옵션 |
+| `comment` | `false \| CommentConfig` | 댓글 기능 설정 (`false`로 비활성화) |
+| `bookmark` | `false \| { onResolveBookmark? }` | 북마크 기능 설정 |
+| `blockHandle` | `boolean` | 블록 핸들 표시 여부 |
+| `wikiLink` | `boolean` | 위키 링크 활성화 여부 |
+| `table` | `boolean` | 테이블 활성화 여부 |
+| `callout` | `boolean` | Callout 활성화 여부 |
+| `toggleList` | `boolean` | 토글 리스트 활성화 여부 |
+| `extensions` | `ExtensionsInput` | 확장 추가/교체 |
 
-- `@inkio/editor`는 notion-like 레이아웃
-- `@inkio/simple`은 classic toolbar-first 레이아웃
-- `@inkio/image-editor`는 fullscreen overlay 레이아웃
+**EditorUiOptions:**
 
-대신 shell, panel, field 같은 chrome surface는 공통 Inkio token을 공유합니다.
+| 옵션 | 타입 | 설명 |
+|------|------|------|
+| `showBubbleMenu` | `boolean` | bubble menu 표시 (기본값: `true`) |
+| `showFloatingMenu` | `boolean` | floating menu 표시 (기본값: `true`) |
+| `showTableMenu` | `boolean` | table menu 표시 (기본값: `true`) |
+| `fill` | `boolean` | 부모 높이를 채움 |
+| `autoresize` | `boolean` | 콘텐츠 높이에 맞게 자동 조절 |
+| `bordered` | `boolean` | 테두리 표시 |
+| `className` | `string` | 루트 엘리먼트 클래스 |
+| `style` | `React.CSSProperties` | 루트 엘리먼트 스타일 |
+| `messages` | `InkioMessageOverrides` | UI 메시지 오버라이드 |
+| `icons` | `Partial<InkioIconRegistry>` | 아이콘 오버라이드 |
+| `bubbleMenu` | `Omit<BubbleMenuProps, 'editor'>` | BubbleMenu 세부 옵션 |
+| `floatingMenu` | `Omit<FloatingMenuProps, 'editor'>` | FloatingMenu 세부 옵션 |
+| `tableMenu` | `Omit<TableMenuProps, 'editor'>` | TableMenu 세부 옵션 |
 
-- `shell`: toolbar, dock, command bar, sidebar 같은 외곽 chrome
-- `panel`: popover, bubble menu, floating card, picker
-- `field`: input, select, textarea, search, segmented control
+```tsx
+export function EditorPage() {
+  return (
+    <Editor
+      initialContent="<p>Hello Inkio</p>"
+      hashtagItems={({ query }) => [
+        { id: query || 'inkio', label: `#${query || 'inkio'}` },
+      ]}
+      mentionItems={async ({ query }) => searchUsers(query)}
+      onImageUpload={async (file) => URL.createObjectURL(file)}
+      ui={{ showBubbleMenu: true, showFloatingMenu: true, fill: true }}
+    />
+  );
+}
+```
 
-패키지마다 정보 구조와 배치는 다를 수 있지만, focus, radius, shadow, blur, input styling은 같은 surface 계층 위에서 동작합니다.
+---
 
-## Viewer 목차
+### @inkio/simple — Editor
 
-`Viewer`는 built-in ToC를 지원하고, SSR에서도 static HTML을 바로 출력합니다.
+Classic toolbar-first 에디터. toolbar가 기본으로 활성화됩니다.
+
+```tsx
+import { Editor } from '@inkio/simple';
+import '@inkio/simple/style.css';
+```
+
+| Prop | 타입 | 설명 |
+|------|------|------|
+| `content` | `string \| JSONContent` | 제어 모드 콘텐츠 |
+| `initialContent` | `string \| JSONContent` | 비제어 모드 초기 콘텐츠 |
+| `editable` | `boolean` | 편집 가능 여부 |
+| `placeholder` | `string` | placeholder 텍스트 |
+| `locale` | `InkioLocaleInput` | 로케일 |
+| `tabBehavior` | `'indent' \| 'default'` | Tab 키 동작 |
+| `onUpdate` | `(content: JSONContent) => void` | 콘텐츠 변경 콜백 |
+| `onCreate` | `(editor: TiptapEditor) => void` | 에디터 인스턴스 준비 콜백 |
+| `onError` | `InkioErrorHandler` | 에러 핸들러 |
+| `onImageUpload` | `(file: File) => Promise<string \| { src: string }>` | 이미지 업로드 핸들러 |
+| `imageBlock` | `Partial<ImageBlockOptions>` | ImageBlock 확장 옵션 |
+| `ui` | `SimpleEditorUiOptions` | UI 옵션 |
+| `extensions` | `ExtensionsInput` | 확장 추가/교체 |
+
+**SimpleEditorUiOptions** (`@inkio/simple`):
+
+`showToolbar` (기본값: `true`), `showBubbleMenu`, `showFloatingMenu`, `showTableMenu`, `fill`, `autoresize`, `bordered`, `className`, `style`, `messages`, `icons`, `toolbar`, `bubbleMenu`, `floatingMenu`, `tableMenu`
+
+---
+
+### 패키지별 prop 비교
+
+| Prop | @inkio/editor | @inkio/simple |
+|------|:---:|:---:|
+| `content` / `initialContent` | O | O |
+| `onUpdate`, `onCreate`, `onError` | O | O |
+| `ui.showToolbar` | - (항상 off) | O |
+| `ui.showBubbleMenu` | O (기본 on) | O (기본 off) |
+| `ui.showFloatingMenu` | O (기본 on) | O (기본 off) |
+| `hashtagItems` | O | - |
+| `mentionItems` | O | - |
+| `slashCommands` | O | - |
+| `onWikiLinkClick` | O | - |
+| `comment` | O | - |
+| `bookmark` | O | - |
+| `blockHandle` | O | - |
+| `wikiLink` | O | - |
+| `onImageUpload` | O | O |
+
+---
+
+## Viewer
+
+### @inkio/editor — Viewer
+
+`@inkio/editor`의 Viewer는 댓글(comment) 기능을 지원합니다.
 
 ```tsx
 import { Viewer } from '@inkio/editor';
-
-<Viewer
-  content={content}
-  tableOfContents={{ position: 'right', maxLevel: 3 }}
-/>;
 ```
 
-외부 레이아웃에 별도 ToC를 렌더하고 싶으면 `onHeadingsReady`로 heading 목록과 `scrollToIndex` helper를 받을 수 있습니다.
+| Prop | 타입 | 설명 |
+|------|------|------|
+| `content` | `string \| JSONContent` | 표시할 콘텐츠 (필수) |
+| `locale` | `InkioLocaleInput` | 로케일 |
+| `ui` | `{ className?, style?, bordered?, messages?, icons? }` | UI 옵션 |
+| `comment` | `false \| ViewerCommentOptions` | 댓글 표시 설정 |
+| `extensions` | `ExtensionsInput` | 확장 추가/교체 |
+| `onCreate` | `(editor: TiptapEditor) => void` | 에디터 인스턴스 준비 콜백 |
+
+**ViewerCommentOptions:**
+
+```ts
+{
+  getComments: (commentId: string) => CommentData | null;
+  onReply?: (commentId: string, text: string) => void;
+  onResolve?: (commentId: string) => void;
+}
+```
+
+```tsx
+<Viewer
+  content={content}
+  comment={{
+    getComments: (id) => store.getComment(id),
+    onReply: (id, text) => store.reply(id, text),
+    onResolve: (id) => store.resolve(id),
+  }}
+/>
+```
+
+---
+
+### @inkio/simple — Viewer
+
+```tsx
+import { Viewer } from '@inkio/simple';
+```
+
+| Prop | 타입 | 설명 |
+|------|------|------|
+| `content` | `string \| JSONContent` | 표시할 콘텐츠 (필수) |
+| `locale` | `InkioLocaleInput` | 로케일 |
+| `ui` | `{ className?, style?, bordered?, messages?, icons? }` | UI 옵션 |
+| `extensions` | `ExtensionsInput` | 확장 추가/교체 |
+
+---
+
+## ToC (목차)
+
+`ToC` 컴포넌트는 `@inkio/editor` 또는 `@inkio/essential`에서 import합니다. `onCreate`로 받은 에디터 인스턴스를 `source`에 넘기면, 콘텐츠 변경에 따라 목차가 자동으로 업데이트됩니다.
+
+```tsx
+import { ToC } from '@inkio/editor';
+// 또는
+import { ToC } from '@inkio/essential';
+```
+
+| Prop | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `source` | `TiptapEditor \| null` | - | 에디터 인스턴스 |
+| `maxLevel` | `number` | `3` | 포함할 최대 헤딩 레벨 (h1-h3) |
+| `className` | `string` | - | 루트 엘리먼트 클래스 |
+| `style` | `React.CSSProperties` | - | 루트 엘리먼트 스타일 |
+
+```tsx
+import { useState } from 'react';
+import { Editor, ToC } from '@inkio/editor';
+import type { TiptapEditor } from '@inkio/editor';
+import '@inkio/editor/style.css';
+
+export function EditorWithToC() {
+  const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
+
+  return (
+    <div style={{ display: 'flex', gap: '2rem' }}>
+      <aside style={{ width: '200px' }}>
+        <ToC source={editorInstance} maxLevel={3} />
+      </aside>
+      <Editor
+        initialContent="<h1>제목</h1><p>내용</p>"
+        onCreate={setEditorInstance}
+      />
+    </div>
+  );
+}
+```
+
+헤딩 클릭 시 스크롤 오프셋을 조정하려면 CSS 변수를 사용하세요:
+
+```css
+:root {
+  --inkio-scroll-offset: 80px; /* sticky header 높이 등 */
+}
+```
+
+---
+
+## CSS
+
+| 파일 | 포함 내용 | 용도 |
+|------|-----------|------|
+| `@inkio/editor/style.css` | 전체 스타일 (advanced 프리셋 포함) | 일반 사용 |
+| `@inkio/simple/style.css` | core 스타일만 | classic 에디터 |
+| `@inkio/editor/minimal.css` | 구조만 (색상·폰트 없음) | 커스텀 테마 |
+| `@inkio/simple/minimal.css` | 구조만 | 커스텀 테마 |
+
+`minimal.css`는 레이아웃과 구조적 스타일만 포함합니다. 색상, 폰트, 배경 등은 직접 정의해야 합니다.
+
+```tsx
+// 일반 사용
+import '@inkio/editor/style.css';
+
+// 커스텀 테마 (디자인 토큰을 직접 정의할 때)
+import '@inkio/editor/minimal.css';
+```
+
+---
 
 ## 공통 UI override
 
-`ui` prop으로 UI 관련 옵션을 묶어 전달합니다:
-
-- `locale` (최상위 prop)
-- `ui.messages`
-- `ui.icons`
-- `ui.fill` (`Editor` 전용, 부모 높이 채움)
-- `ui.showToolbar`, `ui.showBubbleMenu`, `ui.showFloatingMenu`
+`ui` prop으로 UI 관련 옵션을 묶어 전달합니다.
 
 ```tsx
 import { Editor, type InkioMessageOverrides } from '@inkio/editor';
-import { inkioIconRegistry } from '@inkio/editor/icons';
 
 const messages: InkioMessageOverrides = {
   core: {
@@ -62,35 +268,27 @@ const messages: InkioMessageOverrides = {
   },
 };
 
-const icons = {
-  comment: inkioIconRegistry.comment,
-};
-
 export function Page() {
   return (
     <Editor
       ui={{
         messages,
-        icons,
         showBubbleMenu: true,
         showFloatingMenu: true,
+        fill: true,
       }}
     />
   );
 }
 ```
 
-부모 높이를 기준으로 에디터를 채우고 싶으면 `ui.fill`을 사용합니다. 이 prop은 viewport 기준이 아니라 **부모 컨테이너의 높이**를 기준으로 동작합니다.
+부모 높이를 기준으로 에디터를 채우려면 `ui.fill`을 사용합니다. 부모 컨테이너에 계산된 높이가 있어야 동작합니다.
 
 ```tsx
 <section style={{ height: '640px' }}>
   <Editor ui={{ fill: true }} />
 </section>
 ```
-
-부모 쪽에 계산된 높이가 없으면 채울 대상이 없어서, 일반 auto-height처럼 보입니다.
-
-`Editor`는 client component 안에서 사용하는 것을 기준으로 하지만, SSR 환경에서도 hard refresh 시 빈 박스 대신 static 문서 HTML을 먼저 보여줍니다. `@inkio/image-editor` 같은 무거운 확장은 lazy component로 넘기는 구성이 기본 권장값입니다.
 
 ## 기본 메시지 export
 

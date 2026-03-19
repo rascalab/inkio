@@ -1,0 +1,48 @@
+---
+title: SSR (서버 사이드 렌더링)
+---
+
+# SSR (서버 사이드 렌더링)
+
+Inkio는 Next.js App Router 환경에서 SSR을 지원합니다.
+
+## 동작 방식
+
+1. **서버**: `generateHTML`(`@tiptap/html`)로 정적 HTML 생성
+2. **클라이언트**: 정적 HTML을 SSR shell로 표시 → Tiptap 에디터가 hydration 후 대체
+
+SSR shell은 클라이언트와 동일한 HTML을 생성하므로 hydration mismatch가 발생하지 않습니다.
+
+## 설정
+
+별도 설정 없이 동작합니다. `Editor`와 `Viewer` 컴포넌트가 자동으로 SSR을 처리합니다.
+
+```tsx
+// Next.js App Router — 자동 SSR
+import { Editor } from '@inkio/editor';
+import '@inkio/editor/style.css';
+
+export default function Page() {
+  return <Editor initialContent={content} />;
+}
+```
+
+## HTML 문자열 입력
+
+`content` prop에 HTML 문자열을 전달하면, 서버에서는 `sanitize-html`로 XSS를 방지한 후 렌더링합니다.
+
+```tsx
+<Editor content="<p>Hello <strong>World</strong></p>" />
+```
+
+## 보안
+
+- JSON 콘텐츠: `@tiptap/html`의 DOM 기반 렌더링으로 텍스트 노드 자동 이스케이프
+- HTML 문자열: `sanitize-html` 화이트리스트 기반 필터링
+- 허용된 스타일: `color`, `background-color`, `text-align`만 허용
+- 차단된 프로토콜: `javascript:`, `data:`, `vbscript:`
+
+## 주의사항
+
+- `parseMarkdown`은 DOM이 필요하므로 모듈 레벨에서 호출할 수 없습니다
+- `'use client'` 지시어는 Editor/Viewer 컴포넌트에 이미 포함되어 있습니다

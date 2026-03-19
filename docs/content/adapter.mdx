@@ -1,42 +1,29 @@
-# 어댑터
+---
+title: 어댑터
+---
 
-Inkio는 코어 어댑터와 확장 어댑터를 분리합니다.
+# 어댑터 (Deprecated)
 
-## Core
+> v0.0.5부터 어댑터 패턴은 제거되었습니다. `@inkio/editor`와 `@inkio/simple`은 flat props API를 사용합니다.
 
-```ts
-import type { InkioAdapter } from '@inkio/editor';
+## 이전 방식 → 현재 방식
 
-const adapter: InkioAdapter = {
-  onCreate: (editor) => {
-    console.log('ready', editor);
-  },
-  onUpdate: (content) => {
-    console.log(content);
-  },
-  onError: (error, ctx) => {
-    console.error(ctx.source, error);
-  },
+이전에는 `ExtensionsAdapter` 객체를 구성해서 전달했지만, 이제는 Editor 컴포넌트에 직접 props로 전달합니다:
+
+```tsx
+// Before (removed)
+const adapter = {
+  suggestion: { hashtagItems, mentionItems },
+  navigation: { onWikiLinkClick },
 };
+<Editor adapter={adapter} />
+
+// After (current)
+<Editor
+  hashtagItems={hashtagItems}
+  mentionItems={mentionItems}
+  onWikiLinkClick={onWikiLinkClick}
+/>
 ```
 
-## Advanced
-
-```ts
-import type { ExtensionsAdapter } from '@inkio/advanced';
-
-const adapter: ExtensionsAdapter = {
-  suggestion: {
-    mentionItems: async (query) => searchUsers(query),
-    hashtagItems: async (query) => searchTags(query),
-    slashCommands: async (query) => searchCommands(query),
-  },
-  navigation: {
-    onWikiLinkClick: (href) => router.push(`/wiki/${href}`),
-  },
-};
-```
-
-## 적용
-
-`@inkio/editor`와 `@inkio/simple`의 high-level wrapper에서는 보통 `defaultExtensionsOptions`를 직접 쓰는 편이 더 명확합니다.
+자세한 API는 [컴포넌트](/components/) 문서를 참고하세요.
