@@ -1,6 +1,6 @@
 {
   "name": "inkio",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,8 +10,8 @@
     "verify:full": "pnpm typecheck && pnpm test && pnpm build && pnpm examples:build && pnpm e2e && INKIO_RELEASE_SMOKE_SKIP_PACKAGE_BUILDS=1 pnpm release:smoke",
     "build": "pnpm build:packages && pnpm docs:build",
     "build:verify": "pnpm build:packages:smoke",
-    "build:packages": "pnpm --filter @inkio/core build && pnpm build && pnpm --filter @inkio/advanced build && pnpm --filter @inkio/simple build && pnpm --filter @inkio/editor build && pnpm --filter @inkio/image-editor build",
-    "build:packages:verify": "pnpm --filter @inkio/core bundle && pnpm bundle && pnpm --filter @inkio/advanced bundle && pnpm --filter @inkio/simple bundle && pnpm --filter @inkio/editor bundle && pnpm --filter @inkio/image-editor bundle",
+    "build:packages": "pnpm --filter @inkio/core build && pnpm --filter @inkio/advanced build && pnpm --filter @inkio/simple build && pnpm --filter @inkio/editor build && pnpm --filter @inkio/image-editor build",
+    "build:packages:verify": "pnpm --filter @inkio/core bundle && pnpm --filter @inkio/advanced bundle && pnpm --filter @inkio/simple bundle && pnpm --filter @inkio/editor bundle && pnpm --filter @inkio/image-editor bundle",
     "build:packages:smoke": "pnpm -r --parallel --filter @inkio/core --filter @inkio/advanced --filter @inkio/simple --filter @inkio/editor --filter @inkio/image-editor bundle:smoke",
     "examples:build": "pnpm -r --filter './examples/*' build",
     "examples:build:smoke": "pnpm -r --filter './examples/*' build:smoke",
@@ -29,8 +29,7 @@
     "package:smoke:verify": "pnpm build:packages && INKIO_RELEASE_SMOKE_SKIP_PACKAGE_BUILDS=1 pnpm release:smoke",
     "release:smoke": "node ./scripts/release-smoke.mjs",
     "publish:core": "pnpm --filter @inkio/core publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
-    "publish:essential": "pnpm publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
-    "publish:advanced": "pnpm --filter @inkio/advanced publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
+"publish:advanced": "pnpm --filter @inkio/advanced publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
     "publish:simple": "pnpm --filter @inkio/simple publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
     "publish:editor": "pnpm --filter @inkio/editor publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
     "publish:image-editor": "pnpm --filter @inkio/image-editor publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
