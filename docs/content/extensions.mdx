@@ -50,20 +50,82 @@ import '@inkio/image-editor/style.css';
 export function Page() {
   return (
     <Editor
-      defaultExtensionsOptions={{
-        imageBlock: {
-          onUpload: async (file) => URL.createObjectURL(file),
-          imageEditor: ImageEditorModal,
-        },
-      }}
+      onImageUpload={async (file) => URL.createObjectURL(file)}
+      imageBlock={{ imageEditor: ImageEditorModal }}
     />
   );
 }
+```
+
+## CodeBlock (코드 블록)
+
+`@inkio/core`에 기본 포함되며, `lowlight` 기반 구문 강조를 제공합니다. 37개의 일반적인 언어를 지원합니다.
+
+- **에디터 모드**: 플로팅 언어 선택기(드롭다운)로 언어 변경
+- **뷰어 모드**: 복사 버튼 + 언어 배지 표시
+- `tsx` / `jsx`는 각각 `typescript` / `javascript`의 별칭으로 처리됩니다
+
+코드 블록을 비활성화하려면 `codeBlock={false}`를 전달합니다(`@inkio/editor` 전용 기능 토글 참고).
+
+## 커스텀 확장
+
+`extensions` prop으로 Tiptap 확장을 추가하거나 교체할 수 있습니다.
+
+### 타입
+
+```ts
+type ExtensionsInput =
+  | Extension[]
+  | { items: Extension[]; replace?: boolean };
+```
+
+- **배열 전달**: 기본 확장에 추가합니다. 동일한 이름의 확장이 있으면 교체됩니다.
+- **`{ items, replace: true }` 전달**: 기본 확장을 전부 교체합니다.
+
+### 예시: 확장 추가
+
+```tsx
+import { Editor } from '@inkio/editor';
+import CharacterCount from '@tiptap/extension-character-count';
+
+<Editor
+  extensions={[CharacterCount.configure({ limit: 1000 })]}
+/>
+```
+
+### 예시: 기본 확장 전체 교체
+
+```tsx
+import { Editor } from '@inkio/editor';
+import { Document, Paragraph, Text } from '@tiptap/starter-kit';
+
+<Editor
+  extensions={{ items: [Document, Paragraph, Text], replace: true }}
+/>
+```
+
+## 기능 토글 (`@inkio/editor` 전용)
+
+`@inkio/editor`의 `Editor` 컴포넌트는 주요 확장을 prop으로 켜고 끌 수 있습니다.
+
+| Prop          | 기본값  | 설명                    |
+| ------------- | ------- | ----------------------- |
+| `blockHandle` | `true`  | 블록 드래그 핸들        |
+| `wikiLink`    | `true`  | `[[위키링크]]` 문법     |
+| `table`       | `true`  | 표                      |
+| `callout`     | `true`  | 콜아웃 블록             |
+| `toggleList`  | `true`  | 토글(접기/펼치기) 리스트 |
+
+```tsx
+<Editor
+  blockHandle={false}
+  wikiLink={false}
+/>
 ```
 
 ## CSS
 
 - `@inkio/simple/minimal.css`
 - `@inkio/editor/minimal.css`
-- `@inkio/advanced/style.css` for direct `@inkio/core` + `@inkio/advanced` composition
+- `@inkio/advanced/style.css` — `@inkio/core` + `@inkio/advanced` 직접 조합 시
 - `@inkio/image-editor/style.css`

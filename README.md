@@ -66,19 +66,16 @@ Editor:
 
 ```tsx
 import { Editor } from '@inkio/editor';
-import '@inkio/editor/minimal.css';
+import '@inkio/editor/style.css';
 
 export function EditorPage() {
   return (
     <Editor
       initialContent="<p>Hello Inkio</p>"
-      defaultExtensionsOptions={{
-        hashtagItems: ({ query }) => [
-          { id: query || 'inkio', label: `#${query || 'inkio'}` },
-        ],
-      }}
-      showBubbleMenu
-      showFloatingMenu
+      hashtagItems={({ query }) => [
+        { id: query || 'inkio', label: `#${query || 'inkio'}` },
+      ]}
+      ui={{ showBubbleMenu: true, showFloatingMenu: true }}
     />
   );
 }
@@ -89,17 +86,14 @@ Image editor:
 ```tsx
 import { Editor } from '@inkio/editor';
 import { ImageEditorModal } from '@inkio/image-editor';
+import '@inkio/editor/style.css';
 import '@inkio/image-editor/style.css';
 
 export function EditorWithImages() {
   return (
     <Editor
-      defaultExtensionsOptions={{
-        imageBlock: {
-          onUpload: async (file) => URL.createObjectURL(file),
-          imageEditor: ImageEditorModal,
-        },
-      }}
+      onImageUpload={async (file) => URL.createObjectURL(file)}
+      imageBlock={{ imageEditor: ImageEditorModal }}
     />
   );
 }
