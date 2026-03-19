@@ -1,4 +1,5 @@
 import type { Extensions, JSONContent } from '@tiptap/core';
+import { escapeHtml } from '../utils/html';
 import { unified } from 'unified';
 import remarkDirective from 'remark-directive';
 import remarkGfm from 'remark-gfm';
@@ -49,15 +50,6 @@ const DIRECTIVE_ATTR_RE = /(\w+)="((?:\\.|[^"])*)"/g;
 
 function escapeDirectiveValue(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 function decodeDirectiveValue(value: string): string {

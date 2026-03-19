@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Editor as TiptapEditor } from '@tiptap/react';
 import { getHeadingsFromContent } from '@inkio/core';
+import type { HeadingItem } from '@inkio/core';
 
 export interface ToCProps {
   /** Editor or Viewer instance — used to find heading elements and extract content. */
@@ -28,8 +29,29 @@ export function ToC({
   className,
   style,
 }: ToCProps) {
-  const json = source?.getJSON() ?? null;
-  const headings = useMemo(() => getHeadingsFromContent(json), [json]);
+  const [headings, setHeadings] = useState<HeadingItem[]>(() =>
+    getHeadingsFromContent(source?.getJSON() ?? null),
+  );
+
+  useEffect(() => {
+    if (!source) {
+      setHeadings([]);
+      return;
+    }
+
+    // Recompute on initial mount in case source was already set.
+    setHeadings(getHeadingsFromContent(source.getJSON()));
+
+    const onUpdate = () => {
+      setHeadings(getHeadingsFromContent(source.getJSON()));
+    };
+
+    source.on('update', onUpdate);
+    return () => {
+      source.off('update', onUpdate);
+    };
+  }, [source]);
+
   const filtered = useMemo(() => headings.filter((h) => h.level <= maxLevel), [headings, maxLevel]);
   const [activeIndex, setActiveIndex] = useState(0);
   const observerRef = useRef<IntersectionObserver | null>(null);
