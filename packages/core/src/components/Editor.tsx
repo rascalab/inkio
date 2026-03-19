@@ -111,7 +111,7 @@ export const Editor = ({
 
   const editor = useInkioEditor({
     ...(content !== undefined ? { content } : { initialContent }),
-    extensions: resolvedExtensions,
+    extensions,
     placeholder,
     editable,
     onUpdate,

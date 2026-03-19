@@ -4,6 +4,7 @@ import { ReactNodeViewRenderer } from '@tiptap/react';
 import type { EditorView } from '@tiptap/pm/view';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { toError, type InkioErrorHandler } from '../utils';
+import { isSafeUrl } from '../utils/url-safety';
 import { ImageBlockView } from './ImageBlockView';
 
 type ImageUploadResult = string | Record<string, any>;
@@ -238,7 +239,7 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
         parseHTML: (element: HTMLElement) => {
           const raw = element.getAttribute('src');
           if (!raw) return null;
-          if (/^(javascript|vbscript):/i.test(raw.trim())) return null;
+          if (!isSafeUrl(raw)) return null;
           return raw;
         },
       },
@@ -275,7 +276,7 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
           const img = dom.querySelector('img');
           if (!img) return false;
           const rawSrc = img.getAttribute('src');
-          if (rawSrc && /^(javascript|data|vbscript):/i.test(rawSrc.trim())) return false;
+          if (rawSrc && !isSafeUrl(rawSrc)) return false;
           const figcaption = dom.querySelector('figcaption');
           return {
             src: rawSrc,
@@ -293,7 +294,7 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
           const img = dom.querySelector('img');
           if (!img) return false;
           const rawSrc = img.getAttribute('src');
-          if (rawSrc && /^(javascript|data|vbscript):/i.test(rawSrc.trim())) return false;
+          if (rawSrc && !isSafeUrl(rawSrc)) return false;
           const figcaption = dom.querySelector('figcaption');
           return {
             src: rawSrc,

@@ -1,7 +1,6 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
-
-const BLOCKED_PROTOCOLS = /^(javascript|data|vbscript):/i;
+import { isSafeUrl } from '../utils/url-safety';
 
 export interface LinkClickHandlerOptions {
   /** Custom handler for link clicks. Default: open in new tab */
@@ -20,7 +19,7 @@ export const LinkClickHandler = Extension.create<LinkClickHandlerOptions>({
   addProseMirrorPlugins() {
     const handler = this.options.onLinkClick
       ?? ((href: string) => {
-        if (BLOCKED_PROTOCOLS.test(href.trim())) return;
+        if (!isSafeUrl(href)) return;
         window.open(href, '_blank', 'noopener');
       });
 

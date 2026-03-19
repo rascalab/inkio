@@ -1,4 +1,5 @@
 import { Node, mergeAttributes, InputRule, PasteRule } from '@tiptap/core';
+import { isSafeUrl } from '@inkio/core';
 
 export interface WikiLinkOptions {
   HTMLAttributes: Record<string, any>;
@@ -71,7 +72,7 @@ export const WikiLink = Node.create<WikiLinkOptions>({
       const clickHandler = (event: Event) => {
         event.preventDefault();
         event.stopPropagation();
-        if (currentHref.length > 0 && !/^(javascript|data|vbscript):/i.test(currentHref.trim())) {
+        if (currentHref.length > 0 && isSafeUrl(currentHref)) {
           this.options.onClick?.(currentHref);
         }
       };

@@ -1,12 +1,11 @@
 import { mergeAttributes, Node } from '@tiptap/core';
 import { ReactNodeViewRenderer } from '@tiptap/react';
+import { isSafeUrl } from '@inkio/core';
 import { BookmarkView } from './BookmarkView';
 
-const BLOCKED_PROTOCOLS = /^(javascript|data|vbscript):/i;
-
-function isSafeUrl(value: string | null | undefined): string {
+function safeUrlOrEmpty(value: string | null | undefined): string {
   if (!value) return '';
-  return BLOCKED_PROTOCOLS.test(value.trim()) ? '' : value;
+  return isSafeUrl(value) ? value : '';
 }
 
 export interface BookmarkPreview {
@@ -56,9 +55,9 @@ export const Bookmark = Node.create<BookmarkOptions>({
       url: {
         default: '',
         parseHTML: (element) =>
-          isSafeUrl(element.getAttribute('data-bookmark-url') || element.getAttribute('href')),
+          safeUrlOrEmpty(element.getAttribute('data-bookmark-url') || element.getAttribute('href')),
         renderHTML: (attributes) => ({
-          'data-bookmark-url': isSafeUrl(attributes.url),
+          'data-bookmark-url': safeUrlOrEmpty(attributes.url),
         }),
       },
       title: {
@@ -75,15 +74,15 @@ export const Bookmark = Node.create<BookmarkOptions>({
       },
       image: {
         default: null,
-        parseHTML: (element) => isSafeUrl(element.getAttribute('data-bookmark-image')) || null,
+        parseHTML: (element) => safeUrlOrEmpty(element.getAttribute('data-bookmark-image')) || null,
         renderHTML: (attributes) =>
-          attributes.image ? { 'data-bookmark-image': isSafeUrl(attributes.image) } : {},
+          attributes.image ? { 'data-bookmark-image': safeUrlOrEmpty(attributes.image) } : {},
       },
       favicon: {
         default: null,
-        parseHTML: (element) => isSafeUrl(element.getAttribute('data-bookmark-favicon')) || null,
+        parseHTML: (element) => safeUrlOrEmpty(element.getAttribute('data-bookmark-favicon')) || null,
         renderHTML: (attributes) =>
-          attributes.favicon ? { 'data-bookmark-favicon': isSafeUrl(attributes.favicon) } : {},
+          attributes.favicon ? { 'data-bookmark-favicon': safeUrlOrEmpty(attributes.favicon) } : {},
       },
     };
   },
@@ -109,7 +108,7 @@ export const Bookmark = Node.create<BookmarkOptions>({
             return false;
           }
 
-          const safeHref = isSafeUrl(href);
+          const safeHref = safeUrlOrEmpty(href);
           if (!safeHref) return false;
           return { url: safeHref };
         },
@@ -131,7 +130,7 @@ export const Bookmark = Node.create<BookmarkOptions>({
         mergeAttributes(
           {
             'data-bookmark-fallback': '',
-            href: isSafeUrl(HTMLAttributes['data-bookmark-url']),
+            href: safeUrlOrEmpty(HTMLAttributes['data-bookmark-url']),
             rel: 'noopener noreferrer nofollow',
             target: '_blank',
           },
@@ -145,7 +144,7 @@ export const Bookmark = Node.create<BookmarkOptions>({
     return [
       'div',
       mergeAttributes({ 'data-bookmark': '' }, this.options.HTMLAttributes, HTMLAttributes),
-      ['a', { href: isSafeUrl(HTMLAttributes['data-bookmark-url']) }, HTMLAttributes['data-bookmark-title'] || HTMLAttributes['data-bookmark-url']],
+      ['a', { href: safeUrlOrEmpty(HTMLAttributes['data-bookmark-url']) }, HTMLAttributes['data-bookmark-title'] || HTMLAttributes['data-bookmark-url']],
     ];
   },
 
