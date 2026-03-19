@@ -120,9 +120,9 @@ export function Editor({
       blockHandle,
       wikiLink,
       comment,
-      callout: callout !== undefined ? callout : undefined,
-      toggleList: toggleList !== undefined ? toggleList : undefined,
-      table: table !== undefined ? table : undefined,
+      callout: callout === false ? false : undefined,
+      toggleList: toggleList === false ? false : undefined,
+      table: table === false ? false : undefined,
     };
 
     // imageBlock: merge onImageUpload into imageBlock options

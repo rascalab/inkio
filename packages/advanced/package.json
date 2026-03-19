@@ -1,6 +1,6 @@
 {
   "name": "@inkio/advanced",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Advanced notion-like and integration-aware extensions for Inkio",
   "license": "MIT",
   "homepage": "https://rascalab.github.io/inkio/",
@@ -84,7 +84,6 @@
   },
   "dependencies": {
     "@inkio/core": "workspace:^",
-    "@inkio/essential": "workspace:^",
     "@tiptap/core": "^3.20.4",
     "@tiptap/extension-mention": "^3.20.4",
     "@tiptap/pm": "^3.20.4",

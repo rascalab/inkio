@@ -12,9 +12,6 @@ Inkio is a layered React rich-text editor family built on Tiptap.
   - toolbar-first, core-only default surface
 - `@inkio/advanced`
   - advanced extensions: slash command, block handle, mention, hashtag, wiki link, bookmark, comment UI
-  - includes `@inkio/essential`
-- `@inkio/essential`
-  - markdown-friendly document extensions: callout, details/toggle support, table support, keyboard shortcuts
 - `@inkio/image-editor`
   - optional image editing UI for `ImageBlock`
 - `@inkio/core`
@@ -107,7 +104,7 @@ Markdown lives in the package subpaths:
 - `@inkio/editor/markdown`
 - `@inkio/core/markdown`
 
-Supported round-trip scope is `core + essential`. Advanced-only nodes degrade to plain text or HTML fallback.
+Supported round-trip scope is `core`. Advanced-only nodes degrade to plain text or HTML fallback.
 
 ```tsx
 import { parseMarkdown, stringifyMarkdown } from '@inkio/simple/markdown';

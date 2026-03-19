@@ -5,8 +5,8 @@ export type { ViewerProps } from './components/Viewer';
 export type { ExtensionsInput } from './types';
 export { getDefaultExtensions } from '@inkio/advanced';
 export type { CommentConfig, CommentData } from '@inkio/advanced';
-export { ToC } from '@inkio/essential';
-export type { ToCProps } from '@inkio/essential';
+export { ToC } from '@inkio/core';
+export type { ToCProps } from '@inkio/core';
 export {
   BubbleMenu,
   FloatingMenu,

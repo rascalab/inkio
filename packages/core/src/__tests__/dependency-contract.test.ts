@@ -1,5 +1,4 @@
 import corePackage from '../../package.json';
-import essentialPackage from '../../../essential/package.json';
 import advancedPackage from '../../../advanced/package.json';
 import simplePackage from '../../../simple/package.json';
 import editorPackage from '../../../editor/package.json';
@@ -7,7 +6,7 @@ import imageEditorPackage from '../../../image-editor/package.json';
 
 describe('layered package dependency contract', () => {
   it('keeps React as a peer and owns runtime packages internally', () => {
-    const packages = [corePackage, essentialPackage, advancedPackage, simplePackage, editorPackage];
+    const packages = [corePackage, advancedPackage, simplePackage, editorPackage];
 
     packages.forEach((pkg) => {
       expect(pkg.peerDependencies).toEqual({
@@ -45,15 +44,8 @@ describe('layered package dependency contract', () => {
       '@inkio/advanced': 'workspace:^',
     });
 
-    expect(essentialPackage.dependencies).toMatchObject({
-      '@inkio/core': 'workspace:^',
-      '@tiptap/extension-details': expect.any(String),
-      '@tiptap/extension-table': expect.any(String),
-    });
-
     expect(advancedPackage.dependencies).toMatchObject({
       '@inkio/core': 'workspace:^',
-      '@inkio/essential': 'workspace:^',
       '@tiptap/extension-mention': expect.any(String),
     });
 

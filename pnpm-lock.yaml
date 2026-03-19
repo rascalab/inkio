@@ -149,9 +149,6 @@ importers:
       '@inkio/core':
         specifier: workspace:^
         version: link:../core
-      '@inkio/essential':
-        specifier: workspace:^
-        version: link:../essential
       '@tiptap/core':
         specifier: ^3.20.4
         version: 3.20.4(@tiptap/pm@3.20.4)
@@ -449,88 +446,6 @@ importers:
       '@testing-library/user-event':
         specifier: ^14.6.1
         version: 14.6.1(@testing-library/dom@10.4.1)
-      '@types/node':
-        specifier: ^25.5.0
-        version: 25.5.0
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.14)
-      '@vitejs/plugin-react':
-        specifier: ^6.0.1
-        version: 6.0.1(vite@8.0.1(@types/node@25.5.0)(yaml@2.8.2))
-      jsdom:
-        specifier: ^28.1.0
-        version: 28.1.0
-      react:
-        specifier: ^19.2.4
-        version: 19.2.4
-      react-dom:
-        specifier: ^19.2.4
-        version: 19.2.4(react@19.2.4)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vite:
-        specifier: ^8.0.1
-        version: 8.0.1(@types/node@25.5.0)(yaml@2.8.2)
-      vite-plugin-dts:
-        specifier: ^4.5.4
-        version: 4.5.4(@types/node@25.5.0)(typescript@5.9.3)(vite@8.0.1(@types/node@25.5.0)(yaml@2.8.2))
-      vitest:
-        specifier: ^4.1.0
-        version: 4.1.0(@types/node@25.5.0)(happy-dom@20.8.4)(jsdom@28.1.0)(vite@8.0.1(@types/node@25.5.0)(yaml@2.8.2))
-
-  packages/essential:
-    dependencies:
-      '@inkio/core':
-        specifier: workspace:^
-        version: link:../core
-      '@tiptap/core':
-        specifier: ^3.20.4
-        version: 3.20.4(@tiptap/pm@3.20.4)
-      '@tiptap/extension-details':
-        specifier: ^3.20.4
-        version: 3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4))(@tiptap/extension-text-style@3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4)))(@tiptap/pm@3.20.4)
-      '@tiptap/extension-table':
-        specifier: ^3.20.4
-        version: 3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4))(@tiptap/pm@3.20.4)
-      '@tiptap/extension-table-cell':
-        specifier: ^3.20.4
-        version: 3.20.4(@tiptap/extension-table@3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4))(@tiptap/pm@3.20.4))
-      '@tiptap/extension-table-header':
-        specifier: ^3.20.4
-        version: 3.20.4(@tiptap/extension-table@3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4))(@tiptap/pm@3.20.4))
-      '@tiptap/extension-table-row':
-        specifier: ^3.20.4
-        version: 3.20.4(@tiptap/extension-table@3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4))(@tiptap/pm@3.20.4))
-      '@tiptap/pm':
-        specifier: ^3.20.4
-        version: 3.20.4
-      '@tiptap/react':
-        specifier: ^3.20.4
-        version: 3.20.4(@floating-ui/dom@1.7.6)(@tiptap/core@3.20.4(@tiptap/pm@3.20.4))(@tiptap/pm@3.20.4)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-    devDependencies:
-      '@testing-library/jest-dom':
-        specifier: ^6.9.1
-        version: 6.9.1
-      '@testing-library/react':
-        specifier: ^16.3.2
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@testing-library/user-event':
-        specifier: ^14.6.1
-        version: 14.6.1(@testing-library/dom@10.4.1)
-      '@tiptap/extension-document':
-        specifier: ^3.20.4
-        version: 3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4))
-      '@tiptap/extension-paragraph':
-        specifier: ^3.20.4
-        version: 3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4))
-      '@tiptap/extension-text':
-        specifier: ^3.20.4
-        version: 3.20.4(@tiptap/core@3.20.4(@tiptap/pm@3.20.4))
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.0
