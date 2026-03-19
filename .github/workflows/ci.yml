@@ -39,7 +39,6 @@ jobs:
               - 'e2e/**'
               - 'examples/**'
               - 'packages/core/**'
-              - 'packages/essential/**'
               - 'packages/advanced/**'
               - 'packages/simple/**'
               - 'packages/editor/**'

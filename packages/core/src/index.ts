@@ -90,10 +90,17 @@ export type {
 } from './overlay/positioning';
 
 // Core Extensions
-export { getExtensions } from './extensions/get-extensions';
-export type { CoreExtensionOptions as ExtensionsOptions } from './extensions/get-extensions';
+export { getExtensions, getExtensions as getDefaultExtensions } from './extensions/get-extensions';
+export type { CoreExtensionOptions as ExtensionsOptions, CoreExtensionOptions } from './extensions/get-extensions';
 export { LinkClickHandler } from './extensions/LinkClickHandler';
 export type { LinkClickHandlerOptions } from './extensions/LinkClickHandler';
+export { Callout, CALLOUT_COLOR_PRESETS } from './extensions/Callout';
+export type { CalloutOptions } from './extensions/Callout';
+export { KeyboardShortcuts } from './extensions/KeyboardShortcuts';
+
+// ToC Component
+export { ToC } from './components/TableOfContents';
+export type { ToCProps } from './components/TableOfContents';
 
 // ImageBlock
 export { ImageBlock } from './extensions/ImageBlock';
