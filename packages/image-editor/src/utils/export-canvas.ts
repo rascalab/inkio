@@ -1,6 +1,6 @@
 import Konva from 'konva';
 import type { ImageEditorState, Annotation } from '../types';
-import { getTransformedDimensions } from './geometry';
+import { getTransformedDimensions, getBaseDisplayDimensions } from './geometry';
 import { getTextAnnotationHeight, resolveTextFontSizePx, TEXT_DEFAULT_FONT_FAMILY } from './text-metrics';
 
 function applyAnnotationToGroup(
@@ -110,6 +110,10 @@ export async function exportCanvas(
     state.outputSize,
   );
 
+  const { width: baseW, height: baseH } = getBaseDisplayDimensions(
+    outW, outH, state.transform.rotation,
+  );
+
   const container = document.createElement('div');
   container.style.cssText = 'position:fixed;left:-9999px;top:-9999px;pointer-events:none';
   document.body.appendChild(container);
@@ -129,10 +133,10 @@ export async function exportCanvas(
       image: state.originalImage,
       x: outW / 2,
       y: outH / 2,
-      width: state.outputSize ? state.outputSize.width : state.originalWidth,
-      height: state.outputSize ? state.outputSize.height : state.originalHeight,
-      offsetX: state.outputSize ? state.outputSize.width / 2 : state.originalWidth / 2,
-      offsetY: state.outputSize ? state.outputSize.height / 2 : state.originalHeight / 2,
+      width: baseW,
+      height: baseH,
+      offsetX: baseW / 2,
+      offsetY: baseH / 2,
       rotation: state.transform.rotation,
       scaleX: state.transform.flipX ? -1 : 1,
       scaleY: state.transform.flipY ? -1 : 1,
@@ -146,12 +150,12 @@ export async function exportCanvas(
         width: crop.width,
         height: crop.height,
       });
-      imageNode.width(outW);
-      imageNode.height(outH);
+      imageNode.width(baseW);
+      imageNode.height(baseH);
       imageNode.x(outW / 2);
       imageNode.y(outH / 2);
-      imageNode.offsetX(outW / 2);
-      imageNode.offsetY(outH / 2);
+      imageNode.offsetX(baseW / 2);
+      imageNode.offsetY(baseH / 2);
     }
 
     layer.add(imageNode);
@@ -163,7 +167,7 @@ export async function exportCanvas(
     const cropY = state.transform.crop?.y ?? 0;
     const srcW = state.transform.crop?.width ?? state.originalWidth;
     const srcH = state.transform.crop?.height ?? state.originalHeight;
-    const annScale = Math.min(outW / srcW, outH / srcH);
+    const annScale = Math.min(baseW / srcW, baseH / srcH);
 
     const rotation = state.transform.rotation ?? 0;
     const flipX = state.transform.flipX ? -1 : 1;
@@ -177,8 +181,8 @@ export async function exportCanvas(
       rotation,
       scaleX: flipX,
       scaleY: flipY,
-      offsetX: outW / 2,
-      offsetY: outH / 2,
+      offsetX: baseW / 2,
+      offsetY: baseH / 2,
     });
 
     const annotationGroup = new Konva.Group({
