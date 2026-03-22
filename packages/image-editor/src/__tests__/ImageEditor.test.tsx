@@ -100,7 +100,7 @@ describe('ImageEditor image loading', () => {
 
     await waitFor(() => {
       expect(loadImageMock).toHaveBeenCalledTimes(1);
-      expect(screen.getByTestId('inkio-ie-root').dataset.debugActiveTool).toBe('');
+      expect(screen.getByTestId('inkio-ie-root').dataset.debugActiveTool).toBe('draw');
     });
   });
 });

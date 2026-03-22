@@ -239,8 +239,10 @@ export function ImageEditor({
   const locale: ImageEditorLocale = { ...DEFAULT_LOCALE, ...localeProp };
   const normalizedTools = useMemo(() => normalizeTools(tools), [tools]);
   const normalizedDefaultTool = useMemo(() => {
-    const nextTool = normalizeTool(defaultTool ?? null);
-    return nextTool && normalizedTools.includes(nextTool) ? nextTool : null;
+    const nextTool = normalizeTool(defaultTool ?? 'resize');
+    if (nextTool && normalizedTools.includes(nextTool)) return nextTool;
+    if (normalizedTools.includes('resize')) return 'resize';
+    return normalizedTools[0] ?? 'resize';
   }, [defaultTool, normalizedTools]);
 
   return (
