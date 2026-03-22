@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { useTheme } from 'next-themes';
 import {
   Editor as InkioEditor,
   Viewer as InkioViewer,
@@ -48,6 +49,8 @@ export default function PlaygroundEditorPane({
   showViewer,
   showJSON,
 }: PlaygroundEditorPaneProps) {
+  const { resolvedTheme } = useTheme();
+  const inkioTheme = resolvedTheme === 'dark' ? 'dark' : 'light' as const;
   const [content, setContent] = useState<unknown>(initialContent ?? PLAYGROUND_INITIAL_CONTENT);
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
   const [viewerInstance, setViewerInstance] = useState<TiptapEditor | null>(null);
@@ -115,40 +118,41 @@ export default function PlaygroundEditorPane({
             @inkio/editor + lazy comments + lazy @inkio/image-editor
           </span>
         </div>
-        <div className="playground-editor-with-toc">
-        <InkioEditor
-          initialContent={initialContent ?? PLAYGROUND_INITIAL_CONTENT}
-          placeholder="Try /, #, [[page]], comments, and image editing..."
-          locale={locale}
-          ui={{
-            autoresize: true,
-            showBubbleMenu: true,
-            showFloatingMenu: true,
-            messages,
-            icons: iconOverrides,
-          }}
-          hashtagItems={({ query }: { query: string }) => {
-            const tags = ['inkio', 'tiptap', 'editor', 'react', 'markdown', 'playground'];
-            return tags
-              .filter((tag) => tag.toLowerCase().includes(query.toLowerCase()))
-              .map((tag) => ({ id: tag, label: `#${tag}` }));
-          }}
-          onImageUpload={async (file: File) => URL.createObjectURL(file)}
-          imageBlock={{ imageEditor: LazyImageEditorModal }}
-          comment={comment}
-          onCreate={setEditorInstance}
-          onUpdate={(next: unknown) => setContent(next)}
-        />
-        <ToC source={editorInstance} className="playground-toc" />
+        <div style={{ position: 'relative' }}>
+          <InkioEditor
+            initialContent={initialContent ?? PLAYGROUND_INITIAL_CONTENT}
+            placeholder="Try /, #, [[page]], comments, and image editing..."
+            theme={inkioTheme}
+            locale={locale}
+            ui={{
+              autoresize: true,
+              showBubbleMenu: true,
+              showFloatingMenu: true,
+              messages,
+              icons: iconOverrides,
+            }}
+            hashtagItems={({ query }: { query: string }) => {
+              const tags = ['inkio', 'tiptap', 'editor', 'react', 'markdown', 'playground'];
+              return tags
+                .filter((tag) => tag.toLowerCase().includes(query.toLowerCase()))
+                .map((tag) => ({ id: tag, label: `#${tag}` }));
+            }}
+            onImageUpload={async (file: File) => URL.createObjectURL(file)}
+            imageBlock={{ imageEditor: LazyImageEditorModal }}
+            comment={comment}
+            onCreate={setEditorInstance}
+            onUpdate={(next: unknown) => setContent(next)}
+          />
+          <ToC source={editorInstance} />
         </div>
       </section>
 
       {showViewer && content && (
         <section className="playground-section">
           <div className="playground-section-label">Viewer</div>
-          <div className="playground-editor-with-toc">
-            <InkioViewer content={content} onCreate={setViewerInstance} />
-            <ToC source={viewerInstance} className="playground-toc" />
+          <div style={{ position: 'relative' }}>
+            <InkioViewer content={content} theme={inkioTheme} onCreate={setViewerInstance} />
+            <ToC source={viewerInstance} />
           </div>
         </section>
       )}

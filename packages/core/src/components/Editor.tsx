@@ -36,6 +36,8 @@ export type EditorProps = EditorContentMode & {
   onUpdate?: (content: JSONContent) => void;
   onCreate?: (editor: TiptapEditor) => void;
   className?: string;
+  /** Color theme */
+  theme?: 'light' | 'dark';
   /** 에디터 컨테이너 스타일 */
   style?: React.CSSProperties;
   /** Fill the parent container height instead of sizing to content. */
@@ -77,6 +79,7 @@ export const Editor = ({
   onUpdate,
   onCreate,
   className = '',
+  theme = 'light',
   style,
   fill = false,
   autoresize = false,
@@ -132,6 +135,7 @@ export const Editor = ({
     <div
       style={style}
       className={`inkio inkio-editor${fill ? ' inkio-editor--fill' : ''}${autoresize ? ' inkio-editor--autoresize' : ''}${bordered ? ' inkio-container-default' : ''}${className ? ` ${className}` : ''}`}
+      data-theme={theme}
     >
       {showToolbar && (
         showInteractiveRuntime ? (

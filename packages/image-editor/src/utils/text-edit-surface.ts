@@ -35,13 +35,6 @@ function resolveThemeMode(): ThemeMode {
     return explicitTheme;
   }
 
-  if (
-    document.documentElement.classList.contains('dark')
-    || document.documentElement.classList.contains('dark-theme')
-  ) {
-    return 'dark';
-  }
-
   return 'light';
 }
 

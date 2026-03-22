@@ -1,8 +1,8 @@
 // Core Components
 export { Editor } from './components/Editor';
 export type { EditorProps } from './components/Editor';
-export type { HeadingItem, TableOfContentsConfig } from './components/ToC';
-export { getHeadingsFromContent } from './components/ToC';
+export type { HeadingItem } from './components/ToC';
+export { getHeadingsFromContent, getHeadingsFromDoc } from './components/ToC';
 
 // Menus
 export { BubbleMenu } from './components/BubbleMenu';
@@ -105,6 +105,10 @@ export type { ToCProps } from './components/TableOfContents';
 // ImageBlock
 export { ImageBlock } from './extensions/ImageBlock';
 export type { ImageBlockOptions, ImageEditorComponentProps } from './extensions/ImageBlock';
+
+// TocBlock
+export { TocBlock } from './extensions/TocBlock';
+export type { TocBlockOptions } from './extensions/TocBlock';
 
 // Markdown
 export {

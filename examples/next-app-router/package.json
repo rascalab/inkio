@@ -3,9 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "dev": "INKIO_USE_SOURCE_PACKAGES=1 next dev",
+    "dev": "INKIO_USE_SOURCE_PACKAGES=1 next dev --webpack",
     "build": "next build",
-    "build:smoke": "INKIO_USE_SOURCE_PACKAGES=1 next build",
+    "build:smoke": "INKIO_USE_SOURCE_PACKAGES=1 next build --webpack",
     "start": "next start",
     "typecheck": "tsc --noEmit -p tsconfig.build.json"
   },
@@ -14,6 +14,7 @@
     "@inkio/editor": "workspace:*",
     "@inkio/image-editor": "workspace:*",
     "next": "^16.2.0",
+    "postcss-import": "^16.1.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

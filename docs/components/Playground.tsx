@@ -1,18 +1,11 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { useCallback, useState } from 'react';
+import EditorPane from './PlaygroundEditorPane';
+import SimplePane from './PlaygroundSimplePane';
 import './Playground.css';
 
 type PlaygroundMode = 'editor' | 'simple';
-
-const EditorPane = dynamic(() => import('./PlaygroundEditorPane'), {
-  loading: () => <div className="playground-loading">Loading editor...</div>,
-});
-
-const SimplePane = dynamic(() => import('./PlaygroundSimplePane'), {
-  loading: () => <div className="playground-loading">Loading editor...</div>,
-});
 
 export default function Playground({ initialContent }: { initialContent?: string } = {}) {
   const [mode, setMode] = useState<PlaygroundMode>('editor');

@@ -19,6 +19,8 @@ interface ViewerCommentOptions {
 export type ViewerProps = {
   content: string | JSONContent;
   locale?: InkioLocaleInput;
+  /** Color theme */
+  theme?: 'light' | 'dark';
   ui?: {
     className?: string;
     style?: React.CSSProperties;
@@ -31,7 +33,7 @@ export type ViewerProps = {
   onCreate?: (editor: TiptapEditor) => void;
 };
 
-export function Viewer({ content, locale, ui, comment, extensions, onCreate }: ViewerProps) {
+export function Viewer({ content, locale, theme, ui, comment, extensions, onCreate }: ViewerProps) {
   const commentConfig: CommentConfig | false | undefined = comment === false
     ? false
     : comment
@@ -47,6 +49,7 @@ export function Viewer({ content, locale, ui, comment, extensions, onCreate }: V
       content={content}
       editable={false}
       locale={locale}
+      theme={theme}
       ui={{
         ...ui,
         showBubbleMenu: false,

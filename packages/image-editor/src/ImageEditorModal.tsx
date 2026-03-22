@@ -19,13 +19,6 @@ function resolvePortalTheme(): 'light' | 'dark' {
   }
 
   if (
-    document.documentElement.classList.contains('dark')
-    || document.documentElement.classList.contains('dark-theme')
-  ) {
-    return 'dark';
-  }
-
-  if (
     explicitTheme === 'auto'
     && typeof window !== 'undefined'
     && window.matchMedia?.('(prefers-color-scheme: dark)').matches
