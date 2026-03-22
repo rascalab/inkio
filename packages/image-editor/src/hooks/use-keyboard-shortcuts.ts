@@ -33,7 +33,7 @@ export function useKeyboardShortcuts() {
       if (e.key === 'Escape') {
         if ((state.activeTool === 'resize' || state.activeTool === 'crop') && state.pendingCrop) {
           dispatch({ type: 'DISCARD_RESIZE_SESSION' });
-          dispatch({ type: 'SET_TOOL', tool: null });
+          dispatch({ type: 'SET_TOOL', tool: 'resize' });
         } else if (state.pendingCrop) {
           dispatch({ type: 'SET_PENDING_CROP', crop: null });
         } else if (state.selectedAnnotationId) {
