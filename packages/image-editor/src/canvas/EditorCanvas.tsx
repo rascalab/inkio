@@ -804,7 +804,6 @@ export function EditorCanvas({
           data-display-width={Math.round(displayWidth)}
           data-display-height={Math.round(displayHeight)}
         >
-          <div className="inkio-ie-stage-checkerboard" />
           <Stage
             ref={stageRef}
             width={displayWidth}
@@ -846,6 +845,7 @@ export function EditorCanvas({
           offsetX={offsetX}
           offsetY={offsetY}
           originalWidth={state.originalWidth}
+          originalHeight={state.originalHeight}
         />
 
         {isCropMode && cropFrame && (
