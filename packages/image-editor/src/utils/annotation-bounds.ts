@@ -1,4 +1,5 @@
-import type { Annotation, CropRect } from '../types';
+import type { Annotation, CropRect, Transform } from '../types';
+import { imageSpaceToCanvasSpace } from './geometry';
 import { getTextAnnotationHeight, getTextAnnotationWidth } from './text-metrics';
 
 interface Point {
@@ -20,6 +21,7 @@ interface DisplayProjectionOptions {
   displayWidth: number;
   displayHeight: number;
   originalWidth: number;
+  originalHeight: number;
   rotation: number;
   flipX: boolean;
   flipY: boolean;
@@ -30,7 +32,35 @@ export function getAnnotationDisplayBounds(
   options: DisplayProjectionOptions,
 ): AnnotationDisplayBounds {
   const corners = getAnnotationCorners(annotation);
-  const projected = corners.map((corner) => projectPoint(corner, options));
+
+  // Construct transform from options
+  const crop = (options.cropX !== 0 || options.cropY !== 0)
+    ? {
+      x: options.cropX,
+      y: options.cropY,
+      width: options.originalWidth,
+      height: options.originalHeight,
+    }
+    : null;
+  const transform: Transform = {
+    rotation: options.rotation,
+    flipX: options.flipX,
+    flipY: options.flipY,
+    crop,
+  };
+
+  const projected = corners.map((corner) =>
+    imageSpaceToCanvasSpace(
+      corner.x,
+      corner.y,
+      options.displayWidth,
+      options.displayHeight,
+      options.originalWidth,
+      options.originalHeight,
+      transform,
+    ),
+  );
+
   const xs = projected.map((point) => point.x);
   const ys = projected.map((point) => point.y);
   const minX = Math.min(...xs);
@@ -44,24 +74,6 @@ export function getAnnotationDisplayBounds(
     width: maxX - minX,
     height: maxY - minY,
   };
-}
-
-function projectPoint(point: Point, options: DisplayProjectionOptions): Point {
-  const basePoint = {
-    x: (point.x - options.cropX) * options.annotationScale,
-    y: (point.y - options.cropY) * options.annotationScale,
-  };
-
-  const flippedPoint = {
-    x: options.flipX ? options.displayWidth - basePoint.x : basePoint.x,
-    y: options.flipY ? options.displayHeight - basePoint.y : basePoint.y,
-  };
-
-  return rotatePoint(
-    flippedPoint,
-    { x: options.displayWidth / 2, y: options.displayHeight / 2 },
-    options.rotation,
-  );
 }
 
 function getAnnotationCorners(annotation: Annotation): Point[] {
