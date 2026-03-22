@@ -172,6 +172,15 @@ export const defaultSlashCommands: SlashCommandItem[] = [
     isAvailable: (editor) => hasSchemaNode(editor, 'details'),
   },
   {
+    id: 'toc',
+    label: 'Table of Contents',
+    description: 'Insert a table of contents',
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).insertContent({ type: 'tocBlock' }).run();
+    },
+    isAvailable: (editor) => hasSchemaNode(editor, 'tocBlock'),
+  },
+  {
     id: 'image',
     label: 'Image',
     description: 'Upload an image',

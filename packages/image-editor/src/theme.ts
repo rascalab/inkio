@@ -39,9 +39,7 @@ export function getIEColors(): IEColors {
   const root = document.querySelector('.inkio-ie-portal-theme') ?? document.querySelector('.inkio');
   if (!root) return _cache ?? FALLBACK_COLORS;
   const dataTheme = root.getAttribute('data-theme') ?? '';
-  const darkClass = document.documentElement.classList.contains('dark')
-    || document.documentElement.classList.contains('dark-theme');
-  const cacheKey = `${dataTheme}:${darkClass}`;
+  const cacheKey = dataTheme;
   if (_cache && cacheKey === _cacheTheme) return _cache;
   _cacheTheme = cacheKey;
   _cache = {

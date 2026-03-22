@@ -139,11 +139,6 @@ export function EditorCanvas({
   const resolvedCropViewport = cropFrame
     ? clampCropViewport(cropViewport, cropFrame, cropSessionBounds, stageSize.width, stageSize.height, cropFitScale, cropMinZoom)
     : cropViewport;
-  const effectiveZoomLabel = isCropMode
-    ? `${Math.round(resolvedCropViewport.zoom * 100)}%`
-    : `${Math.round(previewZoom * 100)}%`;
-  const showZoomIndicator = isCropMode || Math.abs(previewZoom - 1) > 0.001;
-
   const scaleToFit = isCropMode
     ? cropFitScale * resolvedCropViewport.zoom
     : (
@@ -816,12 +811,6 @@ export function EditorCanvas({
           offsetY={offsetY}
           originalWidth={state.originalWidth}
         />
-
-        {showZoomIndicator && (
-          <div className="inkio-ie-zoom-indicator" data-testid="inkio-ie-zoom-indicator">
-            {isCropMode ? `Crop ${effectiveZoomLabel}` : effectiveZoomLabel}
-          </div>
-        )}
 
         {isCropMode && cropFrame && (
           <>

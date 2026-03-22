@@ -137,9 +137,9 @@
   /* Layer */
   --inkio-layer-sidebar: 120;
 
-  /* Code block — slate 12/2 (inverted for contrast) */
-  --inkio-code-bg: #1c2024;
-  --inkio-code-text: #f9f9fb;
+  /* Code block */
+  --inkio-code-bg: #edf0f2;
+  --inkio-code-text: #24292e;
 
   /* ============================
      Dark theme raw values (single source of truth)
@@ -282,18 +282,11 @@
 
 /* ============================
    Dark Theme
-   Activated by any of:
-   1. data-theme="dark" attribute on .inkio (direct control)
-   2. .dark or .dark-theme class on any ancestor (Radix UI, next-themes, etc.)
-   3. data-theme="auto" + OS prefers-color-scheme: dark (opt-in system preference)
-
+   Activated by data-theme="dark" attribute on .inkio (via theme prop).
    All values reference --inkio-dark-* intermediate variables defined above.
    To change a dark-mode color, edit the --inkio-dark-* definition only.
    ============================ */
-
-/* Explicit dark: attribute on root OR ancestor class */
-.inkio[data-theme="dark"],
-:is(.dark, .dark-theme) .inkio:not([data-theme="light"]) {
+.inkio[data-theme="dark"] {
   --inkio-bg: var(--inkio-dark-bg);
   --inkio-bg-muted: var(--inkio-dark-bg-muted);
   --inkio-bg-subtle: var(--inkio-dark-bg-subtle);
@@ -381,103 +374,4 @@
   --inkio-callout-gray-border: var(--inkio-dark-callout-gray-border);
 
   --inkio-ie-canvas-bg: var(--inkio-dark-ie-canvas-bg);
-}
-
-/* System preference: opt-in via data-theme="auto"
-   NOTE: This block intentionally duplicates the explicit-dark overrides above.
-   CSS natively cannot share declarations between a media query and a plain
-   selector list, so the repetition is required.  When changing a dark-mode
-   value, always update the --inkio-dark-* intermediate variable defined in
-   .inkio above — both blocks reference those variables, so a single
-   edit propagates everywhere. */
-@media (prefers-color-scheme: dark) {
-  .inkio[data-theme="auto"] {
-    --inkio-bg: var(--inkio-dark-bg);
-    --inkio-bg-muted: var(--inkio-dark-bg-muted);
-    --inkio-bg-subtle: var(--inkio-dark-bg-subtle);
-    --inkio-bg-inverse: var(--inkio-dark-bg-inverse);
-
-    --inkio-text: var(--inkio-dark-text);
-    --inkio-text-heading: var(--inkio-dark-text-heading);
-    --inkio-text-muted: var(--inkio-dark-text-muted);
-    --inkio-text-inverse: var(--inkio-dark-text-inverse);
-
-    --inkio-border: var(--inkio-dark-border);
-    --inkio-border-focus: var(--inkio-dark-border-focus);
-
-    --inkio-primary-hover: var(--inkio-dark-primary-hover);
-    --inkio-primary-bg: var(--inkio-dark-primary-bg);
-
-    --inkio-danger: var(--inkio-dark-danger);
-    --inkio-danger-hover: var(--inkio-dark-danger-hover);
-    --inkio-danger-bg: var(--inkio-dark-danger-bg);
-    --inkio-danger-text: var(--inkio-dark-danger-text);
-    --inkio-danger-hover-bg: var(--inkio-dark-danger-hover-bg);
-    --inkio-success: var(--inkio-dark-success);
-    --inkio-success-hover: var(--inkio-dark-success-hover);
-    --inkio-success-bg: var(--inkio-dark-success-bg);
-    --inkio-success-text: var(--inkio-dark-success-text);
-    --inkio-warning: var(--inkio-dark-warning);
-    --inkio-warning-bg: var(--inkio-dark-warning-bg);
-    --inkio-warning-text: var(--inkio-dark-warning-text);
-    --inkio-info: var(--inkio-dark-info);
-    --inkio-info-bg: var(--inkio-dark-info-bg);
-
-    --inkio-note-bg: var(--inkio-dark-note-bg);
-    --inkio-note-border: var(--inkio-dark-note-border);
-    --inkio-note-text: var(--inkio-dark-note-text);
-
-    --inkio-mention-bg: var(--inkio-dark-mention-bg);
-    --inkio-mention-text: var(--inkio-dark-mention-text);
-
-    --inkio-hashtag-bg: var(--inkio-dark-hashtag-bg);
-    --inkio-hashtag-text: var(--inkio-dark-hashtag-text);
-    --inkio-hashtag-hover-bg: var(--inkio-dark-hashtag-hover-bg);
-
-    --inkio-wikilink-text: var(--inkio-dark-wikilink-text);
-    --inkio-wikilink-bg: var(--inkio-dark-wikilink-bg);
-    --inkio-wikilink-hover-bg: var(--inkio-dark-wikilink-hover-bg);
-    --inkio-wikilink-hover-text: var(--inkio-dark-wikilink-hover-text);
-
-    --inkio-comment-bg: var(--inkio-dark-comment-bg);
-    --inkio-comment-resolved-bg: var(--inkio-dark-comment-resolved-bg);
-    --inkio-comment-quote-bg: var(--inkio-dark-comment-quote-bg);
-    --inkio-comment-quote-hover-bg: var(--inkio-dark-comment-quote-hover-bg);
-    --inkio-comment-quote-bar: var(--inkio-dark-comment-quote-bar);
-    --inkio-comment-quote-text: var(--inkio-dark-comment-quote-text);
-
-    --inkio-selection-bg: var(--inkio-dark-selection-bg);
-    --inkio-highlight-bg: var(--inkio-dark-highlight-bg);
-
-    --inkio-shadow: var(--inkio-dark-shadow);
-    --inkio-shadow-lg: var(--inkio-dark-shadow-lg);
-    --inkio-shadow-xl: var(--inkio-dark-shadow-xl);
-    --inkio-ring: var(--inkio-dark-ring);
-
-    --inkio-code-bg: var(--inkio-dark-code-bg);
-    --inkio-code-text: var(--inkio-dark-code-text);
-
-    --inkio-text-on-primary: var(--inkio-dark-text-on-primary);
-    --inkio-overlay-bg: var(--inkio-dark-overlay-bg);
-    --inkio-overlay-heavy-bg: var(--inkio-dark-overlay-heavy-bg);
-    --inkio-overlay-text: var(--inkio-dark-overlay-text);
-    --inkio-overlay-spinner-border: var(--inkio-dark-overlay-spinner-border);
-    --inkio-avatar-gradient-from: var(--inkio-dark-avatar-gradient-from);
-    --inkio-avatar-gradient-to: var(--inkio-dark-avatar-gradient-to);
-
-    --inkio-callout-blue: var(--inkio-dark-callout-blue);
-    --inkio-callout-blue-border: var(--inkio-dark-callout-blue-border);
-    --inkio-callout-yellow: var(--inkio-dark-callout-yellow);
-    --inkio-callout-yellow-border: var(--inkio-dark-callout-yellow-border);
-    --inkio-callout-red: var(--inkio-dark-callout-red);
-    --inkio-callout-red-border: var(--inkio-dark-callout-red-border);
-    --inkio-callout-green: var(--inkio-dark-callout-green);
-    --inkio-callout-green-border: var(--inkio-dark-callout-green-border);
-    --inkio-callout-purple: var(--inkio-dark-callout-purple);
-    --inkio-callout-purple-border: var(--inkio-dark-callout-purple-border);
-    --inkio-callout-gray: var(--inkio-dark-callout-gray);
-    --inkio-callout-gray-border: var(--inkio-dark-callout-gray-border);
-
-    --inkio-ie-canvas-bg: var(--inkio-dark-ie-canvas-bg);
-  }
 }

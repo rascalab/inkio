@@ -1032,66 +1032,113 @@
   background: var(--inkio-comment-action-delete-hover);
 }
 
+/* Block selection indicator */
+.inkio .inkio-content .inkio-block-selected {
+  background-color: var(--inkio-primary-bg, color-mix(in srgb, var(--inkio-primary) 10%, transparent));
+  border-radius: var(--inkio-radius-sm);
+}
+
 /* ============================
-   Table of Contents (Notion-style)
+   Table of Contents (Notion-style minimap + panel)
    ============================ */
 
 .inkio-toc {
-  font-size: 0.8125rem;
-  line-height: 1.5;
-  color: var(--inkio-text-muted);
+  position: absolute;
+  top: 0;
+  right: 0.5rem;
+  z-index: 2;
+  pointer-events: none;
+  transform: translateY(48px);
+  transition: transform 0.3s ease;
+  will-change: transform;
 }
 
 .inkio-toc-title {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  color: var(--inkio-text-muted);
-  padding: 0 0.5rem 0.375rem;
+  display: none;
+}
+
+/* Minimap bars — default state */
+.inkio-toc-minimap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: flex-end;
+  padding: 0 0 0 1rem;
+  pointer-events: auto;
+  transition: opacity 0.2s;
+}
+
+.inkio-toc-bar {
+  height: 2px;
+  border-radius: 1px;
+  background: var(--inkio-text-muted);
+  opacity: 0.25;
+  transition: opacity 0.15s;
+}
+
+.inkio-toc-bar.is-active {
+  opacity: 0.7;
+  background: var(--inkio-text);
+}
+
+/* Expanded panel — hidden by default */
+.inkio-toc-panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  opacity: 0;
+  pointer-events: none;
+  background: var(--inkio-bg);
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-md);
+  padding: 0.75rem 0.5rem;
+  min-width: 14rem;
+  max-width: 20rem;
+  box-shadow: var(--inkio-shadow-lg);
+  transform: translateX(0.5rem);
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+/* Show panel, hide minimap on hover */
+.inkio-toc:hover .inkio-toc-panel {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+.inkio-toc:hover .inkio-toc-minimap {
+  opacity: 0;
 }
 
 .inkio-toc-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  border-left: 1px solid var(--inkio-border);
+  display: flex;
+  flex-direction: column;
 }
 
 .inkio-toc-item {
-  padding-left: calc(var(--inkio-toc-depth, 0) * 0.75rem);
-  position: relative;
-}
-
-.inkio-toc-item.is-active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0.25rem;
-  bottom: 0.25rem;
-  width: 2px;
-  background: var(--inkio-primary);
-  border-radius: 1px;
+  padding-left: calc(var(--inkio-toc-depth, 0) * 1.25rem);
 }
 
 .inkio-toc-link {
   display: block;
-  padding: 0.1875rem 0.5rem;
+  padding: 0.25rem 0.5rem;
   text-decoration: none;
   color: var(--inkio-text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 0.8125rem;
   cursor: pointer;
   border-radius: var(--inkio-radius-sm);
-  transition: color 0.15s, background-color 0.15s;
+  transition: color 0.12s, background-color 0.12s;
+  word-break: break-word;
 }
 
 .inkio-toc-link:hover {
   color: var(--inkio-text);
-  background-color: var(--inkio-bg-muted);
+  background-color: color-mix(in srgb, var(--inkio-text) 8%, transparent);
 }
 
 .inkio-toc-item.is-active > .inkio-toc-link {
-  color: var(--inkio-text);
-  font-weight: 500;
+  color: var(--inkio-primary);
 }

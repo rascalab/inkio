@@ -45,6 +45,7 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { Callout } from './Callout';
 import { KeyboardShortcuts } from './KeyboardShortcuts';
 import { DetailsShortcut } from './DetailsShortcut';
+import { TocBlock } from './TocBlock';
 
 export interface CoreExtensionOptions {
   /** Placeholder text shown when the editor is empty */
@@ -110,6 +111,8 @@ export interface CoreExtensionOptions {
   table?: false;
   /** Set to `false` to disable keyboard shortcuts extension */
   keyboardShortcuts?: false;
+  /** Set to `false` to disable the inline table of contents block */
+  tocBlock?: false;
 }
 
 export const getExtensions = (options: CoreExtensionOptions = {}) => {
@@ -141,6 +144,7 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
     toggleList,
     table,
     keyboardShortcuts,
+    tocBlock,
   } = options;
 
   const extensions: Extensions = [
@@ -277,6 +281,10 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
       TableHeader,
       TableCell,
     );
+  }
+
+  if (tocBlock !== false) {
+    extensions.push(TocBlock);
   }
 
   if (options.tabBehavior !== 'default') {

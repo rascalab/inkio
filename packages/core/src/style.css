@@ -83,8 +83,9 @@
 }
 
 /* Horizontal Rule with colors */
-.inkio .inkio-content hr {
-  border-color: var(--inkio-border);
+.inkio .inkio-content hr::before {
+  background: var(--inkio-border);
+  opacity: 1;
 }
 
 /* Code with colors */
@@ -102,6 +103,7 @@
 /* CodeBlock NodeView */
 .inkio .inkio-codeblock {
   background-color: var(--inkio-code-bg);
+  border-radius: var(--inkio-radius-md);
 }
 
 .inkio .inkio-codeblock-lang {
@@ -133,68 +135,6 @@
 
 .inkio .inkio-codeblock-copy.is-copied {
   color: var(--inkio-success, #22c55e);
-}
-
-/* Syntax Highlighting (lowlight / highlight.js) */
-.inkio .inkio-content .hljs-comment,
-.inkio .inkio-content .hljs-quote {
-  color: color-mix(in srgb, var(--inkio-code-text) 50%, transparent);
-  font-style: italic;
-}
-
-.inkio .inkio-content .hljs-keyword,
-.inkio .inkio-content .hljs-selector-tag,
-.inkio .inkio-content .hljs-built_in,
-.inkio .inkio-content .hljs-type {
-  color: var(--inkio-code-keyword, #c678dd);
-}
-
-.inkio .inkio-content .hljs-string,
-.inkio .inkio-content .hljs-attr,
-.inkio .inkio-content .hljs-symbol,
-.inkio .inkio-content .hljs-bullet,
-.inkio .inkio-content .hljs-addition,
-.inkio .inkio-content .hljs-template-tag,
-.inkio .inkio-content .hljs-template-variable {
-  color: var(--inkio-code-string, #98c379);
-}
-
-.inkio .inkio-content .hljs-number,
-.inkio .inkio-content .hljs-literal {
-  color: var(--inkio-code-number, #d19a66);
-}
-
-.inkio .inkio-content .hljs-title,
-.inkio .inkio-content .hljs-section,
-.inkio .inkio-content .hljs-name,
-.inkio .inkio-content .hljs-selector-id,
-.inkio .inkio-content .hljs-selector-class {
-  color: var(--inkio-code-function, #61afef);
-}
-
-.inkio .inkio-content .hljs-variable,
-.inkio .inkio-content .hljs-params {
-  color: var(--inkio-code-variable, #e06c75);
-}
-
-.inkio .inkio-content .hljs-meta {
-  color: color-mix(in srgb, var(--inkio-code-text) 70%, transparent);
-}
-
-.inkio .inkio-content .hljs-deletion {
-  color: var(--inkio-danger, #e5484d);
-}
-
-.inkio .inkio-content .hljs-tag {
-  color: var(--inkio-code-text);
-}
-
-.inkio .inkio-content .hljs-emphasis {
-  font-style: italic;
-}
-
-.inkio .inkio-content .hljs-strong {
-  font-weight: 700;
 }
 
 /* Tables with borders and header emphasis */
@@ -680,5 +620,21 @@
 /* Radix portal content rendered outside .inkio — global unscoped */
 .inkio-popover-content {
   z-index: var(--inkio-layer-popover, 150);
+}
+
+/* TocBlock — inline document ToC (Notion-style) */
+.inkio .inkio-content .inkio-toc-block .inkio-toc-block-link {
+  color: var(--inkio-text-muted);
+  transition: color 0.12s, background-color 0.12s;
+}
+
+.inkio .inkio-content .inkio-toc-block .inkio-toc-block-link:hover {
+  color: var(--inkio-text);
+  background-color: var(--inkio-bg-muted);
+  text-decoration: underline;
+}
+
+.inkio .inkio-content .inkio-toc-block .inkio-toc-block-empty {
+  color: var(--inkio-text-muted);
 }
 
