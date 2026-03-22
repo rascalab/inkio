@@ -45,6 +45,8 @@ export type EditorProps = EditorContentMode & {
   editable?: boolean;
   placeholder?: string;
   locale?: InkioLocaleInput;
+  /** Color theme */
+  theme?: 'light' | 'dark';
   tabBehavior?: 'indent' | 'default';
   onUpdate?: (content: JSONContent) => void;
   onCreate?: (editor: TiptapEditor) => void;
@@ -83,6 +85,7 @@ export function Editor({
   editable,
   placeholder,
   locale,
+  theme,
   tabBehavior,
   onUpdate,
   onCreate,
@@ -178,6 +181,7 @@ export function Editor({
     extensions: resolvedExtensions,
     editable,
     placeholder,
+    theme,
     onUpdate,
     onCreate,
     locale,

@@ -1,9 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Editor as TiptapEditor } from '@tiptap/react';
-import { getHeadingsFromContent } from './ToC';
-import type { HeadingItem } from './ToC';
+import { useHeadings } from './useHeadings';
 
 export interface ToCProps {
   /** Editor or Viewer instance — used to find heading elements and extract content. */
@@ -16,11 +15,51 @@ export interface ToCProps {
   style?: React.CSSProperties;
 }
 
-function getHeadingElements(source?: TiptapEditor | null, maxLevel = 6): HTMLElement[] {
-  const container = source?.view?.dom;
-  if (!container) return [];
-  const selector = Array.from({ length: maxLevel }, (_, i) => `h${i + 1}`).join(', ');
-  return Array.from(container.querySelectorAll(selector));
+/**
+ * CSS custom property: `--inkio-scroll-offset`
+ *
+ * Set this property (in px) on the editor's parent element to account for
+ * sticky headers or other fixed chrome that offsets the visible viewport top.
+ *
+ * @example
+ * ```css
+ * .my-editor-wrapper {
+ *   --inkio-scroll-offset: 64px; /* height of your sticky nav *\/
+ * }
+ * ```
+ *
+ * The ToC scroll-tracking effect reads this value via `getComputedStyle` and
+ * passes it to `calcTocTop` so the floating nav stays within the editor bounds
+ * even when a portion of the viewport is occupied by fixed UI.
+ */
+
+/** Bar width by heading depth (0 = top-level). */
+const BAR_WIDTHS = [1.25, 0.875, 0.625, 0.5, 0.375, 0.375];
+
+const MARGIN = 48; // px margin from editor top/bottom
+
+/**
+ * Calculate the top offset (px) for the ToC within an editor container.
+ * - Editor top visible → pin to MARGIN from editor top
+ * - Editor bottom close → pin to editor bottom minus nav height
+ * - Otherwise → float with viewport scroll
+ */
+export function calcTocTop(
+  editorTop: number,
+  editorBottom: number,
+  navHeight: number,
+  scrollOffset = 0,
+): number {
+  const viewportTop = scrollOffset + MARGIN;
+  const editorHeight = editorBottom - editorTop;
+
+  if (editorTop >= viewportTop) {
+    return MARGIN;
+  }
+  if (editorBottom - navHeight - MARGIN < viewportTop) {
+    return Math.max(MARGIN, editorHeight - navHeight - MARGIN);
+  }
+  return viewportTop - editorTop;
 }
 
 export function ToC({
@@ -29,48 +68,59 @@ export function ToC({
   className,
   style,
 }: ToCProps) {
-  const [headings, setHeadings] = useState<HeadingItem[]>(() =>
-    getHeadingsFromContent(source?.getJSON() ?? null),
-  );
+  const navRef = useRef<HTMLElement>(null);
+  const { filtered, minLevel, headingElsRef, handleClick } = useHeadings(source, maxLevel);
 
+  // Track scroll to keep ToC within editor bounds.
+  // Debounced: waits until scroll stops, then smoothly transitions via CSS.
   useEffect(() => {
-    if (!source) {
-      setHeadings([]);
-      return;
-    }
+    const editorDom = source?.view?.dom?.parentElement;
+    const nav = navRef.current;
+    if (!editorDom || !nav) return;
 
-    // Recompute on initial mount in case source was already set.
-    setHeadings(getHeadingsFromContent(source.getJSON()));
+    let timerId = 0;
 
-    const onUpdate = () => {
-      setHeadings(getHeadingsFromContent(source.getJSON()));
+    const apply = () => {
+      const navHeight = nav.offsetHeight;
+      const scrollOffset = parseInt(
+        getComputedStyle(editorDom).getPropertyValue('--inkio-scroll-offset') || '0',
+        10,
+      ) || 0;
+      const { top, bottom } = editorDom.getBoundingClientRect();
+      const nextY = calcTocTop(top, bottom, navHeight, scrollOffset);
+      nav.style.transform = `translateY(${nextY}px)`;
     };
 
-    source.on('update', onUpdate);
+    const onScroll = () => {
+      clearTimeout(timerId);
+      timerId = window.setTimeout(apply, 120);
+    };
+
+    apply();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
     return () => {
-      source.off('update', onUpdate);
+      clearTimeout(timerId);
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
     };
-  }, [source]);
+  }, [source, filtered]);
 
-  const filtered = useMemo(() => headings.filter((h) => h.level <= maxLevel), [headings, maxLevel]);
   const [activeIndex, setActiveIndex] = useState(0);
-  const observerRef = useRef<IntersectionObserver | null>(null);
 
   useEffect(() => {
     if (filtered.length === 0) return;
-
-    const headingEls = getHeadingElements(source, maxLevel);
+    const headingEls = headingElsRef.current;
     if (headingEls.length === 0) return;
 
     const indexMap = new WeakMap<Element, number>();
     headingEls.forEach((el, i) => indexMap.set(el, i));
 
-    observerRef.current = new IntersectionObserver(
+    const observer = new IntersectionObserver(
       (entries) => {
         const visible = entries
           .filter((e) => e.isIntersecting)
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-
         if (visible.length > 0) {
           const idx = indexMap.get(visible[0].target);
           if (idx !== undefined) setActiveIndex(idx);
@@ -80,52 +130,56 @@ export function ToC({
     );
 
     for (const el of headingEls) {
-      observerRef.current.observe(el);
+      observer.observe(el);
     }
+    return () => { observer.disconnect(); };
+  }, [filtered, headingElsRef]);
 
-    return () => {
-      observerRef.current?.disconnect();
-    };
-  }, [filtered, source, maxLevel]);
-
-  const handleClick = useCallback(
-    (e: React.MouseEvent, index: number) => {
-      e.preventDefault();
-      const headingEls = getHeadingElements(source, maxLevel);
-      headingEls[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setActiveIndex(index);
-    },
-    [source, maxLevel],
-  );
+  const onLinkClick = (e: React.MouseEvent, i: number) => {
+    handleClick(e, i);
+    setActiveIndex(i);
+  };
 
   if (filtered.length === 0) return null;
 
-  const minLevel = Math.min(...filtered.map((h) => h.level));
-
   return (
     <nav
+      ref={navRef}
       className={`inkio-toc${className ? ` ${className}` : ''}`}
       style={style}
       aria-label="Table of contents"
     >
-      <div className="inkio-toc-title">ON THIS PAGE</div>
-      <ul className="inkio-toc-list">
+      {/* Minimap bars (default) */}
+      <div className="inkio-toc-minimap">
         {filtered.map((heading, i) => (
-          <li
-            key={`${heading.id}-${i}`}
-            className={`inkio-toc-item${activeIndex === i ? ' is-active' : ''}`}
-            style={{ '--inkio-toc-depth': heading.level - minLevel } as React.CSSProperties}
-          >
-            <a
-              href={`#${heading.id}`}
-              className="inkio-toc-link"
-              onClick={(e) => handleClick(e, i)}
-            >
-              {heading.text}
-            </a>
-          </li>
+          <div
+            key={`bar-${heading.id}-${i}`}
+            className={`inkio-toc-bar${activeIndex === i ? ' is-active' : ''}`}
+            style={{ width: `${BAR_WIDTHS[heading.level - minLevel] ?? 0.375}rem` }}
+          />
         ))}
-      </ul>
+      </div>
+
+      {/* Expanded panel (on hover) */}
+      <div className="inkio-toc-panel">
+        <ul className="inkio-toc-list">
+          {filtered.map((heading, i) => (
+            <li
+              key={`${heading.id}-${i}`}
+              className={`inkio-toc-item${activeIndex === i ? ' is-active' : ''}`}
+              style={{ '--inkio-toc-depth': heading.level - minLevel } as React.CSSProperties}
+            >
+              <a
+                href={`#${heading.id}`}
+                className="inkio-toc-link"
+                onClick={(e) => onLinkClick(e, i)}
+              >
+                {heading.text}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
     </nav>
   );
 }

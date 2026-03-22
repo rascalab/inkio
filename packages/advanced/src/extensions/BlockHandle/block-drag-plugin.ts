@@ -101,12 +101,32 @@ const findHoveredBlock = (view: EditorView, clientX: number, clientY: number): H
   const resolvedPos = view.state.doc.resolve(positionAtCoords.pos);
   let blockPos = getVisibleBlockPos(resolvedPos);
 
+  // For atom nodes (contentEditable=false), try `inside` first — it points into the node.
   if (blockPos === null && positionAtCoords.inside != null && positionAtCoords.inside >= 0) {
     try {
       const $inside = view.state.doc.resolve(positionAtCoords.inside);
       blockPos = getVisibleBlockPos($inside);
     } catch {
       // Ignore invalid positions.
+    }
+  }
+
+  // For atom nodes, posAtCoords may return pos at the boundary (depth 0).
+  // Check the node at `inside` or scan nearby positions.
+  if (blockPos === null) {
+    const checkPos = positionAtCoords.inside != null && positionAtCoords.inside >= 0
+      ? positionAtCoords.inside
+      : positionAtCoords.pos;
+    if (checkPos >= 0 && checkPos < view.state.doc.content.size) {
+      const node = view.state.doc.nodeAt(checkPos);
+      if (node?.isBlock) {
+        blockPos = checkPos;
+      } else if (checkPos > 0) {
+        const nodeBefore = view.state.doc.nodeAt(checkPos - 1);
+        if (nodeBefore?.isBlock) {
+          blockPos = checkPos - 1;
+        }
+      }
     }
   }
 
@@ -151,7 +171,7 @@ const findHoveredBlock = (view: EditorView, clientX: number, clientY: number): H
   };
 };
 
-const FIRST_TEXT_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, summary';
+const FIRST_TEXT_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, summary, [data-type="toc"]';
 
 const getFirstLineHeight = (blockElement: HTMLElement): number => {
   // For blocks with nested content (lists, task items with NodeView, etc.), align to the first line
@@ -176,21 +196,29 @@ const getFirstLineHeight = (blockElement: HTMLElement): number => {
 const positionHandle = (handle: HTMLElement, blockElement: HTMLElement, handleWidth: number) => {
   const blockRect = blockElement.getBoundingClientRect();
 
-  // Find the first text-containing element for precise vertical alignment.
-  // Uses descendant selector (not :scope >) so it works with NodeView wrappers
-  // like TaskItem (<li> > <div class="inkio-task-content"> > <p>).
-  const firstTextEl = blockElement.querySelector(FIRST_TEXT_SELECTOR);
-  const alignRect = firstTextEl ? firstTextEl.getBoundingClientRect() : null;
-
   let alignTop: number;
   let alignHeight: number;
 
-  if (alignRect && alignRect.height > 0) {
-    alignTop = alignRect.top;
-    alignHeight = getFirstLineHeight(firstTextEl as HTMLElement);
+  // Void elements (hr, etc.) — center handle vertically on the element
+  const isVoid = blockElement.tagName === 'HR';
+  if (isVoid) {
+    const center = blockRect.top + blockRect.height / 2;
+    alignTop = center - HANDLE_SIZE / 2;
+    alignHeight = HANDLE_SIZE;
   } else {
-    alignTop = blockRect.top;
-    alignHeight = Math.min(blockRect.height, getFirstLineHeight(blockElement));
+    // Find the first text-containing element for precise vertical alignment.
+    // Uses descendant selector (not :scope >) so it works with NodeView wrappers
+    // like TaskItem (<li> > <div class="inkio-task-content"> > <p>).
+    const firstTextEl = blockElement.querySelector(FIRST_TEXT_SELECTOR);
+    const alignRect = firstTextEl ? firstTextEl.getBoundingClientRect() : null;
+
+    if (alignRect && alignRect.height > 0) {
+      alignTop = alignRect.top;
+      alignHeight = getFirstLineHeight(firstTextEl as HTMLElement);
+    } else {
+      alignTop = blockRect.top;
+      alignHeight = Math.min(blockRect.height, getFirstLineHeight(blockElement));
+    }
   }
 
   // For list items, move handle left of the list markers
@@ -227,6 +255,9 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
   let editorView: EditorView | null = null;
   let activeBlockPos: number | null = null;
   let activeBlockElement: HTMLElement | null = null;
+
+  let blockSelected = false;
+  let currentBlockCleanup: (() => void) | null = null;
 
   let menuContainer: HTMLDivElement | null = null;
   let menuRoot: Root | null = null;
@@ -490,15 +521,49 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
       event.preventDefault();
       event.stopPropagation();
 
-      // Select the block on click (moved from mousedown to avoid DOM churn during drag)
-      try {
-        const selection = NodeSelection.create(editorView.state.doc, posForMenu);
-        const tr = editorView.state.tr.setSelection(selection);
-        editorView.dispatch(tr);
-        editorView.focus();
-      } catch {
-        // Ignore stale positions.
+      // Clean up previous block selection before creating a new one
+      if (currentBlockCleanup) currentBlockCleanup();
+
+      const selectedEl = activeBlockElement;
+      const view = editorView;
+
+      if (selectedEl) {
+        selectedEl.classList.add('inkio-block-selected');
+        blockSelected = true;
+
+        // For atom nodes, set NodeSelection (enables delete/backspace).
+        const nodeAtPos = view.state.doc.nodeAt(posForMenu);
+        if (nodeAtPos?.isAtom || nodeAtPos?.isLeaf) {
+          try {
+            const selection = NodeSelection.create(view.state.doc, posForMenu);
+            view.dispatch(view.state.tr.setSelection(selection));
+          } catch {
+            // Ignore if NodeSelection can't be created.
+          }
+        }
+
+        const cleanup = () => {
+          currentBlockCleanup = null;
+          selectedEl.classList.remove('inkio-block-selected');
+          blockSelected = false;
+          view.dom.removeEventListener('mousedown', cleanup);
+          document.removeEventListener('keydown', onKeyCleanup);
+        };
+        const onKeyCleanup = (e: KeyboardEvent) => {
+          if (e.key === 'Escape') {
+            // Menu closes but block stays visually selected; handle can move again
+            blockSelected = false;
+            document.removeEventListener('keydown', onKeyCleanup);
+            return;
+          }
+          cleanup();
+        };
+        currentBlockCleanup = cleanup;
+        view.dom.addEventListener('mousedown', cleanup, { once: true });
+        document.addEventListener('keydown', onKeyCleanup);
       }
+
+      editorView.focus();
 
       const anchor = getHandleAnchorRect();
       if (!anchor) {
@@ -577,6 +642,11 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
             || event.clientY > editorRect.bottom
           ) {
             scheduleHideHandle(view);
+            return false;
+          }
+
+          // Don't move handle while a block is selected
+          if (blockSelected) {
             return false;
           }
 
@@ -708,6 +778,7 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
             handleElement = null;
           }
 
+          if (currentBlockCleanup) currentBlockCleanup();
           activeBlockPos = null;
           activeBlockElement = null;
           editorView = null;

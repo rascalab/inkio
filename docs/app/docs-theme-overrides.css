@@ -56,7 +56,6 @@
   box-shadow: var(--inkio-ring);
 }
 
-.inkio-docs-root pre,
 .inkio-docs-root [data-rehype-pretty-code-fragment] pre {
   border: 1px solid var(--inkio-surface-border);
   border-radius: var(--inkio-radius-lg);

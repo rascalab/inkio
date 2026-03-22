@@ -7,11 +7,6 @@ export interface HeadingItem {
   id: string;
 }
 
-export interface TableOfContentsConfig {
-  position?: 'top' | 'left' | 'right';
-  maxLevel?: number;
-}
-
 function getTextFromNode(node: JSONContent | null | undefined): string {
   if (!node) {
     return '';
@@ -80,4 +75,38 @@ export function getHeadingsFromContent(content: JSONContent | null | undefined):
 
   content.content.forEach(visit);
   return headings;
+}
+
+/** Extract headings directly from a ProseMirror doc node (no JSON serialization). */
+export function getHeadingsFromDoc(doc: { forEach: (fn: (node: any) => void) => void } | null | undefined): HeadingItem[] {
+  if (!doc) return [];
+
+  const headings: HeadingItem[] = [];
+  const usedIds = new Set<string>();
+  let index = 0;
+
+  doc.forEach((node: any) => {
+    if (node.type?.name === 'heading') {
+      const level = Math.min(6, Math.max(1, Number(node.attrs?.level ?? 1)));
+      const text = (node.textContent ?? '').trim();
+
+      headings.push({
+        level,
+        text,
+        index,
+        id: slugifyHeading(text || `section-${index + 1}`, usedIds),
+      });
+      index += 1;
+    }
+  });
+
+  return headings;
+}
+
+/** Find heading DOM elements in an editor view, filtered by maxLevel. */
+export function getHeadingElements(editor: { view?: { dom?: Element } } | null | undefined, maxLevel = 6): HTMLElement[] {
+  const container = editor?.view?.dom;
+  if (!container) return [];
+  const selector = Array.from({ length: maxLevel }, (_, i) => `h${i + 1}`).join(', ');
+  return Array.from(container.querySelectorAll<HTMLElement>(selector));
 }

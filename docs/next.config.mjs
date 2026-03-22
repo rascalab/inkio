@@ -16,6 +16,7 @@ const withNextra = nextra({
 
 export default withNextra({
   reactStrictMode: true,
+  allowedDevOrigins: ['mini'],
   transpilePackages: useSourcePackages ? ['@inkio/editor', '@inkio/simple', '@inkio/advanced', '@inkio/image-editor'] : [],
   typescript: {
     tsconfigPath: useSourcePackages ? 'tsconfig.json' : 'tsconfig.build.json',
@@ -48,6 +49,7 @@ export default withNextra({
       config.resolve = config.resolve || {};
       config.resolve.alias = {
         ...config.resolve.alias,
+        // CSS — source files
         '@inkio/core/style.css': resolve(pkgs, 'core/src/style.css'),
         '@inkio/core/minimal.css': resolve(pkgs, 'core/src/minimal.css'),
         '@inkio/editor/style.css': resolve(pkgs, 'editor/src/style.css'),
@@ -55,6 +57,14 @@ export default withNextra({
         '@inkio/simple/style.css': resolve(pkgs, 'simple/src/style.css'),
         '@inkio/simple/minimal.css': resolve(pkgs, 'simple/src/minimal.css'),
         '@inkio/image-editor/style.css': resolve(pkgs, 'image-editor/src/style.css'),
+        // JS — source entry points
+        '@inkio/core/icons': resolve(pkgs, 'core/src/icons/index.ts'),
+        '@inkio/core/markdown': resolve(pkgs, 'core/src/markdown/index.ts'),
+        '@inkio/core': resolve(pkgs, 'core/src/index.ts'),
+        '@inkio/advanced': resolve(pkgs, 'advanced/src/index.ts'),
+        '@inkio/editor': resolve(pkgs, 'editor/src/index.ts'),
+        '@inkio/simple': resolve(pkgs, 'simple/src/index.ts'),
+        '@inkio/image-editor': resolve(pkgs, 'image-editor/src/index.ts'),
       };
     }
     if (isServer) {

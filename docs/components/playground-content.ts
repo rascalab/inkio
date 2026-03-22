@@ -3,6 +3,7 @@ export const PLAYGROUND_INITIAL_CONTENT = {
   type: 'doc',
   content: [
     { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Inkio Playground' }] },
+    { type: 'tocBlock', attrs: { maxLevel: 3 } },
     {
       type: 'paragraph',
       content: [
@@ -95,11 +96,11 @@ export const PLAYGROUND_INITIAL_CONTENT = {
     { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Code Block' }] },
     {
       type: 'codeBlock',
-      attrs: { language: 'typescript' },
+      attrs: { language: 'tsx' },
       content: [
         {
           type: 'text',
-          text: `import { Editor } from '@inkio/editor';\n\n<Editor\n  placeholder="Write..."\n  locale="ko"\n  onImageUpload={async (file) => URL.createObjectURL(file)}\n/>`,
+          text: `import { useState } from 'react';\nimport { Editor, ToC } from '@inkio/editor';\nimport '@inkio/editor/style.css';\n\nexport default function App() {\n  const [editor, setEditor] = useState(null);\n\n  return (\n    <div style={{ position: 'relative' }}>\n      <Editor\n        placeholder="Start writing..."\n        locale="ko"\n        onCreate={setEditor}\n        onImageUpload={async (file) => {\n          const url = URL.createObjectURL(file);\n          return url;\n        }}\n      />\n      <ToC source={editor} maxLevel={3} />\n    </div>\n  );\n}`,
         },
       ],
     },
