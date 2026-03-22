@@ -56,28 +56,35 @@ export function canvasSpaceToImageSpace(
   originalHeight: number,
   transform: Transform,
 ): { x: number; y: number } {
-  const scaleX = originalWidth / displayWidth;
-  const scaleY = originalHeight / displayHeight;
+  const { width: baseW, height: baseH } = getBaseDisplayDimensions(
+    displayWidth, displayHeight, transform.rotation,
+  );
 
-  let x = cx * scaleX;
-  let y = cy * scaleY;
+  // 1. Center-relative in stage space
+  let lx = cx - displayWidth / 2;
+  let ly = cy - displayHeight / 2;
 
-  // Account for rotation (inverse)
-  const cx2 = originalWidth / 2;
-  const cy2 = originalHeight / 2;
+  // 2. Inverse rotation
   const rad = (-transform.rotation * Math.PI) / 180;
   const cos = Math.cos(rad);
   const sin = Math.sin(rad);
-  const rx = (x - cx2) * cos - (y - cy2) * sin + cx2;
-  const ry = (x - cx2) * sin + (y - cy2) * cos + cy2;
-  x = rx;
-  y = ry;
+  const rx = lx * cos - ly * sin;
+  const ry = lx * sin + ly * cos;
 
-  // Account for flip (inverse)
-  if (transform.flipX) x = originalWidth - x;
-  if (transform.flipY) y = originalHeight - y;
+  // 3. Inverse flip
+  lx = rx * (transform.flipX ? -1 : 1);
+  ly = ry * (transform.flipY ? -1 : 1);
 
-  return { x, y };
+  // 4. Un-center (base display space)
+  lx += baseW / 2;
+  ly += baseH / 2;
+
+  // 5. Scale to image/crop space + crop offset
+  const crop = transform.crop ?? { x: 0, y: 0, width: originalWidth, height: originalHeight };
+  return {
+    x: (lx / baseW) * crop.width + crop.x,
+    y: (ly / baseH) * crop.height + crop.y,
+  };
 }
 
 /** Map a point from original image space to canvas display space */
@@ -90,23 +97,35 @@ export function imageSpaceToCanvasSpace(
   originalHeight: number,
   transform: Transform,
 ): { x: number; y: number } {
-  let x = ix;
-  let y = iy;
+  const { width: baseW, height: baseH } = getBaseDisplayDimensions(
+    displayWidth, displayHeight, transform.rotation,
+  );
 
-  if (transform.flipX) x = originalWidth - x;
-  if (transform.flipY) y = originalHeight - y;
+  // 1. Scale from image/crop space to base display space
+  const crop = transform.crop ?? { x: 0, y: 0, width: originalWidth, height: originalHeight };
+  let lx = ((ix - crop.x) / crop.width) * baseW;
+  let ly = ((iy - crop.y) / crop.height) * baseH;
 
-  const cx2 = originalWidth / 2;
-  const cy2 = originalHeight / 2;
+  // 2. Center-relative (base display space)
+  lx -= baseW / 2;
+  ly -= baseH / 2;
+
+  // 3. Forward flip
+  lx = lx * (transform.flipX ? -1 : 1);
+  ly = ly * (transform.flipY ? -1 : 1);
+
+  // 4. Forward rotation
   const rad = (transform.rotation * Math.PI) / 180;
   const cos = Math.cos(rad);
   const sin = Math.sin(rad);
-  const rx = (x - cx2) * cos - (y - cy2) * sin + cx2;
-  const ry = (x - cx2) * sin + (y - cy2) * cos + cy2;
+  const rx = lx * cos - ly * sin;
+  const ry = lx * sin + ly * cos;
 
-  const scaleX = displayWidth / originalWidth;
-  const scaleY = displayHeight / originalHeight;
-  return { x: rx * scaleX, y: ry * scaleY };
+  // 5. Un-center in stage space
+  return {
+    x: rx + displayWidth / 2,
+    y: ry + displayHeight / 2,
+  };
 }
 
 /** Clamp a point to stay within a bounding rect */
