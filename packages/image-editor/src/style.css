@@ -236,17 +236,6 @@
   overflow: hidden;
 }
 
-.inkio-ie-stage-checkerboard {
-  position: absolute;
-  inset: 0;
-  background-color: #fff;
-  background-image:
-    linear-gradient(45deg, #e2e8f0 25%, transparent 25%, transparent 75%, #e2e8f0 75%),
-    linear-gradient(45deg, #e2e8f0 25%, transparent 25%, transparent 75%, #e2e8f0 75%);
-  background-size: 16px 16px;
-  background-position: 0 0, 8px 8px;
-  pointer-events: none;
-}
 
 .inkio-ie-bottom-dock {
   position: absolute;
@@ -1117,8 +1106,8 @@
   overflow: hidden;
   border: 0;
   border-radius: 0;
-  background: color-mix(in srgb, var(--inkio-bg) 56%, rgba(15, 23, 42, 0.28));
-  backdrop-filter: blur(20px);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
   animation: inkio-ie-fade-in 0.16s ease-out;
 }
 
