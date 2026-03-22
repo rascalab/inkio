@@ -1,6 +1,7 @@
 
 import { Image as KonvaImage } from 'react-konva';
 import type { Transform } from '../types';
+import { getBaseDisplayDimensions } from '../utils/geometry';
 
 interface ImageNodeProps {
   image: HTMLImageElement;
@@ -20,6 +21,9 @@ export function ImageNode({
   transform,
 }: ImageNodeProps) {
   const cropRect = transform.crop;
+  const { width: baseW, height: baseH } = getBaseDisplayDimensions(
+    displayWidth, displayHeight, transform.rotation,
+  );
 
   if (cropRect) {
     return (
@@ -27,10 +31,10 @@ export function ImageNode({
         image={image}
         x={displayWidth / 2}
         y={displayHeight / 2}
-        width={displayWidth}
-        height={displayHeight}
-        offsetX={displayWidth / 2}
-        offsetY={displayHeight / 2}
+        width={baseW}
+        height={baseH}
+        offsetX={baseW / 2}
+        offsetY={baseH / 2}
         rotation={transform.rotation}
         scaleX={transform.flipX ? -1 : 1}
         scaleY={transform.flipY ? -1 : 1}
@@ -49,13 +53,13 @@ export function ImageNode({
       image={image}
       x={displayWidth / 2}
       y={displayHeight / 2}
-      width={originalWidth}
-      height={originalHeight}
-      offsetX={originalWidth / 2}
-      offsetY={originalHeight / 2}
+      width={baseW}
+      height={baseH}
+      offsetX={baseW / 2}
+      offsetY={baseH / 2}
       rotation={transform.rotation}
-      scaleX={(transform.flipX ? -1 : 1) * (displayWidth / originalWidth)}
-      scaleY={(transform.flipY ? -1 : 1) * (displayHeight / originalHeight)}
+      scaleX={(transform.flipX ? -1 : 1) * (baseW / originalWidth)}
+      scaleY={(transform.flipY ? -1 : 1) * (baseH / originalHeight)}
     />
   );
 };

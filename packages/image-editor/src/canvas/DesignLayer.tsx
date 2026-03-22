@@ -3,7 +3,7 @@ import { Layer, Group } from 'react-konva';
 import { ImageNode } from './ImageNode';
 import { AnnotationRenderer } from '../annotations/AnnotationRenderer';
 import type { ImageEditorState, Annotation } from '../types';
-import { getTransformedDimensions } from '../utils/geometry';
+import { getBaseDisplayDimensions } from '../utils/geometry';
 
 interface DesignLayerProps {
   state: ImageEditorState;
@@ -24,20 +24,17 @@ export function DesignLayer({
 }: DesignLayerProps) {
   if (!state.originalImage) return null;
 
-  const { width: imgW, height: imgH } = getTransformedDimensions(
-    state.originalWidth,
-    state.originalHeight,
-    state.transform,
-    state.outputSize,
-  );
-
   const cropX = state.transform.crop?.x ?? 0;
   const cropY = state.transform.crop?.y ?? 0;
   const srcW = state.transform.crop?.width ?? state.originalWidth;
   const srcH = state.transform.crop?.height ?? state.originalHeight;
-  const annScale = imgW > 0 && srcW > 0 ? Math.min(imgW / srcW, imgH / srcH) * scale : scale;
 
   const rotation = state.transform.rotation ?? 0;
+  const { width: baseDisplayWidth, height: baseDisplayHeight } = getBaseDisplayDimensions(
+    displayWidth, displayHeight, rotation,
+  );
+  const annScale = baseDisplayWidth > 0 && srcW > 0 ? Math.min(baseDisplayWidth / srcW, baseDisplayHeight / srcH) * scale : scale;
+
   const flipX = state.transform.flipX ? -1 : 1;
   const flipY = state.transform.flipY ? -1 : 1;
 
@@ -57,8 +54,8 @@ export function DesignLayer({
         rotation={rotation}
         scaleX={flipX}
         scaleY={flipY}
-        offsetX={displayWidth / 2}
-        offsetY={displayHeight / 2}
+        offsetX={baseDisplayWidth / 2}
+        offsetY={baseDisplayHeight / 2}
       >
         <Group
           x={-cropX * annScale}

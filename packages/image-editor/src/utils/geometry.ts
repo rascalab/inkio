@@ -24,6 +24,28 @@ export function getTransformedDimensions(
   return { width: w, height: h };
 }
 
+/** Whether the rotation is a quarter turn (90° or 270°) */
+export function isQuarterTurn(rotation: number): boolean {
+  const normalized = ((rotation % 360) + 360) % 360;
+  return normalized === 90 || normalized === 270;
+}
+
+/**
+ * Un-swap dimensions for quarter turns.
+ * getTransformedDimensions returns swapped w/h for 90°/270°.
+ * This returns the base (un-rotated) display dimensions so that
+ * Konva can apply the rotation prop without double-swapping.
+ */
+export function getBaseDisplayDimensions(
+  displayWidth: number,
+  displayHeight: number,
+  rotation: number,
+): { width: number; height: number } {
+  return isQuarterTurn(rotation)
+    ? { width: displayHeight, height: displayWidth }
+    : { width: displayWidth, height: displayHeight };
+}
+
 /** Map a point from canvas display space to original image space */
 export function canvasSpaceToImageSpace(
   cx: number,
