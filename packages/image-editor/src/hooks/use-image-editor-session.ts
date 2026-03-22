@@ -121,23 +121,13 @@ export function useImageEditorSession({
     [selectedAnnotation, state.activeTool, viewportKind],
   );
 
-  const closeChrome = useCallback(() => {
-    if (isResizeTool(state.activeTool)) {
-      dispatch({ type: 'DISCARD_RESIZE_SESSION' });
-    }
-
-    dispatch({ type: 'SELECT_ANNOTATION', id: null });
-    dispatch({ type: 'SET_TOOL', tool: null });
-  }, [dispatch, state.activeTool]);
-
   const handleToolChange = useCallback(
     (tool: ToolType) => {
       const nextTool = normalizeTool(tool);
       const currentTool = normalizeTool(state.activeTool);
 
       if (currentTool === nextTool) {
-        closeChrome();
-        return;
+        return; // No-op: don't toggle off the active tool
       }
 
       if (isResizeTool(state.activeTool)) {
@@ -147,7 +137,7 @@ export function useImageEditorSession({
       dispatch({ type: 'SELECT_ANNOTATION', id: null });
       dispatch({ type: 'SET_TOOL', tool: nextTool });
     },
-    [closeChrome, dispatch, state.activeTool],
+    [dispatch, state.activeTool],
   );
 
   const handleSave = useCallback(async () => {
