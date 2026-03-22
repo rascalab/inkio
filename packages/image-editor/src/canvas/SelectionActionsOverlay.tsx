@@ -15,6 +15,7 @@ interface SelectionActionsOverlayProps {
   offsetX: number;
   offsetY: number;
   originalWidth: number;
+  originalHeight: number;
 }
 
 const SELECTION_ACTIONS_EDGE_GUTTER = 16;
@@ -31,6 +32,7 @@ export function SelectionActionsOverlay({
   offsetX,
   offsetY,
   originalWidth,
+  originalHeight,
 }: SelectionActionsOverlayProps) {
   const { state, dispatch, locale } = useImageEditor();
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -52,6 +54,7 @@ export function SelectionActionsOverlay({
       displayWidth,
       displayHeight,
       originalWidth,
+      originalHeight,
       rotation: state.transform.rotation,
       flipX: state.transform.flipX,
       flipY: state.transform.flipY,
@@ -64,6 +67,7 @@ export function SelectionActionsOverlay({
     displayHeight,
     displayWidth,
     originalWidth,
+    originalHeight,
     state.transform.flipX,
     state.transform.flipY,
     state.transform.rotation,
