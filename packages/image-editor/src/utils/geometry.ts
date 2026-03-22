@@ -128,6 +128,90 @@ export function imageSpaceToCanvasSpace(
   };
 }
 
+/**
+ * Transform a point through rotation and flip around the center of a rect.
+ * Forward: flip then rotate. Inverse: un-rotate then un-flip.
+ */
+export function transformPoint(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  rotation: number,
+  flipX: boolean,
+  flipY: boolean,
+  inverse = false,
+): { x: number; y: number } {
+  const cx = width / 2;
+  const cy = height / 2;
+  let lx = x - cx;
+  let ly = y - cy;
+
+  if (inverse) {
+    // Un-rotate then un-flip
+    const rad = (-rotation * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const rx = lx * cos - ly * sin;
+    const ry = lx * sin + ly * cos;
+    lx = rx * (flipX ? -1 : 1);
+    ly = ry * (flipY ? -1 : 1);
+  } else {
+    // Flip then rotate
+    lx = lx * (flipX ? -1 : 1);
+    ly = ly * (flipY ? -1 : 1);
+    const rad = (rotation * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const rx = lx * cos - ly * sin;
+    const ry = lx * sin + ly * cos;
+    lx = rx;
+    ly = ry;
+  }
+
+  // For quarter turns, the output center shifts
+  const isQT = isQuarterTurn(rotation);
+  const outCx = inverse ? cx : isQT ? cy : cx;
+  const outCy = inverse ? cy : isQT ? cx : cy;
+  return { x: lx + outCx, y: ly + outCy };
+}
+
+/**
+ * Transform a rect through rotation/flip by projecting all 4 corners
+ * and taking the bounding box.
+ */
+export function transformRect(
+  rect: CropRect,
+  originalWidth: number,
+  originalHeight: number,
+  rotation: number,
+  flipX: boolean,
+  flipY: boolean,
+  inverse = false,
+): CropRect {
+  const corners = [
+    { x: rect.x, y: rect.y },
+    { x: rect.x + rect.width, y: rect.y },
+    { x: rect.x, y: rect.y + rect.height },
+    { x: rect.x + rect.width, y: rect.y + rect.height },
+  ];
+
+  const projected = corners.map((c) =>
+    transformPoint(c.x, c.y, originalWidth, originalHeight, rotation, flipX, flipY, inverse),
+  );
+
+  const xs = projected.map((p) => p.x);
+  const ys = projected.map((p) => p.y);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(...xs) - minX,
+    height: Math.max(...ys) - minY,
+  };
+}
+
 /** Clamp a point to stay within a bounding rect */
 export function clampToRect(
   x: number,
