@@ -25,7 +25,7 @@ import type {
   LineAnnotation,
   TextAnnotationData,
 } from '../types';
-import { normalizeRect, getTransformedDimensions } from '../utils/geometry';
+import { normalizeRect, getTransformedDimensions, canvasSpaceToImageSpace } from '../utils/geometry';
 import { getDefaultCropRect } from '../utils/crop';
 import { isTransformerInteraction } from '../utils/konva-targets';
 import { TEXT_MIN_WIDTH } from '../utils/text-metrics';
@@ -336,11 +336,14 @@ export function EditorCanvas({
   );
 
   const toAnnotationPoint = useCallback(
-    (pos: { x: number; y: number }) => ({
-      x: (pos.x / scaleToFit) + cropX,
-      y: (pos.y / scaleToFit) + cropY,
-    }),
-    [cropX, cropY, scaleToFit],
+    (pos: { x: number; y: number }) =>
+      canvasSpaceToImageSpace(
+        pos.x, pos.y,
+        displayWidth, displayHeight,
+        state.originalWidth, state.originalHeight,
+        state.transform,
+      ),
+    [displayWidth, displayHeight, state.originalWidth, state.originalHeight, state.transform],
   );
 
   const getRelativePos = useCallback((_e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
