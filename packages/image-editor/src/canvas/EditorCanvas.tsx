@@ -25,7 +25,7 @@ import type {
   LineAnnotation,
   TextAnnotationData,
 } from '../types';
-import { normalizeRect, getTransformedDimensions, canvasSpaceToImageSpace } from '../utils/geometry';
+import { normalizeRect, getTransformedDimensions, canvasSpaceToImageSpace, transformRect } from '../utils/geometry';
 import { getDefaultCropRect } from '../utils/crop';
 import { isTransformerInteraction } from '../utils/konva-targets';
 import { TEXT_MIN_WIDTH } from '../utils/text-metrics';
@@ -98,16 +98,24 @@ export function EditorCanvas({
     state.outputSize,
   );
 
-  const cropSessionBounds = useMemo(
-    () =>
-      state.transform.crop ?? {
-        x: 0,
-        y: 0,
-        width: workingDimensions.width,
-        height: workingDimensions.height,
-      },
-    [state.transform.crop, workingDimensions.height, workingDimensions.width],
-  );
+  const cropSessionBounds = useMemo(() => {
+    if (state.transform.crop) {
+      return transformRect(
+        state.transform.crop,
+        state.originalWidth,
+        state.originalHeight,
+        state.transform.rotation,
+        state.transform.flipX,
+        state.transform.flipY,
+      );
+    }
+    return {
+      x: 0,
+      y: 0,
+      width: workingDimensions.width,
+      height: workingDimensions.height,
+    };
+  }, [state.transform, state.originalWidth, state.originalHeight, workingDimensions]);
 
   const cropAspectRatio =
     state.cropOptions.aspectRatio
@@ -117,17 +125,28 @@ export function EditorCanvas({
         ? cropSessionBounds.width / cropSessionBounds.height
         : 1);
 
-  const cropFrame = useMemo(
-    () => (isCropMode && stageSize.width > 0 && stageSize.height > 0
-      ? getCropFrameRect(stageSize.width, stageSize.height, cropAspectRatio)
-      : null),
-    [cropAspectRatio, isCropMode, stageSize.height, stageSize.width],
-  );
-
   const cropFitScale =
     cropSessionBounds.width > 0 && cropSessionBounds.height > 0
       ? Math.min(stageSize.width / cropSessionBounds.width, stageSize.height / cropSessionBounds.height)
       : 1;
+
+  const cropFitBounds = useMemo(
+    () => ({
+      x: (stageSize.width - cropSessionBounds.width * cropFitScale) / 2,
+      y: (stageSize.height - cropSessionBounds.height * cropFitScale) / 2,
+      width: cropSessionBounds.width * cropFitScale,
+      height: cropSessionBounds.height * cropFitScale,
+    }),
+    [cropFitScale, cropSessionBounds, stageSize],
+  );
+
+  const cropFrame = useMemo(
+    () => (isCropMode && stageSize.width > 0 && stageSize.height > 0
+      ? getCropFrameRect(cropFitBounds, cropAspectRatio)
+      : null),
+    [cropAspectRatio, cropFitBounds, isCropMode, stageSize.height, stageSize.width],
+  );
+
   const cropMinZoom = cropFrame
     ? Math.max(
       cropFrame.width / Math.max(1, cropSessionBounds.width * cropFitScale),
@@ -267,7 +286,16 @@ export function EditorCanvas({
     }
 
     cropPendingSignatureRef.current = nextSignature;
-    dispatch({ type: 'SET_PENDING_CROP', crop: nextCrop });
+    const originalSpaceCrop = transformRect(
+      nextCrop,
+      state.originalWidth,
+      state.originalHeight,
+      state.transform.rotation,
+      state.transform.flipX,
+      state.transform.flipY,
+      true, // inverse
+    );
+    dispatch({ type: 'SET_PENDING_CROP', crop: originalSpaceCrop });
   }, [
     cropFitScale,
     cropFrame,
@@ -275,6 +303,11 @@ export function EditorCanvas({
     dispatch,
     isCropMode,
     resolvedCropViewport,
+    state.originalWidth,
+    state.originalHeight,
+    state.transform.rotation,
+    state.transform.flipX,
+    state.transform.flipY,
     stageSize.height,
     stageSize.width,
   ]);
@@ -836,10 +869,10 @@ function serializeCrop(crop: CropRect): string {
   return [crop.x, crop.y, crop.width, crop.height].map((value) => value.toFixed(3)).join(':');
 }
 
-function getCropFrameRect(stageWidth: number, stageHeight: number, aspectRatio: number): CropRect {
-  const safePadding = Math.max(44, Math.min(stageWidth, stageHeight) * 0.08);
-  const maxWidth = Math.max(40, stageWidth - (safePadding * 2));
-  const maxHeight = Math.max(40, stageHeight - (safePadding * 2));
+function getCropFrameRect(imageBounds: CropRect, aspectRatio: number): CropRect {
+  const safePadding = Math.min(44, Math.min(imageBounds.width, imageBounds.height) * 0.08);
+  const maxWidth = Math.max(40, imageBounds.width - (safePadding * 2));
+  const maxHeight = Math.max(40, imageBounds.height - (safePadding * 2));
   const ratio = Number.isFinite(aspectRatio) && aspectRatio > 0 ? aspectRatio : 1;
 
   let width = maxWidth;
@@ -850,8 +883,8 @@ function getCropFrameRect(stageWidth: number, stageHeight: number, aspectRatio: 
   }
 
   return {
-    x: (stageWidth - width) / 2,
-    y: (stageHeight - height) / 2,
+    x: imageBounds.x + (imageBounds.width - width) / 2,
+    y: imageBounds.y + (imageBounds.height - height) / 2,
     width,
     height,
   };
