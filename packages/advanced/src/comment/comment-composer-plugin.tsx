@@ -56,8 +56,8 @@ export function createCommentComposerPlugin(
 
     const editorEl = view.dom.closest('.inkio');
     if (editorEl) {
-      const theme = editorEl.getAttribute('data-theme');
-      if (theme) popup.setAttribute('data-theme', theme);
+      const isDark = editorEl.classList.contains('dark');
+      popup.classList.toggle('dark', isDark);
     }
 
     document.body.appendChild(popup);

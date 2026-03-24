@@ -300,10 +300,8 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
 
       const editorElement = editorView.dom.closest('.inkio');
       if (editorElement) {
-        const theme = editorElement.getAttribute('data-theme');
-        if (theme) {
-          menuContainer.setAttribute('data-theme', theme);
-        }
+        const isDark = editorElement.classList.contains('dark');
+        menuContainer.classList.toggle('dark', isDark);
       }
 
       document.body.appendChild(menuContainer);
