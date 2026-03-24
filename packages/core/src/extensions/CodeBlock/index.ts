@@ -24,10 +24,10 @@ export const CodeBlock = CodeBlockLowlight.extend({
       applyHljsTheme(isDarkTheme(dom));
     });
 
-    // Watch data-theme on .inkio
+    // Watch class attribute on .inkio for dark mode changes
     const inkio = dom.closest('.inkio');
     if (inkio) {
-      observer.observe(inkio, { attributes: true, attributeFilter: ['data-theme'] });
+      observer.observe(inkio, { attributes: true, attributeFilter: ['class'] });
     }
 
     this.storage.hljsObserver = observer;

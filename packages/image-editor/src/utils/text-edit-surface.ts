@@ -26,13 +26,11 @@ function resolveThemeMode(): ThemeMode {
     return 'light';
   }
 
-  const themeRoot = document.querySelector('.inkio-ie-modal-content[data-theme]')
-    ?? document.querySelector('.inkio-ie-portal-theme[data-theme]')
-    ?? document.querySelector('.inkio[data-theme]')
+  const themeRoot = document.querySelector('.inkio-ie-modal-content')
+    ?? document.querySelector('.inkio-ie-portal-theme')
     ?? document.querySelector('.inkio');
-  const explicitTheme = themeRoot?.getAttribute('data-theme');
-  if (explicitTheme === 'light' || explicitTheme === 'dark') {
-    return explicitTheme;
+  if (themeRoot?.classList.contains('dark')) {
+    return 'dark';
   }
 
   return 'light';

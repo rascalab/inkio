@@ -26,7 +26,7 @@ export function applyHljsTheme(dark: boolean) {
 
 export function isDarkTheme(editorDom: Element): boolean {
   const inkio = editorDom.closest('.inkio');
-  return inkio?.getAttribute('data-theme') === 'dark';
+  return inkio?.classList.contains('dark') ?? false;
 }
 
 export function removeHljsTheme() {
