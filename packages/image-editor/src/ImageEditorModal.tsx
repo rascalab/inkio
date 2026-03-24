@@ -13,16 +13,7 @@ function resolvePortalTheme(): 'light' | 'dark' {
   }
 
   const inkioRoot = document.querySelector('.inkio');
-  const explicitTheme = inkioRoot?.getAttribute('data-theme');
-  if (explicitTheme === 'light' || explicitTheme === 'dark') {
-    return explicitTheme;
-  }
-
-  if (
-    explicitTheme === 'auto'
-    && typeof window !== 'undefined'
-    && window.matchMedia?.('(prefers-color-scheme: dark)').matches
-  ) {
+  if (inkioRoot?.classList.contains('dark')) {
     return 'dark';
   }
 
@@ -76,12 +67,11 @@ export function ImageEditorModal({
   return (
     <Dialog.Root open={isOpen} onOpenChange={(open) => { if (!open) requestClose(); }}>
       <Dialog.Portal>
-        <div className="inkio inkio-ie-portal-theme" data-theme={portalTheme} style={{ colorScheme: portalTheme }}>
+        <div className={`inkio inkio-ie-portal-theme${portalTheme === 'dark' ? ' dark' : ''}`} style={{ colorScheme: portalTheme }}>
           <Dialog.Overlay className="inkio-ie-modal-overlay" data-testid="inkio-ie-modal-overlay" />
           <Dialog.Content
-            className="inkio-ie-modal-content"
+            className={`inkio-ie-modal-content${portalTheme === 'dark' ? ' dark' : ''}`}
             data-testid="inkio-ie-modal-content"
-            data-theme={portalTheme}
             aria-describedby={undefined}
             onPointerDownOutside={(event) => {
               event.preventDefault();

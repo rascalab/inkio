@@ -166,8 +166,8 @@ export function createCalloutToolbarPlugin(editor: Editor): Plugin {
 
     const editorEl = view.dom.closest('.inkio');
     if (editorEl) {
-      const theme = editorEl.getAttribute('data-theme');
-      if (theme) container.setAttribute('data-theme', theme);
+      const isDark = editorEl.classList.contains('dark');
+      container.classList.toggle('dark', isDark);
     }
 
     // Append to the editor wrapper so it inherits tokens and is positioned relative
