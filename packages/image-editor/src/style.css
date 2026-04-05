@@ -34,9 +34,7 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background:
-    radial-gradient(circle at top, color-mix(in srgb, var(--inkio-primary) 5%, transparent), transparent 32%),
-    var(--inkio-ie-workspace-bg);
+  background: transparent;
   color: var(--inkio-ie-text);
   font-family: inherit;
 }
@@ -68,11 +66,18 @@
   pointer-events: none;
 }
 
+.inkio-ie-viewport[data-viewport-kind='desktop'] {
+  --inkio-ie-stage-top: 80px;
+  --inkio-ie-stage-right: 24px;
+  --inkio-ie-stage-bottom: calc(var(--inkio-ie-desktop-dock-height) + 28px);
+  --inkio-ie-stage-left: 124px;
+}
+
 .inkio-ie-viewport[data-viewport-kind='mobile'] {
-  --inkio-ie-stage-top: calc(env(safe-area-inset-top, 0px) + 18px);
+  --inkio-ie-stage-top: calc(env(safe-area-inset-top, 0px) + var(--inkio-ie-mobile-command-height) + 24px);
   --inkio-ie-stage-right: 16px;
   --inkio-ie-stage-left: 16px;
-  --inkio-ie-stage-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  --inkio-ie-stage-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--inkio-ie-mobile-tool-tray-height) + 24px);
 }
 
 .inkio-ie-stage-viewport {
@@ -979,7 +984,7 @@
 
 .inkio-ie-selection-actions {
   position: absolute;
-  z-index: 9;
+  z-index: 3;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1040,13 +1045,13 @@
 .inkio-ie-crop-overlay {
   position: absolute;
   inset: 0;
-  z-index: 9;
+  z-index: 2;
   pointer-events: none;
 }
 
 .inkio-ie-crop-mask {
   position: absolute;
-  background: color-mix(in srgb, var(--inkio-overlay-bg) 82%, rgba(15, 23, 42, 0.34));
+  background: transparent;
 }
 
 .inkio-ie-crop-frame {
@@ -1103,8 +1108,7 @@
   position: fixed;
   inset: 0;
   z-index: var(--inkio-layer-modal-backdrop);
-  background: color-mix(in srgb, var(--inkio-overlay-bg) 92%, rgba(15, 23, 42, 0.56));
-  backdrop-filter: blur(4px);
+  background: transparent;
   animation: inkio-ie-fade-in 0.16s ease-out;
 }
 
@@ -1115,8 +1119,8 @@
   overflow: hidden;
   border: 0;
   border-radius: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(16px);
   animation: inkio-ie-fade-in 0.16s ease-out;
 }
 

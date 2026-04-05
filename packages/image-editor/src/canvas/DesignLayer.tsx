@@ -9,7 +9,6 @@ interface DesignLayerProps {
   state: ImageEditorState;
   displayWidth: number;
   displayHeight: number;
-  scale: number;
   onSelectAnnotation: (id: string) => void;
   onChangeAnnotation: (id: string, updates: Partial<Annotation>) => void;
 }
@@ -18,7 +17,6 @@ export function DesignLayer({
   state,
   displayWidth,
   displayHeight,
-  scale,
   onSelectAnnotation,
   onChangeAnnotation,
 }: DesignLayerProps) {
@@ -33,7 +31,7 @@ export function DesignLayer({
   const { width: baseDisplayWidth, height: baseDisplayHeight } = getBaseDisplayDimensions(
     displayWidth, displayHeight, rotation,
   );
-  const annScale = baseDisplayWidth > 0 && srcW > 0 ? Math.min(baseDisplayWidth / srcW, baseDisplayHeight / srcH) * scale : scale;
+  const annScale = baseDisplayWidth > 0 && srcW > 0 ? Math.min(baseDisplayWidth / srcW, baseDisplayHeight / srcH) : 1;
 
   const flipX = state.transform.flipX ? -1 : 1;
   const flipY = state.transform.flipY ? -1 : 1;
@@ -42,8 +40,6 @@ export function DesignLayer({
     <Layer>
       <ImageNode
         image={state.originalImage}
-        originalWidth={state.originalWidth}
-        originalHeight={state.originalHeight}
         displayWidth={displayWidth}
         displayHeight={displayHeight}
         transform={state.transform}

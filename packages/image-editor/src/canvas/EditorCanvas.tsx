@@ -25,7 +25,7 @@ import type {
   LineAnnotation,
   TextAnnotationData,
 } from '../types';
-import { normalizeRect, getTransformedDimensions, canvasSpaceToImageSpace, transformRect } from '../utils/geometry';
+import { normalizeRect, getTransformedDimensions, canvasSpaceToImageSpace } from '../utils/geometry';
 import { getDefaultCropRect } from '../utils/crop';
 import { isTransformerInteraction } from '../utils/konva-targets';
 import { TEXT_MIN_WIDTH } from '../utils/text-metrics';
@@ -98,24 +98,16 @@ export function EditorCanvas({
     state.outputSize,
   );
 
-  const cropSessionBounds = useMemo(() => {
-    if (state.transform.crop) {
-      return transformRect(
-        state.transform.crop,
-        state.originalWidth,
-        state.originalHeight,
-        state.transform.rotation,
-        state.transform.flipX,
-        state.transform.flipY,
-      );
-    }
-    return {
-      x: 0,
-      y: 0,
-      width: workingDimensions.width,
-      height: workingDimensions.height,
-    };
-  }, [state.transform, state.originalWidth, state.originalHeight, workingDimensions]);
+  const cropSessionBounds = useMemo(
+    () =>
+      state.transform.crop ?? {
+        x: 0,
+        y: 0,
+        width: workingDimensions.width,
+        height: workingDimensions.height,
+      },
+    [state.transform.crop, workingDimensions.height, workingDimensions.width],
+  );
 
   const cropAspectRatio =
     state.cropOptions.aspectRatio
@@ -286,16 +278,7 @@ export function EditorCanvas({
     }
 
     cropPendingSignatureRef.current = nextSignature;
-    const originalSpaceCrop = transformRect(
-      nextCrop,
-      state.originalWidth,
-      state.originalHeight,
-      state.transform.rotation,
-      state.transform.flipX,
-      state.transform.flipY,
-      true, // inverse
-    );
-    dispatch({ type: 'SET_PENDING_CROP', crop: originalSpaceCrop });
+    dispatch({ type: 'SET_PENDING_CROP', crop: nextCrop });
   }, [
     cropFitScale,
     cropFrame,
@@ -818,10 +801,9 @@ export function EditorCanvas({
             onTap={handleStageClick}
           >
             <DesignLayer
-              state={{ ...state, transform: renderedTransform }}
+              state={state}
               displayWidth={displayWidth}
               displayHeight={displayHeight}
-              scale={scaleToFit}
               onSelectAnnotation={handleSelectAnnotation}
               onChangeAnnotation={(id, updates) =>
                 dispatch({ type: 'UPDATE_ANNOTATION_COMMIT', id, updates: updates as Partial<Annotation> })

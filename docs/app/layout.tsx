@@ -3,7 +3,6 @@ import 'nextra-theme-docs/style.css';
 import '@inkio/editor/style.css';
 import '@inkio/image-editor/style.css';
 import './docs-theme-overrides.css';
-
 export const metadata = {
   title: {
     default: 'Inkio',
