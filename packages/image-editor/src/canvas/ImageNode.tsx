@@ -5,8 +5,6 @@ import { getBaseDisplayDimensions } from '../utils/geometry';
 
 interface ImageNodeProps {
   image: HTMLImageElement;
-  originalWidth: number;
-  originalHeight: number;
   displayWidth: number;
   displayHeight: number;
   transform: Transform;
@@ -14,8 +12,6 @@ interface ImageNodeProps {
 
 export function ImageNode({
   image,
-  originalWidth,
-  originalHeight,
   displayWidth,
   displayHeight,
   transform,
@@ -58,8 +54,8 @@ export function ImageNode({
       offsetX={baseW / 2}
       offsetY={baseH / 2}
       rotation={transform.rotation}
-      scaleX={(transform.flipX ? -1 : 1) * (baseW / originalWidth)}
-      scaleY={(transform.flipY ? -1 : 1) * (baseH / originalHeight)}
+      scaleX={transform.flipX ? -1 : 1}
+      scaleY={transform.flipY ? -1 : 1}
     />
   );
 };

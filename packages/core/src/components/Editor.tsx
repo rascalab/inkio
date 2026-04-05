@@ -134,8 +134,8 @@ export const Editor = ({
   return (
     <div
       style={style}
-      className={`inkio inkio-editor${fill ? ' inkio-editor--fill' : ''}${autoresize ? ' inkio-editor--autoresize' : ''}${bordered ? ' inkio-container-default' : ''}${className ? ` ${className}` : ''}`}
-      data-theme={theme}
+      className={`inkio inkio-editor${theme === 'dark' ? ' dark' : ''}${fill ? ' inkio-editor--fill' : ''}${autoresize ? ' inkio-editor--autoresize' : ''}${bordered ? ' inkio-container-default' : ''}${className ? ` ${className}` : ''}`}
+      suppressHydrationWarning
     >
       {showToolbar && (
         showInteractiveRuntime ? (
