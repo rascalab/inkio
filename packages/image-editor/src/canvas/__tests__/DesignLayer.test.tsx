@@ -62,7 +62,6 @@ describe('DesignLayer', () => {
         }}
         displayWidth={800}
         displayHeight={600}
-        scale={1}
         onSelectAnnotation={vi.fn()}
         onChangeAnnotation={vi.fn()}
       />,

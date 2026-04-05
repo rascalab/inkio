@@ -282,11 +282,14 @@
 
 /* ============================
    Dark Theme
-   Activated by data-theme="dark" attribute on .inkio (via theme prop).
+   Activated by:
+   1. .dark class on .inkio element (via theme="dark" prop)
+   2. .dark ancestor class (e.g. next-themes / Tailwind dark mode)
    All values reference --inkio-dark-* intermediate variables defined above.
    To change a dark-mode color, edit the --inkio-dark-* definition only.
    ============================ */
-.inkio[data-theme="dark"] {
+.inkio.dark,
+:is(.dark, .dark-theme) .inkio:not(.light) {
   --inkio-bg: var(--inkio-dark-bg);
   --inkio-bg-muted: var(--inkio-dark-bg-muted);
   --inkio-bg-subtle: var(--inkio-dark-bg-subtle);
