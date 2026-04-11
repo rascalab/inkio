@@ -16,9 +16,8 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "types": ["vitest/globals", "@testing-library/jest-dom"],
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
+      "@/*": ["./src/*"],
       "@inkio/core": ["../core/src/index.ts"],
       "@inkio/core/*": ["../core/src/*"],
       "@inkio/essential": ["../essential/src/index.ts"],

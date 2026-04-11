@@ -29,14 +29,19 @@
     "package:smoke:verify": "pnpm build:packages && INKIO_RELEASE_SMOKE_SKIP_PACKAGE_BUILDS=1 pnpm release:smoke",
     "release:smoke": "node ./scripts/release-smoke.mjs",
     "publish:core": "pnpm --filter @inkio/core publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
-"publish:advanced": "pnpm --filter @inkio/advanced publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
+    "publish:advanced": "pnpm --filter @inkio/advanced publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
     "publish:simple": "pnpm --filter @inkio/simple publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
     "publish:editor": "pnpm --filter @inkio/editor publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
     "publish:image-editor": "pnpm --filter @inkio/image-editor publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
     "publish:packages": "pnpm publish:core && pnpm publish:essential && pnpm publish:advanced && pnpm publish:simple && pnpm publish:editor && pnpm publish:image-editor",
     "publish:r1": "pnpm publish:packages"
   },
+  "pnpm": {
+    "overrides": {
+      "@asamuzakjp/css-color": "^4.1.2"
+    }
+  },
   "devDependencies": {
-    "@playwright/test": "^1.55.0"
+    "@playwright/test": "^1.59.1"
   }
 }
