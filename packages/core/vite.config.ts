@@ -42,6 +42,8 @@ export default defineConfig({
     ...(enableDts
       ? [
           dts({
+            entryRoot: 'src',
+            compilerOptions: { rootDir: resolve(__dirname, 'src') },
             include: ['src'],
             exclude: [
               'src/**/__tests__/**',

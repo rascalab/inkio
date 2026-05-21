@@ -27,6 +27,7 @@ export default defineConfig({
       ? [
           dts({
             entryRoot: 'src',
+            compilerOptions: { rootDir: resolve(__dirname, 'src'), paths: {} },
             include: ['src'],
             exclude: [
               'src/**/__tests__/**',
@@ -35,14 +36,14 @@ export default defineConfig({
             ],
             insertTypesEntry: true,
             rollupTypes: false,
+            pathsToAliases: false,
+            aliasesExclude: [/^@inkio\//],
           }),
         ]
       : []),
   ],
   resolve: {
     alias: [
-      { find: /^@inkio\/core\/icons$/, replacement: resolve(__dirname, '../core/src/icons/index.ts') },
-      { find: /^@inkio\/core$/, replacement: resolve(__dirname, '../core/src/index.ts') },
       { find: '@', replacement: resolve(__dirname, 'src') },
     ],
   },
