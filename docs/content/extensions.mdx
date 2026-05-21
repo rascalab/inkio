@@ -39,6 +39,166 @@ export function Page() {
 }
 ```
 
+## 멘션 (Mention)
+
+`@` 트리거로 사용자 등을 멘션합니다. `mentionItems`는 `({ query }) => MentionItem[]` 형태의 함수로,
+사용자가 `@` 뒤에 입력한 `query`에 맞는 항목을 반환합니다. 동기/비동기 모두 가능합니다.
+
+```ts
+interface MentionItem {
+  id: string;
+  label: string;
+  [key: string]: unknown;
+}
+```
+
+```tsx
+import { Editor } from '@inkio/editor';
+
+<Editor
+  mentionItems={async ({ query }) => {
+    const users = await searchUsers(query);
+    return users.map((user) => ({ id: user.id, label: user.name }));
+  }}
+/>
+```
+
+해시태그도 동일한 패턴이며, `#` 트리거와 `hashtagItems`를 사용합니다.
+
+```tsx
+<Editor
+  hashtagItems={({ query }) => [
+    { id: query || 'inkio', label: `#${query || 'inkio'}` },
+  ]}
+/>
+```
+
+`@inkio/core` + `@inkio/advanced` 직접 조합 시에는 `getDefaultExtensions`에 동일한 옵션을 전달합니다.
+
+```tsx
+const extensions = getDefaultExtensions({
+  mentionItems: async ({ query }) => searchUsers(query),
+});
+```
+
+## 슬래시 커맨드 (Slash Command)
+
+`/`를 입력하면 명령 메뉴가 열립니다. 기본 명령에는 헤딩, 리스트, 표, 코드 블록, 콜아웃,
+토글 리스트, 목차, 이미지 등이 포함됩니다. 두 가지 방식으로 커스터마이즈할 수 있습니다.
+
+`transformSlashCommands`는 기본 명령 배열을 받아 가공한 뒤 반환합니다. 일부 명령만 추가하거나
+제거할 때 적합합니다. 반환된 항목은 이후 `query`로 필터링됩니다.
+
+```tsx
+import { Editor } from '@inkio/editor';
+import type { SlashCommandItem } from '@inkio/advanced';
+
+<Editor
+  transformSlashCommands={(defaults, { editor }) => {
+    const custom: SlashCommandItem = {
+      id: 'today',
+      label: 'Today',
+      description: '오늘 날짜 삽입',
+      command: ({ editor, range }) => {
+        editor
+          .chain()
+          .focus()
+          .deleteRange(range)
+          .insertContent(new Date().toLocaleDateString())
+          .run();
+      },
+    };
+    return [custom, ...defaults];
+  }}
+/>
+```
+
+`slashCommands`는 기본 명령을 무시하고 명령 목록 전체를 직접 제공합니다.
+시그니처는 `(query: string) => SlashCommandItem[] | Promise<SlashCommandItem[]>`이며,
+이 경우 필터링도 직접 처리해야 합니다.
+
+```tsx
+<Editor
+  slashCommands={(query) =>
+    myCommands.filter((item) =>
+      item.label.toLowerCase().includes(query.toLowerCase()),
+    )
+  }
+/>
+```
+
+`SlashCommandItem`의 `isAvailable?: (editor) => boolean`으로 특정 명령의 노출 조건을 지정할 수 있습니다.
+
+## 위키 링크 (Wiki Link)
+
+`[[페이지 이름]]` 문법으로 인라인 위키 링크를 만듭니다. 닫는 `]]`를 입력하는 순간
+입력 규칙(input rule)이 발동해 텍스트가 위키 링크 노드로 치환되며, `[[...]]`가 포함된 텍스트를
+붙여넣어도 동일하게 변환됩니다.
+
+`@inkio/editor`에서는 `wikiLink` prop으로 켜고 끄며 기본값은 `true`입니다.
+링크 클릭 동작은 `onWikiLinkClick` 콜백으로 처리합니다. 콜백을 지정하지 않으면 링크는
+클릭할 수 없는 텍스트로만 표시됩니다.
+
+```tsx
+import { Editor } from '@inkio/editor';
+
+<Editor
+  wikiLink
+  onWikiLinkClick={(href) => {
+    router.push(`/wiki/${encodeURIComponent(href)}`);
+  }}
+/>
+```
+
+`href`는 `[[...]]` 안에 입력한 페이지 이름 문자열입니다. 안전하지 않은 URL은 클릭이 무시됩니다.
+
+## 북마크 (Bookmark)
+
+URL을 링크 미리보기 카드로 렌더링하는 블록 노드입니다. `@inkio/editor`에서는 `bookmark` prop으로
+설정하며, `false`를 전달하면 비활성화됩니다.
+
+```ts
+bookmark?: false | { onResolveBookmark?: (url: string) => Promise<BookmarkPreview> };
+```
+
+북마크는 `setBookmark` 커맨드로 삽입합니다.
+
+```tsx
+editor.commands.setBookmark({ url: 'https://example.com' });
+```
+
+`onResolveBookmark`는 URL을 받아 미리보기 데이터(`BookmarkPreview`)를 반환합니다.
+북마크 노드는 미리보기 데이터가 아직 없을 때 한 번 이 함수를 호출하고, 반환된 값으로 카드를 채웁니다.
+지정하지 않으면 북마크는 단순 링크로만 표시됩니다.
+
+```ts
+interface BookmarkPreview {
+  title?: string;
+  description?: string;
+  image?: string;
+  favicon?: string;
+}
+```
+
+```tsx
+<Editor
+  bookmark={{
+    onResolveBookmark: async (url) => {
+      const meta = await fetchOpenGraph(url); // 직접 구현하는 메타데이터 조회
+      return {
+        title: meta.title,
+        description: meta.description,
+        image: meta.ogImage,
+        favicon: meta.favicon,
+      };
+    },
+  }}
+/>
+```
+
+> `onResolveBookmark`는 메타데이터를 가져오는 로직만 담당합니다. Open Graph 스크래핑 같은
+> 실제 조회는 직접 구현해야 합니다(보통 서버 측 엔드포인트).
+
 ## Image editor
 
 ```tsx
@@ -55,6 +215,8 @@ export function Page() {
   );
 }
 ```
+
+자세한 내용은 [이미지 에디터 문서](./image-editor)를 참고하세요.
 
 ## TocBlock (인라인 목차)
 
