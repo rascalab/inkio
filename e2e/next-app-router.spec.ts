@@ -175,3 +175,17 @@ test('next app router example adds a comment through the comment composer', asyn
   await expect(page.locator('.inkio-comment-panel')).toContainText('A smoke-test comment');
   expect(pageErrors).toEqual([]);
 });
+
+test('next app router example inserts a bookmark that resolves a preview', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => { pageErrors.push(error.message); });
+
+  await page.goto('http://localhost:4174');
+  await expect(page.locator('.ProseMirror').first()).toBeVisible();
+  await page.getByTestId('next-editor-insert-demo-bookmark').click();
+
+  const bookmark = page.locator('.inkio-bookmark-wrapper');
+  await expect(bookmark).toHaveCount(1);
+  await expect(bookmark).toContainText('Example Domain');
+  expect(pageErrors).toEqual([]);
+});

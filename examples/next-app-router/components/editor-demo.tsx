@@ -119,6 +119,14 @@ export function EditorDemo() {
       .run();
   }, [editorInstance]);
 
+  const handleInsertDemoBookmark = useCallback(() => {
+    if (!editorInstance) {
+      return;
+    }
+
+    editorInstance.chain().focus().setBookmark({ url: 'https://example.com' }).run();
+  }, [editorInstance]);
+
   const comment = useMemo<CommentConfig>(
     () => ({
       onSubmit: (commentId: string, text: string) => {
@@ -148,6 +156,15 @@ export function EditorDemo() {
           >
             Insert demo image
           </button>
+          <button
+            type="button"
+            className="demo-action-button"
+            data-testid="next-editor-insert-demo-bookmark"
+            onClick={handleInsertDemoBookmark}
+            disabled={!editorInstance}
+          >
+            Insert demo bookmark
+          </button>
         </div>
         <Editor
           initialContent={initialContent}
@@ -168,6 +185,12 @@ export function EditorDemo() {
           onImageUpload={async (file: File) => URL.createObjectURL(file)}
           imageBlock={{ imageEditor: LazyImageEditorModal }}
           comment={comment}
+          bookmark={{
+            onResolveBookmark: async () => ({
+              title: 'Example Domain',
+              description: 'Illustrative example bookmark preview.',
+            }),
+          }}
           ui={{
             showBubbleMenu: true,
             showFloatingMenu: true,
