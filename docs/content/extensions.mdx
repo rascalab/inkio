@@ -82,9 +82,9 @@ const extensions = getExtensions({ tocBlock: false });
 
 - **에디터 모드**: 플로팅 언어 선택기(드롭다운)로 언어 변경
 - **뷰어 모드**: 복사 버튼 + 언어 배지 표시
-- `tsx` / `jsx`는 각각 `typescript` / `javascript`의 별칭으로 처리됩니다
+- `tsx` / `jsx`는 모두 `typescript`의 별칭으로 처리됩니다
 
-코드 블록을 비활성화하려면 `codeBlock={false}`를 전달합니다(`@inkio/editor` 전용 기능 토글 참고).
+코드 블록을 비활성화하려면 `getExtensions`에 `codeBlock: false`를 전달합니다.
 
 ## 커스텀 확장
 
