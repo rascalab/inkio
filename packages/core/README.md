@@ -61,5 +61,5 @@ Use `onHeadingsReady` if you want to render your own table of contents UI outsid
 import { parseMarkdown, stringifyMarkdown } from '@inkio/core/markdown';
 ```
 
-Round-trip support is guaranteed for `core + essential` nodes only.
+Round-trip support is guaranteed for `core` nodes only.
 The markdown adapter uses `remark/unified` and maps markdown directly to Inkio `JSONContent`.

@@ -11,12 +11,6 @@
       "@inkio/core/*": [
         "../packages/core/src/*"
       ],
-      "@inkio/essential": [
-        "../packages/essential/src/index.ts"
-      ],
-      "@inkio/essential/*": [
-        "../packages/essential/src/*"
-      ],
       "@inkio/editor": [
         "../packages/editor/src/index.ts"
       ],

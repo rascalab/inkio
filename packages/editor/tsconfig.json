@@ -20,8 +20,6 @@
       "@/*": ["./src/*"],
       "@inkio/core": ["../core/src/index.ts"],
       "@inkio/core/*": ["../core/src/*"],
-      "@inkio/essential": ["../essential/src/index.ts"],
-      "@inkio/essential/*": ["../essential/src/*"],
       "@inkio/advanced": ["../advanced/src/index.ts"],
       "@inkio/advanced/*": ["../advanced/src/*"]
     }

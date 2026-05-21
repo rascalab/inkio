@@ -11,8 +11,6 @@ export default defineConfig({
     alias: [
       { find: /^@inkio\/core\/icons$/, replacement: resolve(__dirname, '../core/src/icons/index.ts') },
       { find: /^@inkio\/core$/, replacement: resolve(__dirname, '../core/src/index.ts') },
-      { find: /^@inkio\/essential$/, replacement: resolve(__dirname, '../essential/src/index.ts') },
-      { find: /^@inkio\/essential\//, replacement: `${resolve(__dirname, '../essential/src')}/` },
       { find: '@', replacement: resolve(__dirname, 'src') },
     ],
   },

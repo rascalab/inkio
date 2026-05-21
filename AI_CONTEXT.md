@@ -20,9 +20,6 @@ Use this file when asking an AI assistant to generate or modify Inkio integratio
 - `@inkio/advanced`
   - notion-like/integration-heavy extensions
   - slash command, block handle, mention, hashtag, wiki link, bookmark, comment UI
-- `@inkio/essential`
-  - markdown-friendly document extensions
-  - callout, details/toggle, table, keyboard shortcuts
 - `@inkio/core`
   - low-level foundation
   - `Editor`, `Viewer`, `getExtensions()`, toolbar/menu primitives
@@ -62,7 +59,7 @@ Use this file when asking an AI assistant to generate or modify Inkio integratio
   - `@inkio/core/markdown`
   - `@inkio/simple/markdown`
   - `@inkio/editor/markdown`
-- Markdown round-trip is guaranteed only for `core + essential` nodes.
+- Markdown round-trip is guaranteed only for `core` nodes.
 - Markdown import/export uses `remark/unified` and direct `JSONContent <-> mdast` mapping.
 
 ## Good Prompt Template

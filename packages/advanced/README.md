@@ -1,6 +1,6 @@
 # @inkio/advanced
 
-Notion-like and integration-heavy extensions for Inkio. Includes `@inkio/essential`.
+Notion-like and integration-heavy extensions for Inkio.
 
 ## Includes
 

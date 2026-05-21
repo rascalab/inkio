@@ -6,6 +6,8 @@ packages:
   - 'packages/image-editor'
   - 'docs'
   - 'examples/*'
+overrides:
+  '@asamuzakjp/css-color': ^4.1.2
 autoInstallPeers: false
 preferWorkspacePackages: true
 linkWorkspacePackages: true

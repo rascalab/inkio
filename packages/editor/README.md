@@ -62,5 +62,5 @@ Next App Router에서는 `Editor`를 client component 안에서 사용하되, ha
 import { parseMarkdown, stringifyMarkdown } from '@inkio/editor/markdown';
 ```
 
-Markdown round-trip is guaranteed for `core + essential` nodes only.
+Markdown round-trip is guaranteed for `core` nodes only.
 `@inkio/editor` CSS already includes the advanced preset styles it depends on.
