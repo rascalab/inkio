@@ -9,7 +9,7 @@ This release changes the package layout.
 
 Their responsibilities moved into:
 
-- `@inkio/essential`
+- `@inkio/core`
 - `@inkio/advanced`
 
 ## New Entry Points
@@ -32,8 +32,6 @@ Their responsibilities moved into:
 
 - `@inkio/core`
   - `getExtensions(options?)`
-- `@inkio/essential`
-  - `getDefaultExtensions(options?)`
 - `@inkio/advanced`
   - `getDefaultExtensions(options?)`
 - `@inkio/simple`
@@ -95,7 +93,7 @@ After:
 import { parseMarkdown, stringifyMarkdown } from '@inkio/editor/markdown';
 ```
 
-Markdown round-trip is guaranteed only for `core + essential` nodes.
+Markdown round-trip is guaranteed only for `core` nodes.
 The current markdown implementation uses `remark/unified` and direct `JSONContent <-> mdast` mapping.
 
 ## Styles

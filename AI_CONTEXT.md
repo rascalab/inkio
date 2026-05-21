@@ -50,7 +50,7 @@ Use this file when asking an AI assistant to generate or modify Inkio integratio
 - Prefer package entry points first:
   - `@inkio/simple` for classic editing
   - `@inkio/editor` for notion-like editing
-- Use `@inkio/core`, `@inkio/essential`, `@inkio/advanced` only when composing a custom package surface.
+- Use `@inkio/core` and `@inkio/advanced` only when composing a custom package surface.
 - `content` and `initialContent` are mutually exclusive.
 - Next.js App Router should render the editor inside a client component, but the editor now server-prerenders static document HTML before hydration.
 - For local workspace development in this repo, docs resolve packages from `packages/*/src`.
