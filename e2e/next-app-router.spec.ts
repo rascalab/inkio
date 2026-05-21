@@ -134,3 +134,44 @@ test('next app router example shows mention suggestions without errors', async (
     expect.arrayContaining([expect.stringContaining("reading 'onError'")]),
   );
 });
+
+test('next app router example creates a wiki link node from [[ ]] syntax', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => { pageErrors.push(error.message); });
+
+  await page.goto('http://localhost:4174');
+  await focusEditorEnd(page);
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('[[Knowledge Base]]');
+
+  const wikiLink = page.locator('.ProseMirror span[data-wiki-link]');
+  await expect(wikiLink).toHaveCount(1);
+  await expect(wikiLink).toHaveText('Knowledge Base');
+  expect(pageErrors).toEqual([]);
+});
+
+test('next app router example adds a comment through the comment composer', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => { pageErrors.push(error.message); });
+
+  await page.goto('http://localhost:4174');
+  const editor = page.locator('.ProseMirror').first();
+  await expect(editor).toBeVisible();
+
+  // Select text in the first paragraph so the comment shortcut has a range to anchor.
+  await editor.locator('p').first().click();
+  await page.keyboard.press('Home');
+  for (let i = 0; i < 12; i += 1) {
+    await page.keyboard.press('Shift+ArrowRight');
+  }
+  await page.keyboard.press('ControlOrMeta+Shift+m');
+
+  const composer = page.locator('.inkio-comment-composer');
+  await expect(composer).toBeVisible();
+  await composer.locator('.inkio-comment-composer-input').fill('A smoke-test comment');
+  await composer.locator('.inkio-comment-composer-submit').click();
+
+  await expect(editor.locator('[data-comment-id]')).toHaveCount(1);
+  await expect(page.locator('.inkio-comment-panel')).toContainText('A smoke-test comment');
+  expect(pageErrors).toEqual([]);
+});
