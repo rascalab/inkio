@@ -3,6 +3,7 @@
   "version": "0.0.6",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.1.3",
   "scripts": {
     "typecheck": "pnpm -r --parallel --filter @inkio/core --filter @inkio/advanced --filter @inkio/simple --filter @inkio/editor --filter @inkio/image-editor --filter docs --filter example-basic-react --filter example-next-app-router typecheck",
     "typecheck:packages": "pnpm -r --parallel --filter @inkio/core --filter @inkio/advanced --filter @inkio/simple --filter @inkio/editor --filter @inkio/image-editor typecheck",
@@ -33,13 +34,8 @@
     "publish:simple": "pnpm --filter @inkio/simple publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
     "publish:editor": "pnpm --filter @inkio/editor publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
     "publish:image-editor": "pnpm --filter @inkio/image-editor publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
-    "publish:packages": "pnpm publish:core && pnpm publish:essential && pnpm publish:advanced && pnpm publish:simple && pnpm publish:editor && pnpm publish:image-editor",
+    "publish:packages": "pnpm publish:core && pnpm publish:advanced && pnpm publish:simple && pnpm publish:editor && pnpm publish:image-editor",
     "publish:r1": "pnpm publish:packages"
-  },
-  "pnpm": {
-    "overrides": {
-      "@asamuzakjp/css-color": "^4.1.2"
-    }
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1"
