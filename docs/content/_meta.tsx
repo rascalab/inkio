@@ -6,6 +6,7 @@ export default {
   'i18n-locale': 'i18n & Locale',
   'overlay-positioning': 'Overlay Positioning',
   extensions: '확장',
+  'image-editor': '이미지 에디터',
   ssr: 'SSR',
   adapter: '어댑터',
   serialization: '직렬화',

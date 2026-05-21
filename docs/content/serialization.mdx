@@ -7,6 +7,33 @@ import { toPlainText, toSummary, getContentStats } from '@inkio/editor';
 import { extractMentions, extractHashtags } from '@inkio/advanced';
 ```
 
+## `@inkio/core` 유틸리티
+
+`@inkio/editor`와 `@inkio/simple`에서 다시 export하며, 모두 `JSONContent`를 입력으로 받습니다.
+
+| 함수 | 시그니처 | 설명 |
+|------|----------|------|
+| `toPlainText` | `(content) => string` | 모든 텍스트를 추출해 하나의 일반 텍스트 문자열로 반환합니다. 연속 공백/줄바꿈은 정리되고 앞뒤 공백은 제거됩니다. |
+| `toSummary` | `(content, maxLength = 140) => string` | `toPlainText` 결과를 `maxLength`까지 잘라낸 요약을 반환합니다. 길이를 초과하면 끝에 `...`이 붙습니다. |
+| `getContentStats` | `(content) => { words: number; chars: number; blocks: number }` | 단어 수, 문자 수, 블록 수를 담은 객체를 반환합니다. `words`/`chars`는 일반 텍스트 기준입니다. |
+
+```tsx
+const summary = toSummary(content, 80);
+const { words, chars, blocks } = getContentStats(content);
+```
+
+## `@inkio/advanced` 유틸리티
+
+| 함수 | 시그니처 | 설명 |
+|------|----------|------|
+| `extractMentions` | `(content) => Array<{ id: string; label: string }>` | 문서에 포함된 멘션 노드를 추출합니다. `id`/`label` 조합이 같은 항목은 중복 제거됩니다. |
+| `extractHashtags` | `(content) => string[]` | 문서에 포함된 해시태그 라벨을 추출합니다. 선행 `#`는 제거되며 중복도 제거됩니다. |
+
+```tsx
+const mentions = extractMentions(content); // [{ id: 'u1', label: 'Alice' }]
+const tags = extractHashtags(content);     // ['inkio', 'editor']
+```
+
 Markdown import/export는 별도 subpath로 제공합니다.
 
 ```tsx

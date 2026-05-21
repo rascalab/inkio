@@ -1,0 +1,158 @@
+# 이미지 에디터
+
+`@inkio/image-editor`는 자르기, 회전, 크기 조절, 그리기, 도형, 텍스트 주석 기능을 갖춘
+독립 이미지 편집기입니다. 에디터의 이미지 블록에 연결하거나 단독 컴포넌트로 사용할 수 있습니다.
+
+## 설치와 CSS
+
+이미지 에디터는 자체 스타일시트가 필요합니다. 앱 진입점에서 한 번 import 하세요.
+
+```tsx
+import '@inkio/image-editor/style.css';
+```
+
+## 에디터에 연결하기
+
+`@inkio/editor`(또는 `@inkio/simple`)의 `imageBlock.imageEditor` 옵션에 `ImageEditorModal`을
+전달하면 이미지 툴바에 편집 버튼이 나타납니다. 버튼을 누르면 모달이 열리고, 저장 시
+편집 결과가 해당 이미지 블록에 반영됩니다.
+
+```tsx
+import { Editor } from '@inkio/editor';
+import { ImageEditorModal } from '@inkio/image-editor';
+import '@inkio/editor/style.css';
+import '@inkio/image-editor/style.css';
+
+export function Page() {
+  return (
+    <Editor
+      onImageUpload={async (file) => URL.createObjectURL(file)}
+      imageBlock={{ imageEditor: ImageEditorModal }}
+    />
+  );
+}
+```
+
+`imageEditor`에는 `{ isOpen, imageSrc, onSave, onClose }` 인터페이스를 만족하는 컴포넌트라면
+무엇이든 전달할 수 있으며, `ImageEditorModal`이 기본 구현입니다.
+
+### `ImageEditorModal` props
+
+| Prop | 타입 | 설명 |
+|------|------|------|
+| `isOpen` | `boolean` | 모달 열림 여부 (필수) |
+| `imageSrc` | `string` | 편집할 이미지 소스 (필수) |
+| `onSave` | `(editedImageData: string) => void` | 저장 시 편집된 data URL 콜백 (필수) |
+| `onClose` | `() => void` | 닫기 콜백 (필수) |
+| `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 `.inkio` 루트의 테마를 따름) |
+| `imageQuality` | `number` | 출력 품질 0~1 (기본값: `0.92`) |
+| `imageFormat` | `'png' \| 'jpeg' \| 'webp'` | 출력 형식 (기본값: `'png'`) |
+| `tools` | `ToolType[]` | 노출할 도구 목록 |
+| `locale` | `string \| Partial<ImageEditorLocale>` | 로케일 ID 또는 라벨 오버라이드 |
+| `messages` | `InkioImageEditorMessageOverrides \| InkioMessageOverrides` | 메시지 오버라이드 |
+| `icons` | `Partial<InkioIconRegistry>` | 아이콘 오버라이드 |
+
+## 단독 컴포넌트 사용
+
+모달 없이 인라인 편집 화면을 직접 배치하려면 `ImageEditor`를 사용합니다.
+
+```tsx
+import { ImageEditor } from '@inkio/image-editor';
+import '@inkio/image-editor/style.css';
+
+export function StandaloneEditor({ src }: { src: string }) {
+  return (
+    <ImageEditor
+      src={src}
+      onSave={(dataUrl) => console.log('saved', dataUrl)}
+      onCancel={() => console.log('cancelled')}
+    />
+  );
+}
+```
+
+### `ImageEditor` props
+
+| Prop | 타입 | 설명 |
+|------|------|------|
+| `src` | `string` | 편집할 이미지 소스 (필수) |
+| `onSave` | `(dataUrl: string) => void` | 저장 시 편집된 data URL 콜백 (필수) |
+| `onCancel` | `() => void` | 취소 콜백 (필수) |
+| `outputFormat` | `'png' \| 'jpeg' \| 'webp'` | 출력 형식 (기본값: `'png'`) |
+| `outputQuality` | `number` | 출력 품질 0~1 |
+| `tools` | `ToolType[]` | 노출할 도구 목록 |
+| `defaultTool` | `ToolType` | 초기 선택 도구 |
+| `locale` | `Partial<ImageEditorLocale>` | 라벨 오버라이드 |
+| `className` | `string` | 루트 엘리먼트 클래스 |
+| `maxUndoSteps` | `number` | 실행 취소 기록 한도 (기본값: `30`) |
+| `onDirtyChange` | `(dirty: boolean) => void` | 미저장 변경 발생/해소 콜백 |
+
+## 도구와 주석
+
+`ToolType`은 다음 도구를 정의합니다.
+
+```ts
+type ToolType = 'crop' | 'rotate' | 'resize' | 'draw' | 'shape' | 'text';
+```
+
+- `crop` — 자르기 영역 지정
+- `rotate` — 회전 및 좌우/상하 반전
+- `resize` — 출력 크기 조절
+- `draw` — 자유 그리기 (브러시)
+- `shape` — 사각형, 타원, 화살표, 선 도형
+- `text` — 텍스트 주석
+
+`tools`를 지정하지 않으면 기본 목록(`['resize', 'draw', 'shape', 'text', 'rotate']`)이 사용됩니다.
+
+```tsx
+<ImageEditor src={src} tools={['draw', 'text']} onSave={save} onCancel={cancel} />
+```
+
+그리기·도형·텍스트로 추가한 항목은 주석(annotation)으로 관리됩니다. 모든 주석 타입은
+`Annotation` 유니온으로 export됩니다.
+
+| 타입 | 설명 |
+|------|------|
+| `RectAnnotation` | 사각형 도형 |
+| `EllipseAnnotation` | 타원 도형 |
+| `ArrowAnnotation` | 화살표 |
+| `LineAnnotation` | 직선 |
+| `TextAnnotationData` | 텍스트 주석 |
+| `FreeDrawAnnotation` | 자유 그리기 선 |
+
+이 외에 `CropRect`, `Transform`, `DrawOptions`, `ShapeOptions`, `TextOptions`,
+`ImageEditorState` 등의 보조 타입도 함께 export됩니다.
+
+## i18n
+
+이미지 에디터는 `@inkio/core`와 동일한 메시지 체계를 따릅니다. 도구 라벨 등 UI 텍스트는
+다음 헬퍼로 조회·오버라이드합니다.
+
+```tsx
+import {
+  enImageEditorMessages,
+  resolveImageEditorMessages,
+  mergeImageEditorMessages,
+  toImageEditorMessageOverrides,
+} from '@inkio/image-editor';
+```
+
+| Export | 설명 |
+|--------|------|
+| `enImageEditorMessages` | 기본(영어) 메시지 세트 |
+| `resolveImageEditorMessages` | 로케일 입력과 오버라이드를 병합해 메시지 세트를 반환 |
+| `mergeImageEditorMessages` | 여러 오버라이드를 순서대로 병합 |
+| `toImageEditorMessageOverrides` | `InkioMessageOverrides`에서 이미지 에디터 오버라이드를 추출 |
+
+간단히 라벨만 바꾸려면 `ImageEditorModal`/`ImageEditor`의 `locale` prop에
+`Partial<ImageEditorLocale>` 객체를 직접 전달해도 됩니다.
+
+```tsx
+<ImageEditorModal
+  isOpen={isOpen}
+  imageSrc={src}
+  onSave={onSave}
+  onClose={onClose}
+  locale={{ save: '저장', cancel: '취소' }}
+/>
+```

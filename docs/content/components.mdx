@@ -18,6 +18,7 @@ import '@inkio/editor/style.css';
 | `editable` | `boolean` | 편집 가능 여부 (기본값: `true`) |
 | `placeholder` | `string` | 빈 에디터 placeholder 텍스트 |
 | `locale` | `InkioLocaleInput` | 로케일 |
+| `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 부모 환경을 따름) |
 | `tabBehavior` | `'indent' \| 'default'` | Tab 키 동작 (기본값: `'indent'`) |
 | `onUpdate` | `(content: JSONContent) => void` | 콘텐츠 변경 콜백 |
 | `onCreate` | `(editor: TiptapEditor) => void` | 에디터 인스턴스 준비 콜백 |
@@ -91,6 +92,7 @@ import '@inkio/simple/style.css';
 | `editable` | `boolean` | 편집 가능 여부 |
 | `placeholder` | `string` | placeholder 텍스트 |
 | `locale` | `InkioLocaleInput` | 로케일 |
+| `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 부모 환경을 따름) |
 | `tabBehavior` | `'indent' \| 'default'` | Tab 키 동작 |
 | `onUpdate` | `(content: JSONContent) => void` | 콘텐츠 변경 콜백 |
 | `onCreate` | `(editor: TiptapEditor) => void` | 에디터 인스턴스 준비 콜백 |
@@ -141,6 +143,7 @@ import { Viewer } from '@inkio/editor';
 |------|------|------|
 | `content` | `string \| JSONContent` | 표시할 콘텐츠 (필수) |
 | `locale` | `InkioLocaleInput` | 로케일 |
+| `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 부모 환경을 따름) |
 | `ui` | `{ className?, style?, bordered?, messages?, icons? }` | UI 옵션 |
 | `comment` | `false \| ViewerCommentOptions` | 댓글 표시 설정 |
 | `extensions` | `ExtensionsInput` | 확장 추가/교체 |
@@ -179,6 +182,7 @@ import { Viewer } from '@inkio/simple';
 |------|------|------|
 | `content` | `string \| JSONContent` | 표시할 콘텐츠 (필수) |
 | `locale` | `InkioLocaleInput` | 로케일 |
+| `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 부모 환경을 따름) |
 | `ui` | `{ className?, style?, bordered?, messages?, icons? }` | UI 옵션 |
 | `extensions` | `ExtensionsInput` | 확장 추가/교체 |
 
