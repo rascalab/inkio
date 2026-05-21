@@ -159,6 +159,12 @@ export function EditorDemo() {
               .filter((tag) => tag.toLowerCase().includes(query.toLowerCase()))
               .map((tag) => ({ id: tag, label: `#${tag}` }));
           }}
+          mentionItems={({ query }: { query: string }) => {
+            const people = ['ada', 'grace', 'linus', 'margaret'];
+            return people
+              .filter((name) => name.toLowerCase().includes(query.toLowerCase()))
+              .map((name) => ({ id: name, label: name }));
+          }}
           onImageUpload={async (file: File) => URL.createObjectURL(file)}
           imageBlock={{ imageEditor: LazyImageEditorModal }}
           comment={comment}

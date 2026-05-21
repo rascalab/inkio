@@ -1,4 +1,4 @@
-import { mergeAttributes, type Range } from '@tiptap/core';
+import { mergeAttributes, type Editor, type Range } from '@tiptap/core';
 import { Mention as TiptapMention } from '@tiptap/extension-mention';
 import { PluginKey as PMPluginKey } from '@tiptap/pm/state';
 import { createSuggestionRenderer, toError, type InkioErrorHandler } from '@inkio/core';
@@ -71,7 +71,9 @@ export const HashTag = TiptapMention.extend<HashTagOptions>({
   name: 'hashTag',
 
   addOptions() {
-    const extension = this as typeof this & { options: HashTagOptions };
+    // `this` inside addOptions is a transient context whose `.options` is never
+    // populated — resolve the live options from the editor at suggestion time.
+    const extensionName = this.name;
 
     return {
       HTMLAttributes: {},
@@ -82,12 +84,14 @@ export const HashTag = TiptapMention.extend<HashTagOptions>({
       suggestion: {
         char: '#',
         pluginKey: HashTagPluginKey,
-        items: async ({ query }: { query: string }) => {
+        items: async ({ query, editor }: { query: string; editor: Editor }) => {
+          const options = editor.extensionManager.extensions
+            .find((ext) => ext.name === extensionName)?.options as HashTagOptions | undefined;
           try {
-            const result = await extension.options.items?.({ query });
+            const result = await options?.items?.({ query });
             return result ?? [];
           } catch (error) {
-            extension.options.onError?.(toError(error), {
+            options?.onError?.(toError(error), {
               source: 'hashTag.suggestion',
               recoverable: true,
             });
@@ -97,7 +101,7 @@ export const HashTag = TiptapMention.extend<HashTagOptions>({
         command: createHashTagSuggestionCommand(this.name, '#'),
         allow: ({ state, range }: { state: any; range: Range }) => {
           const $from = state.doc.resolve(range.from);
-          const type = state.schema.nodes[extension.name];
+          const type = state.schema.nodes[extensionName];
           return !!type && !!$from.parent.type.contentMatch.matchType(type);
         },
         render: createSuggestionRenderer<HashTagItem>({ header: 'Hashtags' }),
