@@ -8,6 +8,10 @@ packages:
   - 'examples/*'
 overrides:
   '@asamuzakjp/css-color': ^4.1.2
+# sharp ships prebuilt binaries; its install script is not needed here.
+# Declared so pnpm 11 does not fail with ERR_PNPM_IGNORED_BUILDS.
+allowBuilds:
+  sharp: false
 autoInstallPeers: false
 preferWorkspacePackages: true
 linkWorkspacePackages: true
