@@ -1,12 +1,10 @@
 import {
-  startTransition,
   useRef,
   useCallback,
   useState,
   useEffect,
   useMemo,
   type CSSProperties,
-  type WheelEvent as ReactWheelEvent,
 } from 'react';
 import { Stage } from 'react-konva';
 import type Konva from 'konva';
@@ -66,6 +64,7 @@ export function EditorCanvas({
 }: EditorCanvasProps) {
   const { state, dispatch } = useImageEditor();
   const stageRef = useRef<Konva.Stage>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
 
   const isDrawing = useRef(false);
   const currentAnnotationId = useRef<string | null>(null);
@@ -748,11 +747,16 @@ export function EditorCanvas({
           : 'default',
   };
 
-  const handleWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
+  const handleWheel = useCallback((event: WheelEvent) => {
+    const node = workspaceRef.current;
+    if (!node) {
+      return;
+    }
+
     event.preventDefault();
 
     const factor = event.deltaY < 0 ? PREVIEW_ZOOM_WHEEL_FACTOR : 1 / PREVIEW_ZOOM_WHEEL_FACTOR;
-    const rect = event.currentTarget.getBoundingClientRect();
+    const rect = node.getBoundingClientRect();
     const anchorX = event.clientX - rect.left;
     const anchorY = event.clientY - rect.top;
 
@@ -761,13 +765,25 @@ export function EditorCanvas({
       return;
     }
 
-    startTransition(() => {
-      onPreviewZoomChange(previewZoom * factor);
-    });
+    onPreviewZoomChange(previewZoom * factor);
   }, [cropFrame, isCropMode, onPreviewZoomChange, previewZoom, zoomCropViewportAt]);
+
+  // Attach the wheel handler natively (non-passive) instead of via React's onWheel:
+  // synthetic wheel events do not reliably reach handlers inside the dialog portal,
+  // and a non-passive listener is required for preventDefault to suppress page scroll.
+  useEffect(() => {
+    const node = workspaceRef.current;
+    if (!node) {
+      return;
+    }
+
+    node.addEventListener('wheel', handleWheel, { passive: false });
+    return () => node.removeEventListener('wheel', handleWheel);
+  }, [handleWheel]);
 
   return (
     <div
+      ref={workspaceRef}
       className="inkio-ie-canvas-workspace"
       data-testid="inkio-ie-canvas-workspace"
       style={{
@@ -777,7 +793,6 @@ export function EditorCanvas({
         overflow: 'hidden',
         backgroundColor: 'transparent',
       }}
-      onWheel={handleWheel}
     >
       <div className="inkio-ie-stage-shell" style={STAGE_SHELL_STYLE}>
         <div
