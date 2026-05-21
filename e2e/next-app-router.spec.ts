@@ -189,3 +189,43 @@ test('next app router example inserts a bookmark that resolves a preview', async
   await expect(bookmark).toContainText('Example Domain');
   expect(pageErrors).toEqual([]);
 });
+
+test('next app router example replies to, resolves, and deletes a comment thread', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => { pageErrors.push(error.message); });
+
+  await page.goto('http://localhost:4174');
+  const editor = page.locator('.ProseMirror').first();
+  await expect(editor).toBeVisible();
+
+  // Create a comment on the first paragraph.
+  await editor.locator('p').first().click();
+  await page.keyboard.press('Home');
+  for (let i = 0; i < 12; i += 1) {
+    await page.keyboard.press('Shift+ArrowRight');
+  }
+  await page.keyboard.press('ControlOrMeta+Shift+m');
+  const composer = page.locator('.inkio-comment-composer');
+  await expect(composer).toBeVisible();
+  await composer.locator('.inkio-comment-composer-input').fill('Thread root');
+  await composer.locator('.inkio-comment-composer-submit').click();
+  await expect(page.locator('.inkio-comment-msg')).toHaveCount(1);
+
+  // Reply to the thread.
+  const replyInput = page.locator('.inkio-comment-reply-input').first();
+  await replyInput.fill('A threaded reply');
+  await page.locator('.inkio-comment-reply-send').first().click();
+  await expect(page.locator('.inkio-comment-msg')).toHaveCount(2);
+
+  // Resolve the thread.
+  await page.locator('.inkio-comment-action-btn.resolve').first().click();
+  await expect(page.locator('.inkio-comment-thread.is-resolved')).toHaveCount(1);
+  await expect(page.locator('.inkio-comment-action-btn.resolve')).toHaveCount(0);
+
+  // Delete the thread — removes both the panel entry and the in-document mark.
+  await page.locator('.inkio-comment-action-btn.delete').first().click();
+  await expect(page.locator('.inkio-comment-thread')).toHaveCount(0);
+  await expect(editor.locator('[data-comment-id]')).toHaveCount(0);
+
+  expect(pageErrors).toEqual([]);
+});
