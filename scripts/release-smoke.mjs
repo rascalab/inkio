@@ -10,7 +10,6 @@ const repoRoot = path.resolve(__dirname, '..');
 
 const PACKAGE_FILTERS = [
   '@inkio/core',
-  '@inkio/essential',
   '@inkio/advanced',
   '@inkio/simple',
   '@inkio/editor',
@@ -106,13 +105,12 @@ try {
 
   const tarballs = readdirSync(tarballDir);
   const coreTarball = pickTarball(tarballs, 'inkio-core-');
-  const essentialTarball = pickTarball(tarballs, 'inkio-essential-');
   const advancedTarball = pickTarball(tarballs, 'inkio-advanced-');
   const simpleTarball = pickTarball(tarballs, 'inkio-simple-');
   const editorTarball = pickTarball(tarballs, 'inkio-editor-');
   const imageEditorTarball = pickTarball(tarballs, 'inkio-image-editor-');
 
-  if (!coreTarball || !essentialTarball || !advancedTarball || !simpleTarball || !editorTarball || !imageEditorTarball) {
+  if (!coreTarball || !advancedTarball || !simpleTarball || !editorTarball || !imageEditorTarball) {
     throw new Error('Failed to create release tarballs for the layered Inkio packages.');
   }
 
@@ -125,23 +123,12 @@ try {
     },
     dependencies: {
       '@inkio/core': `file:../tarballs/${coreTarball}`,
-      '@inkio/essential': `file:../tarballs/${essentialTarball}`,
       '@inkio/advanced': `file:../tarballs/${advancedTarball}`,
       '@inkio/simple': `file:../tarballs/${simpleTarball}`,
       '@inkio/editor': `file:../tarballs/${editorTarball}`,
       '@inkio/image-editor': `file:../tarballs/${imageEditorTarball}`,
       react: '^19.2.4',
       'react-dom': '^19.2.4',
-    },
-    pnpm: {
-      overrides: {
-        '@inkio/core': `file:../tarballs/${coreTarball}`,
-        '@inkio/essential': `file:../tarballs/${essentialTarball}`,
-        '@inkio/advanced': `file:../tarballs/${advancedTarball}`,
-        '@inkio/simple': `file:../tarballs/${simpleTarball}`,
-        '@inkio/editor': `file:../tarballs/${editorTarball}`,
-        '@inkio/image-editor': `file:../tarballs/${imageEditorTarball}`,
-      },
     },
     devDependencies: {
       '@types/react': '^19.2.14',
@@ -151,6 +138,19 @@ try {
       vite: '^8.0.0',
     },
   });
+
+  // pnpm 11+ reads `overrides` from pnpm-workspace.yaml, not the package.json `pnpm` field.
+  // Force every @inkio/* specifier (including transitive ones) onto the local tarballs.
+  writeFileSync(
+    path.join(appDir, 'pnpm-workspace.yaml'),
+    `overrides:
+  '@inkio/core': 'file:../tarballs/${coreTarball}'
+  '@inkio/advanced': 'file:../tarballs/${advancedTarball}'
+  '@inkio/simple': 'file:../tarballs/${simpleTarball}'
+  '@inkio/editor': 'file:../tarballs/${editorTarball}'
+  '@inkio/image-editor': 'file:../tarballs/${imageEditorTarball}'
+`,
+  );
 
   writeJson(path.join(appDir, 'tsconfig.json'), {
     compilerOptions: {
@@ -260,7 +260,7 @@ import {
   parseMarkdown as parseEditorMarkdown,
   stringifyMarkdown as stringifyEditorMarkdown,
 } from '@inkio/editor/markdown';
-import { inkioIconRegistry } from '@inkio/editor/icons';
+import { inkioIconRegistry, type InkioIconRegistry } from '@inkio/editor/icons';
 import { Editor as SimpleEditor, Viewer as SimpleViewer } from '@inkio/simple';
 import {
   parseMarkdown as parseSimpleMarkdown,
@@ -268,8 +268,9 @@ import {
 } from '@inkio/simple/markdown';
 import {
   CommentPanel,
+  type CommentConfig,
+  type CommentData,
   type CommentMessage,
-  type CommentThreadData,
 } from '@inkio/advanced';
 import { ImageEditorModal } from '@inkio/image-editor';
 import '@inkio/editor/style.css';
@@ -293,12 +294,15 @@ function App() {
   const [editorContent, setEditorContent] = useState(parseEditorMarkdown(editorMarkdown));
   const [simpleContent, setSimpleContent] = useState(parseSimpleMarkdown(simpleMarkdown));
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
-  const [commentThreads, setCommentThreads] = useState<CommentThreadData[]>([]);
-  const commentThreadsRef = useRef<CommentThreadData[]>([]);
-  commentThreadsRef.current = commentThreads;
+  const [comments, setComments] = useState<CommentData[]>([]);
+  const commentsRef = useRef<CommentData[]>([]);
+  commentsRef.current = comments;
 
   const locale = 'en-US,en;q=0.9';
-  const icons = useMemo(() => ({ comment: inkioIconRegistry.comment }), []);
+  const icons = useMemo<Partial<InkioIconRegistry>>(
+    () => ({ comment: inkioIconRegistry.comment }),
+    [],
+  );
   const messages = useMemo<InkioMessageOverrides>(
     () => ({
       core: {
@@ -311,68 +315,41 @@ function App() {
     [],
   );
 
-  const editorDefaultExtensionsOptions = useMemo(
-    () => ({
-      placeholder: 'Editor smoke',
-      locale,
-      messages,
-      icons,
-      hashtagItems: ({ query }: { query: string }) => [
-        { id: query || 'smoke', label: \`#\${query || 'smoke'}\` },
-      ],
-      imageBlock: {
-        onUpload: async (file: File) => URL.createObjectURL(file),
-        imageEditor: ImageEditorModal,
-      },
-      comment: {
-        locale,
-        messages,
-        icons,
-        currentUser: 'Smoke Test',
-        onCommentSubmit: (threadId: string, text: string) => {
-          const message: CommentMessage = {
-            id: createId(),
-            author: 'Smoke Test',
-            text,
-            createdAt: new Date(),
-          };
-          setCommentThreads((prev) => [...prev, { id: threadId, messages: [message], resolved: false }]);
-        },
-        getThread: (threadId: string) =>
-          commentThreadsRef.current.find((thread) => thread.id === threadId) ?? null,
-        onCommentReply: (threadId: string, text: string) => {
-          const message: CommentMessage = {
-            id: createId(),
-            author: 'Smoke Test',
-            text,
-            createdAt: new Date(),
-          };
-          setCommentThreads((prev) =>
-            prev.map((thread) =>
-              thread.id === threadId ? { ...thread, messages: [...thread.messages, message] } : thread,
-            ),
-          );
-        },
-        onCommentResolve: (threadId: string) => {
-          setCommentThreads((prev) =>
-            prev.map((thread) => (thread.id === threadId ? { ...thread, resolved: true } : thread)),
-          );
-        },
-        onCommentDelete: (threadId: string) => {
-          setCommentThreads((prev) => prev.filter((thread) => thread.id !== threadId));
-        },
-      },
-    }),
-    [icons, locale, messages],
-  );
+  const replyToComment = (commentId: string, text: string) => {
+    const message: CommentMessage = { id: createId(), author: 'Smoke Test', text, createdAt: new Date() };
+    setComments((prev) =>
+      prev.map((thread) =>
+        thread.id === commentId ? { ...thread, messages: [...thread.messages, message] } : thread,
+      ),
+    );
+  };
 
-  const simpleDefaultExtensionsOptions = useMemo(
+  const resolveComment = (commentId: string) => {
+    setComments((prev) =>
+      prev.map((thread) => (thread.id === commentId ? { ...thread, resolved: true } : thread)),
+    );
+  };
+
+  const deleteComment = (commentId: string) => {
+    setComments((prev) => prev.filter((thread) => thread.id !== commentId));
+  };
+
+  const comment = useMemo<CommentConfig>(
     () => ({
-      placeholder: 'Simple smoke',
-      imageBlock: {
-        onUpload: async (file: File) => URL.createObjectURL(file),
-        imageEditor: ImageEditorModal,
+      onSubmit: (commentId: string, text: string) => {
+        const message: CommentMessage = {
+          id: createId(),
+          author: 'Smoke Test',
+          text,
+          createdAt: new Date(),
+        };
+        setComments((prev) => [...prev, { id: commentId, messages: [message], resolved: false }]);
       },
+      getComments: (commentId: string) =>
+        commentsRef.current.find((thread) => thread.id === commentId) ?? null,
+      onReply: replyToComment,
+      onResolve: resolveComment,
+      onDelete: deleteComment,
     }),
     [],
   );
@@ -390,51 +367,43 @@ function App() {
         <h2>@inkio/editor</h2>
         <Editor
           initialContent={editorContent}
-          defaultExtensionsOptions={editorDefaultExtensionsOptions}
+          placeholder="Editor smoke"
           locale={locale}
-          messages={messages}
-          icons={icons}
-          showBubbleMenu
-          showFloatingMenu
+          hashtagItems={({ query }: { query: string }) => [
+            { id: query || 'smoke', label: \`#\${query || 'smoke'}\` },
+          ]}
+          onImageUpload={async (file: File) => URL.createObjectURL(file)}
+          imageBlock={{ imageEditor: ImageEditorModal }}
+          comment={comment}
+          ui={{ showBubbleMenu: true, showFloatingMenu: true, messages, icons }}
           onCreate={setEditorInstance}
           onUpdate={setEditorContent}
         />
         <CommentPanel
           editor={editorInstance}
-          threads={commentThreads}
+          threads={comments}
           locale={locale}
           messages={messages}
           icons={icons}
           currentUser="Smoke Test"
-          onReply={(threadId: string, text: string) => {
-            const message: CommentMessage = { id: createId(), author: 'Smoke Test', text, createdAt: new Date() };
-            setCommentThreads((prev) =>
-              prev.map((thread) =>
-                thread.id === threadId ? { ...thread, messages: [...thread.messages, message] } : thread,
-              ),
-            );
-          }}
-          onResolve={(threadId: string) => {
-            setCommentThreads((prev) =>
-              prev.map((thread) => (thread.id === threadId ? { ...thread, resolved: true } : thread)),
-            );
-          }}
-          onDelete={(threadId: string) => {
-            setCommentThreads((prev) => prev.filter((thread) => thread.id !== threadId));
-          }}
+          onReply={replyToComment}
+          onResolve={resolveComment}
+          onDelete={deleteComment}
         />
-        <InkioViewer content={editorContent} defaultExtensionsOptions={editorDefaultExtensionsOptions} />
+        <InkioViewer content={editorContent} locale={locale} ui={{ messages, icons }} />
       </section>
 
       <section>
         <h2>@inkio/simple</h2>
         <SimpleEditor
           initialContent={simpleContent}
-          defaultExtensionsOptions={simpleDefaultExtensionsOptions}
-          showToolbar
+          placeholder="Simple smoke"
+          onImageUpload={async (file: File) => URL.createObjectURL(file)}
+          imageBlock={{ imageEditor: ImageEditorModal }}
+          ui={{ showToolbar: true }}
           onUpdate={setSimpleContent}
         />
-        <SimpleViewer content={simpleContent} defaultExtensionsOptions={simpleDefaultExtensionsOptions} />
+        <SimpleViewer content={simpleContent} />
       </section>
     </div>
   );
