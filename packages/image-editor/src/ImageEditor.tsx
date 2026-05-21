@@ -95,6 +95,7 @@ function InnerEditor({
       data-debug-active-tool={state.activeTool ?? ''}
       data-debug-selected-id={selectedAnnotation?.id ?? ''}
       data-debug-selected-type={selectedAnnotation?.type ?? ''}
+      data-debug-selected-annotation={selectedAnnotation ? JSON.stringify(selectedAnnotation) : ''}
       data-debug-annotation-count={String(state.annotations.length)}
       data-debug-output-size={state.outputSize ? `${state.outputSize.width}x${state.outputSize.height}` : ''}
       data-debug-pending-crop={state.pendingCrop ? JSON.stringify(state.pendingCrop) : ''}

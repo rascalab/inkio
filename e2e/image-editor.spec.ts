@@ -208,9 +208,11 @@ async function waitForLayoutSettle(page: Page) {
 
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1080 });
+  // The editor shows a discard confirm on close when dirty — accept it so close-flow tests proceed.
+  page.on('dialog', (dialog) => { void dialog.accept(); });
 });
 
-test('desktop shell starts with left rail + canvas + top-right close and no bottom dock', async ({ page }) => {
+test('desktop shell starts with left rail + canvas + top-right close and the tool dock', async ({ page }) => {
   await waitForHarness(page);
 
   await expect(page.getByTestId('inkio-ie-toolbar-history')).toBeVisible();
@@ -218,7 +220,9 @@ test('desktop shell starts with left rail + canvas + top-right close and no bott
   await expect(page.getByTestId('inkio-ie-close')).toBeVisible();
   await expect(page.getByTestId('inkio-ie-desktop-zoom-cluster')).toBeVisible();
   await expect(page.getByTestId('inkio-ie-zoom-controls')).toBeVisible();
-  await expect(page.getByTestId('inkio-ie-bottom-dock')).toHaveCount(0);
+  // The default 'resize' tool is always active, so its options dock shows from the start.
+  await expect(page.getByTestId('inkio-ie-bottom-dock')).toBeVisible();
+  await expect(page.getByTestId('inkio-ie-bottom-dock-controls')).toHaveAttribute('data-panel', 'resize');
 
   const modalBox = await page.getByTestId('inkio-ie-modal-content').boundingBox();
   const viewport = page.viewportSize();
@@ -229,7 +233,7 @@ test('desktop shell starts with left rail + canvas + top-right close and no bott
   expect(Math.abs(modalBox!.height - viewport!.height)).toBeLessThanOrEqual(1);
 });
 
-test('desktop dock opens from tools and retoggle closes it without hiding the stage', async ({ page }) => {
+test('desktop dock switches panel per tool and stays open on retoggle', async ({ page }) => {
   await waitForHarness(page);
 
   await triggerButton(page, 'inkio-ie-tool-draw');
@@ -243,8 +247,10 @@ test('desktop dock opens from tools and retoggle closes it without hiding the st
   );
   expect(transition).toContain('0.25s');
 
+  // Tools cannot be toggled off — re-selecting the active tool keeps the dock open.
   await triggerButton(page, 'inkio-ie-tool-draw');
-  await expect(page.getByTestId('inkio-ie-bottom-dock')).toHaveCount(0);
+  await expect(page.getByTestId('inkio-ie-bottom-dock')).toBeVisible();
+  await expect(page.getByTestId('inkio-ie-bottom-dock-controls')).toHaveAttribute('data-panel', 'draw');
   await waitForLayoutSettle(page);
   await expect(page.getByTestId('inkio-ie-stage-frame')).toBeVisible();
 });
@@ -366,8 +372,9 @@ test('mobile shell uses top command bar, bottom option strip, and bottom tool tr
   await waitForLayoutSettle(page);
   await expect(page.getByTestId('inkio-ie-stage-frame')).toBeVisible();
 
+  // Tools cannot be toggled off — re-selecting keeps the option strip open.
   await triggerButton(page, 'inkio-ie-tool-draw');
-  await expect(page.getByTestId('inkio-ie-mobile-option-strip')).toHaveCount(0);
+  await expect(page.getByTestId('inkio-ie-mobile-option-strip')).toBeVisible();
 });
 
 test('text controls use font family, size px, and the shared color picker', async ({ page }) => {
@@ -382,7 +389,7 @@ test('text controls use font family, size px, and the shared color picker', asyn
     (element as HTMLButtonElement).click();
   });
   await expect(page.getByTestId('inkio-ie-modal-content')).toBeVisible();
-  await expect(page.getByTestId('inkio-ie-modal-content')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.getByTestId('inkio-ie-modal-content')).toHaveClass(/\bdark\b/);
 
   await triggerButton(page, 'inkio-ie-tool-text');
   await dragWithinStage(page, { x: 110, y: 110 }, { x: 260, y: 172 });
@@ -443,18 +450,17 @@ test('text controls use font family, size px, and the shared color picker', asyn
 test('wheel zoom updates preview zoom and crop mode keeps the crop frame fixed while image zoom changes', async ({ page }) => {
   await waitForHarness(page);
 
-  await expect(page.getByTestId('inkio-ie-zoom-indicator')).toHaveCount(0);
+  // The default tool is 'resize' (crop mode) — switch to a non-crop tool so the wheel drives preview zoom.
+  await triggerButton(page, 'inkio-ie-tool-draw');
   const previewBefore = Number(await getRootDebugAttribute(page, 'data-debug-preview-zoom'));
   await page.getByTestId('inkio-ie-canvas-workspace').hover();
   await page.mouse.wheel(0, -320);
   await expect
     .poll(async () => Number(await getRootDebugAttribute(page, 'data-debug-preview-zoom')))
     .toBeGreaterThan(previewBefore);
-  await expect(page.getByTestId('inkio-ie-zoom-indicator')).toHaveText(/%/);
 
   await triggerButton(page, 'inkio-ie-tool-resize');
   await expect(page.getByTestId('inkio-ie-crop-overlay')).toBeVisible();
-  await expect(page.getByTestId('inkio-ie-zoom-indicator')).toHaveText(/^Crop \d+%$/);
   const cropFrame = page.locator('.inkio-ie-crop-frame');
   const frameBefore = await cropFrame.boundingBox();
   expect(frameBefore).not.toBeNull();

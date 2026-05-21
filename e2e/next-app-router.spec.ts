@@ -28,6 +28,9 @@ test('next app router example renders extensions and serializes edits', async ({
 });
 
 test('next app router example opens the image editor from an inserted image block', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1080 });
+  // The editor shows a discard confirm on close when dirty — accept it so the modal can close.
+  page.on('dialog', (dialog) => { void dialog.accept(); });
   await page.goto('http://localhost:4174');
 
   await page.getByTestId('next-editor-insert-demo-image').click();
@@ -84,5 +87,50 @@ test('next app router example inserts an image from the slash command without a 
   await expect(page.locator('.inkio-image-block-container')).toHaveCount(1);
   expect(pageErrors).not.toEqual(
     expect.arrayContaining([expect.stringContaining('Applying a mismatched transaction')]),
+  );
+});
+
+async function focusEditorEnd(page: import('@playwright/test').Page) {
+  const editor = page.locator('.ProseMirror').first();
+  await expect(editor).toBeVisible();
+  await editor.evaluate((node) => {
+    const element = node as HTMLElement;
+    element.focus();
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(false);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  });
+}
+
+test('next app router example shows hashtag suggestions without errors', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => { pageErrors.push(error.message); });
+
+  await page.goto('http://localhost:4174');
+  await focusEditorEnd(page);
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('#ink');
+
+  await expect(page.getByRole('option', { name: '#inkio' })).toBeVisible();
+  expect(pageErrors).not.toEqual(
+    expect.arrayContaining([expect.stringContaining("reading 'onError'")]),
+  );
+});
+
+test('next app router example shows mention suggestions without errors', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => { pageErrors.push(error.message); });
+
+  await page.goto('http://localhost:4174');
+  await focusEditorEnd(page);
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('@ad');
+
+  await expect(page.getByRole('option', { name: 'ada' })).toBeVisible();
+  expect(pageErrors).not.toEqual(
+    expect.arrayContaining([expect.stringContaining("reading 'onError'")]),
   );
 });
