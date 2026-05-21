@@ -6,7 +6,7 @@ import { readFileSync } from 'fs';
 
 const enableDts = process.env.INKIO_VITE_SKIP_DTS !== '1';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [
     react(),
     ...(enableDts
@@ -39,6 +39,15 @@ export default defineConfig({
   ],
   resolve: {
     alias: [
+      // Resolve @inkio/core to source for vitest (which uses this config and runs
+      // without a build step). The production `vite build` keeps @inkio/core
+      // external so declaration generation never pulls core's source into the output.
+      ...(command === 'build'
+        ? []
+        : [
+            { find: /^@inkio\/core\/icons$/, replacement: resolve(__dirname, '../core/src/icons/index.ts') },
+            { find: /^@inkio\/core$/, replacement: resolve(__dirname, '../core/src/index.ts') },
+          ]),
       { find: '@', replacement: resolve(__dirname, 'src') },
     ],
   },
@@ -63,4 +72,4 @@ export default defineConfig({
     },
     copyPublicDir: false,
   },
-});
+}));
