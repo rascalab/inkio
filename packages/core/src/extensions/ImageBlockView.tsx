@@ -7,7 +7,7 @@ import {
   Loader2Icon,
   PencilIcon,
 } from '../icons';
-import type { ImageEditorComponentProps } from './ImageBlock';
+import { UPLOAD_PLACEHOLDER_PREFIX, type ImageEditorComponentProps } from './ImageBlock';
 
 function parseWidthPercent(w: unknown): number {
   return parseFloat(String(w).replace('%', '')) || 100;
@@ -74,7 +74,11 @@ export function ImageBlockView(props: NodeViewProps) {
     setCurrentWidth(parseWidthPercent(node.attrs.width));
   }, [node.attrs.width]);
 
-  const showControls = isEditable && (selected || isHovered || resizing);
+  // A placeholder `src` is a sentinel string, not a real URL. Rendering it as
+  // an `<img src>` would make the browser fetch a bogus relative path.
+  const isUploading =
+    typeof node.attrs.src === 'string' && node.attrs.src.startsWith(UPLOAD_PLACEHOLDER_PREFIX);
+  const showControls = isEditable && !isUploading && (selected || isHovered || resizing);
   const align = node.attrs.align === 'left' ? 'left' : node.attrs.align === 'right' ? 'right' : 'center';
 
   return (
@@ -87,15 +91,21 @@ export function ImageBlockView(props: NodeViewProps) {
         className={`inkio-image-block-container${isEditable && selected ? ' is-selected' : ''}`}
         style={{ width: `${currentWidth}%` }}
       >
-        <img
-          ref={imageRef}
-          src={node.attrs.src}
-          alt={node.attrs.alt}
-          className="inkio-image-block-img"
-        />
+        {isUploading ? (
+          <div className="inkio-image-block-placeholder" role="img" aria-label={node.attrs.alt || 'Uploading image'}>
+            <Loader2Icon size={20} className="inkio-image-block-editor-spinner" />
+          </div>
+        ) : (
+          <img
+            ref={imageRef}
+            src={node.attrs.src}
+            alt={node.attrs.alt}
+            className="inkio-image-block-img"
+          />
+        )}
 
         {/* Resize Handle - Editor only, hidden when image editor is open */}
-        {isEditable && !isEditorOpen && (
+        {isEditable && !isEditorOpen && !isUploading && (
           <div
             className={`inkio-image-block-resize-handle${showControls ? ' is-visible' : ''}`}
             onMouseDown={handleResizeStart}
