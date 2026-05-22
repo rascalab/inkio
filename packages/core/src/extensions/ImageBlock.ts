@@ -20,6 +20,13 @@ type ImageNodeAttributes = {
 
 const KNOWN_IMAGE_ATTR_KEYS = ['src', 'alt', 'title', 'width', 'align', 'caption'] as const;
 
+/**
+ * Prefix marking a transient upload-placeholder `src`. This is a sentinel
+ * string, not a real URL — the view layer must render it as a loading state
+ * instead of an `<img src>` (which would trigger a relative-path fetch).
+ */
+export const UPLOAD_PLACEHOLDER_PREFIX = '__inkio_upload_';
+
 function toImageNodeAttributes(result: ImageUploadResult, fallbackAlt?: string): Partial<ImageNodeAttributes> {
   if (typeof result === 'string') {
     return {
@@ -115,7 +122,7 @@ function createImageUploadHelpers(options: ImageBlockOptions) {
       return false;
     }
 
-    const placeholderSrc = `__inkio_upload_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const placeholderSrc = `${UPLOAD_PLACEHOLDER_PREFIX}${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
     try {
       const { schema } = view.state;
@@ -315,6 +322,16 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
       this.options.HTMLAttributes,
       HTMLAttributes,
     );
+    // A placeholder `src` is a transient sentinel, not a real URL. Emitting it
+    // as an `<img src>` makes the browser fetch a bogus relative path (e.g. via
+    // `generateHTML` static rendering). Render a loading box instead.
+    if (typeof src === 'string' && src.startsWith(UPLOAD_PLACEHOLDER_PREFIX)) {
+      return [
+        'figure',
+        { 'data-type': 'imageBlock', 'data-align': align, ...rest },
+        ['div', { class: 'inkio-image-block-placeholder', role: 'img', 'aria-label': alt || 'Uploading image' }],
+      ];
+    }
     return [
       'figure',
       { 'data-type': 'imageBlock', 'data-align': align, ...rest },

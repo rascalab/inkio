@@ -582,6 +582,18 @@
   display: block;
 }
 
+.inkio-image-block-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 160px;
+  border-radius: var(--inkio-radius-sm);
+  background-color: var(--inkio-bg-muted);
+  border: 1px dashed var(--inkio-border);
+  color: var(--inkio-text-muted);
+}
+
 .inkio-image-block-resize-handle {
   position: absolute;
   bottom: 8px;
