@@ -156,3 +156,21 @@ export function executeTableAction(editor: Editor, actionId: InkioTableActionId)
       return false;
   }
 }
+
+export type TableInsertCommand = 'addColumnBefore' | 'addColumnAfter' | 'addRowBefore' | 'addRowAfter';
+
+/**
+ * Move the selection into `pos`, then run a table insert command. Table
+ * commands act on the current cell selection, so this is how a boundary-anchored
+ * insert (the `+` buttons) targets a specific row/column.
+ */
+export function runTableCommandAt(editor: Editor, pos: number, command: TableInsertCommand): boolean {
+  const chain = editor.chain().focus().setTextSelection(pos);
+  const result = invokeCommand(chain as ChainRecord, command);
+
+  if (result && typeof (result as { run?: unknown }).run === 'function') {
+    return Boolean((result as { run: () => boolean }).run());
+  }
+
+  return false;
+}
