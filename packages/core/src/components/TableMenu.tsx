@@ -1,23 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/react';
-import type { InkioIconRegistry } from '../icons/registry';
+import type { InkioIconId, InkioIconRegistry } from '../icons/registry';
 import type {
   InkioCoreMessageOverrides,
   InkioLocaleInput,
   InkioMessageOverrides,
 } from '../i18n/messages';
 import { useInkioCoreUi } from '../context/use-inkio-ui';
-import { ChevronRightIcon } from '../icons/icon';
-import {
-  autoUpdateOverlayPosition,
-  computeOverlayPosition,
-  toRectLike,
-} from '../overlay/positioning';
+import { autoUpdateOverlayPosition } from '../overlay/positioning';
 import {
   canExecuteTableAction,
-  defaultTableMenuActions,
   executeTableAction,
   isTableActive,
+  runTableCommandAt,
+  type InkioTableActionId,
 } from '../table/actions';
 
 export interface TableMenuProps {
@@ -28,20 +24,71 @@ export interface TableMenuProps {
   icons?: Partial<InkioIconRegistry>;
 }
 
-function resolveActiveTableElement(editor: Editor): HTMLTableElement | null {
-  const selection = editor.state.selection;
-  const nodeDom = editor.view.nodeDOM(selection.from);
+/** Viewport geometry of the active table, used to place the insert affordances. */
+type TableMetrics = {
+  /** x of every column boundary — length is columnCount + 1. */
+  columns: number[];
+  /** y of every row boundary — length is rowCount + 1. */
+  rows: number[];
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+};
 
+type HoverState = { axis: 'column' | 'row'; index: number };
+type ContextMenuState = { x: number; y: number };
+type ContextMenuEntry = { kind: 'action'; id: InkioTableActionId } | { kind: 'separator' };
+
+const CONTEXT_MENU_ENTRIES: ContextMenuEntry[] = [
+  { kind: 'action', id: 'addRowBefore' },
+  { kind: 'action', id: 'addRowAfter' },
+  { kind: 'action', id: 'addColumnBefore' },
+  { kind: 'action', id: 'addColumnAfter' },
+  { kind: 'separator' },
+  { kind: 'action', id: 'deleteRow' },
+  { kind: 'action', id: 'deleteColumn' },
+  { kind: 'action', id: 'deleteTable' },
+];
+
+const CONTEXT_MENU_WIDTH = 200;
+const CONTEXT_MENU_HEIGHT = 264;
+
+function PlusGlyph() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+      <path d="M6 2.5v7M2.5 6h7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function resolveActiveTable(editor: Editor): HTMLTableElement | null {
+  const { from } = editor.state.selection;
+  const nodeDom = editor.view.nodeDOM(from);
   if (nodeDom instanceof HTMLTableElement) {
     return nodeDom;
   }
 
-  const domAtPos = editor.view.domAtPos(selection.from);
-  const element = domAtPos.node instanceof Element
-    ? domAtPos.node
-    : domAtPos.node.parentElement;
+  const domAtPos = editor.view.domAtPos(from);
+  const element = domAtPos.node instanceof Element ? domAtPos.node : domAtPos.node.parentElement;
+  return (element?.closest('table') as HTMLTableElement | null) ?? null;
+}
 
-  return element?.closest('table') as HTMLTableElement | null;
+function measureTable(table: HTMLTableElement): TableMetrics | null {
+  const allRows = Array.from(table.rows);
+  const headCells = allRows[0] ? Array.from(allRows[0].cells) : [];
+  if (allRows.length === 0 || headCells.length === 0) {
+    return null;
+  }
+
+  const columns = headCells.map((cell) => cell.getBoundingClientRect().left);
+  columns.push(headCells[headCells.length - 1].getBoundingClientRect().right);
+
+  const rows = allRows.map((row) => row.getBoundingClientRect().top);
+  rows.push(allRows[allRows.length - 1].getBoundingClientRect().bottom);
+
+  const rect = table.getBoundingClientRect();
+  return { columns, rows, top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right };
 }
 
 export const TableMenu = ({
@@ -51,203 +98,355 @@ export const TableMenu = ({
   messages: messageOverrides,
   icons: iconOverrides,
 }: TableMenuProps) => {
-  const [isVisible, setIsVisible] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
-  const [panelAlign, setPanelAlign] = useState<'start' | 'end'>('start');
-  const [position, setPosition] = useState({ top: 0, left: 0 });
-  const containerRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const tableElementRef = useRef<HTMLTableElement | null>(null);
-  const blurRafRef = useRef(0);
-  const ui = useInkioCoreUi({
-    locale,
-    messages: messageOverrides,
-    icons: iconOverrides,
-  });
+  const [metrics, setMetrics] = useState<TableMetrics | null>(null);
+  const [hover, setHover] = useState<HoverState | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const tableRef = useRef<HTMLTableElement | null>(null);
+  const hoveredTableRef = useRef<HTMLTableElement | null>(null);
+  const clearTimerRef = useRef<number | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const ui = useInkioCoreUi({ locale, messages: messageOverrides, icons: iconOverrides });
 
-  const updatePosition = useCallback(() => {
-    if (!editor || !isTableActive(editor)) {
-      tableElementRef.current = null;
-      setIsVisible(false);
-      setIsOpen(false);
+  const refresh = useCallback(() => {
+    if (!editor || editor.isEditable === false) {
+      tableRef.current = null;
+      setMetrics(null);
       return;
     }
 
-    const tableElement = resolveActiveTableElement(editor);
-    if (!tableElement) {
-      tableElementRef.current = null;
-      setIsVisible(false);
-      setIsOpen(false);
-      return;
+    // Prefer the table the mouse is currently over, then fall back to the
+    // table that contains the selection — so hover alone is enough to reveal
+    // the controls, and they stay if the cursor is inside.
+    let target: HTMLTableElement | null = hoveredTableRef.current;
+    if (!target && isTableActive(editor)) {
+      target = resolveActiveTable(editor);
     }
 
-    tableElementRef.current = tableElement;
-
-    const floatingRect = {
-      width: triggerRef.current?.offsetWidth ?? 40,
-      height: triggerRef.current?.offsetHeight ?? 32,
-    };
-    const tableRect = toRectLike(tableElement.getBoundingClientRect());
-    const boundaryRect = toRectLike(editor.view.dom.getBoundingClientRect());
-    const nextPosition = computeOverlayPosition({
-      anchorRect: tableRect,
-      floatingRect,
-      placement: 'top',
-      align: 'start',
-      offset: 8,
-      padding: 8,
-      boundaryRect,
-    });
-
-    const projectedPanelRight = nextPosition.left + 208;
-    setPanelAlign(projectedPanelRight > boundaryRect.right - 8 ? 'end' : 'start');
-    setPosition({ top: nextPosition.top, left: nextPosition.left });
-    setIsVisible(true);
+    tableRef.current = target;
+    setMetrics(target ? measureTable(target) : null);
   }, [editor]);
 
-  const handleBlur = useCallback(() => {
-    blurRafRef.current = requestAnimationFrame(() => {
-      if (containerRef.current?.contains(document.activeElement)) {
-        return;
-      }
-
-      if (!editor?.isFocused) {
-        setIsOpen(false);
-        if (!isTableActive(editor)) {
-          setIsVisible(false);
-        }
-      }
-    });
-  }, [editor]);
-
-  useEffect(() => {
-    updatePosition();
-  }, [updatePosition]);
-
-  useEffect(() => {
-    return () => {
-      cancelAnimationFrame(blurRafRef.current);
-    };
+  const cancelHoverClear = useCallback(() => {
+    if (clearTimerRef.current !== null) {
+      window.clearTimeout(clearTimerRef.current);
+      clearTimerRef.current = null;
+    }
   }, []);
+
+  const scheduleHoverClear = useCallback(() => {
+    if (!hoveredTableRef.current) {
+      return;
+    }
+    if (clearTimerRef.current !== null) {
+      window.clearTimeout(clearTimerRef.current);
+    }
+    clearTimerRef.current = window.setTimeout(() => {
+      clearTimerRef.current = null;
+      hoveredTableRef.current = null;
+      refresh();
+    }, 200);
+  }, [refresh]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   useEffect(() => {
     if (!editor) {
       return;
     }
 
-    editor.on('selectionUpdate', updatePosition);
-    editor.on('focus', updatePosition);
-    editor.on('blur', handleBlur);
-    editor.on('transaction', updatePosition);
-
+    editor.on('selectionUpdate', refresh);
+    editor.on('transaction', refresh);
+    editor.on('focus', refresh);
     return () => {
-      editor.off('selectionUpdate', updatePosition);
-      editor.off('focus', updatePosition);
-      editor.off('blur', handleBlur);
-      editor.off('transaction', updatePosition);
+      editor.off('selectionUpdate', refresh);
+      editor.off('transaction', refresh);
+      editor.off('focus', refresh);
     };
-  }, [editor, handleBlur, updatePosition]);
+  }, [editor, refresh]);
 
   useEffect(() => {
-    if (!editor || !isVisible) {
+    if (!editor || !metrics) {
       return;
     }
 
     return autoUpdateOverlayPosition({
-      update: updatePosition,
-      elements: [editor.view.dom, triggerRef.current, tableElementRef.current],
+      update: refresh,
+      elements: [editor.view.dom, tableRef.current],
     });
-  }, [editor, isVisible, updatePosition]);
+  }, [editor, metrics, refresh]);
 
+  // Right-click inside a table cell opens the action menu.
   useEffect(() => {
-    if (!isOpen) {
+    if (!editor) {
       return;
     }
 
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-
-      if (containerRef.current?.contains(target) || editor?.view.dom.contains(target)) {
+    const dom = editor.view.dom;
+    const handleContextMenu = (event: MouseEvent) => {
+      if (editor.isEditable === false) {
         return;
       }
 
-      setIsOpen(false);
+      const cell = (event.target as HTMLElement | null)?.closest('td, th') as HTMLElement | null;
+      if (!cell || !dom.contains(cell)) {
+        return;
+      }
+
+      event.preventDefault();
+      const pos = editor.view.posAtDOM(cell, 0);
+      editor.chain().focus().setTextSelection(pos).run();
+      setContextMenu({
+        x: Math.max(8, Math.min(event.clientX, window.innerWidth - CONTEXT_MENU_WIDTH - 8)),
+        y: Math.max(8, Math.min(event.clientY, window.innerHeight - CONTEXT_MENU_HEIGHT - 8)),
+      });
+    };
+
+    dom.addEventListener('contextmenu', handleContextMenu);
+    return () => dom.removeEventListener('contextmenu', handleContextMenu);
+  }, [editor]);
+
+  // Dismiss the context menu on any outside interaction.
+  useEffect(() => {
+    if (!contextMenu) {
+      return;
+    }
+
+    const close = () => setContextMenu(null);
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        close();
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        close();
+      }
     };
 
     document.addEventListener('mousedown', handlePointerDown, true);
+    document.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
     return () => {
       document.removeEventListener('mousedown', handlePointerDown, true);
+      document.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
     };
-  }, [editor, isOpen]);
+  }, [contextMenu]);
 
-  if (!editor || (!isVisible && !isOpen)) {
+  // Track the table currently under the mouse, so the controls reveal on
+  // hover without first clicking into the table.
+  useEffect(() => {
+    if (!editor || editor.isEditable === false) {
+      return;
+    }
+
+    const dom = editor.view.dom;
+    const handleMouseOver = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const table = (target?.closest?.('table') ?? null) as HTMLTableElement | null;
+      if (table && dom.contains(table)) {
+        cancelHoverClear();
+        if (hoveredTableRef.current !== table) {
+          hoveredTableRef.current = table;
+          refresh();
+        }
+      } else if (hoveredTableRef.current) {
+        scheduleHoverClear();
+      }
+    };
+    const handleMouseLeave = () => {
+      scheduleHoverClear();
+    };
+
+    dom.addEventListener('mouseover', handleMouseOver);
+    dom.addEventListener('mouseleave', handleMouseLeave);
+    return () => {
+      dom.removeEventListener('mouseover', handleMouseOver);
+      dom.removeEventListener('mouseleave', handleMouseLeave);
+      cancelHoverClear();
+    };
+  }, [editor, cancelHoverClear, scheduleHoverClear, refresh]);
+
+  const insertAt = useCallback(
+    (axis: 'column' | 'row', index: number) => {
+      const table = tableRef.current;
+      if (!editor || !table) {
+        return;
+      }
+
+      if (axis === 'column') {
+        const cells = table.rows[0]?.cells;
+        if (!cells || cells.length === 0) {
+          return;
+        }
+        const after = index >= cells.length;
+        const cell = cells[after ? cells.length - 1 : index];
+        runTableCommandAt(editor, editor.view.posAtDOM(cell, 0), after ? 'addColumnAfter' : 'addColumnBefore');
+        return;
+      }
+
+      const rows = table.rows;
+      if (rows.length === 0) {
+        return;
+      }
+      const after = index >= rows.length;
+      const cell = rows[after ? rows.length - 1 : index]?.cells[0];
+      if (!cell) {
+        return;
+      }
+      runTableCommandAt(editor, editor.view.posAtDOM(cell, 0), after ? 'addRowAfter' : 'addRowBefore');
+    },
+    [editor],
+  );
+
+  const runAction = useCallback(
+    (id: InkioTableActionId) => {
+      if (editor) {
+        executeTableAction(editor, id);
+      }
+      setContextMenu(null);
+    },
+    [editor],
+  );
+
+  if (!editor) {
     return null;
   }
 
-  const TriggerIcon = ui.icons.table;
-
   return (
-    <div
-      ref={containerRef}
-      className={`inkio-floating-overlay inkio-table-anchor ${isVisible ? 'is-visible' : ''}${className ? ` ${className}` : ''}`}
-      style={{
-        top: position.top,
-        left: position.left,
-      }}
-    >
-      <button
-        ref={triggerRef}
-        type="button"
-        className={`inkio-table-trigger${isOpen ? ' is-open' : ''}`}
-        aria-haspopup="dialog"
-        aria-expanded={isOpen}
-        aria-label={ui.messages.actions.table}
-        title={ui.messages.actions.table}
-        onMouseDown={(event) => {
-          event.preventDefault();
-        }}
-        onClick={() => {
-          setIsOpen((previous) => !previous);
-        }}
-      >
-        <TriggerIcon size={16} strokeWidth={1.8} />
-        <ChevronRightIcon size={12} strokeWidth={2} className="inkio-table-trigger-chevron" />
-      </button>
+    <>
+      {metrics && (
+        <div className={`inkio-table-controls${className ? ` ${className}` : ''}`}>
+          {hover && (
+            <div
+              className={`inkio-table-guide inkio-table-guide--${hover.axis}`}
+              style={
+                hover.axis === 'column'
+                  ? {
+                      left: metrics.columns[hover.index],
+                      top: metrics.top,
+                      height: metrics.bottom - metrics.top,
+                    }
+                  : {
+                      top: metrics.rows[hover.index],
+                      left: metrics.left,
+                      width: metrics.right - metrics.left,
+                    }
+              }
+            />
+          )}
 
-      {isOpen && (
-        <div
-          className={`inkio-table-panel inkio-table-panel--${panelAlign}`}
-          role="toolbar"
-          aria-label={ui.messages.actions.table}
-        >
-          {defaultTableMenuActions.map((action) => {
-            const Icon = ui.icons[action.iconId];
-            const label = ui.messages.tableMenu[action.id];
-            const isDisabled = !canExecuteTableAction(editor, action.id);
-
+          {metrics.columns.map((x, index) => {
+            const isLast = index === metrics.columns.length - 1;
+            const label = isLast
+              ? ui.messages.tableMenu.addColumnAfter
+              : ui.messages.tableMenu.addColumnBefore;
             return (
               <button
-                key={action.id}
+                key={`column-${index}`}
                 type="button"
-                className={`inkio-bubble-btn inkio-table-action${action.group === 'delete' ? ' is-danger' : ''}`}
+                className="inkio-table-insert inkio-table-insert--column"
+                style={{ left: x, top: metrics.top }}
                 title={label}
                 aria-label={label}
-                disabled={isDisabled}
+                onMouseEnter={() => {
+                  cancelHoverClear();
+                  setHover({ axis: 'column', index });
+                }}
+                onMouseLeave={() => {
+                  scheduleHoverClear();
+                  setHover(null);
+                }}
+                onFocus={() => setHover({ axis: 'column', index })}
+                onBlur={() => setHover(null)}
                 onMouseDown={(event) => {
                   event.preventDefault();
-                  if (isDisabled) {
-                    return;
-                  }
-
-                  executeTableAction(editor, action.id);
+                  insertAt('column', index);
                 }}
               >
-                <Icon size={16} strokeWidth={1.8} />
+                <PlusGlyph />
+              </button>
+            );
+          })}
+
+          {metrics.rows.map((y, index) => {
+            const isLast = index === metrics.rows.length - 1;
+            const label = isLast
+              ? ui.messages.tableMenu.addRowAfter
+              : ui.messages.tableMenu.addRowBefore;
+            return (
+              <button
+                key={`row-${index}`}
+                type="button"
+                className="inkio-table-insert inkio-table-insert--row"
+                style={{ left: metrics.left, top: y }}
+                title={label}
+                aria-label={label}
+                onMouseEnter={() => {
+                  cancelHoverClear();
+                  setHover({ axis: 'row', index });
+                }}
+                onMouseLeave={() => {
+                  scheduleHoverClear();
+                  setHover(null);
+                }}
+                onFocus={() => setHover({ axis: 'row', index })}
+                onBlur={() => setHover(null)}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  insertAt('row', index);
+                }}
+              >
+                <PlusGlyph />
               </button>
             );
           })}
         </div>
       )}
-    </div>
+
+      {contextMenu && (
+        <div
+          ref={menuRef}
+          className="inkio-table-context-menu"
+          role="menu"
+          aria-label={ui.messages.actions.table}
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+        >
+          {CONTEXT_MENU_ENTRIES.map((entry, index) => {
+            if (entry.kind === 'separator') {
+              return <div key={`separator-${index}`} className="inkio-table-context-separator" />;
+            }
+
+            const Icon = ui.icons[entry.id as InkioIconId];
+            const label = ui.messages.tableMenu[entry.id];
+            const disabled = !canExecuteTableAction(editor, entry.id);
+            const isDanger = entry.id === 'deleteRow' || entry.id === 'deleteColumn' || entry.id === 'deleteTable';
+
+            return (
+              <button
+                key={entry.id}
+                type="button"
+                role="menuitem"
+                className={`inkio-table-context-item${isDanger ? ' is-danger' : ''}`}
+                disabled={disabled}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  if (!disabled) {
+                    runAction(entry.id);
+                  }
+                }}
+              >
+                {Icon && <Icon size={15} strokeWidth={1.8} />}
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </>
   );
 };

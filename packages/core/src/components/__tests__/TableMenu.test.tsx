@@ -1,136 +1,132 @@
 import { fireEvent, render, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { TableMenu } from '../TableMenu';
 
-function createMockEditor() {
-  const addRowAfter = vi.fn(() => ({ run: () => true }));
-  const addColumnBefore = vi.fn(() => ({ run: () => true }));
-  const deleteTable = vi.fn(() => ({ run: () => true }));
+const TABLE_COMMANDS = [
+  'addColumnBefore',
+  'addColumnAfter',
+  'deleteColumn',
+  'addRowBefore',
+  'addRowAfter',
+  'deleteRow',
+  'toggleHeaderColumn',
+  'toggleHeaderRow',
+  'mergeCells',
+  'splitCell',
+  'deleteTable',
+] as const;
+
+/** Builds a mock editor backed by a real (detached) 3×3 table DOM. */
+function createMockEditor(
+  canOverrides: Partial<Record<string, boolean>> = {},
+  { isActiveTable = true }: { isActiveTable?: boolean } = {},
+) {
+  const dom = document.createElement('div');
+  const table = document.createElement('table');
+  for (let row = 0; row < 3; row += 1) {
+    const tr = table.insertRow();
+    for (let col = 0; col < 3; col += 1) {
+      tr.appendChild(document.createElement(row === 0 ? 'th' : 'td'));
+    }
+  }
+  dom.appendChild(table);
+
+  const commandSpies = Object.fromEntries(TABLE_COMMANDS.map((name) => [name, vi.fn()]));
+  const makeChain = () => {
+    const chain: Record<string, unknown> = {
+      focus: () => chain,
+      setTextSelection: () => chain,
+      run: () => true,
+    };
+    for (const name of TABLE_COMMANDS) {
+      chain[name] = (...args: unknown[]) => {
+        commandSpies[name](...args);
+        return chain;
+      };
+    }
+    return chain;
+  };
 
   const editor = {
     isEditable: true,
     isFocused: true,
-    state: {
-      selection: { from: 2 },
-    },
+    state: { selection: { from: 2 } },
     view: {
+      dom,
       nodeDOM: vi.fn(() => null),
-      domAtPos: vi.fn(() => ({
-        node: {
-          parentElement: {
-            closest: () => ({
-              getBoundingClientRect: () => ({
-                top: 120,
-                left: 80,
-                right: 420,
-                bottom: 280,
-                width: 340,
-                height: 160,
-              }),
-            }),
-          },
-        },
-      })),
-      dom: {
-        contains: () => false,
-        getBoundingClientRect: () => ({
-          top: 0,
-          left: 0,
-          right: 640,
-          bottom: 480,
-          width: 640,
-          height: 480,
-        }),
-      },
+      domAtPos: vi.fn(() => ({ node: table.rows[1].cells[0] })),
+      posAtDOM: vi.fn(() => 5),
     },
-    extensionManager: {
-      extensions: [{ name: 'table' }],
-    },
-    isActive: vi.fn((name: string) => name === 'table'),
-    can: vi.fn(() => ({
-      addColumnBefore: () => true,
-      addColumnAfter: () => true,
-      deleteColumn: () => true,
-      addRowBefore: () => true,
-      addRowAfter: () => true,
-      deleteRow: () => true,
-      toggleHeaderColumn: () => true,
-      toggleHeaderRow: () => true,
-      mergeCells: () => true,
-      splitCell: () => true,
-      deleteTable: () => true,
-    })),
-    chain: vi.fn(() => ({
-      focus: () => ({
-        addColumnBefore,
-        addColumnAfter: vi.fn(() => ({ run: () => true })),
-        deleteColumn: vi.fn(() => ({ run: () => true })),
-        addRowBefore: vi.fn(() => ({ run: () => true })),
-        addRowAfter,
-        deleteRow: vi.fn(() => ({ run: () => true })),
-        toggleHeaderColumn: vi.fn(() => ({ run: () => true })),
-        toggleHeaderRow: vi.fn(() => ({ run: () => true })),
-        mergeCells: vi.fn(() => ({ run: () => true })),
-        splitCell: vi.fn(() => ({ run: () => true })),
-        deleteTable,
-        run: () => true,
-      }),
-    })),
+    extensionManager: { extensions: [{ name: 'table' }] },
+    isActive: vi.fn((name: string) => isActiveTable && name === 'table'),
+    can: vi.fn(() =>
+      Object.fromEntries(TABLE_COMMANDS.map((name) => [name, () => canOverrides[name] ?? true])),
+    ),
+    chain: vi.fn(makeChain),
     on: vi.fn(),
     off: vi.fn(),
   } as any;
 
-  return {
-    editor,
-    addColumnBefore,
-    addRowAfter,
-    deleteTable,
-  };
+  return { editor, table, commandSpies };
 }
 
-describe('TableMenu component', () => {
-  it('renders a table trigger when the selection is inside a table', async () => {
+describe('TableMenu', () => {
+  it('renders a boundary insert button for every row and column edge', async () => {
     const { editor } = createMockEditor();
-    const { getByRole } = render(<TableMenu editor={editor} />);
+    const { getAllByRole } = render(<TableMenu editor={editor} />);
 
     await waitFor(() => {
-      expect(getByRole('button', { name: 'Table' })).toBeInTheDocument();
+      // 3 columns and 3 rows each yield 4 boundaries.
+      expect(getAllByRole('button', { name: /Add column/ })).toHaveLength(4);
+      expect(getAllByRole('button', { name: /Add row/ })).toHaveLength(4);
     });
   });
 
-  it('runs table actions through tiptap commands', async () => {
-    const { editor, addRowAfter } = createMockEditor();
-    const { getByRole } = render(<TableMenu editor={editor} />);
+  it('inserts a column at the clicked boundary', async () => {
+    const { editor, commandSpies } = createMockEditor();
+    const { getAllByRole } = render(<TableMenu editor={editor} />);
 
-    const trigger = await waitFor(() => getByRole('button', { name: 'Table' }));
-    fireEvent.click(trigger);
+    const columnButtons = await waitFor(() => getAllByRole('button', { name: /Add column/ }));
+    fireEvent.mouseDown(columnButtons[0]);
 
-    const action = getByRole('button', { name: 'Add row below' });
-    fireEvent.mouseDown(action);
-
-    expect(addRowAfter).toHaveBeenCalledTimes(1);
+    expect(commandSpies.addColumnBefore).toHaveBeenCalledTimes(1);
   });
 
-  it('disables destructive actions when can() returns false', async () => {
-    const { editor } = createMockEditor();
-    editor.can = vi.fn(() => ({
-      addColumnBefore: () => true,
-      addColumnAfter: () => true,
-      deleteColumn: () => true,
-      addRowBefore: () => true,
-      addRowAfter: () => true,
-      deleteRow: () => true,
-      toggleHeaderColumn: () => true,
-      toggleHeaderRow: () => true,
-      mergeCells: () => true,
-      splitCell: () => true,
-      deleteTable: () => false,
-    }));
-
+  it('opens a context menu on right-click and runs the chosen action', async () => {
+    const { editor, table, commandSpies } = createMockEditor();
     const { getByRole } = render(<TableMenu editor={editor} />);
 
-    const trigger = await waitFor(() => getByRole('button', { name: 'Table' }));
-    fireEvent.click(trigger);
+    fireEvent.contextMenu(table.rows[1].cells[1], { clientX: 40, clientY: 40 });
 
-    expect(getByRole('button', { name: 'Delete table' })).toBeDisabled();
+    const menu = await waitFor(() => getByRole('menu'));
+    expect(menu).toBeInTheDocument();
+
+    fireEvent.mouseDown(getByRole('menuitem', { name: 'Delete row' }));
+    expect(commandSpies.deleteRow).toHaveBeenCalledTimes(1);
+  });
+
+  it('reveals controls on table hover even when the selection is not inside', async () => {
+    const { editor, table } = createMockEditor({}, { isActiveTable: false });
+    const { getAllByRole, queryAllByRole } = render(<TableMenu editor={editor} />);
+
+    // Nothing visible until the mouse enters the table.
+    expect(queryAllByRole('button', { name: /Add column/ })).toHaveLength(0);
+
+    fireEvent.mouseOver(table.rows[1].cells[1]);
+
+    await waitFor(() => {
+      expect(getAllByRole('button', { name: /Add column/ })).toHaveLength(4);
+      expect(getAllByRole('button', { name: /Add row/ })).toHaveLength(4);
+    });
+  });
+
+  it('disables a context-menu action when the command is unavailable', async () => {
+    const { editor, table } = createMockEditor({ deleteTable: false });
+    const { getByRole } = render(<TableMenu editor={editor} />);
+
+    fireEvent.contextMenu(table.rows[1].cells[1], { clientX: 40, clientY: 40 });
+
+    await waitFor(() => getByRole('menu'));
+    expect(getByRole('menuitem', { name: 'Delete table' })).toBeDisabled();
   });
 });
