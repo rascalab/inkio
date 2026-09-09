@@ -186,6 +186,31 @@ import { Viewer } from '@inkio/simple';
 | `ui` | `{ className?, style?, bordered?, messages?, icons? }` | UI 옵션 |
 | `extensions` | `ExtensionsInput` | 확장 추가/교체 |
 
+### @inkio/core — StaticViewer (읽기 전용 경량 경로)
+
+댓글·선택 같은 인터랙션이 필요 없는 목록/미리보기에는 `StaticViewer`를
+사용하세요. Tiptap 인스턴스를 마운트하지 않고 살균된 정적 HTML만 렌더링하므로
+`<Viewer>` 대비 번들이 가볍습니다.
+
+```tsx
+import { StaticViewer } from '@inkio/core/static';
+```
+
+| Prop | 타입 | 설명 |
+|------|------|------|
+| `content` | `string \| JSONContent` | 표시할 콘텐츠 (필수) |
+| `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 부모 환경을 따름) |
+| `ui` | `{ className?, style?, bordered? }` | UI 옵션 |
+| `extensions` | `ExtensionsInput` | 확장 추가/교체 |
+
+`locale`/`messages`/`icons`/`onCreate`는 없습니다. 정적 렌더링에는
+인터랙티브 UI가 없고 에디터 인스턴스가 존재하지 않기 때문입니다.
+인터랙티브 읽기 전용(댓글 등)이 필요하면 `<Viewer>`를 사용하세요.
+
+core 스키마에 없는 노드를 담은 콘텐츠(댓글·멘션·북마크 등 advanced 확장
+타입)는 빈 셀로 폴백됩니다. 그런 콘텐츠를 정적으로 렌더링하려면 해당
+스키마를 `extensions`로 전달하세요.
+
 ---
 
 ## ToC (목차)

@@ -1,11 +1,15 @@
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { ReactNodeViewRenderer } from '@tiptap/react';
-import { common, createLowlight } from 'lowlight';
+import { createLowlight } from 'lowlight';
 import { CodeBlockView } from './CodeBlockView';
 import { applyHljsTheme, isDarkTheme, removeHljsTheme } from './hljs-theme';
+import { ensureHljsLanguages } from './hljs-lazy';
 
-const lowlight = createLowlight(common);
-lowlight.registerAlias('typescript', ['tsx', 'jsx']);
+// Grammars load on demand via `ensureHljsLanguages` (see `./hljs-lazy`):
+// the 37 highlight.js languages used to ship inside this chunk through
+// `lowlight/common`. Until a grammar arrives, blocks render through
+// Tiptap's auto-detect fallback, exactly like unknown languages always did.
+const lowlight = createLowlight();
 
 export const CodeBlock = CodeBlockLowlight.extend({
   addStorage() {
@@ -17,6 +21,8 @@ export const CodeBlock = CodeBlockLowlight.extend({
   },
 
   onCreate() {
+    ensureHljsLanguages(lowlight, this.editor);
+
     const dom = this.editor.view.dom;
     applyHljsTheme(isDarkTheme(dom));
 
@@ -31,6 +37,10 @@ export const CodeBlock = CodeBlockLowlight.extend({
     }
 
     this.storage.hljsObserver = observer;
+  },
+
+  onUpdate() {
+    ensureHljsLanguages(lowlight, this.editor);
   },
 
   onDestroy() {

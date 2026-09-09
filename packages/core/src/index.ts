@@ -3,6 +3,8 @@ export { Editor } from './components/Editor';
 export type { EditorProps } from './components/Editor';
 export { Viewer } from './components/Viewer';
 export type { ViewerProps } from './components/Viewer';
+export { StaticViewer } from './components/StaticViewer';
+export type { StaticViewerProps } from './components/StaticViewer';
 export { InkioErrorBoundary } from './components/ErrorBoundary';
 export type { InkioErrorBoundaryProps, InkioErrorFallbackProps } from './components/ErrorBoundary';
 export type { HeadingItem } from './components/ToC';
@@ -63,6 +65,7 @@ export { toError } from './utils';
 export type { InkioErrorHandler } from './utils';
 export { isSafeUrl, sanitizeUrlOrEmpty } from './utils/url-safety';
 export { mergeExtensions, resolveExtensionsInput } from './utils/extensions-input';
+export { resolveInkioExtensions } from './extensions/resolve-extensions';
 export type { ExtensionsInput, CoreExtensions } from './utils/extensions-input';
 export type { JSONContent as InkioJSONContent } from '@tiptap/core';
 
@@ -117,10 +120,7 @@ export type { ImageBlockOptions, ImageEditorComponentProps } from './extensions/
 export { TocBlock } from './extensions/TocBlock';
 export type { TocBlockOptions } from './extensions/TocBlock';
 
-// Markdown
-export {
-  createMarkdownAdapter,
-  parseMarkdown,
-  stringifyMarkdown,
-} from './markdown';
+// Markdown lives behind its own entry point (`@inkio/core/markdown`) so the
+// unified/remark dependency chain is never pulled into the editor bundle.
+// Import it explicitly when you need markdown serialization.
 export type { MarkdownAdapterOptions } from './markdown';

@@ -5,6 +5,10 @@ import {
   type RefAttributes,
   type SVGProps,
 } from 'react';
+// NOTE: measured 2026-09 — a single icon bundled from this root barrel
+// costs ~9KB raw / ~3KB gzip, i.e. bundlers tree-shake the CJS barrel
+// cleanly. Deep per-icon imports were evaluated and reverted: zero output
+// gain for real type/declaration costs.
 import {
   AlignCenter,
   AlignLeft,
