@@ -102,6 +102,7 @@ export default defineConfig({
         index: resolve(__dirname, 'src/index.ts'),
         icons: resolve(__dirname, 'src/icons/index.ts'),
         markdown: resolve(__dirname, 'src/markdown/index.ts'),
+        static: resolve(__dirname, 'src/static.tsx'),
       },
     },
     rollupOptions: {

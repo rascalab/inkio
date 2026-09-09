@@ -65,6 +65,16 @@
         "default": "./dist/markdown.cjs"
       }
     },
+    "./static": {
+      "import": {
+        "types": "./dist/static.d.ts",
+        "default": "./dist/static.js"
+      },
+      "require": {
+        "types": "./dist/static.d.cts",
+        "default": "./dist/static.cjs"
+      }
+    },
     "./style.css": "./dist/style.css",
     "./minimal.css": "./dist/minimal.css"
   },

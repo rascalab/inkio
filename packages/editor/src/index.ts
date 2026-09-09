@@ -23,10 +23,10 @@ export {
   toPlainText,
   toSummary,
   getContentStats,
-  parseMarkdown,
-  stringifyMarkdown,
-  createMarkdownAdapter,
 } from '@inkio/core';
+// Markdown serialization is intentionally NOT re-exported here — use
+// `@inkio/editor/markdown` so the unified/remark chain stays out of the
+// editor bundle.
 export type {
   BubbleMenuProps,
   FloatingMenuProps,
