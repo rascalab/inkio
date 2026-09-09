@@ -52,6 +52,10 @@ export function TransformersLayer({
         borderStroke={colors.primary}
         borderDash={[3, 3]}
         keepRatio={false}
+        // Flipping via anchors would persist negative scaleX/scaleY into
+        // annotation width/height (Konva renders negative sizes unpredictably).
+        // Image-level flip already exists as a first-class transform.
+        flipEnabled={false}
       />
     </Layer>
   );

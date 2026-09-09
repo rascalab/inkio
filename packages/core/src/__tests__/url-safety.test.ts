@@ -22,6 +22,23 @@ describe('url-safety: isSafeUrl', () => {
     }
   });
 
+  it('rejects obfuscated protocols', () => {
+    const obfuscated = [
+      'java\tscript:alert(1)',
+      'java\nscript:alert(1)',
+      '  java\tscript:alert(1)',
+      'javascript&#58;alert(1)',
+      'javascript&colon;alert(1)',
+      '&#106;avascript:alert(1)',
+      'file:///etc/passwd',
+      'about:blank',
+      'ftp://example.com/file',
+    ];
+    for (const url of obfuscated) {
+      expect(isSafeUrl(url), url).toBe(false);
+    }
+  });
+
   it('allows ordinary URLs', () => {
     const safe = [
       'https://example.com',
@@ -31,6 +48,8 @@ describe('url-safety: isSafeUrl', () => {
       '/relative/path',
       './local',
       '#anchor',
+      'blob:https://example.com/uuid',
+      'data:image/png;base64,iVBORw0KGgo=',
     ];
     for (const url of safe) {
       expect(isSafeUrl(url), url).toBe(true);

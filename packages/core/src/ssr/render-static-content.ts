@@ -135,13 +135,18 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
   },
   allowedStyles: {
     '*': {
-      color: [/.*/],
-      'background-color': [/.*/],
+      // Tight allowlist: hex/rgb/hsl/named colors only. The old /.*/ permitted
+      // `expression(...)` and `url(...)` CSS exfil vectors.
+      color: [/^#(?:[0-9a-f]{3,8})$/i, /^rgba?\([^)]*\)$/i, /^hsla?\([^)]*\)$/i, /^[a-z]+$/i],
+      'background-color': [/^#(?:[0-9a-f]{3,8})$/i, /^rgba?\([^)]*\)$/i, /^hsla?\([^)]*\)$/i, /^[a-z]+$/i],
       'text-align': [/^(left|center|right)$/],
     },
   },
-  allowedSchemes: ['http', 'https', 'mailto', 'tel'],
-};
+  allowedSchemes: ['http', 'https', 'mailto', 'tel', 'blob'],
+  allowedSchemesByTag: {
+    img: ['http', 'https', 'blob', 'data'],
+  },
+} as sanitizeHtml.IOptions;
 
 function sanitizeInkioHtml(html: string): string {
   return html ? sanitizeHtml(html, SANITIZE_OPTIONS) : '';
@@ -166,9 +171,15 @@ export function renderInkioStaticContent(
   }
 
   // generateHTML from @tiptap/html uses happy-dom internally.
-  // Text nodes are properly escaped via DOM APIs — no XSS risk.
-  const html = isEmptyDoc(json)
-    ? ''
-    : injectHeadingIds(generateHTML(json, extensions), jsonHeadings);
+  // Text nodes are properly escaped via DOM APIs, but extension renderHTML can
+  // still emit unsafe attrs — always sanitize the output. Never let an invalid
+  // doc crash SSR; fall back to an empty shell instead.
+  let html = '';
+  try {
+    const raw = isEmptyDoc(json) ? '' : generateHTML(json, extensions);
+    html = raw ? sanitizeInkioHtml(injectHeadingIds(raw, jsonHeadings)) : '';
+  } catch {
+    return { json: EMPTY_DOC, html: '', headings: [], shellOnly: true };
+  }
   return { json, html, headings: jsonHeadings, shellOnly: false };
 }

@@ -264,6 +264,9 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
   let menuReadyPromise: Promise<void> | null = null;
   let openMenuBlockPos: number | null = null;
   let abortController: AbortController | null = null;
+  let pendingHover: { x: number; y: number } | null = null;
+  let hoverRaf = 0;
+  let scrollRaf = 0;
 
   const clearHideTimer = () => {
     if (hideTimer) {
@@ -455,8 +458,17 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
       event.stopPropagation();
     }, { signal });
 
+    // Clear a stale captured position when press-and-hover moves away
+    // without click/dragstart (e.g. mousedown then mouseup off-handle).
+    document.addEventListener('mouseup', () => {
+      if (openMenuBlockPos === null) {
+        capturedBlockPos = null;
+      }
+    }, { signal });
+
     handleElement.addEventListener('dragstart', (event) => {
       const blockPos = capturedBlockPos ?? activeBlockPos;
+      capturedBlockPos = null;
       if (!editorView || blockPos === null) {
         return;
       }
@@ -511,7 +523,8 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
     }, { signal });
 
     handleElement.addEventListener('click', (event) => {
-      const posForMenu = capturedBlockPos;
+      const posForMenu = capturedBlockPos ?? activeBlockPos;
+      capturedBlockPos = null;
       if (!editorView || posForMenu === null) {
         return;
       }
@@ -547,13 +560,9 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
           view.dom.removeEventListener('mousedown', cleanup);
           document.removeEventListener('keydown', onKeyCleanup);
         };
-        const onKeyCleanup = (e: KeyboardEvent) => {
-          if (e.key === 'Escape') {
-            // Menu closes but block stays visually selected; handle can move again
-            blockSelected = false;
-            document.removeEventListener('keydown', onKeyCleanup);
-            return;
-          }
+        const onKeyCleanup = () => {
+          // Any key previously left `.inkio-block-selected` and the view.dom
+          // mousedown listener behind on Escape — always fully clean up.
           cleanup();
         };
         currentBlockCleanup = cleanup;
@@ -648,15 +657,27 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
             return false;
           }
 
-          const hovered = findHoveredBlock(view, event.clientX, event.clientY);
-          if (!hovered) {
-            scheduleHideHandle(view);
-            return false;
-          }
+          // Throttle layout-heavy hover detection (posAtCoords + rects +
+          // getComputedStyle) to one rAF per frame instead of per pixel move.
+          pendingHover = { x: event.clientX, y: event.clientY };
+          if (!hoverRaf) {
+            hoverRaf = requestAnimationFrame(() => {
+              hoverRaf = 0;
+              const coords = pendingHover;
+              pendingHover = null;
+              if (!coords || !editorView) return;
 
-          showHandle(view, hovered);
-          if (openMenuBlockPos !== null) {
-            renderMenu();
+              const hovered = findHoveredBlock(editorView, coords.x, coords.y);
+              if (!hovered) {
+                scheduleHideHandle(editorView);
+                return;
+              }
+
+              showHandle(editorView, hovered);
+              if (openMenuBlockPos !== null) {
+                renderMenu();
+              }
+            });
           }
           return false;
         },
@@ -696,10 +717,14 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
 
       const handleScroll = () => {
         if (!handleElement) return;
+        if (scrollRaf) return;
 
-        if (activeBlockElement && activeBlockPos !== null) {
-          positionHandle(handleElement, activeBlockElement, options.handleWidth);
-        }
+        scrollRaf = requestAnimationFrame(() => {
+          scrollRaf = 0;
+          if (handleElement && activeBlockElement && activeBlockPos !== null) {
+            positionHandle(handleElement, activeBlockElement, options.handleWidth);
+          }
+        });
       };
 
       scrollParent.addEventListener('scroll', handleScroll, { passive: true });
@@ -756,6 +781,15 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
           abortController?.abort();
           abortController = null;
           clearHideTimer();
+          if (hoverRaf) {
+            cancelAnimationFrame(hoverRaf);
+            hoverRaf = 0;
+          }
+          if (scrollRaf) {
+            cancelAnimationFrame(scrollRaf);
+            scrollRaf = 0;
+          }
+          pendingHover = null;
           closeMenu();
 
           if (menuRoot) {

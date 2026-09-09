@@ -46,6 +46,7 @@ import { Callout } from './Callout';
 import { KeyboardShortcuts } from './KeyboardShortcuts';
 import { DetailsShortcut } from './DetailsShortcut';
 import { TocBlock } from './TocBlock';
+import { isSafeUrl } from '../utils/url-safety';
 
 export interface CoreExtensionOptions {
   /** Placeholder text shown when the editor is empty */
@@ -191,6 +192,9 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
         openOnClick: linkOpts.openOnClick ?? false,
         autolink: linkOpts.autolink ?? true,
         defaultProtocol: linkOpts.defaultProtocol ?? 'https',
+        // Block javascript:/data:text-html style hrefs at paste/typing time.
+        // isSafeUrl handles obfuscated protocols (whitespace, entities).
+        validate: (href: string) => isSafeUrl(href),
       })
     );
   }

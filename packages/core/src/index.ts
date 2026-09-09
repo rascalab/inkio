@@ -1,6 +1,10 @@
 // Core Components
 export { Editor } from './components/Editor';
 export type { EditorProps } from './components/Editor';
+export { Viewer } from './components/Viewer';
+export type { ViewerProps } from './components/Viewer';
+export { InkioErrorBoundary } from './components/ErrorBoundary';
+export type { InkioErrorBoundaryProps, InkioErrorFallbackProps } from './components/ErrorBoundary';
 export type { HeadingItem } from './components/ToC';
 export { getHeadingsFromContent, getHeadingsFromDoc } from './components/ToC';
 
@@ -57,7 +61,10 @@ export { InkioError } from './errors';
 // Shared Utilities
 export { toError } from './utils';
 export type { InkioErrorHandler } from './utils';
-export { isSafeUrl } from './utils/url-safety';
+export { isSafeUrl, sanitizeUrlOrEmpty } from './utils/url-safety';
+export { mergeExtensions, resolveExtensionsInput } from './utils/extensions-input';
+export type { ExtensionsInput, CoreExtensions } from './utils/extensions-input';
+export type { JSONContent as InkioJSONContent } from '@tiptap/core';
 
 // Serialization
 export { toPlainText, toSummary, getContentStats } from './serialization';

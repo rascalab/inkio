@@ -6,9 +6,12 @@ import { ArrowAnnotationShape } from './ArrowAnnotationShape';
 import { LineAnnotationShape } from './LineAnnotationShape';
 import { TextAnnotationShape } from './TextAnnotationShape';
 import { FreeDrawAnnotationShape } from './FreeDrawAnnotationShape';
+import { RedactAnnotationShape } from './RedactAnnotationShape';
+import { StickerAnnotationShape } from './StickerAnnotationShape';
 
 interface AnnotationRendererProps {
   annotation: Annotation;
+  image: HTMLImageElement | null;
   onSelect: (id: string) => void;
   onChange: (id: string, updates: Partial<Annotation>) => void;
   scale: number;
@@ -16,6 +19,7 @@ interface AnnotationRendererProps {
 
 export function AnnotationRenderer({
   annotation,
+  image,
   onSelect,
   onChange,
   scale,
@@ -35,6 +39,10 @@ export function AnnotationRenderer({
       return <TextAnnotationShape annotation={annotation} {...commonProps} />;
     case 'freedraw':
       return <FreeDrawAnnotationShape annotation={annotation} {...commonProps} />;
+    case 'redact':
+      return <RedactAnnotationShape annotation={annotation} image={image} {...commonProps} />;
+    case 'sticker':
+      return <StickerAnnotationShape annotation={annotation} {...commonProps} />;
     default:
       return null;
   }

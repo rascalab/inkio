@@ -27,7 +27,9 @@ export const TocBlock = Node.create<TocBlockOptions>({
   },
 
   renderHTML() {
-    return ['div', { 'data-type': 'toc' }];
+    // Static HTML (Viewer/SSR) has no live headings — render a placeholder
+    // instead of an empty box so the block is visible and parseable.
+    return ['div', { 'data-type': 'toc', class: 'inkio-toc-placeholder' }, 'Table of contents'];
   },
 
   addNodeView() {

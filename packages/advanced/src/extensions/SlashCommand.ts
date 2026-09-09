@@ -226,17 +226,23 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
 
   addProseMirrorPlugins() {
     const { items, transformItems, onError } = this.options;
+    let latestRequestSeq = 0;
 
     const resolvedItems = async ({ query, editor }: SlashCommandContext) => {
-      if (items) {
-        return items({ query, editor });
-      }
-
-      const defaults = defaultSlashCommands.map((item) => ({ ...item }));
+      const seq = ++latestRequestSeq;
+      const base = items
+        ? await items({ query, editor })
+        : defaultSlashCommands.map((item) => ({ ...item }));
+      if (seq !== latestRequestSeq) return [];
+      // transformItems always applies — even on top of custom `items` — so
+      // combining `slashCommands` + `transformSlashCommands` is not silently dead.
       const transformed = transformItems
-        ? await transformItems(defaults, { query, editor })
-        : defaults;
+        ? await transformItems(base, { query, editor })
+        : base;
+      if (seq !== latestRequestSeq) return [];
 
+      // Custom items() callers may skip filtering; enforce it here for
+      // consistent prefix/inclusion behavior and schema availability guards.
       return filterSlashCommandItems(transformed, query, editor);
     };
 

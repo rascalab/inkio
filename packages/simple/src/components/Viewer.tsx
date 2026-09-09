@@ -1,16 +1,14 @@
 'use client';
 
-import type { EditorProps } from './Editor';
-import type { InkioLocaleInput, InkioMessageOverrides } from '@inkio/core';
+import type { InkioJSONContent as JSONContent, InkioLocaleInput, InkioMessageOverrides, TiptapEditor } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import type { ExtensionsInput } from '../types';
 import { Editor } from './Editor';
 
-type JSONContent = NonNullable<EditorProps['content']> extends string | infer J ? J : never;
-
 export type ViewerProps = {
   content: string | JSONContent;
   locale?: InkioLocaleInput;
+  theme?: 'light' | 'dark';
   ui?: {
     className?: string;
     style?: React.CSSProperties;
@@ -19,14 +17,16 @@ export type ViewerProps = {
     icons?: Partial<InkioIconRegistry>;
   };
   extensions?: ExtensionsInput;
+  onCreate?: (editor: TiptapEditor) => void;
 };
 
-export function Viewer({ content, locale, ui, extensions }: ViewerProps) {
+export function Viewer({ content, locale, theme, ui, extensions, onCreate }: ViewerProps) {
   return (
     <Editor
       content={content}
       editable={false}
       locale={locale}
+      theme={theme}
       ui={{
         ...ui,
         showToolbar: false,
@@ -35,6 +35,7 @@ export function Viewer({ content, locale, ui, extensions }: ViewerProps) {
         showTableMenu: false,
       }}
       extensions={extensions}
+      onCreate={onCreate}
     />
   );
 }

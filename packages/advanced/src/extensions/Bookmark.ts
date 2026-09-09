@@ -153,6 +153,9 @@ export const Bookmark = Node.create<BookmarkOptions>({
       setBookmark:
         (attributes) =>
         ({ commands }) => {
+          if (typeof attributes?.url !== 'string' || !isSafeUrl(attributes.url)) {
+            return false;
+          }
           return commands.insertContent({
             type: this.name,
             attrs: {

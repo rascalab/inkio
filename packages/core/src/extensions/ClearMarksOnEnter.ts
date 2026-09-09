@@ -40,7 +40,12 @@ export const ClearMarksOnEnter = Extension.create({
           const hasCurrentMarks = marks && marks.length > 0;
           
           if (hasStoredMarks || hasCurrentMarks) {
-            // Enter 처리 후 마크 해제 (이중 트랜잭션 방지)
+            // Enter 처리 후 마크 해제 (이중 트랜잭션 방지).
+            // 이전 타이머를 취소해야 빠른 연속 Enter에서 타이머가 누수되고
+            // unsetAllMarks가 중복 실행되지 않는다.
+            if (this.storage.timeoutId !== null) {
+              clearTimeout(this.storage.timeoutId);
+            }
             this.storage.timeoutId = setTimeout(() => {
               this.storage.timeoutId = null;
               if (!editor.isDestroyed) {
@@ -48,9 +53,8 @@ export const ClearMarksOnEnter = Extension.create({
               }
             }, 0);
           }
-        } catch (e) {
+        } catch {
           // 에러 발생 시 무시하고 기본 동작 수행
-          console.warn('ClearMarksOnEnter error:', e);
         }
         
         // false를 반환하여 기본 Enter 동작(줄바꿈) 수행

@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "scripts": {
     "dev": "INKIO_USE_SOURCE_PACKAGES=1 next dev --webpack",
-    "build": "next build",
+    "build": "next build --webpack",
     "build:smoke": "INKIO_USE_SOURCE_PACKAGES=1 next build --webpack",
     "start": "next start",
     "typecheck": "tsc --noEmit -p tsconfig.build.json"

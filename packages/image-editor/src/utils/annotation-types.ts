@@ -5,6 +5,8 @@ import type {
   FreeDrawAnnotation,
   LineAnnotation,
   RectAnnotation,
+  RedactAnnotation,
+  StickerAnnotation,
   TextAnnotationData,
   ToolType,
 } from '../types';
@@ -43,6 +45,14 @@ export function isTextAnnotation(annotation: Annotation | null): annotation is T
   return annotation?.type === 'text';
 }
 
+export function isRedactAnnotation(annotation: Annotation | null): annotation is RedactAnnotation {
+  return annotation?.type === 'redact';
+}
+
+export function isStickerAnnotation(annotation: Annotation | null): annotation is StickerAnnotation {
+  return annotation?.type === 'sticker';
+}
+
 export function getToolForAnnotation(annotation: Annotation | null): ToolType | null {
   if (!annotation) {
     return null;
@@ -58,6 +68,14 @@ export function getToolForAnnotation(annotation: Annotation | null): ToolType | 
 
   if (isTextAnnotation(annotation)) {
     return 'text';
+  }
+
+  if (isRedactAnnotation(annotation)) {
+    return 'redact';
+  }
+
+  if (isStickerAnnotation(annotation)) {
+    return 'sticker';
   }
 
   return null;

@@ -1,5 +1,6 @@
 import type { Extensions, JSONContent } from '@tiptap/core';
 import { escapeHtml } from '../utils/html';
+import { isSafeUrl } from '../utils/url-safety';
 import { unified } from 'unified';
 import remarkDirective from 'remark-directive';
 import remarkGfm from 'remark-gfm';
@@ -129,11 +130,13 @@ function ensureBlockContent(content: JSONContent[]): JSONContent[] {
   return content.length > 0 ? content : [{ type: 'paragraph' }];
 }
 
-function toLinkMark(node: MdastNode): JsonMark {
+function toLinkMark(node: MdastNode): JsonMark | null {
+  const href = node.url ?? '';
+  if (!isSafeUrl(href)) return null;
   return {
     type: 'link',
     attrs: {
-      href: node.url ?? '',
+      href,
     },
   };
 }
@@ -171,11 +174,14 @@ function mdastInlineToJson(nodes: MdastNode[] = [], marks: JsonMark[] = []): JSO
           pushInlineNode(content, child),
         );
         break;
-      case 'link':
-        mdastInlineToJson(node.children, withMark(marks, toLinkMark(node))).forEach((child) =>
+      case 'link': {
+        const linkMark = toLinkMark(node);
+        const nextMarks = linkMark ? withMark(marks, linkMark) : marks;
+        mdastInlineToJson(node.children, nextMarks).forEach((child) =>
           pushInlineNode(content, child),
         );
         break;
+      }
       case 'image':
         pushInlineNode(content, createTextNode(node.alt ?? node.url ?? '', marks));
         break;
@@ -210,10 +216,18 @@ function isStandaloneImage(node: MdastNode): boolean {
 }
 
 function imageNodeToJson(node: MdastNode): JSONContent {
+  const src = node.url ?? '';
+  // Drop unsafe image sources instead of persisting javascript:/etc. in JSON.
+  if (!isSafeUrl(src)) {
+    return {
+      type: 'paragraph',
+      content: [{ type: 'text', text: node.alt ?? src }],
+    };
+  }
   return {
     type: 'imageBlock',
     attrs: {
-      src: node.url ?? '',
+      src,
       alt: node.alt ?? null,
       title: node.title ?? null,
     },
@@ -422,11 +436,15 @@ function jsonMarksToMdast(node: MdastNode, marks: JsonMark[] = []): MdastNode {
   }
 
   if (linkMark) {
-    current = {
-      type: 'link',
-      url: String(linkMark.attrs?.href ?? ''),
-      children: [current],
-    };
+    const href = String(linkMark.attrs?.href ?? '');
+    // Never stringify an unsafe href back into markdown link syntax.
+    if (isSafeUrl(href)) {
+      current = {
+        type: 'link',
+        url: href,
+        children: [current],
+      };
+    }
   }
 
   return current;
@@ -607,17 +625,28 @@ function jsonBlocksToMdast(nodes: JSONContent[] = []): MdastNode[] {
       case 'details':
         content.push(jsonDetailsToMdast(node));
         break;
-      case 'bookmark':
-        if (typeof node.attrs?.url === 'string' && node.attrs.url.length > 0) {
+      case 'bookmark': {
+        const bookmarkUrl = typeof node.attrs?.url === 'string' ? node.attrs.url : '';
+        if (bookmarkUrl.length > 0 && isSafeUrl(bookmarkUrl)) {
           content.push({
             type: 'paragraph',
             children: [{
               type: 'link',
-              url: node.attrs.url,
+              url: bookmarkUrl,
               children: [{
                 type: 'text',
-                value: String(node.attrs?.title ?? node.attrs.url),
+                value: String(node.attrs?.title ?? bookmarkUrl),
               }],
+            }],
+          });
+          break;
+        }
+        if (bookmarkUrl.length > 0) {
+          content.push({
+            type: 'paragraph',
+            children: [{
+              type: 'text',
+              value: String(node.attrs?.title ?? bookmarkUrl),
             }],
           });
           break;
@@ -631,6 +660,7 @@ function jsonBlocksToMdast(nodes: JSONContent[] = []): MdastNode[] {
           }],
         });
         break;
+      }
       case 'comment':
         break;
       default:

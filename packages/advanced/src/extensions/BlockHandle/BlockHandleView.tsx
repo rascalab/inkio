@@ -108,14 +108,36 @@ export const BlockHandleActionMenu = ({
     };
   }, [iconOverrides]);
 
+  // blockPos is captured at menu-open time and may be stale after doc edits.
+  // Clamp into range and verify a node exists before every action.
+  const resolveBlockPos = useCallback(() => {
+    if (!editor) return null;
+    const size = editor.state.doc.content.size;
+    const pos = Math.max(0, Math.min(blockPos, size));
+    try {
+      const node = editor.state.doc.nodeAt(pos);
+      if (!node) return null;
+      return { pos, node };
+    } catch {
+      return null;
+    }
+  }, [blockPos, editor]);
+
   const turnInto = useCallback(
     (command: InkioOptionalChainCommand, attrs?: Record<string, unknown>) => {
+      const resolved = resolveBlockPos();
       const didRun = runOptionalChainCommand(editor, command, {
         args: attrs,
         prepare: (chain) => {
+          // Atom/leaf blocks (hr, bookmark) and listItem containers have no
+          // valid inner text position — let the command decide placement.
+          if (!resolved || resolved.node.isAtom || resolved.node.isLeaf || resolved.node.type.name === 'listItem') {
+            return chain;
+          }
           const setTextSelection = (chain as Record<string, unknown>).setTextSelection;
           if (typeof setTextSelection === 'function') {
-            return (setTextSelection as (position: number) => typeof chain).call(chain, Math.max(1, blockPos + 1));
+            const inner = Math.max(0, Math.min(resolved.pos + 1, editor.state.doc.content.size));
+            return (setTextSelection as (position: number) => typeof chain).call(chain, inner);
           }
           return chain;
         },
@@ -125,28 +147,38 @@ export const BlockHandleActionMenu = ({
         onClose();
       }
     },
-    [blockPos, editor, onClose],
+    [editor, onClose, resolveBlockPos],
   );
 
   const deleteBlock = useCallback(() => {
-    const node = editor?.state?.doc?.nodeAt(blockPos);
-    if (!node) return;
+    const resolved = resolveBlockPos();
+    if (!editor || !resolved) {
+      onClose();
+      return;
+    }
 
-    const tr = editor.state.tr.delete(blockPos, blockPos + node.nodeSize);
+    const tr = editor.state.tr.delete(resolved.pos, resolved.pos + resolved.node.nodeSize);
     editor.view.dispatch(tr);
     onClose();
-  }, [blockPos, editor, onClose]);
+  }, [editor, onClose, resolveBlockPos]);
 
   const duplicateBlock = useCallback(() => {
-    const node = editor?.state?.doc?.nodeAt(blockPos);
-    if (!node) return;
+    const resolved = resolveBlockPos();
+    if (!editor || !resolved) {
+      onClose();
+      return;
+    }
 
-    const insertPos = blockPos + node.nodeSize;
-    const tr = editor.state.tr.insert(insertPos, node);
-    tr.setSelection(NodeSelection.create(tr.doc, insertPos));
+    const insertPos = resolved.pos + resolved.node.nodeSize;
+    const tr = editor.state.tr.insert(insertPos, resolved.node);
+    try {
+      tr.setSelection(NodeSelection.create(tr.doc, insertPos));
+    } catch {
+      // Leave selection where it is if the mapped position is invalid.
+    }
     editor.view.dispatch(tr.scrollIntoView());
     onClose();
-  }, [blockPos, editor, onClose]);
+  }, [editor, onClose, resolveBlockPos]);
 
   const menuItems = useMemo<MenuItem[]>(() => {
     const labels = ui.messages.blockHandle;
@@ -218,12 +250,15 @@ export const BlockHandleActionMenu = ({
     ];
   }, [deleteBlock, duplicateBlock, icons, turnInto, ui.messages.blockHandle]);
 
+  // The menu root is reused across blocks (menuRoot.render reuses the mounted
+  // component), so reset keyboard state whenever the target block changes.
   useEffect(() => {
     setActiveIndex(0);
-    requestAnimationFrame(() => {
+    const frame = requestAnimationFrame(() => {
       itemRefs.current[0]?.focus();
     });
-  }, []);
+    return () => cancelAnimationFrame(frame);
+  }, [blockPos]);
 
   const updatePosition = useCallback(() => {
     const anchor = resolveAnchorRect(anchorRect, anchorResolver);

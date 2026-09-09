@@ -26,7 +26,8 @@ export function FreeDrawAnnotationShape({
       id={annotation.id}
       points={annotation.points.map((p) => p * scale)}
       stroke={annotation.stroke}
-      strokeWidth={annotation.strokeWidth}
+      // Image-space units, matching export (strokeWidth * annScale).
+      strokeWidth={annotation.strokeWidth * scale}
       opacity={annotation.opacity}
       tension={0.5}
       lineCap="round"

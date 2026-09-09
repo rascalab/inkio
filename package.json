@@ -8,7 +8,7 @@
     "typecheck": "pnpm -r --parallel --filter @inkio/core --filter @inkio/advanced --filter @inkio/simple --filter @inkio/editor --filter @inkio/image-editor --filter docs --filter example-basic-react --filter example-next-app-router typecheck",
     "typecheck:packages": "pnpm -r --parallel --filter @inkio/core --filter @inkio/advanced --filter @inkio/simple --filter @inkio/editor --filter @inkio/image-editor typecheck",
     "verify": "pnpm typecheck:packages && pnpm test && pnpm build:packages:smoke && pnpm examples:build:smoke",
-    "verify:full": "pnpm typecheck && pnpm test && pnpm build && pnpm examples:build && pnpm e2e && INKIO_RELEASE_SMOKE_SKIP_PACKAGE_BUILDS=1 pnpm release:smoke",
+    "verify:full": "pnpm typecheck && pnpm test && pnpm build && pnpm package:gates && pnpm examples:build && pnpm e2e && pnpm exec playwright test --project=firefox && INKIO_RELEASE_SMOKE_SKIP_PACKAGE_BUILDS=1 pnpm release:smoke",
     "build": "pnpm build:packages && pnpm docs:build",
     "build:verify": "pnpm build:packages:smoke",
     "build:packages": "pnpm --filter @inkio/core build && pnpm --filter @inkio/advanced build && pnpm --filter @inkio/simple build && pnpm --filter @inkio/editor build && pnpm --filter @inkio/image-editor build",
@@ -16,9 +16,9 @@
     "build:packages:smoke": "pnpm -r --parallel --filter @inkio/core --filter @inkio/advanced --filter @inkio/simple --filter @inkio/editor --filter @inkio/image-editor bundle:smoke",
     "examples:build": "pnpm -r --filter './examples/*' build",
     "examples:build:smoke": "pnpm -r --filter './examples/*' build:smoke",
-    "e2e": "playwright test",
+    "e2e": "playwright test --project=chromium",
     "e2e:verify": "pnpm examples:build:smoke && pnpm e2e",
-    "e2e:install": "playwright install chromium",
+    "e2e:install": "playwright install chromium firefox",
     "test": "pnpm -r --parallel --filter @inkio/core --filter @inkio/advanced --filter @inkio/simple --filter @inkio/editor --filter @inkio/image-editor test",
     "lint": "pnpm typecheck",
     "dev": "pnpm --filter docs dev",
@@ -29,6 +29,10 @@
     "docs:typecheck": "pnpm --filter docs exec tsc --noEmit",
     "package:smoke:verify": "pnpm build:packages && INKIO_RELEASE_SMOKE_SKIP_PACKAGE_BUILDS=1 pnpm release:smoke",
     "release:smoke": "node ./scripts/release-smoke.mjs",
+    "package:attw": "node ./scripts/check-attw.mjs",
+    "package:budgets": "node ./scripts/check-budgets.mjs",
+    "package:gates": "pnpm package:publint && pnpm package:attw && pnpm package:budgets",
+    "package:publint": "pnpm -r --parallel --filter @inkio/core --filter @inkio/advanced --filter @inkio/simple --filter @inkio/editor --filter @inkio/image-editor exec publint .",
     "publish:core": "pnpm --filter @inkio/core publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
     "publish:advanced": "pnpm --filter @inkio/advanced publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
     "publish:simple": "pnpm --filter @inkio/simple publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
@@ -38,6 +42,8 @@
     "publish:r1": "pnpm publish:packages"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.1"
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@playwright/test": "^1.59.1",
+    "publint": "^0.3.24"
   }
 }

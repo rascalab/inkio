@@ -26,7 +26,8 @@ export function LineAnnotationShape({
       id={annotation.id}
       points={annotation.points.map((p) => p * scale)}
       stroke={annotation.stroke}
-      strokeWidth={annotation.strokeWidth}
+      // Image-space units, matching export (strokeWidth * annScale).
+      strokeWidth={annotation.strokeWidth * scale}
       lineCap="round"
       lineJoin="round"
       draggable

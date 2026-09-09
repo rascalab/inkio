@@ -31,6 +31,8 @@ interface EditorCommentMark {
   from: number;
   to: number;
   resolved: boolean;
+  /** All contiguous ranges for this id. from/to mirror ranges[0] for compat. */
+  ranges: Array<{ from: number; to: number }>;
 }
 
 // ─── Props ─────────────────────────────────────────────────
@@ -78,17 +80,28 @@ function collectEditorMarks(editor: Editor): EditorCommentMark[] {
       const commentId = mark.attrs.commentId as string;
       if (!commentId) continue;
 
+      const from = pos;
+      const to = pos + node.nodeSize;
       const existing = marks.get(commentId);
       if (existing) {
-        existing.to = Math.max(existing.to, pos + node.nodeSize);
+        // Only merge directly contiguous runs. Non-contiguous same-id ranges
+        // stay separate so scroll-to never selects the gap text between them.
+        const last = existing.ranges[existing.ranges.length - 1];
+        if (last && last.to === from && existing.resolved === Boolean(mark.attrs.resolved)) {
+          last.to = to;
+          existing.to = to;
+        } else {
+          existing.ranges.push({ from, to });
+        }
         existing.text += node.text || '';
       } else {
         marks.set(commentId, {
           commentId,
           text: node.text || '',
           resolved: Boolean(mark.attrs.resolved),
-          from: pos,
-          to: pos + node.nodeSize,
+          from,
+          to,
+          ranges: [{ from, to }],
         });
       }
     }
@@ -135,8 +148,10 @@ export const CommentPanel = ({
   });
 
   const formatTimeAgo = useCallback(
-    (value: Date): string => {
-      const diff = Date.now() - value.getTime();
+    (value: Date | string | number): string => {
+      const time = value instanceof Date ? value.getTime() : new Date(value).getTime();
+      if (Number.isNaN(time)) return ui.messages.commentPanel.time.justNow;
+      const diff = Date.now() - time;
       const seconds = Math.floor(diff / 1000);
       if (seconds < 60) return ui.messages.commentPanel.time.justNow;
 
@@ -179,8 +194,11 @@ export const CommentPanel = ({
     (mark: EditorCommentMark) => {
       if (!editor) return;
 
-      editor.chain().focus().setTextSelection({ from: mark.from, to: mark.to }).run();
-      const { node } = editor.view.domAtPos(mark.from);
+      // Select the first contiguous range only — never the gap between
+      // non-contiguous same-id runs.
+      const target = mark.ranges[0] ?? { from: mark.from, to: mark.to };
+      editor.chain().focus().setTextSelection({ from: target.from, to: target.to }).run();
+      const { node } = editor.view.domAtPos(target.from);
       (node as HTMLElement)?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
     },
     [editor],
@@ -206,17 +224,26 @@ export const CommentPanel = ({
 
       const mark = editorMarks.find((item) => item.commentId === commentId);
       if (mark) {
-        editor
-          .chain()
-          .focus()
-          .setTextSelection({ from: mark.from, to: mark.to })
-          .unsetMark('comment')
-          .run();
+        // Remove every contiguous range, not just the first span.
+        const tr = editor.state.tr;
+        const markType = editor.state.schema.marks.comment;
+        if (markType) {
+          for (const range of mark.ranges) {
+            tr.removeMark(range.from, range.to, markType);
+          }
+          editor.view.dispatch(tr);
+        }
       }
 
       onDelete(commentId);
     },
     [editor, editorMarks, onDelete],
+  );
+
+  const isResolvedMark = useCallback(
+    (mark: EditorCommentMark, threadData: { resolved: boolean } | undefined) =>
+      threadData?.resolved ?? mark.resolved,
+    [],
   );
 
   const displayThreads = useMemo(() => {
@@ -225,12 +252,14 @@ export const CommentPanel = ({
         const threadData = threads.find((thread) => thread.id === mark.commentId);
         return { mark, threadData };
       })
-      .filter(({ threadData }) => {
-        if (filter === 'open') return threadData && !threadData.resolved;
-        if (filter === 'resolved') return threadData && threadData.resolved;
+      .filter(({ mark, threadData }) => {
+        // Orphans (no threadData) fall back to the doc mark's resolved flag so
+        // they appear under open/resolved instead of vanishing outside "all".
+        if (filter === 'open') return !isResolvedMark(mark, threadData);
+        if (filter === 'resolved') return isResolvedMark(mark, threadData);
         return true;
       });
-  }, [editorMarks, threads, filter]);
+  }, [editorMarks, threads, filter, isResolvedMark]);
 
   if (!editor) return null;
 
@@ -240,8 +269,16 @@ export const CommentPanel = ({
   if (!hasCommentExtension) return null;
 
   const resolvedCurrentUser = currentUser || ui.messages.commentPanel.you;
-  const openCount = threads.filter((thread) => !thread.resolved).length;
-  const resolvedCount = threads.filter((thread) => thread.resolved).length;
+  // Counts share the displayThreads denominator (doc marks joined with thread
+  // data) so badges match the filtered lists. Orphans count via mark.resolved.
+  const openCount = editorMarks.filter((mark) => {
+    const threadData = threads.find((thread) => thread.id === mark.commentId);
+    return !isResolvedMark(mark, threadData);
+  }).length;
+  const resolvedCount = editorMarks.filter((mark) => {
+    const threadData = threads.find((thread) => thread.id === mark.commentId);
+    return isResolvedMark(mark, threadData);
+  }).length;
 
   return (
     <div className={`inkio inkio-comment-panel ${className || ''}`} style={style}>
@@ -368,6 +405,8 @@ export const CommentPanel = ({
                       type="button"
                       className="inkio-comment-action-btn resolve"
                       onClick={() => {
+                        // resolveComment() fires the extension's onCommentResolve;
+                        // the panel's own onResolve notifies panel-only consumers.
                         (editor.commands as { resolveComment?: (commentId: string) => void }).resolveComment?.(mark.commentId);
                         onResolve(mark.commentId);
                       }}

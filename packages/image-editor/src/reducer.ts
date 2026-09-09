@@ -3,7 +3,11 @@ import type {
   Annotation,
   CropRect,
   DrawOptions,
+  FilterPresetId,
+  FinetuneOptions,
+  RedactOptions,
   ShapeOptions,
+  StickerOptions,
   TextOptions,
   CropOptionsState,
   ResizeOptionsState,
@@ -16,7 +20,10 @@ import {
   DEFAULT_TEXT_OPTIONS,
   DEFAULT_CROP_OPTIONS,
   DEFAULT_RESIZE_OPTIONS,
+  DEFAULT_REDACT_OPTIONS,
+  DEFAULT_STICKER_OPTIONS,
 } from './constants';
+import { DEFAULT_FINETUNE } from './utils/filters';
 import { getDefaultCropRect } from './utils/crop';
 import { getTransformedDimensions } from './utils/geometry';
 
@@ -32,6 +39,11 @@ export type ImageEditorAction =
   | { type: 'SET_TEXT_OPTIONS'; options: Partial<TextOptions> }
   | { type: 'SET_CROP_OPTIONS'; options: Partial<CropOptionsState> }
   | { type: 'SET_RESIZE_OPTIONS'; options: Partial<ResizeOptionsState> }
+  | { type: 'SET_FILTER'; filter: FilterPresetId }
+  | { type: 'SET_FINETUNE'; finetune: Partial<FinetuneOptions> }
+  | { type: 'RESET_FINETUNE' }
+  | { type: 'SET_REDACT_OPTIONS'; options: Partial<RedactOptions> }
+  | { type: 'SET_STICKER_OPTIONS'; options: Partial<StickerOptions> }
   | { type: 'ADD_ANNOTATION'; annotation: Annotation }
   | { type: 'UPDATE_ANNOTATION'; id: string; updates: Partial<Annotation> }
   | { type: 'UPDATE_ANNOTATION_COMMIT'; id: string; updates: Partial<Annotation> }
@@ -67,11 +79,15 @@ export const initialState: ImageEditorState = {
   annotations: [],
   selectedAnnotationId: null,
   activeTool: null,
+  filter: 'none',
+  finetune: { ...DEFAULT_FINETUNE },
   drawOptions: DEFAULT_DRAW_OPTIONS,
   shapeOptions: DEFAULT_SHAPE_OPTIONS,
   textOptions: DEFAULT_TEXT_OPTIONS,
   cropOptions: DEFAULT_CROP_OPTIONS,
   resizeOptions: DEFAULT_RESIZE_OPTIONS,
+  redactOptions: DEFAULT_REDACT_OPTIONS,
+  stickerOptions: DEFAULT_STICKER_OPTIONS,
   pendingCrop: null,
   isLoading: false,
   error: null,
@@ -207,6 +223,21 @@ export function imageEditorReducer(
     case 'SET_RESIZE_OPTIONS':
       return { ...state, resizeOptions: { ...state.resizeOptions, ...action.options } };
 
+    case 'SET_FILTER':
+      return { ...state, filter: action.filter };
+
+    case 'SET_FINETUNE':
+      return { ...state, finetune: { ...state.finetune, ...action.finetune } };
+
+    case 'RESET_FINETUNE':
+      return { ...state, finetune: { ...DEFAULT_FINETUNE } };
+
+    case 'SET_REDACT_OPTIONS':
+      return { ...state, redactOptions: { ...state.redactOptions, ...action.options } };
+
+    case 'SET_STICKER_OPTIONS':
+      return { ...state, stickerOptions: { ...state.stickerOptions, ...action.options } };
+
     case 'ADD_ANNOTATION':
       return { ...state, annotations: [...state.annotations, action.annotation] };
 
@@ -338,6 +369,7 @@ export const UNDOABLE_ACTIONS = new Set<ImageEditorAction['type']>([
   'FLIP_X',
   'FLIP_Y',
   'APPLY_RESIZE',
+  'SET_FILTER',
 ]);
 
 // ---- Undo/redo wrapper ----

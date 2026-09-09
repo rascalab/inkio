@@ -1,3 +1,5 @@
+'use client';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MobileCommandBar } from './chrome/MobileCommandBar';
 import { MobileToolTray } from './chrome/MobileToolTray';
@@ -93,6 +95,7 @@ function InnerEditor({
       data-debug-dirty={isDirty ? 'true' : 'false'}
       data-debug-preview-zoom={previewZoom.toFixed(4)}
       data-debug-active-tool={state.activeTool ?? ''}
+      data-debug-filter={state.filter}
       data-debug-selected-id={selectedAnnotation?.id ?? ''}
       data-debug-selected-type={selectedAnnotation?.type ?? ''}
       data-debug-selected-annotation={selectedAnnotation ? JSON.stringify(selectedAnnotation) : ''}

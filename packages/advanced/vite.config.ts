@@ -27,6 +27,9 @@ export default defineConfig({
       ? [
           dts({
             entryRoot: 'src',
+            // NOTE: rollupTypes stays off here — api-extractor cannot follow
+            // the `export *` barrel chains in comment/*. Directory-style
+            // imports are rewritten to explicit files by the build script.
             compilerOptions: { rootDir: resolve(__dirname, 'src'), paths: {} },
             include: ['src'],
             exclude: [
@@ -35,7 +38,6 @@ export default defineConfig({
               'src/**/*.test.tsx',
             ],
             insertTypesEntry: true,
-            rollupTypes: false,
             pathsToAliases: false,
             aliasesExclude: [/^@inkio\//],
           }),

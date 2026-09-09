@@ -78,15 +78,20 @@ export function getHeadingsFromContent(content: JSONContent | null | undefined):
 }
 
 /** Extract headings directly from a ProseMirror doc node (no JSON serialization). */
-export function getHeadingsFromDoc(doc: { forEach: (fn: (node: any) => void) => void } | null | undefined): HeadingItem[] {
+export function getHeadingsFromDoc(
+  doc: {
+    forEach?: (fn: (node: any) => void) => void;
+    descendants?: (fn: (node: any) => void) => void;
+  } | null | undefined,
+): HeadingItem[] {
   if (!doc) return [];
 
   const headings: HeadingItem[] = [];
   const usedIds = new Set<string>();
   let index = 0;
 
-  doc.forEach((node: any) => {
-    if (node.type?.name === 'heading') {
+  const collect = (node: any) => {
+    if (node?.type?.name === 'heading') {
       const level = Math.min(6, Math.max(1, Number(node.attrs?.level ?? 1)));
       const text = (node.textContent ?? '').trim();
 
@@ -98,7 +103,15 @@ export function getHeadingsFromDoc(doc: { forEach: (fn: (node: any) => void) => 
       });
       index += 1;
     }
-  });
+  };
+
+  // descendants() recurses into blockquote/callout/details/table cells so live
+  // ToC matches getHeadingsFromContent(). forEach() only visits top-level kids.
+  if (typeof doc.descendants === 'function') {
+    doc.descendants(collect);
+  } else if (typeof doc.forEach === 'function') {
+    doc.forEach(collect);
+  }
 
   return headings;
 }

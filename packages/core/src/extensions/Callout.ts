@@ -2,8 +2,28 @@ import { Node, mergeAttributes, wrappingInputRule } from '@tiptap/core';
 import { createCalloutToolbarPlugin } from './callout-toolbar-plugin';
 
 const SAFE_CSS_COLOR = /^(#[0-9a-fA-F]{3,8}|rgba?\([0-9,.\s%]+\)|hsla?\([0-9,.\s%deg]+\)|[a-zA-Z]{1,20})$/;
+// Bare-word branch above would also accept `expression`/`javascript`/etc.
+// Those keywords alone in a custom property are inert, but reject them anyway
+// to keep stored attrs free of exfiltration-looking payloads.
+const UNSAFE_COLOR_KEYWORDS = new Set([
+  'expression',
+  'javascript',
+  'url',
+  'import',
+  'behavior',
+  'binding',
+  'cookie',
+  'document',
+  'eval',
+  'window',
+]);
 function isSafeColor(value: string): boolean {
-  return SAFE_CSS_COLOR.test(value.trim());
+  const trimmed = value.trim();
+  if (!SAFE_CSS_COLOR.test(trimmed)) return false;
+  if (/^[a-zA-Z]{1,20}$/.test(trimmed) && UNSAFE_COLOR_KEYWORDS.has(trimmed.toLowerCase())) {
+    return false;
+  }
+  return true;
 }
 
 export const CALLOUT_COLOR_PRESETS: Record<string, string> = {

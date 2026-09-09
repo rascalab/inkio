@@ -79,11 +79,21 @@ export function getAnnotationDisplayBounds(
 function getAnnotationCorners(annotation: Annotation): Point[] {
   switch (annotation.type) {
     case 'rect':
+    case 'redact':
       return rotateRectCorners(
         annotation.x,
         annotation.y,
         annotation.width,
         annotation.height,
+        annotation.rotation,
+        { x: annotation.x, y: annotation.y },
+      );
+    case 'sticker':
+      return rotateRectCorners(
+        annotation.x,
+        annotation.y,
+        annotation.size,
+        annotation.size,
         annotation.rotation,
         { x: annotation.x, y: annotation.y },
       );
@@ -133,9 +143,15 @@ function getPointCloudCorners(points: number[], padding: number): Point[] {
 
   const xs: number[] = [];
   const ys: number[] = [];
-  for (let index = 0; index < points.length; index += 2) {
+  // Only consume complete x/y pairs: a trailing lone value would push
+  // `undefined` and poison Math.min/max with NaN (overlay at NaNpx).
+  for (let index = 0; index + 1 < points.length; index += 2) {
     xs.push(points[index]);
     ys.push(points[index + 1]);
+  }
+
+  if (xs.length === 0) {
+    return getCropCorners({ x: 0, y: 0, width: 0, height: 0 });
   }
 
   const minX = Math.min(...xs) - padding;

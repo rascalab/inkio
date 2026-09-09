@@ -4,9 +4,6 @@ import { ASPECT_RATIO_PRESETS } from '../../constants';
 import { getDefaultCropRect } from '../../utils/crop';
 import { getTransformedDimensions } from '../../utils/geometry';
 import {
-  ApplyResetGroup,
-  ControlCard,
-  InlineValue,
   PresetChipGroup,
   ResizeDimensionGroup,
 } from '../control-groups';
@@ -102,22 +99,22 @@ export function ResizeOptions() {
           onClick: () => handleCropPreset(preset.value),
           testId: `inkio-ie-crop-preset-${String(preset.label ?? preset.labelKey).replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()}`,
         }))}
+        caption={effectiveCrop
+          ? `${locale.cropPendingNotice} ${Math.round(effectiveCrop.width)} × ${Math.round(effectiveCrop.height)}`
+          : undefined}
+        captionTestId="inkio-ie-crop-size"
       />
-      {effectiveCrop && (
-        <ControlCard label={locale.cropPendingNotice}>
-          <InlineValue
-            label={locale.cropArea}
-            value={`${Math.round(effectiveCrop.width)} × ${Math.round(effectiveCrop.height)}`}
-          />
-        </ControlCard>
-      )}
       <ResizeDimensionGroup
+        label={locale.resize}
+        cardClassName="inkio-ie-control-card--wide"
         width={resizeOptions.width}
         height={resizeOptions.height}
         lockAspectRatio={resizeOptions.lockAspectRatio}
         widthLabel={locale.width}
         heightLabel={locale.height}
         lockLabel={locale.lockAspectRatio}
+        applyLabel={locale.apply}
+        resetLabel={locale.reset}
         onWidthChange={handleWidthChange}
         onHeightChange={handleHeightChange}
         onToggleLock={() =>
@@ -126,18 +123,13 @@ export function ResizeOptions() {
             options: { lockAspectRatio: !resizeOptions.lockAspectRatio },
           })
         }
+        onApply={() => dispatch({ type: 'COMMIT_RESIZE_SESSION' })}
+        onReset={() => dispatch({ type: 'RESET_RESIZE_SESSION' })}
         widthTestId="inkio-ie-resize-width"
         heightTestId="inkio-ie-resize-height"
         lockTestId="inkio-ie-resize-lock-aspect"
-      />
-      <ApplyResetGroup
-        label={locale.resize}
-        applyLabel={locale.apply}
-        resetLabel={locale.reset}
         applyTestId="inkio-ie-resize-apply"
         resetTestId="inkio-ie-resize-reset"
-        onApply={() => dispatch({ type: 'COMMIT_RESIZE_SESSION' })}
-        onReset={() => dispatch({ type: 'RESET_RESIZE_SESSION' })}
       />
     </>
   );

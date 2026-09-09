@@ -40,21 +40,32 @@ declare module '@tiptap/core' {
 function createHashTagSuggestionCommand(name: string, char: string) {
   return ({ editor, range, props }: { editor: any; range: Range; props: unknown }) => {
     const attributes = (props ?? {}) as HashTagItem;
-    const nodeAfter = editor.view.state.selection.$to.nodeAfter;
-    const overrideSpace = nodeAfter?.text?.startsWith(' ');
+    const id = typeof attributes.id === 'string' ? attributes.id : '';
+    const label = typeof attributes.label === 'string' ? attributes.label : '';
+    if (!id || !label) return;
 
-    if (overrideSpace) {
-      range.to += 1;
+    const insertRange = { from: range.from, to: range.to };
+    try {
+      const $to = editor.view.state.doc.resolve(insertRange.to);
+      const nodeAfter = $to.nodeAfter;
+      const textAfter = typeof nodeAfter?.text === 'string' ? nodeAfter.text : '';
+      const offsetIntoNode = $to.textOffset;
+      if (offsetIntoNode === 0 && textAfter.startsWith(' ')) {
+        insertRange.to += 1;
+      }
+    } catch {
+      // Fall through with the unextended range.
     }
 
     editor
       .chain()
       .focus()
-      .insertContentAt(range, [
+      .insertContentAt(insertRange, [
         {
           type: name,
           attrs: {
-            ...attributes,
+            id,
+            label,
             mentionSuggestionChar: char,
           },
         },
@@ -74,6 +85,7 @@ export const HashTag = TiptapMention.extend<HashTagOptions>({
     // `this` inside addOptions is a transient context whose `.options` is never
     // populated — resolve the live options from the editor at suggestion time.
     const extensionName = this.name;
+    let latestRequestSeq = 0;
 
     return {
       HTMLAttributes: {},
@@ -87,10 +99,13 @@ export const HashTag = TiptapMention.extend<HashTagOptions>({
         items: async ({ query, editor }: { query: string; editor: Editor }) => {
           const options = editor.extensionManager.extensions
             .find((ext) => ext.name === extensionName)?.options as HashTagOptions | undefined;
+          const seq = ++latestRequestSeq;
           try {
             const result = await options?.items?.({ query });
+            if (seq !== latestRequestSeq) return [];
             return result ?? [];
           } catch (error) {
+            if (seq !== latestRequestSeq) return [];
             options?.onError?.(toError(error), {
               source: 'hashTag.suggestion',
               recoverable: true,

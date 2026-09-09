@@ -1,17 +1,22 @@
 import type { ToolType } from '../types';
 import { DrawOptionsPanel } from './options/DrawOptionsPanel';
+import { FilterOptionsPanel } from './options/FilterOptionsPanel';
+import { RedactOptionsPanel } from './options/RedactOptionsPanel';
 import { ResizeOptions } from './options/ResizeOptions';
 import { RotateOptionsPanel } from './options/RotateOptionsPanel';
 import { ShapeOptionsPanel } from './options/ShapeOptionsPanel';
+import { StickerOptionsPanel } from './options/StickerOptionsPanel';
 import { TextOptionsPanel } from './options/TextOptionsPanel';
 import {
   getSelectedAnnotation,
   isDrawAnnotation,
+  isRedactAnnotation,
   isShapeAnnotation,
+  isStickerAnnotation,
   isTextAnnotation,
 } from '../utils/annotation-types';
 
-export type ControlPanel = 'resize' | 'draw' | 'shape' | 'text' | 'rotate';
+export type ControlPanel = 'resize' | 'draw' | 'shape' | 'text' | 'rotate' | 'filter' | 'redact' | 'sticker';
 export type ViewportKind = 'desktop' | 'mobile';
 
 export type ResolvedControlsModel =
@@ -62,6 +67,14 @@ function resolveControlPanel(
     return { panel: 'text', source: 'selection' };
   }
 
+  if (isRedactAnnotation(selectedAnnotation)) {
+    return { panel: 'redact', source: 'selection' };
+  }
+
+  if (isStickerAnnotation(selectedAnnotation)) {
+    return { panel: 'sticker', source: 'selection' };
+  }
+
   if (activeTool === 'resize' || activeTool === 'crop') {
     return { panel: 'resize', source: 'tool' };
   }
@@ -76,6 +89,15 @@ function resolveControlPanel(
   }
   if (activeTool === 'rotate') {
     return { panel: 'rotate', source: 'tool' };
+  }
+  if (activeTool === 'filter') {
+    return { panel: 'filter', source: 'tool' };
+  }
+  if (activeTool === 'redact') {
+    return { panel: 'redact', source: 'tool' };
+  }
+  if (activeTool === 'sticker') {
+    return { panel: 'sticker', source: 'tool' };
   }
 
   return null;
@@ -94,6 +116,9 @@ export function ToolOptionsPanel({ panel, viewportKind }: ToolControlsProps) {
       {panel === 'shape' && <ShapeOptionsPanel />}
       {panel === 'text' && <TextOptionsPanel />}
       {panel === 'rotate' && <RotateOptionsPanel />}
+      {panel === 'filter' && <FilterOptionsPanel />}
+      {panel === 'redact' && <RedactOptionsPanel />}
+      {panel === 'sticker' && <StickerOptionsPanel />}
     </div>
   );
 }

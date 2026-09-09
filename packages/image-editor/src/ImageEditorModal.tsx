@@ -1,3 +1,4 @@
+'use client';
 
 import * as Dialog from '@radix-ui/react-dialog';
 import { useCallback, useMemo, useState } from 'react';
@@ -57,7 +58,7 @@ export function ImageEditorModal({
   const portalTheme = theme ?? resolvePortalTheme();
 
   const requestClose = useCallback(() => {
-    if (isDirty && !window.confirm(resolvedImageEditorLocale.closeConfirm ?? 'Discard your image edits?')) {
+    if (typeof window !== 'undefined' && isDirty && !window.confirm(resolvedImageEditorLocale.closeConfirm ?? 'Discard your image edits?')) {
       return;
     }
 
