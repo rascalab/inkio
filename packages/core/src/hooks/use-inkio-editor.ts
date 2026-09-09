@@ -20,19 +20,22 @@ export type UseInkioEditorOptions = InkioContentMode & {
   onCreate?: (editor: TiptapEditor) => void;
 };
 
-function isSameContent(a: string | JSONContent | undefined, b: string | JSONContent | undefined) {
-  if (a === b) return true;
-  if (typeof a === 'string' || typeof b === 'string') {
-    return a === b;
-  }
+const EMPTY_EXTENSIONS: Extensions = [];
 
-  return JSON.stringify(a) === JSON.stringify(b);
+function isSameJson(a: JSONContent | undefined, b: JSONContent | undefined) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
 }
 
 export function useInkioEditor({
   content,
   initialContent,
-  extensions = [],
+  extensions = EMPTY_EXTENSIONS,
   placeholder,
   editable = true,
   onUpdate,
@@ -50,9 +53,11 @@ export function useInkioEditor({
   }, [extensions, placeholder]);
 
   const lastReportedJsonRef = useRef<JSONContent | null>(null);
+  const lastReportedHtmlRef = useRef<string | null>(null);
   const onCreateRef = useRef(onCreate);
   const onUpdateRef = useRef(onUpdate);
   const isMountedRef = useRef(true);
+  const syncTokenRef = useRef(0);
 
   useEffect(() => {
     onCreateRef.current = onCreate;
@@ -87,10 +92,13 @@ export function useInkioEditor({
         return;
       }
 
+      const token = ++syncTokenRef.current;
       queueMicrotask(() => {
+        if (token !== syncTokenRef.current) return;
         if (isMountedRef.current && !editorInstance.isDestroyed) {
           const updatedContent = editorInstance.getJSON();
           lastReportedJsonRef.current = updatedContent;
+          lastReportedHtmlRef.current = null;
           onUpdateRef.current?.(updatedContent);
         }
       });
@@ -102,14 +110,44 @@ export function useInkioEditor({
       return;
     }
 
-    const editorJson = editor.getJSON();
-    if (isSameContent(content, lastReportedJsonRef.current ?? undefined) || isSameContent(content, editorJson)) {
+    // String content (HTML) must be compared against HTML, not JSON.
+    // Comparing string to getJSON() always mismatches and causes a setContent loop.
+    if (typeof content === 'string') {
+      if (content === lastReportedHtmlRef.current) return;
+      let currentHtml: string;
+      try {
+        currentHtml = editor.getHTML();
+      } catch {
+        return;
+      }
+      if (content === currentHtml) {
+        lastReportedHtmlRef.current = content;
+        return;
+      }
+      const token = ++syncTokenRef.current;
+      const next = content;
+      queueMicrotask(() => {
+        if (token !== syncTokenRef.current) return;
+        if (isMountedRef.current && !editor.isDestroyed) {
+          lastReportedHtmlRef.current = next;
+          lastReportedJsonRef.current = null;
+          editor.commands.setContent(next, { emitUpdate: false });
+        }
+      });
       return;
     }
 
+    const editorJson = editor.getJSON();
+    if (isSameJson(content, lastReportedJsonRef.current ?? undefined) || isSameJson(content, editorJson)) {
+      return;
+    }
+
+    const token = ++syncTokenRef.current;
+    const next = content;
     queueMicrotask(() => {
-      if (isMountedRef.current && !editor.isDestroyed && content !== undefined) {
-        editor.commands.setContent(content, { emitUpdate: false });
+      if (token !== syncTokenRef.current) return;
+      if (isMountedRef.current && !editor.isDestroyed && next !== undefined) {
+        editor.commands.setContent(next, { emitUpdate: false });
       }
     });
   }, [content, editor, isControlled]);

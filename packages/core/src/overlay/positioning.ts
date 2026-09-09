@@ -266,6 +266,20 @@ export function autoUpdateOverlayPosition({ update, elements = [] }: OverlayAuto
   });
   window.addEventListener('resize', schedule, { passive: true });
 
+  // Layout can shift without scroll/resize (webfont swap, image loads):
+  // reposition once everything settles, otherwise overlays keep coordinates
+  // measured against the pre-swap layout.
+  const fonts = (document as Document).fonts as FontFaceSet | undefined;
+  if (fonts && typeof fonts.ready?.then === 'function') {
+    fonts.ready.then(() => {
+      schedule();
+    }).catch(() => {
+      // Ignore — overlays still track scroll/resize.
+    });
+  }
+  const handleLoad = () => schedule();
+  window.addEventListener('load', handleLoad, { once: true });
+
   let resizeObserver: ResizeObserver | null = null;
   if (typeof ResizeObserver !== 'undefined') {
     resizeObserver = new ResizeObserver(() => schedule());
@@ -286,6 +300,7 @@ export function autoUpdateOverlayPosition({ update, elements = [] }: OverlayAuto
       target.removeEventListener('scroll', schedule, true);
     });
     window.removeEventListener('resize', schedule);
+    window.removeEventListener('load', handleLoad);
 
     resizeObserver?.disconnect();
   };

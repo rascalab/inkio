@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { imageEditorReducer, initialState } from '../reducer';
+import { UNDOABLE_ACTIONS, imageEditorReducer, initialState } from '../reducer';
 import type { RectAnnotation, TextAnnotationData, ToolType } from '../types';
 import { COLOR_PRESETS } from '../color-presets';
 import { getDefaultCropRect } from '../utils/crop';
@@ -467,6 +467,54 @@ describe('imageEditorReducer', () => {
       const state = { ...initialState, error: 'oops' };
       const next = imageEditorReducer(state, { type: 'SET_ERROR', error: null });
       expect(next.error).toBeNull();
+    });
+  });
+
+  describe('SET_FILTER', () => {
+    it('defaults to no filter and applies presets', () => {
+      expect(initialState.filter).toBe('none');
+
+      const next = imageEditorReducer(initialState, { type: 'SET_FILTER', filter: 'grayscale' });
+      expect(next.filter).toBe('grayscale');
+    });
+
+    it('is undoable', () => {
+      expect(UNDOABLE_ACTIONS.has('SET_FILTER')).toBe(true);
+    });
+  });
+
+  describe('SET_REDACT_OPTIONS / SET_STICKER_OPTIONS', () => {
+    it('merges redact and sticker options', () => {
+      const redacted = imageEditorReducer(initialState, {
+        type: 'SET_REDACT_OPTIONS',
+        options: { mode: 'blur', strength: 20 },
+      });
+      expect(redacted.redactOptions).toEqual({ mode: 'blur', strength: 20 });
+
+      const stickered = imageEditorReducer(initialState, {
+        type: 'SET_STICKER_OPTIONS',
+        options: { emoji: '🔥' },
+      });
+      expect(stickered.stickerOptions).toEqual({ emoji: '🔥' });
+    });
+  });
+
+  describe('SET_FINETUNE / RESET_FINETUNE', () => {
+    it('merges partial finetune values', () => {
+      const next = imageEditorReducer(initialState, {
+        type: 'SET_FINETUNE',
+        finetune: { brightness: 0.2 },
+      });
+      expect(next.finetune).toEqual({ brightness: 0.2, contrast: 0, saturation: 0, clarity: 0 });
+    });
+
+    it('resets finetune to neutral', () => {
+      const tuned = imageEditorReducer(initialState, {
+        type: 'SET_FINETUNE',
+        finetune: { brightness: 0.2, contrast: 10, saturation: -0.5, clarity: 0.4 },
+      });
+      const next = imageEditorReducer(tuned, { type: 'RESET_FINETUNE' });
+      expect(next.finetune).toEqual({ brightness: 0, contrast: 0, saturation: 0, clarity: 0 });
     });
   });
 });

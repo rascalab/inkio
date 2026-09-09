@@ -26,10 +26,11 @@ export function ArrowAnnotationShape({
       id={annotation.id}
       points={annotation.points.map((p) => p * scale)}
       stroke={annotation.stroke}
-      strokeWidth={annotation.strokeWidth}
+      // Image-space units, matching export (strokeWidth * annScale).
+      strokeWidth={annotation.strokeWidth * scale}
       fill={annotation.stroke}
-      pointerLength={10}
-      pointerWidth={10}
+      pointerLength={10 * scale}
+      pointerWidth={10 * scale}
       draggable
       onClick={() => onSelect(annotation.id)}
       onTap={() => onSelect(annotation.id)}

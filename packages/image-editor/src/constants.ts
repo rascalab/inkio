@@ -65,6 +65,28 @@ export const DEFAULT_LOCALE: ImageEditorLocale = {
   opacity: 'Opacity',
   zoom: 'Zoom',
   fit: 'Fit',
+  filter: 'Filter',
+  filterNone: 'None',
+  filterGrayscale: 'Grayscale',
+  filterSepia: 'Sepia',
+  filterInvert: 'Invert',
+  filterWarm: 'Warm',
+  filterCool: 'Cool',
+  filterDramatic: 'Dramatic',
+  filterSoft: 'Soft',
+  filterVintage: 'Vintage',
+  finetune: 'Finetune',
+  brightness: 'Brightness',
+  contrast: 'Contrast',
+  saturation: 'Saturation',
+  clarity: 'Clarity',
+  resetFinetune: 'Reset adjustments',
+  redact: 'Redact',
+  sticker: 'Sticker',
+  pixelate: 'Pixelate',
+  blur: 'Blur',
+  strength: 'Strength',
+  emoji: 'Emoji',
   closeConfirm: 'Discard your image edits?',
   smallViewportTitle: 'Image editing is unavailable on very small screens.',
   smallViewportBody: 'Use a larger phone, tablet, or desktop window to edit this image.',
@@ -76,7 +98,7 @@ export const DEFAULT_LOCALE: ImageEditorLocale = {
   toolsLabel: 'Image editor tools',
 };
 
-export const DEFAULT_TOOLS: ToolType[] = ['resize', 'draw', 'shape', 'text', 'rotate'];
+export const DEFAULT_TOOLS: ToolType[] = ['resize', 'draw', 'shape', 'text', 'filter', 'redact', 'sticker', 'rotate'];
 
 export const ASPECT_RATIO_PRESETS = [
   { labelKey: 'freeform' as const, value: null },
@@ -119,3 +141,21 @@ export const DEFAULT_RESIZE_OPTIONS = {
   height: 0,
   lockAspectRatio: true,
 };
+
+export const DEFAULT_REDACT_OPTIONS = {
+  mode: 'pixelate' as const,
+  strength: 12,
+};
+
+export const DEFAULT_STICKER_OPTIONS = {
+  emoji: '⭐',
+};
+
+export const STICKER_EMOJIS = [
+  '⭐', '❤️', '🔥', '👍', '👀', '🎉',
+  '✅', '❌', '⚠️', '💡', '📌', '💬',
+  '😀', '😎', '🤔', '👏', '🙏', '💯',
+  '🚀', '🎯', '💥', '✨', '❓', '‼️',
+];
+
+export const DEFAULT_STICKER_SIZE = 64;

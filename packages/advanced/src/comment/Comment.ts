@@ -304,6 +304,7 @@ export const Comment = Mark.create<CommentOptions>({
 
             if (dispatch) {
               dispatch(transaction);
+              this.options.onCommentResolve?.(trimmedId);
             }
 
             return true;

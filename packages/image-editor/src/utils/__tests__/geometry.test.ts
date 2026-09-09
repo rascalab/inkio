@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { canvasSpaceToImageSpace, getBaseDisplayDimensions, imageSpaceToCanvasSpace } from '../geometry';
+import {
+  canvasSpaceToImageSpace,
+  getBaseDisplayDimensions,
+  getTransformedDimensions,
+  imageSpaceToCanvasSpace,
+} from '../geometry';
 import type { Transform } from '../../types';
 
 describe('geometry helpers', () => {
@@ -96,5 +101,28 @@ describe('geometry helpers', () => {
     const result = canvasSpaceToImageSpace(300, 400, 600, 800, 800, 600, transform);
     expect(result.x).toBeCloseTo(400);
     expect(result.y).toBeCloseTo(300);
+  });
+
+  it('never returns NaN for zero dimensions', () => {
+    const transform: Transform = { rotation: 0, flipX: false, flipY: false, crop: null };
+    const dims = getTransformedDimensions(0, 0, transform, null);
+    expect(Number.isFinite(dims.width)).toBe(true);
+    expect(Number.isFinite(dims.height)).toBe(true);
+
+    const toImage = canvasSpaceToImageSpace(10, 10, 0, 0, 0, 0, transform);
+    expect(Number.isFinite(toImage.x)).toBe(true);
+    expect(Number.isFinite(toImage.y)).toBe(true);
+
+    const toCanvas = imageSpaceToCanvasSpace(10, 10, 0, 0, 0, 0, transform);
+    expect(Number.isFinite(toCanvas.x)).toBe(true);
+    expect(Number.isFinite(toCanvas.y)).toBe(true);
+  });
+
+  it('treats non-normalized quarter turns consistently', () => {
+    const base: Transform = { rotation: 90, flipX: false, flipY: false, crop: null };
+    const wide: Transform = { rotation: 450, flipX: false, flipY: false, crop: null };
+    expect(getTransformedDimensions(100, 50, wide, null)).toEqual(
+      getTransformedDimensions(100, 50, base, null),
+    );
   });
 });

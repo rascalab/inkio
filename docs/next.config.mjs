@@ -16,8 +16,7 @@ const withNextra = nextra({
 
 export default withNextra({
   reactStrictMode: true,
-  allowedDevOrigins: ['mini'],
-  transpilePackages: useSourcePackages ? ['@inkio/editor', '@inkio/simple', '@inkio/advanced', '@inkio/image-editor'] : [],
+  transpilePackages: useSourcePackages ? ['@inkio/core', '@inkio/editor', '@inkio/simple', '@inkio/advanced', '@inkio/image-editor'] : [],
   typescript: {
     tsconfigPath: useSourcePackages ? 'tsconfig.json' : 'tsconfig.build.json',
   },
@@ -31,12 +30,6 @@ export default withNextra({
   },
   serverExternalPackages: [
     '@nextra/components',
-    '@next/legacy/document',
-    '@next/mdx',
-    '@next/swc',
-    '@next/client',
-    '@next/server',
-    '@next/headers'
   ],
   experimental: {
     optimizePackageImports: false,

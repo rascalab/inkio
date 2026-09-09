@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -21,29 +21,29 @@ function getPackageDir(filter) {
   return path.join(repoRoot, 'packages', filter.split('/')[1]);
 }
 
-function collectTypeTargets(value, targets) {
+function collectReleaseTargets(value, targets) {
   if (!value) {
     return;
   }
 
   if (typeof value === 'string') {
+    // Only dist-relative file targets matter (skip condition names like "import").
+    if (value.startsWith('./dist/')) {
+      targets.add(value);
+    }
     return;
   }
 
   if (Array.isArray(value)) {
     for (const entry of value) {
-      collectTypeTargets(entry, targets);
+      collectReleaseTargets(entry, targets);
     }
     return;
   }
 
   if (typeof value === 'object') {
-    if (typeof value.types === 'string') {
-      targets.add(value.types);
-    }
-
     for (const child of Object.values(value)) {
-      collectTypeTargets(child, targets);
+      collectReleaseTargets(child, targets);
     }
   }
 }
@@ -53,11 +53,13 @@ function hasReleaseReadyBuild(filter) {
   const manifest = JSON.parse(readFileSync(path.join(packageDir, 'package.json'), 'utf-8'));
   const targets = new Set();
 
-  if (typeof manifest.types === 'string') {
-    targets.add(manifest.types);
+  for (const field of ['main', 'module', 'types']) {
+    if (typeof manifest[field] === 'string' && manifest[field].startsWith('./dist/')) {
+      targets.add(manifest[field]);
+    }
   }
 
-  collectTypeTargets(manifest.exports, targets);
+  collectReleaseTargets(manifest.exports, targets);
 
   if (targets.size === 0) {
     return existsSync(path.join(packageDir, 'dist'));
@@ -74,7 +76,9 @@ function run(command, args, cwd) {
   });
 
   if (result.status !== 0) {
-    throw new Error(`Command failed: ${command} ${args.join(' ')}`);
+    const reason = result.signal ? `signal ${result.signal}` : `exit code ${result.status}`;
+    const stderr = result.stderr ? ` stderr: ${String(result.stderr).slice(0, 500)}` : '';
+    throw new Error(`Command failed (${reason}): ${command} ${args.join(' ')}${stderr}`);
   }
 }
 
@@ -82,8 +86,10 @@ function writeJson(filePath, value) {
   writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function pickTarball(tarballs, prefix) {
-  return tarballs.find((file) => file.startsWith(prefix) && file.endsWith('.tgz'));
+function pickTarball(tarballs, name) {
+  // Exact package-name match so inkio-editor-* never collides with inkio-image-editor-*.
+  const pattern = new RegExp(`^${name}-\\d.*\\.tgz$`);
+  return [...tarballs].sort().find((file) => pattern.test(file));
 }
 
 const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'inkio-release-smoke-'));
@@ -98,20 +104,22 @@ try {
     if (!skipPackageBuilds) {
       run('pnpm', ['--filter', filter, 'build'], repoRoot);
     } else if (!hasReleaseReadyBuild(filter)) {
-      throw new Error(`Missing release-ready build for ${filter}. Run pnpm build:packages or pnpm verify:full first, or unset INKIO_RELEASE_SMOKE_SKIP_PACKAGE_BUILDS.`);
+      throw new Error(`Missing release-ready build for ${filter}. Run pnpm package:smoke:verify or pnpm verify:full first, or unset INKIO_RELEASE_SMOKE_SKIP_PACKAGE_BUILDS.`);
     }
     run('pnpm', ['--filter', filter, 'pack', '--pack-destination', tarballDir], repoRoot);
   }
 
   const tarballs = readdirSync(tarballDir);
-  const coreTarball = pickTarball(tarballs, 'inkio-core-');
-  const advancedTarball = pickTarball(tarballs, 'inkio-advanced-');
-  const simpleTarball = pickTarball(tarballs, 'inkio-simple-');
-  const editorTarball = pickTarball(tarballs, 'inkio-editor-');
-  const imageEditorTarball = pickTarball(tarballs, 'inkio-image-editor-');
+  const coreTarball = pickTarball(tarballs, 'inkio-core');
+  const advancedTarball = pickTarball(tarballs, 'inkio-advanced');
+  const simpleTarball = pickTarball(tarballs, 'inkio-simple');
+  const editorTarball = pickTarball(tarballs, 'inkio-editor');
+  const imageEditorTarball = pickTarball(tarballs, 'inkio-image-editor');
 
   if (!coreTarball || !advancedTarball || !simpleTarball || !editorTarball || !imageEditorTarball) {
-    throw new Error('Failed to create release tarballs for the layered Inkio packages.');
+    throw new Error(
+      `Failed to create release tarballs for the layered Inkio packages. Found: ${tarballs.join(', ') || '(none)'}`,
+    );
   }
 
   writeJson(path.join(appDir, 'package.json'), {
@@ -419,6 +427,14 @@ createRoot(document.getElementById('root')!).render(
 
   run('pnpm', ['install'], appDir);
   run('pnpm', ['build'], appDir);
-} finally {
-  // Keep the temp directory around on failure for inspection.
+
+  // Success: remove the temp dir (best-effort). Failures keep it for inspection.
+  try {
+    rmSync(tempRoot, { recursive: true, force: true });
+  } catch {
+    // Best-effort cleanup only.
+  }
+} catch (error) {
+  console.error(`release-smoke failed; temp directory kept at ${tempRoot} for inspection.`);
+  throw error;
 }

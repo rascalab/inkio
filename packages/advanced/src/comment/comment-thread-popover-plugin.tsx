@@ -147,12 +147,12 @@ export function createCommentThreadPopoverPlugin(
           options.onCommentReply?.(id, text);
         }}
         onResolve={(id: string) => {
+          // resolveComment() already invokes onCommentResolve internally.
           (
             editor.commands as unknown as {
               resolveComment?: (commentId: string) => boolean;
             }
           ).resolveComment?.(id);
-          options.onCommentResolve?.(id);
           deactivate();
         }}
         onDelete={(id: string) => {

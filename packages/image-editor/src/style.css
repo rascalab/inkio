@@ -248,9 +248,10 @@
   right: 24px;
   bottom: 20px;
   z-index: 7;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 14px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0;
   height: calc(var(--inkio-ie-desktop-dock-height) - 24px);
   padding: 14px;
   border: 1px solid var(--inkio-ie-glass-border);
@@ -260,7 +261,17 @@
   backdrop-filter: blur(var(--inkio-surface-blur-shell));
 }
 
-.inkio-ie-bottom-dock-scroll,
+.inkio-ie-bottom-dock-scroll {
+  display: flex;
+  align-items: stretch;
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
 .inkio-ie-mobile-option-strip {
   display: flex;
   align-items: stretch;
@@ -269,6 +280,11 @@
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
+}
+
+.inkio-ie-bottom-dock-scroll {
+  overflow-y: auto;
+  align-items: flex-start;
 }
 
 .inkio-ie-bottom-dock-scroll::-webkit-scrollbar {
@@ -280,6 +296,9 @@
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
+  padding-left: 14px;
+  margin-left: 14px;
+  border-left: 1px solid color-mix(in srgb, var(--inkio-ie-border) 70%, transparent);
 }
 
 .inkio-ie-bottom-dock-zoom {
@@ -389,9 +408,19 @@
   align-items: center;
 }
 
+.inkio-ie-mobile-command-bar > * {
+  min-width: 0;
+}
+
 .inkio-ie-mobile-command-group {
   display: inline-flex;
+  flex-shrink: 0;
   gap: 8px;
+}
+
+.inkio-ie-mobile-command-bar > .inkio-ie-mobile-command-btn:first-child,
+.inkio-ie-mobile-save-btn {
+  flex-shrink: 0;
 }
 
 .inkio-ie-mobile-zoom-group {
@@ -399,6 +428,7 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+  overflow: hidden;
   padding: 8px;
   border: 1px solid var(--inkio-ie-glass-border);
   border-radius: 999px;
@@ -407,12 +437,42 @@
   backdrop-filter: blur(var(--inkio-surface-blur-shell));
 }
 
+.inkio-ie-mobile-zoom-group > .inkio-ie-mobile-command-btn,
+.inkio-ie-mobile-fit-btn {
+  flex-shrink: 0;
+}
+
 .inkio-ie-mobile-zoom-label {
-  min-width: 58px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 0 12px;
   font-size: 13px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 420px) {
+  .inkio-ie-mobile-command-bar {
+    gap: 6px;
+  }
+  .inkio-ie-mobile-command-group {
+    gap: 6px;
+  }
+  .inkio-ie-mobile-zoom-group {
+    gap: 6px;
+    padding: 6px;
+  }
+  .inkio-ie-mobile-zoom-label {
+    padding: 0 6px;
+  }
+  /* The % label already triggers fit on tap — the redundant Fit button would
+     squeeze the label into an unreadable truncation on narrow phones. */
+  .inkio-ie-mobile-fit-btn {
+    display: none;
+  }
 }
 
 .inkio-ie-mobile-tool-tray {
@@ -499,14 +559,17 @@
   border-radius: 20px;
   background: var(--inkio-ie-glass-panel);
   backdrop-filter: blur(var(--inkio-surface-blur-panel));
-  box-shadow:
-    0 12px 24px rgba(15, 23, 42, 0.12),
-    inset 0 0 0 1px color-mix(in srgb, var(--inkio-bg-inverse) 4%, transparent);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
 }
 
 .inkio-ie-control-card--compact {
   flex-basis: 180px;
   min-width: 180px;
+}
+
+.inkio-ie-control-card--wide {
+  flex-basis: 264px;
+  min-width: 264px;
 }
 
 .inkio-ie-tool-controls[data-viewport-kind='desktop'] .inkio-ie-control-card {
@@ -518,6 +581,24 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.inkio-ie-control-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.inkio-ie-control-card-actions .inkio-ie-action-btn--compact {
+  min-height: 30px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.inkio-ie-control-card-actions .inkio-ie-icon-action-btn--compact {
+  min-width: 30px;
+  min-height: 30px;
 }
 
 .inkio-ie-control-card-label {
@@ -619,6 +700,30 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
+}
+
+.inkio-ie-field-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.inkio-ie-field-row > .inkio-ie-field {
+  flex: 1 1 0;
+  min-width: 72px;
+}
+
+.inkio-ie-field-row > .inkio-ie-inline-toggle {
+  flex-shrink: 0;
+  margin-bottom: 1px;
+}
+
+.inkio-ie-control-caption {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--inkio-ie-text-muted);
 }
 
 .inkio-ie-field-label,

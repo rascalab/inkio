@@ -2,9 +2,21 @@ import type { InkioMessageOverrides } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import type { InkioImageEditorMessageOverrides } from './i18n';
 
-export type ToolType = 'crop' | 'rotate' | 'resize' | 'draw' | 'shape' | 'text';
+export type ToolType = 'crop' | 'rotate' | 'resize' | 'draw' | 'shape' | 'text' | 'filter' | 'redact' | 'sticker';
 export type EnabledToolType = Exclude<ToolType, 'crop'>;
 export type ShapeType = 'rect' | 'ellipse' | 'arrow' | 'line';
+export type RedactMode = 'pixelate' | 'blur';
+
+export type FilterPresetId =
+  | 'none'
+  | 'grayscale'
+  | 'sepia'
+  | 'invert'
+  | 'warm'
+  | 'cool'
+  | 'dramatic'
+  | 'soft'
+  | 'vintage';
 
 export interface CropRect {
   x: number;
@@ -47,8 +59,24 @@ export interface TextOptions {
   fontStyle: 'normal' | 'bold' | 'italic' | 'bold italic';
 }
 
+export interface FinetuneOptions {
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  clarity: number;
+}
+
 export interface CropOptionsState {
   aspectRatio: number | null;
+}
+
+export interface RedactOptions {
+  mode: RedactMode;
+  strength: number;
+}
+
+export interface StickerOptions {
+  emoji: string;
 }
 
 export interface ResizeOptionsState {
@@ -122,13 +150,35 @@ export interface FreeDrawAnnotation extends BaseAnnotation {
   opacity: number;
 }
 
+export interface RedactAnnotation extends BaseAnnotation {
+  type: 'redact';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  mode: RedactMode;
+  strength: number;
+}
+
+export interface StickerAnnotation extends BaseAnnotation {
+  type: 'sticker';
+  x: number;
+  y: number;
+  size: number;
+  emoji: string;
+  rotation: number;
+}
+
 export type Annotation =
   | RectAnnotation
   | EllipseAnnotation
   | ArrowAnnotation
   | LineAnnotation
   | TextAnnotationData
-  | FreeDrawAnnotation;
+  | FreeDrawAnnotation
+  | RedactAnnotation
+  | StickerAnnotation;
 
 export interface ImageEditorState {
   originalImage: HTMLImageElement | null;
@@ -139,11 +189,15 @@ export interface ImageEditorState {
   annotations: Annotation[];
   selectedAnnotationId: string | null;
   activeTool: ToolType | null;
+  filter: FilterPresetId;
+  finetune: FinetuneOptions;
   drawOptions: DrawOptions;
   shapeOptions: ShapeOptions;
   textOptions: TextOptions;
   cropOptions: CropOptionsState;
   resizeOptions: ResizeOptionsState;
+  redactOptions: RedactOptions;
+  stickerOptions: StickerOptions;
   pendingCrop: CropRect | null;
   isLoading: boolean;
   error: string | null;
@@ -217,6 +271,28 @@ export interface ImageEditorLocale {
   opacity: string;
   zoom: string;
   fit: string;
+  filter: string;
+  filterNone: string;
+  filterGrayscale: string;
+  filterSepia: string;
+  filterInvert: string;
+  filterWarm: string;
+  filterCool: string;
+  filterDramatic: string;
+  filterSoft: string;
+  filterVintage: string;
+  finetune: string;
+  brightness: string;
+  contrast: string;
+  saturation: string;
+  clarity: string;
+  resetFinetune: string;
+  redact: string;
+  sticker: string;
+  pixelate: string;
+  blur: string;
+  strength: string;
+  emoji: string;
   closeConfirm: string;
   /** @deprecated Tiny viewport hard-disable was removed in favor of a scroll shell. */
   smallViewportTitle: string;

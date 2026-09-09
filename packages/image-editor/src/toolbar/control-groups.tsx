@@ -6,13 +6,15 @@ interface ControlCardProps {
   label: string;
   children: React.ReactNode;
   className?: string;
+  headerActions?: React.ReactNode;
 }
 
-export function ControlCard({ label, children, className }: ControlCardProps) {
+export function ControlCard({ label, children, className, headerActions }: ControlCardProps) {
   return (
     <section className={`inkio-ie-control-card${className ? ` ${className}` : ''}`}>
       <header className="inkio-ie-control-card-header">
         <span className="inkio-ie-control-card-label">{label}</span>
+        {headerActions && <span className="inkio-ie-control-card-actions">{headerActions}</span>}
       </header>
       <div className="inkio-ie-control-card-body">{children}</div>
     </section>
@@ -30,9 +32,11 @@ interface PresetChipGroupItem {
 interface PresetChipGroupProps {
   label: string;
   items: PresetChipGroupItem[];
+  caption?: React.ReactNode;
+  captionTestId?: string;
 }
 
-export function PresetChipGroup({ label, items }: PresetChipGroupProps) {
+export function PresetChipGroup({ label, items, caption, captionTestId }: PresetChipGroupProps) {
   return (
     <ControlCard label={label}>
       <div className="inkio-ie-chip-row">
@@ -48,6 +52,11 @@ export function PresetChipGroup({ label, items }: PresetChipGroupProps) {
           </button>
         ))}
       </div>
+      {caption != null && (
+        <p className="inkio-ie-control-caption" data-testid={captionTestId}>
+          {caption}
+        </p>
+      )}
     </ControlCard>
   );
 }
@@ -219,83 +228,127 @@ export function RangeFieldGroup({
 }
 
 interface ResizeDimensionGroupProps {
+  label: string;
+  cardClassName?: string;
   width: number;
   height: number;
   lockAspectRatio: boolean;
   widthLabel: string;
   heightLabel: string;
   lockLabel: string;
+  applyLabel: string;
+  resetLabel: string;
   onWidthChange: (value: number) => void;
   onHeightChange: (value: number) => void;
   onToggleLock: () => void;
+  onApply: () => void;
+  onReset: () => void;
   widthTestId?: string;
   heightTestId?: string;
   lockTestId?: string;
+  applyTestId?: string;
+  resetTestId?: string;
 }
 
 export function ResizeDimensionGroup({
+  label,
+  cardClassName,
   width,
   height,
   lockAspectRatio,
   widthLabel,
   heightLabel,
   lockLabel,
+  applyLabel,
+  resetLabel,
   onWidthChange,
   onHeightChange,
   onToggleLock,
+  onApply,
+  onReset,
   widthTestId,
   heightTestId,
   lockTestId,
+  applyTestId,
+  resetTestId,
 }: ResizeDimensionGroupProps) {
   return (
-    <ControlCard label={widthLabel}>
+    <ControlCard
+      label={label}
+      className={cardClassName}
+      headerActions={(
+        <>
+          <button
+            type="button"
+            className="inkio-ie-icon-action-btn inkio-ie-icon-action-btn--compact"
+            title={resetLabel}
+            aria-label={resetLabel}
+            onClick={onReset}
+            data-testid={resetTestId}
+          >
+            <CloseIcon size={14} />
+          </button>
+          <button
+            type="button"
+            className="inkio-ie-action-btn inkio-ie-action-btn--primary inkio-ie-action-btn--compact"
+            onClick={onApply}
+            data-testid={applyTestId}
+          >
+            {applyLabel}
+          </button>
+        </>
+      )}
+    >
       <div className="inkio-ie-control-stack">
-        <label className="inkio-ie-field">
-          <span className="inkio-ie-field-label">{widthLabel}</span>
-          <input
-            type="number"
-            className="inkio-ie-field-input"
-            data-testid={widthTestId}
-            min={1}
-            value={width}
-            onChange={(event) => {
-              const nextValue = Number.parseInt(event.target.value, 10);
-              if (Number.isNaN(nextValue) || nextValue <= 0) {
-                return;
-              }
+        <div className="inkio-ie-field-row">
+          <label className="inkio-ie-field">
+            <span className="inkio-ie-field-label">{widthLabel}</span>
+            <input
+              type="number"
+              className="inkio-ie-field-input"
+              data-testid={widthTestId}
+              min={1}
+              value={width}
+              onChange={(event) => {
+                const nextValue = Number.parseInt(event.target.value, 10);
+                if (Number.isNaN(nextValue) || nextValue <= 0) {
+                  return;
+                }
 
-              onWidthChange(nextValue);
-            }}
-          />
-        </label>
-        <label className="inkio-ie-field">
-          <span className="inkio-ie-field-label">{heightLabel}</span>
-          <input
-            type="number"
-            className="inkio-ie-field-input"
-            data-testid={heightTestId}
-            min={1}
-            value={height}
-            onChange={(event) => {
-              const nextValue = Number.parseInt(event.target.value, 10);
-              if (Number.isNaN(nextValue) || nextValue <= 0) {
-                return;
-              }
+                onWidthChange(nextValue);
+              }}
+            />
+          </label>
+          <label className="inkio-ie-field">
+            <span className="inkio-ie-field-label">{heightLabel}</span>
+            <input
+              type="number"
+              className="inkio-ie-field-input"
+              data-testid={heightTestId}
+              min={1}
+              value={height}
+              onChange={(event) => {
+                const nextValue = Number.parseInt(event.target.value, 10);
+                if (Number.isNaN(nextValue) || nextValue <= 0) {
+                  return;
+                }
 
-              onHeightChange(nextValue);
-            }}
-          />
-        </label>
-        <button
-          type="button"
-          className={`inkio-ie-inline-toggle${lockAspectRatio ? ' is-active' : ''}`}
-          aria-pressed={lockAspectRatio}
-          onClick={onToggleLock}
-          data-testid={lockTestId}
-        >
-          {lockAspectRatio ? <LockIcon size={16} /> : <UnlockIcon size={16} />}
-          <span>{lockLabel}</span>
-        </button>
+                onHeightChange(nextValue);
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            className={`inkio-ie-inline-toggle${lockAspectRatio ? ' is-active' : ''}`}
+            aria-pressed={lockAspectRatio}
+            title={lockLabel}
+            aria-label={lockLabel}
+            onClick={onToggleLock}
+            data-testid={lockTestId}
+          >
+            {lockAspectRatio ? <LockIcon size={16} /> : <UnlockIcon size={16} />}
+          </button>
+        </div>
       </div>
     </ControlCard>
   );

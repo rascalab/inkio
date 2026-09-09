@@ -1,13 +1,18 @@
 
+import { useEffect, useRef } from 'react';
 import { Image as KonvaImage } from 'react-konva';
-import type { Transform } from '../types';
+import type Konva from 'konva';
+import type { FilterPresetId, FinetuneOptions, Transform } from '../types';
 import { getBaseDisplayDimensions } from '../utils/geometry';
+import { applyImageFilter, DEFAULT_FINETUNE } from '../utils/filters';
 
 interface ImageNodeProps {
   image: HTMLImageElement;
   displayWidth: number;
   displayHeight: number;
   transform: Transform;
+  filter?: FilterPresetId;
+  finetune?: FinetuneOptions;
 }
 
 export function ImageNode({
@@ -15,15 +20,39 @@ export function ImageNode({
   displayWidth,
   displayHeight,
   transform,
+  filter = 'none',
+  finetune = DEFAULT_FINETUNE,
 }: ImageNodeProps) {
   const cropRect = transform.crop;
   const { width: baseW, height: baseH } = getBaseDisplayDimensions(
     displayWidth, displayHeight, transform.rotation,
   );
+  const imageRef = useRef<Konva.Image>(null);
+
+  // Konva filters only take effect on cached nodes; re-apply on every
+  // filter/image/geometry change so preview matches export exactly.
+  useEffect(() => {
+    const node = imageRef.current;
+    if (!node) return;
+    const isNeutral =
+      filter === 'none' &&
+      finetune.brightness === 0 &&
+      finetune.contrast === 0 &&
+      finetune.saturation === 0 &&
+      finetune.clarity === 0;
+    if (isNeutral) {
+      node.filters([]);
+      node.clearCache();
+    } else {
+      applyImageFilter(node, filter, finetune);
+    }
+    node.getLayer()?.batchDraw();
+  }, [filter, finetune, image, baseW, baseH]);
 
   if (cropRect) {
     return (
       <KonvaImage
+        ref={imageRef}
         image={image}
         x={displayWidth / 2}
         y={displayHeight / 2}
@@ -46,6 +75,7 @@ export function ImageNode({
 
   return (
     <KonvaImage
+      ref={imageRef}
       image={image}
       x={displayWidth / 2}
       y={displayHeight / 2}

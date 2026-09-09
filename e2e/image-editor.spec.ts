@@ -233,6 +233,147 @@ test('desktop shell starts with left rail + canvas + top-right close and the too
   expect(Math.abs(modalBox!.height - viewport!.height)).toBeLessThanOrEqual(1);
 });
 
+test('filter tool applies a preset and saves a filtered image', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => {
+    pageErrors.push(error.message);
+  });
+  await waitForHarness(page);
+
+  await triggerButton(page, 'inkio-ie-tool-filter');
+  await expect(page.getByTestId('inkio-ie-bottom-dock-controls')).toHaveAttribute('data-panel', 'filter');
+  await triggerButton(page, 'inkio-ie-filter-grayscale');
+  await expect(page.getByTestId('inkio-ie-root')).toHaveAttribute('data-debug-filter', 'grayscale');
+
+  await triggerButton(page, 'inkio-ie-save');
+  const saved = page.locator('.image-editor-e2e-saved-image');
+  await expect(saved).toBeVisible();
+  await expect.poll(async () => saved.getAttribute('src')).toMatch(/^data:image\/png;base64,/);
+  expect(pageErrors).toEqual([]);
+});
+
+test('finetune brightness brightens the saved image', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => {
+    pageErrors.push(error.message);
+  });
+  await waitForHarness(page);
+
+  const luminance = (src: string | null) => page.evaluate((url) => new Promise<number>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const context = canvas.getContext('2d');
+      if (!context) {
+        reject(new Error('no 2d context'));
+        return;
+      }
+      context.drawImage(img, 0, 0);
+      const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      let total = 0;
+      let count = 0;
+      for (let i = 0; i < data.length; i += 40) {
+        if (data[i + 3] > 8) {
+          total += (data[i] + data[i + 1] + data[i + 2]) / 3;
+          count += 1;
+        }
+      }
+      resolve(count > 0 ? total / count : -1);
+    };
+    img.onerror = () => reject(new Error('img load failed'));
+    img.src = url ?? '';
+  }), src);
+
+  await triggerButton(page, 'inkio-ie-save');
+  await expect(page.locator('.image-editor-e2e-saved-image')).toBeVisible();
+  const plainSrc = await page.locator('.image-editor-e2e-saved-image').last().getAttribute('src');
+  const plainLuminance = await luminance(plainSrc);
+
+  // Saving closes the modal — reopen it for the finetune pass.
+  await triggerButton(page, 'image-editor-e2e-open');
+  await expect(page.getByTestId('inkio-ie-modal-content')).toBeVisible();
+  await expect(page.getByTestId('inkio-ie-stage-frame')).toBeVisible();
+
+  await triggerButton(page, 'inkio-ie-tool-filter');
+  // NOTE: real keyboard interaction with range inputs crashes headless
+  // Chromium (also reproducible on the pre-existing brush-size slider, so
+  // unrelated to finetune). Set via native setter + input event instead —
+  // this still exercises dispatch, render, filter, and save end to end.
+  await page.getByTestId('inkio-ie-finetune-brightness-range').evaluate((el) => {
+    const input = el as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+    setter?.call(input, '0.5');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await expect(page.getByTestId('inkio-ie-finetune-brightness-number')).toHaveValue('0.5');
+  await triggerButton(page, 'inkio-ie-save');
+  await page.waitForTimeout(1000);
+  const brightSrc = await page.locator('.image-editor-e2e-saved-image').last().getAttribute('src');
+  const brightLuminance = await luminance(brightSrc);
+
+  expect(plainLuminance).toBeGreaterThan(0);
+  expect(brightLuminance).toBeGreaterThan(plainLuminance + 5);
+  expect(pageErrors).toEqual([]);
+});
+
+test('redact tool pixelates a region in the saved image', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => {
+    pageErrors.push(error.message);
+  });
+  await waitForHarness(page);
+
+  await triggerButton(page, 'inkio-ie-save');
+  await expect(page.locator('.image-editor-e2e-saved-image')).toBeVisible();
+  const plainSrc = await page.locator('.image-editor-e2e-saved-image').last().getAttribute('src');
+
+  await triggerButton(page, 'image-editor-e2e-open');
+  await expect(page.getByTestId('inkio-ie-modal-content')).toBeVisible();
+  await expect(page.getByTestId('inkio-ie-stage-frame')).toBeVisible();
+
+  await triggerButton(page, 'inkio-ie-tool-redact');
+  await expect(page.getByTestId('inkio-ie-bottom-dock-controls')).toHaveAttribute('data-panel', 'redact');
+  await dragWithinStage(page, { x: 120, y: 90 }, { x: 300, y: 200 });
+  await expect(page.getByTestId('inkio-ie-root')).toHaveAttribute('data-debug-annotation-count', '1');
+
+  await triggerButton(page, 'inkio-ie-save');
+  await page.waitForTimeout(1000);
+  const redactedSrc = await page.locator('.image-editor-e2e-saved-image').last().getAttribute('src');
+  expect(redactedSrc).toMatch(/^data:image\/png;base64,/);
+  expect(redactedSrc).not.toBe(plainSrc);
+  expect(pageErrors).toEqual([]);
+});
+
+test('sticker tool places an emoji in the saved image', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => {
+    pageErrors.push(error.message);
+  });
+  await waitForHarness(page);
+
+  await triggerButton(page, 'inkio-ie-save');
+  await expect(page.locator('.image-editor-e2e-saved-image')).toBeVisible();
+  const plainSrc = await page.locator('.image-editor-e2e-saved-image').last().getAttribute('src');
+
+  await triggerButton(page, 'image-editor-e2e-open');
+  await expect(page.getByTestId('inkio-ie-modal-content')).toBeVisible();
+  await expect(page.getByTestId('inkio-ie-stage-frame')).toBeVisible();
+
+  await triggerButton(page, 'inkio-ie-tool-sticker');
+  await expect(page.getByTestId('inkio-ie-bottom-dock-controls')).toHaveAttribute('data-panel', 'sticker');
+  await clickStage(page, { x: 200, y: 140 });
+  await expect(page.getByTestId('inkio-ie-root')).toHaveAttribute('data-debug-annotation-count', '1');
+
+  await triggerButton(page, 'inkio-ie-save');
+  await page.waitForTimeout(1000);
+  const stickerSrc = await page.locator('.image-editor-e2e-saved-image').last().getAttribute('src');
+  expect(stickerSrc).toMatch(/^data:image\/png;base64,/);
+  expect(stickerSrc).not.toBe(plainSrc);
+  expect(pageErrors).toEqual([]);
+});
+
 test('desktop dock switches panel per tool and stays open on retoggle', async ({ page }) => {
   await waitForHarness(page);
 
@@ -469,10 +610,12 @@ test('wheel zoom updates preview zoom and crop mode keeps the crop frame fixed w
   await page.getByTestId('inkio-ie-canvas-workspace').hover();
   await page.mouse.wheel(0, -400);
 
-  const cropZoomAfter = Number(await page.getByTestId('inkio-ie-crop-viewport-zoom').textContent());
+  // Wheel delivery + React state update can lag a frame (notably Firefox).
+  await expect
+    .poll(async () => Number(await page.getByTestId('inkio-ie-crop-viewport-zoom').textContent()))
+    .toBeGreaterThan(cropZoomBefore);
   const frameAfter = await cropFrame.boundingBox();
   expect(frameAfter).not.toBeNull();
-  expect(cropZoomAfter).toBeGreaterThan(cropZoomBefore);
   expect(Math.abs(frameAfter!.x - frameBefore!.x)).toBeLessThanOrEqual(2);
   expect(Math.abs(frameAfter!.y - frameBefore!.y)).toBeLessThanOrEqual(2);
   expect(Math.abs(frameAfter!.width - frameBefore!.width)).toBeLessThanOrEqual(2);

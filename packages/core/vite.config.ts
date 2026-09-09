@@ -4,10 +4,19 @@ import dts from 'vite-plugin-dts';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { readFileSync } from 'fs';
+import { createRequire } from 'module';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const enableDts = process.env.INKIO_VITE_SKIP_DTS !== '1';
+const require = createRequire(import.meta.url);
+// decode-named-character-reference ships a DOM-only entry (index.dom.js) for
+// the bundler "browser" condition that touches `document` at module scope.
+// The universal entry (index.js) is behavior-identical in browsers and safe
+// under Node SSR, so force it for the dist bundle.
+// require.resolve uses Node conditions ("default" -> index.js), never the
+// bundler "browser" condition, so this always yields the universal entry.
+const decodeNamedCharacterReferencePath = require.resolve('decode-named-character-reference');
 
 /** Read a CSS file and recursively inline its @import "./..." statements. */
 function inlineCssImports(filePath: string, visited = new Set<string>()): string {
@@ -83,6 +92,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
+      'decode-named-character-reference': decodeNamedCharacterReferencePath,
     },
   },
   build: {

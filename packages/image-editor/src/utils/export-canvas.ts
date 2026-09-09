@@ -2,11 +2,14 @@ import Konva from 'konva';
 import type { ImageEditorState, Annotation } from '../types';
 import { getTransformedDimensions, getBaseDisplayDimensions } from './geometry';
 import { getTextAnnotationHeight, resolveTextFontSizePx, TEXT_DEFAULT_FONT_FAMILY } from './text-metrics';
+import { applyImageFilter } from './filters';
+import { STICKER_FONT_FAMILY } from '../annotations/StickerAnnotationShape';
 
 function applyAnnotationToGroup(
   container: Konva.Group | Konva.Layer,
   ann: Annotation,
   scale: number,
+  sourceImage: HTMLImageElement | null,
 ): void {
   switch (ann.type) {
     case 'rect': {
@@ -91,6 +94,47 @@ function applyAnnotationToGroup(
       container.add(shape);
       break;
     }
+    case 'redact': {
+      // Re-render the source region with the same filter pipeline as the
+      // live RedactAnnotationShape so export matches the preview.
+      if (!sourceImage) break;
+      const region = new Konva.Image({
+        image: sourceImage,
+        x: ann.x * scale,
+        y: ann.y * scale,
+        width: Math.max(1, ann.width * scale),
+        height: Math.max(1, ann.height * scale),
+        rotation: ann.rotation,
+        crop: {
+          x: ann.x,
+          y: ann.y,
+          width: Math.max(1, ann.width),
+          height: Math.max(1, ann.height),
+        },
+      });
+      if (ann.mode === 'blur') {
+        region.blurRadius(Math.max(0.5, ann.strength * 0.75));
+        region.filters([Konva.Filters.Blur]);
+      } else {
+        region.pixelSize(Math.max(2, Math.round(ann.strength)));
+        region.filters([Konva.Filters.Pixelate]);
+      }
+      region.cache();
+      container.add(region);
+      break;
+    }
+    case 'sticker': {
+      const shape = new Konva.Text({
+        x: ann.x * scale,
+        y: ann.y * scale,
+        text: ann.emoji,
+        fontSize: Math.max(1, ann.size * scale),
+        fontFamily: STICKER_FONT_FAMILY,
+        rotation: ann.rotation,
+      });
+      container.add(shape);
+      break;
+    }
   }
 }
 
@@ -114,12 +158,17 @@ export async function exportCanvas(
     outW, outH, state.transform.rotation,
   );
 
+  if (typeof document === 'undefined') {
+    throw new Error('Export requires a browser environment');
+  }
+
   const container = document.createElement('div');
   container.style.cssText = 'position:fixed;left:-9999px;top:-9999px;pointer-events:none';
   document.body.appendChild(container);
 
+  let stage: Konva.Stage | null = null;
   try {
-    const stage = new Konva.Stage({
+    stage = new Konva.Stage({
       container,
       width: outW,
       height: outH,
@@ -158,6 +207,10 @@ export async function exportCanvas(
       imageNode.offsetY(baseH / 2);
     }
 
+    // Same filter pipeline as the live preview (ImageNode) so the saved
+    // image matches what the user sees.
+    applyImageFilter(imageNode, state.filter, state.finetune);
+
     layer.add(imageNode);
 
     // Render annotations
@@ -167,7 +220,11 @@ export async function exportCanvas(
     const cropY = state.transform.crop?.y ?? 0;
     const srcW = state.transform.crop?.width ?? state.originalWidth;
     const srcH = state.transform.crop?.height ?? state.originalHeight;
-    const annScale = Math.min(baseW / srcW, baseH / srcH);
+    const rawAnnScale = Math.min(
+      srcW > 0 ? baseW / srcW : Number.POSITIVE_INFINITY,
+      srcH > 0 ? baseH / srcH : Number.POSITIVE_INFINITY,
+    );
+    const annScale = Number.isFinite(rawAnnScale) && rawAnnScale > 0 ? rawAnnScale : 1;
 
     const rotation = state.transform.rotation ?? 0;
     const flipX = state.transform.flipX ? -1 : 1;
@@ -193,7 +250,7 @@ export async function exportCanvas(
     layer.add(transformGroup);
 
     for (const ann of state.annotations) {
-      applyAnnotationToGroup(annotationGroup, ann, annScale);
+      applyAnnotationToGroup(annotationGroup, ann, annScale, state.originalImage);
     }
 
     layer.batchDraw();
@@ -202,9 +259,15 @@ export async function exportCanvas(
       format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
 
     const dataURL = stage.toDataURL({ mimeType, quality });
-    stage.destroy();
     return dataURL;
   } finally {
+    // Always release the offscreen stage, even when toDataURL throws
+    // (e.g. tainted canvas or oversized output).
+    try {
+      stage?.destroy();
+    } catch {
+      // Best-effort cleanup only.
+    }
     container.remove();
   }
 }

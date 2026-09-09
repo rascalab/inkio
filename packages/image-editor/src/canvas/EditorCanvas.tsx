@@ -18,11 +18,14 @@ import type {
   CropRect,
   FreeDrawAnnotation,
   RectAnnotation,
+  RedactAnnotation,
   EllipseAnnotation,
   ArrowAnnotation,
   LineAnnotation,
+  StickerAnnotation,
   TextAnnotationData,
 } from '../types';
+import { DEFAULT_STICKER_SIZE } from '../constants';
 import { normalizeRect, getTransformedDimensions, canvasSpaceToImageSpace } from '../utils/geometry';
 import { getDefaultCropRect } from '../utils/crop';
 import { isTransformerInteraction } from '../utils/konva-targets';
@@ -83,6 +86,19 @@ export function EditorCanvas({
 
   const [stageSize, setStageSize] = useState({ width: containerWidth, height: containerHeight });
   const [cropViewport, setCropViewport] = useState<CropViewportState>({ zoom: 1, panX: 0, panY: 0 });
+
+  // Drop a pending freedraw batch on unmount so the rAF callback never
+  // dispatches into a torn-down editor session.
+  useEffect(() => {
+    return () => {
+      if (rafId.current) {
+        cancelAnimationFrame(rafId.current);
+        rafId.current = 0;
+      }
+      freedrawPoints.current = [];
+      isDrawing.current = false;
+    };
+  }, []);
 
   const isCropMode = state.activeTool === 'resize' || state.activeTool === 'crop';
   const renderedTransform = useMemo(
@@ -413,6 +429,13 @@ export function EditorCanvas({
       return;
     }
 
+    if (activeTool === 'redact') {
+      const start = drawStartPos.current;
+      const normalized = normalizeRect(start.x, start.y, pos.x - start.x, pos.y - start.y);
+      dispatch({ type: 'UPDATE_ANNOTATION', id, updates: normalized });
+      return;
+    }
+
     if (activeTool === 'shape') {
       const start = drawStartPos.current;
       const { shapeType } = shapeOptions;
@@ -501,6 +524,7 @@ export function EditorCanvas({
       let tooSmall = false;
       if (annotation) {
         if (annotation.type === 'rect' && annotation.width < 3 && annotation.height < 3) tooSmall = true;
+        if (annotation.type === 'redact' && annotation.width < 3 && annotation.height < 3) tooSmall = true;
         if (annotation.type === 'ellipse' && annotation.radiusX < 2 && annotation.radiusY < 2) tooSmall = true;
       }
 
@@ -532,9 +556,9 @@ export function EditorCanvas({
       return;
     }
 
-    const { activeTool, shapeOptions, drawOptions } = state;
+    const { activeTool, shapeOptions, drawOptions, redactOptions, stickerOptions } = state;
 
-    if (!activeTool || activeTool === 'rotate') {
+    if (!activeTool || activeTool === 'rotate' || activeTool === 'filter') {
       if (e.target === e.target.getStage()) {
         dispatch({ type: 'SELECT_ANNOTATION', id: null });
       }
@@ -563,7 +587,38 @@ export function EditorCanvas({
       return;
     }
 
-    if (activeTool === 'draw') {
+    if (activeTool === 'sticker') {
+      const annotation: StickerAnnotation = {
+        id,
+        type: 'sticker',
+        x: pos.x,
+        y: pos.y,
+        size: DEFAULT_STICKER_SIZE,
+        emoji: stickerOptions.emoji,
+        rotation: 0,
+      };
+      dispatch({ type: 'ADD_ANNOTATION', annotation });
+      dispatch({ type: 'SELECT_ANNOTATION', id });
+      isDrawing.current = false;
+      currentAnnotationId.current = null;
+      drawStartPos.current = null;
+      return;
+    }
+
+    if (activeTool === 'redact') {
+      const annotation: RedactAnnotation = {
+        id,
+        type: 'redact',
+        x: pos.x,
+        y: pos.y,
+        width: 0,
+        height: 0,
+        rotation: 0,
+        mode: redactOptions.mode,
+        strength: redactOptions.strength,
+      };
+      dispatch({ type: 'ADD_ANNOTATION', annotation });
+    } else if (activeTool === 'draw') {
       const annotation: FreeDrawAnnotation = {
         id,
         type: 'freedraw',

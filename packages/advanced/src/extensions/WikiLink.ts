@@ -11,7 +11,9 @@ export interface WikiLinkOptions {
 }
 
 // WikiLink 패턴 정규식
-const WIKI_LINK_REGEX = /\[\[([^\]]+)\]\]/g;
+// PasteRule은 /g 정규식의 lastIndex 상태를 공유하므로, 매 호출마다 새 인스턴스를
+// 생성하기 위해 소스 문자열로 보관한다.
+const WIKI_LINK_PATTERN = '\\[\\[([^\\]]+)\\]\\]';
 const WIKI_LINK_INPUT_REGEX = /\[\[([^\]]+)\]\]$/;
 
 export const WikiLink = Node.create<WikiLinkOptions>({
@@ -104,7 +106,8 @@ export const WikiLink = Node.create<WikiLinkOptions>({
           const { tr } = state;
           const start = range.from;
           const end = range.to;
-          const text = match[1];
+          const text = (match[1] ?? '').trim();
+          if (!text) return;
 
           tr.replaceWith(start, end, this.type.create({ href: text }));
         },
@@ -115,12 +118,13 @@ export const WikiLink = Node.create<WikiLinkOptions>({
   addPasteRules() {
     return [
       new PasteRule({
-        find: WIKI_LINK_REGEX,
+        find: new RegExp(WIKI_LINK_PATTERN, 'g'),
         handler: ({ state, range, match }) => {
           const { tr } = state;
           const start = range.from;
           const end = range.to;
-          const text = match[1];
+          const text = (match[1] ?? '').trim();
+          if (!text) return;
 
           tr.replaceWith(start, end, this.type.create({ href: text }));
         },

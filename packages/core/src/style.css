@@ -18,6 +18,17 @@
   font-size: var(--inkio-font-size-base);
 }
 
+/* Bordered container: paint the themed surface so `theme` (incl. dark) is
+   self-contained instead of inheriting the host background. Without this,
+   dark-mode text renders on whatever backdrop the host provides. */
+.inkio-editor.inkio-container-default,
+.inkio-viewer.inkio-container-default {
+  background-color: var(--inkio-bg);
+  color: var(--inkio-text);
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-lg);
+}
+
 /* Typography with colors and fonts */
 .inkio .inkio-content h1 {
   font-size: 2.25rem;
@@ -681,6 +692,13 @@
 /* Radix portal content rendered outside .inkio — global unscoped */
 .inkio-popover-content {
   z-index: var(--inkio-layer-popover, 150);
+  /* Fallback panel: Radix portals can mount outside `.inkio`, where tokens
+     would otherwise resolve to transparent. */
+  background-color: var(--inkio-bg, #fff);
+  color: var(--inkio-text, inherit);
+  border: 1px solid var(--inkio-surface-border, var(--inkio-border, rgba(0, 0, 0, 0.1)));
+  border-radius: var(--inkio-radius-md, 8px);
+  box-shadow: var(--inkio-surface-shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.12));
 }
 
 /* TocBlock — inline document ToC (Notion-style) */

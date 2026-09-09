@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useImageEditor } from '../hooks/use-image-editor';
 import { getSelectedAnnotation } from '../utils/annotation-types';
 import { getAnnotationDisplayBounds } from '../utils/annotation-bounds';
@@ -73,18 +73,26 @@ export function SelectionActionsOverlay({
     state.transform.rotation,
   ]);
 
-  useLayoutEffect(() => {
+  // Measure after paint (rAF) instead of useLayoutEffect: avoids the SSR
+  // "useLayoutEffect does nothing on the server" warning and the first-frame
+  // jump from the 92x50 estimate. The epsilon guard prevents update loops.
+  const boundsKey = bounds ? `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}` : null;
+  useEffect(() => {
     if (!annotation || !overlayRef.current) {
       return;
     }
 
-    const rect = overlayRef.current.getBoundingClientRect();
-    setOverlaySize((current) => (
-      Math.abs(current.width - rect.width) < 0.5 && Math.abs(current.height - rect.height) < 0.5
-        ? current
-        : { width: rect.width, height: rect.height }
-    ));
-  }, [annotation?.id, locale.deleteLabel]);
+    const frame = requestAnimationFrame(() => {
+      const rect = overlayRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setOverlaySize((current) => (
+        Math.abs(current.width - rect.width) < 0.5 && Math.abs(current.height - rect.height) < 0.5
+          ? current
+          : { width: rect.width, height: rect.height }
+      ));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [annotation?.id, locale.deleteLabel, boundsKey]);
 
   if (!annotation || !bounds) {
     return null;

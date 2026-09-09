@@ -71,6 +71,20 @@ export const Toolbar = ({
   const [textColorOpen, setTextColorOpen] = useState(false);
   const [currentLinkUrl, setCurrentLinkUrl] = useState('');
   const [activeStateKey, setActiveStateKey] = useState('');
+  // Radix portals render into document.body, outside `.inkio`, so design
+  // tokens would not resolve (transparent popover backgrounds). Scope the
+  // token root onto the popover content, mirroring the editor dark mode —
+  // the same pattern as the suggestion renderer popup.
+  const portalContentClassName = useMemo(() => {
+    try {
+      const dom = editor?.view.dom as Element | undefined;
+      const root = typeof dom?.closest === 'function' ? dom.closest('.inkio') : null;
+      const dark = root?.classList.contains('dark') ?? false;
+      return `inkio inkio-popover-content${dark ? ' dark' : ''}`;
+    } catch {
+      return 'inkio inkio-popover-content';
+    }
+  }, [editor, linkPopoverOpen, textColorOpen]);
   const ui = useInkioCoreUi({
     locale,
     messages: messageOverrides,
@@ -220,7 +234,7 @@ export const Toolbar = ({
                     <Popover.Portal>
                       <Popover.Content
                         sideOffset={8}
-                        className="inkio-popover-content"
+                        className={portalContentClassName}
                         onOpenAutoFocus={(event) => event.preventDefault()}
                       >
                         <BubbleMenuLinkInputPopover
@@ -277,7 +291,7 @@ export const Toolbar = ({
                     <Popover.Portal>
                       <Popover.Content
                         sideOffset={8}
-                        className="inkio-popover-content"
+                        className={portalContentClassName}
                         onOpenAutoFocus={(event) => event.preventDefault()}
                       >
                         <div className="inkio-color-popover">

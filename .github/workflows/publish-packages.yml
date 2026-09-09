@@ -50,11 +50,21 @@ jobs:
         env:
           NEXT_TELEMETRY_DISABLED: '1'
 
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium firefox
 
-      - name: E2E smoke
+      - name: E2E smoke (chromium)
         run: pnpm e2e
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+      - name: E2E smoke (firefox)
+        run: pnpm exec playwright test --project=firefox
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+      - name: Package gates (publint, attw, budgets)
+        run: pnpm package:gates
         env:
           NEXT_TELEMETRY_DISABLED: '1'
 

@@ -50,7 +50,7 @@ jobs:
               - '.github/workflows/**'
             package_smoke:
               - 'packages/**'
-              - 'scripts/release-smoke.mjs'
+              - 'scripts/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
@@ -130,11 +130,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium firefox
 
-      - name: E2E smoke
+      - name: E2E smoke (chromium)
         run: pnpm e2e:verify
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+      - name: E2E smoke (firefox)
+        run: pnpm exec playwright test --project=firefox
         env:
           NEXT_TELEMETRY_DISABLED: '1'
 
@@ -160,7 +165,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build packages
+        run: pnpm build:packages
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+      - name: Package gates (publint, attw, budgets)
+        run: pnpm package:publint && pnpm package:attw && node scripts/check-budgets.mjs
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
       - name: Verify package smoke
-        run: pnpm package:smoke:verify
+        run: INKIO_RELEASE_SMOKE_SKIP_PACKAGE_BUILDS=1 pnpm release:smoke
         env:
           NEXT_TELEMETRY_DISABLED: '1'

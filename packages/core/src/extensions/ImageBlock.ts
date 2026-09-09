@@ -332,10 +332,18 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
         ['div', { class: 'inkio-image-block-placeholder', role: 'img', 'aria-label': alt || 'Uploading image' }],
       ];
     }
+    const safeSrc = typeof src === 'string' && isSafeUrl(src) ? src : null;
+    if (!safeSrc) {
+      return [
+        'figure',
+        { 'data-type': 'imageBlock', 'data-align': align, ...rest },
+        ['div', { class: 'inkio-image-block-placeholder', role: 'img', 'aria-label': alt || 'Blocked image' }],
+      ];
+    }
     return [
       'figure',
       { 'data-type': 'imageBlock', 'data-align': align, ...rest },
-      ['img', { src, alt, title, width }],
+      ['img', { src: safeSrc, alt, title, width }],
       ['figcaption', {}, caption || ''],
     ];
   },
@@ -345,6 +353,11 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
       setImageBlock:
         (attributes) =>
           ({ commands }) => {
+            // Never let a javascript:/data:text/html src bypass parseHTML checks
+            // via direct command insertion.
+            if (typeof attributes?.src === 'string' && !isSafeUrl(attributes.src)) {
+              return false;
+            }
             return commands.insertContent({
               type: 'imageBlock',
               attrs: attributes,

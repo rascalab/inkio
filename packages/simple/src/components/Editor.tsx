@@ -15,11 +15,10 @@ import type { ToolbarProps } from '@inkio/core';
 import type { BubbleMenuProps } from '@inkio/core';
 import type { FloatingMenuProps } from '@inkio/core';
 import type { TableMenuProps } from '@inkio/core';
+import type { InkioJSONContent as JSONContent } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import type { ExtensionsInput } from '../types';
 import { resolveExtensionsInput } from '../utils/resolve-extensions-input';
-
-type JSONContent = NonNullable<CoreEditorProps['content']> extends string | infer J ? J : never;
 
 type EditorContentMode =
   | { content: string | JSONContent; initialContent?: never }

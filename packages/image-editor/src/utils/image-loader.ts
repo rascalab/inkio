@@ -15,7 +15,7 @@ function loadImageWithCORS(src: string): Promise<HTMLImageElement> {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
-    img.onerror = reject;
+    img.onerror = (e) => reject(new Error(`Failed to load image: ${e}`));
     img.src = src;
   });
 }

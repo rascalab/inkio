@@ -70,10 +70,12 @@ export type EditorProps = EditorContentMode & {
   icons?: Partial<InkioIconRegistry>;
 };
 
+const EMPTY_EDITOR_EXTENSIONS: Extensions = [];
+
 export const Editor = ({
   content,
   initialContent,
-  extensions = [],
+  extensions = EMPTY_EDITOR_EXTENSIONS,
   placeholder,
   editable = true,
   onUpdate,
@@ -112,9 +114,15 @@ export const Editor = ({
     setIsHydrated(true);
   }, []);
 
+  if (fill && autoresize) {
+    console.warn('Inkio Editor: `fill` and `autoresize` are mutually exclusive. `fill` takes precedence.');
+  }
+
   const editor = useInkioEditor({
     ...(content !== undefined ? { content } : { initialContent }),
-    extensions,
+    // Reuse the already-resolved extensions so static SSR HTML and the live
+    // editor share a single schema instance.
+    extensions: resolvedExtensions,
     placeholder,
     editable,
     onUpdate,
@@ -134,7 +142,7 @@ export const Editor = ({
   return (
     <div
       style={style}
-      className={`inkio inkio-editor${theme === 'dark' ? ' dark' : ''}${fill ? ' inkio-editor--fill' : ''}${autoresize ? ' inkio-editor--autoresize' : ''}${bordered ? ' inkio-container-default' : ''}${className ? ` ${className}` : ''}`}
+      className={`inkio inkio-editor${theme === 'dark' ? ' dark' : ''}${fill ? ' inkio-editor--fill' : ''}${!fill && autoresize ? ' inkio-editor--autoresize' : ''}${bordered ? ' inkio-container-default' : ''}${className ? ` ${className}` : ''}`}
       suppressHydrationWarning
     >
       {showToolbar && (

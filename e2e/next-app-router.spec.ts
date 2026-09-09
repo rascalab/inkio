@@ -171,7 +171,15 @@ test('next app router example adds a comment through the comment composer', asyn
   await composer.locator('.inkio-comment-composer-input').fill('A smoke-test comment');
   await composer.locator('.inkio-comment-composer-submit').click();
 
-  await expect(editor.locator('[data-comment-id]')).toHaveCount(1);
+  // Browsers split the marked range into different numbers of spans for the
+  // same keystrokes — assert a single distinct thread id instead of span count.
+  await expect
+    .poll(() =>
+      editor.locator('[data-comment-id]').evaluateAll(
+        (els) => new Set(els.map((el) => el.getAttribute('data-comment-id'))).size,
+      ),
+    )
+    .toBe(1);
   await expect(page.locator('.inkio-comment-panel')).toContainText('A smoke-test comment');
   expect(pageErrors).toEqual([]);
 });

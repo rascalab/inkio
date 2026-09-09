@@ -11,6 +11,16 @@ export default defineConfig({
     headless: true,
     trace: 'retain-on-failure',
   },
+  projects: [
+    {
+      name: 'chromium',
+      use: { browserName: 'chromium' },
+    },
+    {
+      name: 'firefox',
+      use: { browserName: 'firefox' },
+    },
+  ],
   webServer: [
     {
       command: 'pnpm --dir examples/basic-react exec vite preview --host localhost --port 4173',

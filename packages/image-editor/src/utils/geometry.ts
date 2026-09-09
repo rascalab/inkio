@@ -1,5 +1,13 @@
 import type { Transform, OutputSize, CropRect } from '../types';
 
+function safeDiv(numerator: number, denominator: number, fallback: number): number {
+  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) {
+    return fallback;
+  }
+  const result = numerator / denominator;
+  return Number.isFinite(result) ? result : fallback;
+}
+
 /** Compute the canvas display dimensions after applying transform */
 export function getTransformedDimensions(
   originalWidth: number,
@@ -11,14 +19,14 @@ export function getTransformedDimensions(
   let h = outputSize ? outputSize.height : originalHeight;
 
   if (transform.crop) {
-    const scaleX = w / originalWidth;
-    const scaleY = h / originalHeight;
+    // Guard zero originals (image not loaded yet): 0/0 would poison layout with NaN.
+    const scaleX = safeDiv(w, originalWidth, 1);
+    const scaleY = safeDiv(h, originalHeight, 1);
     w = transform.crop.width * scaleX;
     h = transform.crop.height * scaleY;
   }
 
-  const isRotated90 = transform.rotation === 90 || transform.rotation === 270;
-  if (isRotated90) {
+  if (isQuarterTurn(transform.rotation)) {
     return { width: h, height: w };
   }
   return { width: w, height: h };
@@ -82,8 +90,8 @@ export function canvasSpaceToImageSpace(
   // 5. Scale to image/crop space + crop offset
   const crop = transform.crop ?? { x: 0, y: 0, width: originalWidth, height: originalHeight };
   return {
-    x: (lx / baseW) * crop.width + crop.x,
-    y: (ly / baseH) * crop.height + crop.y,
+    x: safeDiv(lx, baseW, 0) * crop.width + crop.x,
+    y: safeDiv(ly, baseH, 0) * crop.height + crop.y,
   };
 }
 
@@ -103,8 +111,8 @@ export function imageSpaceToCanvasSpace(
 
   // 1. Scale from image/crop space to base display space
   const crop = transform.crop ?? { x: 0, y: 0, width: originalWidth, height: originalHeight };
-  let lx = ((ix - crop.x) / crop.width) * baseW;
-  let ly = ((iy - crop.y) / crop.height) * baseH;
+  let lx = safeDiv(ix - crop.x, crop.width, 0) * baseW;
+  let ly = safeDiv(iy - crop.y, crop.height, 0) * baseH;
 
   // 2. Center-relative (base display space)
   lx -= baseW / 2;

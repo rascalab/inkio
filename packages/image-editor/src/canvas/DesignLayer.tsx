@@ -31,7 +31,11 @@ export function DesignLayer({
   const { width: baseDisplayWidth, height: baseDisplayHeight } = getBaseDisplayDimensions(
     displayWidth, displayHeight, rotation,
   );
-  const annScale = baseDisplayWidth > 0 && srcW > 0 ? Math.min(baseDisplayWidth / srcW, baseDisplayHeight / srcH) : 1;
+  const rawAnnScale = Math.min(
+    srcW > 0 ? baseDisplayWidth / srcW : Number.POSITIVE_INFINITY,
+    srcH > 0 ? baseDisplayHeight / srcH : Number.POSITIVE_INFINITY,
+  );
+  const annScale = Number.isFinite(rawAnnScale) && rawAnnScale > 0 ? rawAnnScale : 1;
 
   const flipX = state.transform.flipX ? -1 : 1;
   const flipY = state.transform.flipY ? -1 : 1;
@@ -43,6 +47,8 @@ export function DesignLayer({
         displayWidth={displayWidth}
         displayHeight={displayHeight}
         transform={state.transform}
+        filter={state.filter}
+        finetune={state.finetune}
       />
       <Group
         x={displayWidth / 2}
@@ -61,6 +67,7 @@ export function DesignLayer({
             <AnnotationRenderer
               key={ann.id}
               annotation={ann}
+              image={state.originalImage}
               onSelect={onSelectAnnotation}
               onChange={onChangeAnnotation}
               scale={annScale}

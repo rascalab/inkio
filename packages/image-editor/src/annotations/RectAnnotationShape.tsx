@@ -29,7 +29,8 @@ export function RectAnnotationShape({
       height={annotation.height * scale}
       fill={annotation.fill}
       stroke={annotation.stroke}
-      strokeWidth={annotation.strokeWidth}
+      // Image-space units, matching export (strokeWidth * annScale).
+      strokeWidth={annotation.strokeWidth * scale}
       rotation={annotation.rotation}
       draggable
       onClick={() => onSelect(annotation.id)}

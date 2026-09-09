@@ -6,6 +6,9 @@ import {
   PencilIcon,
   ShapesIcon,
   TypeIcon,
+  FilterIcon,
+  RedactIcon,
+  StickerIcon,
   UndoIcon,
   RedoIcon,
 } from '../icons';
@@ -17,6 +20,9 @@ export const TOOL_ICONS: Record<EnabledToolType, React.ComponentType<{ size?: nu
   draw: PencilIcon,
   shape: ShapesIcon,
   text: TypeIcon,
+  filter: FilterIcon,
+  redact: RedactIcon,
+  sticker: StickerIcon,
 };
 
 interface EditorToolbarProps {
@@ -36,6 +42,9 @@ export const TOOL_LOCALE_KEYS: Record<EnabledToolType, keyof ImageEditorLocale> 
   draw: 'draw',
   shape: 'shapes',
   text: 'text',
+  filter: 'filter',
+  redact: 'redact',
+  sticker: 'sticker',
 };
 
 export function EditorToolbar({

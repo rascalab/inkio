@@ -1,5 +1,5 @@
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { isSafeUrl } from '@inkio/core';
 import type { BookmarkOptions, BookmarkPreview } from './Bookmark';
 
@@ -16,12 +16,16 @@ const resolvePreviewUpdate = (preview: BookmarkPreview): Record<string, string |
     nextAttributes.description = preview.description ?? null;
   }
 
+  // Sanitize at write time so unsafe image/favicon URLs never persist in JSON.
+  // Render-time sanitizeUrl() remains as a second layer.
   if (preview.image !== undefined) {
-    nextAttributes.image = preview.image ?? null;
+    const image = preview.image ? String(preview.image) : '';
+    nextAttributes.image = image && isSafeUrl(image) ? image : null;
   }
 
   if (preview.favicon !== undefined) {
-    nextAttributes.favicon = preview.favicon ?? null;
+    const favicon = preview.favicon ? String(preview.favicon) : '';
+    nextAttributes.favicon = favicon && isSafeUrl(favicon) ? favicon : null;
   }
 
   return nextAttributes;
@@ -39,16 +43,21 @@ export const BookmarkView = ({ node, updateAttributes, extension }: NodeViewProp
   const favicon = node.attrs.favicon ? sanitizeUrl(String(node.attrs.favicon)) : '';
 
   const hasPreviewData = Boolean(title || description || image || favicon);
+  // Stabilize inline resolvers (recreated per render) so 20 same-URL bookmarks
+  // don't refetch in a loop. Identity is tracked via ref; fetch key is `url`.
+  const resolverRef = useRef(resolver);
+  resolverRef.current = resolver;
 
   useEffect(() => {
-    if (!resolver || !url || hasPreviewData) {
+    const currentResolver = resolverRef.current;
+    if (!currentResolver || !url || hasPreviewData) {
       return;
     }
 
     let cancelled = false;
     setResolving(true);
 
-    resolver(url)
+    currentResolver(url)
       .then((preview) => {
         if (cancelled || !preview) {
           return;
@@ -72,7 +81,7 @@ export const BookmarkView = ({ node, updateAttributes, extension }: NodeViewProp
     return () => {
       cancelled = true;
     };
-  }, [resolver, url, hasPreviewData, updateAttributes]);
+  }, [url, hasPreviewData, updateAttributes]);
 
   if (!resolver && !hasPreviewData) {
     return (

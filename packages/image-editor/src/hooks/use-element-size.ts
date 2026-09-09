@@ -23,6 +23,10 @@ export function useElementSize<T extends HTMLElement>() {
 
     measure();
 
+    if (typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) {

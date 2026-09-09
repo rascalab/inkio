@@ -18,8 +18,7 @@ import type { HashTagItem, MentionItem, SlashCommandItem, SlashCommandTransform,
 import { getDefaultExtensions, type DefaultExtensionsOptions } from '@inkio/advanced';
 import type { ExtensionsInput } from '../types';
 import { resolveExtensionsInput } from '../utils/resolve-extensions-input';
-
-type JSONContent = NonNullable<CoreEditorProps['content']> extends string | infer J ? J : never;
+import type { InkioJSONContent as JSONContent } from '@inkio/core';
 
 interface EditorUiOptions {
   className?: string;

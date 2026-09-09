@@ -1,14 +1,11 @@
 'use client';
 
-import type { EditorProps } from './Editor';
-import type { InkioLocaleInput, InkioMessageOverrides } from '@inkio/core';
+import type { InkioJSONContent as JSONContent, InkioLocaleInput, InkioMessageOverrides } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import type { CommentConfig, CommentData } from '@inkio/advanced';
 import type { TiptapEditor } from '@inkio/core';
 import type { ExtensionsInput } from '../types';
 import { Editor } from './Editor';
-
-type JSONContent = NonNullable<EditorProps['content']> extends string | infer J ? J : never;
 
 interface ViewerCommentOptions {
   getComments: (commentId: string) => CommentData | null;
