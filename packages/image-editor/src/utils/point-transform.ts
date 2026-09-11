@@ -11,7 +11,15 @@ export function applyPointTransform(
   transform: PointTransform,
   annotationScale: number,
 ): number[] {
-  if (points.length < 2 || annotationScale === 0) {
+  // Guard degenerate inputs: odd-length point arrays have no valid (x, y)
+  // pairing for the trailing value (points[i+1] would be undefined → NaN),
+  // and a non-finite/zero scale cannot normalize. Return input untouched.
+  if (
+    points.length < 2 ||
+    points.length % 2 !== 0 ||
+    !Number.isFinite(annotationScale) ||
+    annotationScale === 0
+  ) {
     return points;
   }
 

@@ -1,7 +1,8 @@
 import { type NodeViewProps, NodeViewWrapper } from '@tiptap/react';
+import { memo } from 'react';
 import { useHeadings } from '../../components/useHeadings';
 
-export function TocBlockView({ editor, node }: NodeViewProps) {
+function TocBlockViewInner({ editor, node }: NodeViewProps) {
   const maxLevel = (node.attrs.maxLevel as number) || 3;
   const { filtered, minLevel, handleClick } = useHeadings(editor, maxLevel);
 
@@ -35,3 +36,16 @@ export function TocBlockView({ editor, node }: NodeViewProps) {
     </NodeViewWrapper>
   );
 }
+
+// Same per-transaction re-invocation issue as CodeBlockView. Safe here:
+// heading changes elsewhere flow through the internal useHeadings state,
+// which still re-renders despite the memo (memo only skips parent-driven
+// re-renders with unchanged props).
+export const TocBlockView = memo(
+  TocBlockViewInner,
+  (prev, next) =>
+    prev.node === next.node &&
+    prev.selected === next.selected &&
+    prev.editor === next.editor &&
+    prev.extension === next.extension,
+);

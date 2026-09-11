@@ -9,8 +9,6 @@ import {
   FilterIcon,
   RedactIcon,
   StickerIcon,
-  UndoIcon,
-  RedoIcon,
 } from '../icons';
 import type { EnabledToolType, ImageEditorLocale } from '../types';
 
@@ -29,11 +27,7 @@ interface EditorToolbarProps {
   activeTool: EnabledToolType | null;
   enabledTools: EnabledToolType[];
   locale: ImageEditorLocale;
-  canUndo: boolean;
-  canRedo: boolean;
   onToolChange: (tool: EnabledToolType) => void;
-  onUndo: () => void;
-  onRedo: () => void;
 }
 
 export const TOOL_LOCALE_KEYS: Record<EnabledToolType, keyof ImageEditorLocale> = {
@@ -51,36 +45,10 @@ export function EditorToolbar({
   activeTool,
   enabledTools,
   locale,
-  canUndo,
-  canRedo,
   onToolChange,
-  onUndo,
-  onRedo,
 }: EditorToolbarProps) {
   return (
     <div className="inkio-ie-toolbar">
-      <div
-        className="inkio-ie-toolbar-group inkio-ie-toolbar-group--history"
-        data-testid="inkio-ie-toolbar-history"
-      >
-        <ToolButton
-          icon={<UndoIcon size={18} />}
-          label={locale.undo}
-          onClick={onUndo}
-          disabled={!canUndo}
-          testId="inkio-ie-undo"
-        />
-        <ToolButton
-          icon={<RedoIcon size={18} />}
-          label={locale.redo}
-          onClick={onRedo}
-          disabled={!canRedo}
-          testId="inkio-ie-redo"
-        />
-      </div>
-
-      <div className="inkio-ie-toolbar-divider" />
-
       <div
         className="inkio-ie-toolbar-group inkio-ie-toolbar-group--tools"
         data-testid="inkio-ie-toolbar-tools"

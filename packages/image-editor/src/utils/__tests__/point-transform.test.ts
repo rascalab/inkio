@@ -32,4 +32,28 @@ describe('applyPointTransform', () => {
     expect(next[0]).toBeCloseTo(10);
     expect(next[1]).toBeCloseTo(30);
   });
+
+  it('returns odd-length point arrays untouched instead of producing NaN', () => {
+    const points = [10, 20, 30];
+    expect(
+      applyPointTransform(
+        points,
+        { x: 5, y: 5, scaleX: 1, scaleY: 1, rotation: 0 },
+        1,
+      ),
+    ).toBe(points);
+  });
+
+  it('returns points untouched for non-finite annotation scales', () => {
+    for (const scale of [Number.NaN, Number.POSITIVE_INFINITY, 0]) {
+      const points = [10, 20];
+      expect(
+        applyPointTransform(
+          points,
+          { x: 5, y: 5, scaleX: 1, scaleY: 1, rotation: 0 },
+          scale,
+        ),
+      ).toBe(points);
+    }
+  });
 });

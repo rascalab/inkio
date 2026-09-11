@@ -1,4 +1,4 @@
-export { Comment, toCommentOptions } from './Comment';
+export { Comment, toCommentOptions, notifyCommentThreadsChanged, COMMENT_THREADS_CHANGED_EVENT } from './Comment';
 export type { CommentOptions, CommentConfig, CommentData } from './Comment';
 export {
   commentComposerPluginKey,

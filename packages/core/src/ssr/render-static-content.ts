@@ -144,7 +144,26 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
   },
   allowedSchemes: ['http', 'https', 'mailto', 'tel', 'blob'],
   allowedSchemesByTag: {
-    img: ['http', 'https', 'blob', 'data'],
+    // No `data:` here: SVG data URLs are active content (scriptable).
+    // Raster data-URL images are still guarded at the node layer (isSafeUrl);
+    // static HTML only carries http(s)/blob image sources.
+    img: ['http', 'https', 'blob'],
+  },
+  transformTags: {
+    // Harden links that open a new browsing context against reverse tabnabbing.
+    a: (tagName, attribs) => {
+      if (attribs.target) {
+        const tokens = new Set(
+          String(attribs.rel ?? '')
+            .split(/\s+/)
+            .filter(Boolean),
+        );
+        tokens.add('noopener');
+        tokens.add('noreferrer');
+        return { tagName, attribs: { ...attribs, rel: [...tokens].join(' ') } };
+      }
+      return { tagName, attribs };
+    },
   },
 } as sanitizeHtml.IOptions;
 

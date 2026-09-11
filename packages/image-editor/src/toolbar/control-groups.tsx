@@ -2,66 +2,148 @@ import { useId } from 'react';
 import { BoldIcon, CloseIcon, ItalicIcon, LockIcon, UnlockIcon } from '../icons';
 import { ColorPickerButton } from './options/ColorPickerButton';
 
-interface ControlCardProps {
-  label: string;
+/**
+ * Pintura-style inspector primitives. Each tool renders ONE ToolPanel with
+ * labeled sections — never a strip of cards — so the util panel stays
+ * compact and scannable. All data-testids are preserved for e2e.
+ */
+
+interface ToolPanelProps {
+  title: string;
+  actions?: React.ReactNode;
   children: React.ReactNode;
-  className?: string;
-  headerActions?: React.ReactNode;
 }
 
-export function ControlCard({ label, children, className, headerActions }: ControlCardProps) {
+export function ToolPanel({ title, actions, children }: ToolPanelProps) {
   return (
-    <section className={`inkio-ie-control-card${className ? ` ${className}` : ''}`}>
-      <header className="inkio-ie-control-card-header">
-        <span className="inkio-ie-control-card-label">{label}</span>
-        {headerActions && <span className="inkio-ie-control-card-actions">{headerActions}</span>}
+    <section className="inkio-ie-tool-panel">
+      <header className="inkio-ie-tool-panel-header">
+        <span className="inkio-ie-tool-panel-title">{title}</span>
+        {actions && <span className="inkio-ie-tool-panel-actions">{actions}</span>}
       </header>
-      <div className="inkio-ie-control-card-body">{children}</div>
+      <div className="inkio-ie-tool-panel-body">{children}</div>
     </section>
   );
 }
 
-interface PresetChipGroupItem {
+interface PanelSectionProps {
+  label?: string;
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function PanelSection({ label, children, className }: PanelSectionProps) {
+  return (
+    <div className={`inkio-ie-tool-section${className ? ` ${className}` : ''}`}>
+      {label && <span className="inkio-ie-tool-section-label">{label}</span>}
+      {children}
+    </div>
+  );
+}
+
+export interface SegmentedItem {
   key: string;
   label: string;
   active: boolean;
   onClick: () => void;
   testId?: string;
+  title?: string;
 }
 
-interface PresetChipGroupProps {
-  label: string;
-  items: PresetChipGroupItem[];
-  caption?: React.ReactNode;
-  captionTestId?: string;
-}
-
-export function PresetChipGroup({ label, items, caption, captionTestId }: PresetChipGroupProps) {
+export function SegmentedControl({ items, label }: { items: SegmentedItem[]; label: string }) {
   return (
-    <ControlCard label={label}>
-      <div className="inkio-ie-chip-row">
-        {items.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            className={`inkio-ie-chip${item.active ? ' is-active' : ''}`}
-            onClick={item.onClick}
-            data-testid={item.testId}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-      {caption != null && (
-        <p className="inkio-ie-control-caption" data-testid={captionTestId}>
-          {caption}
-        </p>
-      )}
-    </ControlCard>
+    <div className="inkio-ie-segmented" role="group" aria-label={label}>
+      {items.map((item) => (
+        <button
+          key={item.key}
+          type="button"
+          className={`inkio-ie-segmented-btn${item.active ? ' is-active' : ''}`}
+          onClick={item.onClick}
+          title={item.title ?? item.label}
+          aria-label={item.title ?? item.label}
+          aria-pressed={item.active}
+          data-testid={item.testId}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
-interface ColorSwatchGroupProps {
+interface SliderRowProps {
+  label: string;
+  valueLabel: string;
+  min: number;
+  max: number;
+  step?: number;
+  value: number;
+  onPreviewChange: (value: number) => void;
+  onCommitChange?: (value: number) => void;
+  onDirectChange: (value: number) => void;
+  rangeTestId?: string;
+  numberTestId?: string;
+}
+
+export function SliderRow({
+  label,
+  valueLabel,
+  min,
+  max,
+  step,
+  value,
+  onPreviewChange,
+  onCommitChange,
+  onDirectChange,
+  rangeTestId,
+  numberTestId,
+}: SliderRowProps) {
+  const inputId = useId();
+
+  return (
+    <div className="inkio-ie-slider-row">
+      <label htmlFor={inputId} className="inkio-ie-slider-label">
+        <span>{label}</span>
+        <span className="inkio-ie-slider-value">{valueLabel}</span>
+      </label>
+      <div className="inkio-ie-slider-control">
+        <input
+          id={inputId}
+          type="range"
+          className="inkio-ie-range-input"
+          data-testid={rangeTestId}
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(event) => onPreviewChange(Number(event.target.value))}
+          onPointerUp={(event) => onCommitChange?.(Number((event.target as HTMLInputElement).value))}
+          onKeyUp={(event) => onCommitChange?.(Number((event.target as HTMLInputElement).value))}
+        />
+        <input
+          type="number"
+          className="inkio-ie-range-number"
+          data-testid={numberTestId}
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(event) => {
+            const nextValue = Number(event.target.value);
+            if (Number.isNaN(nextValue)) {
+              return;
+            }
+
+            onDirectChange(nextValue);
+          }}
+          aria-label={`${label} value`}
+        />
+      </div>
+    </div>
+  );
+}
+
+interface ColorFieldProps {
   label: string;
   value: string;
   presets: string[];
@@ -76,7 +158,7 @@ interface ColorSwatchGroupProps {
   paletteLabel?: string;
 }
 
-export function ColorSwatchGroup({
+export function ColorField({
   label,
   value,
   presets,
@@ -89,394 +171,135 @@ export function ColorSwatchGroup({
   hexLabel = 'Hex color',
   alphaLabel = 'Opacity',
   paletteLabel = 'Color palette',
-}: ColorSwatchGroupProps) {
+}: ColorFieldProps) {
   return (
-    <ControlCard label={label}>
-      <div className="inkio-ie-control-stack">
-        <ColorPickerButton
-          value={value}
-          label={label}
-          testId={pickerTestId}
-          presets={presets}
-          allowTransparent={allowTransparent}
-          enableAlpha={enableAlpha}
-          transparentLabel={transparentLabel}
-          transparentTestId={transparentTestId}
-          hexLabel={hexLabel}
-          alphaLabel={alphaLabel}
-          paletteLabel={paletteLabel}
-          onChange={onChange}
-        />
-      </div>
-    </ControlCard>
+    <ColorPickerButton
+      value={value}
+      label={label}
+      testId={pickerTestId}
+      presets={presets}
+      allowTransparent={allowTransparent}
+      enableAlpha={enableAlpha}
+      transparentLabel={transparentLabel}
+      transparentTestId={transparentTestId}
+      hexLabel={hexLabel}
+      alphaLabel={alphaLabel}
+      paletteLabel={paletteLabel}
+      onChange={onChange}
+    />
   );
 }
 
-interface SelectFieldGroupOption {
+interface SelectFieldProps {
   label: string;
   value: string;
-}
-
-interface SelectFieldGroupProps {
-  label: string;
-  value: string;
-  options: SelectFieldGroupOption[];
+  options: Array<{ label: string; value: string }>;
   testId?: string;
   onChange: (value: string) => void;
 }
 
-export function SelectFieldGroup({
-  label,
-  value,
-  options,
-  testId,
-  onChange,
-}: SelectFieldGroupProps) {
+export function SelectField({ label, value, options, testId, onChange }: SelectFieldProps) {
   return (
-    <ControlCard label={label}>
-      <label className="inkio-ie-field">
-        <span className="inkio-ie-field-label">{label}</span>
-        <select
-          className="inkio-ie-field-input inkio-ie-select-input"
-          value={value}
-          data-testid={testId}
-          onChange={(event) => onChange(event.target.value)}
-        >
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-    </ControlCard>
+    <label className="inkio-ie-field">
+      <span className="inkio-ie-field-label">{label}</span>
+      <select
+        className="inkio-ie-field-input inkio-ie-select-input"
+        value={value}
+        data-testid={testId}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
-interface RangeFieldGroupProps {
-  label: string;
-  valueLabel: string;
-  min: number;
-  max: number;
-  step?: number;
-  value: number;
-  onPreviewChange: (value: number) => void;
-  onCommitChange?: (value: number) => void;
-  onDirectChange: (value: number) => void;
-  rangeTestId?: string;
-  numberTestId?: string;
-}
-
-export function RangeFieldGroup({
-  label,
-  valueLabel,
-  min,
-  max,
-  step,
-  value,
-  onPreviewChange,
-  onCommitChange,
-  onDirectChange,
-  rangeTestId,
-  numberTestId,
-}: RangeFieldGroupProps) {
-  const inputId = useId();
-
-  return (
-    <ControlCard label={label}>
-      <div className="inkio-ie-control-stack">
-        <label htmlFor={inputId} className="inkio-ie-range-field-label">
-          <span>{label}</span>
-          <span className="inkio-ie-range-field-value">{valueLabel}</span>
-        </label>
-        <div className="inkio-ie-range-row">
-          <input
-            id={inputId}
-            type="range"
-            className="inkio-ie-range-input"
-            data-testid={rangeTestId}
-            min={min}
-            max={max}
-            step={step}
-            value={value}
-            onChange={(event) => onPreviewChange(Number(event.target.value))}
-            onPointerUp={(event) => onCommitChange?.(Number((event.target as HTMLInputElement).value))}
-            onKeyUp={(event) => onCommitChange?.(Number((event.target as HTMLInputElement).value))}
-          />
-          <input
-            type="number"
-            className="inkio-ie-range-number"
-            data-testid={numberTestId}
-            min={min}
-            max={max}
-            step={step}
-            value={value}
-            onChange={(event) => {
-              const nextValue = Number(event.target.value);
-              if (Number.isNaN(nextValue)) {
-                return;
-              }
-
-              onDirectChange(nextValue);
-            }}
-            aria-label={`${label} value`}
-          />
-        </div>
-      </div>
-    </ControlCard>
-  );
-}
-
-interface ResizeDimensionGroupProps {
-  label: string;
-  cardClassName?: string;
+interface DimensionsFieldProps {
   width: number;
   height: number;
   lockAspectRatio: boolean;
   widthLabel: string;
   heightLabel: string;
   lockLabel: string;
-  applyLabel: string;
-  resetLabel: string;
   onWidthChange: (value: number) => void;
   onHeightChange: (value: number) => void;
   onToggleLock: () => void;
-  onApply: () => void;
-  onReset: () => void;
   widthTestId?: string;
   heightTestId?: string;
   lockTestId?: string;
-  applyTestId?: string;
-  resetTestId?: string;
 }
 
-export function ResizeDimensionGroup({
+function DimensionInput({
   label,
-  cardClassName,
+  value,
+  testId,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  testId?: string;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="inkio-ie-field">
+      <span className="inkio-ie-field-label">{label}</span>
+      <input
+        type="number"
+        className="inkio-ie-field-input"
+        data-testid={testId}
+        min={1}
+        value={value}
+        onChange={(event) => {
+          const nextValue = Number.parseInt(event.target.value, 10);
+          if (Number.isNaN(nextValue) || nextValue <= 0) {
+            return;
+          }
+
+          onChange(nextValue);
+        }}
+      />
+    </label>
+  );
+}
+
+export function DimensionsField({
   width,
   height,
   lockAspectRatio,
   widthLabel,
   heightLabel,
   lockLabel,
-  applyLabel,
-  resetLabel,
   onWidthChange,
   onHeightChange,
   onToggleLock,
-  onApply,
-  onReset,
   widthTestId,
   heightTestId,
   lockTestId,
-  applyTestId,
-  resetTestId,
-}: ResizeDimensionGroupProps) {
+}: DimensionsFieldProps) {
   return (
-    <ControlCard
-      label={label}
-      className={cardClassName}
-      headerActions={(
-        <>
-          <button
-            type="button"
-            className="inkio-ie-icon-action-btn inkio-ie-icon-action-btn--compact"
-            title={resetLabel}
-            aria-label={resetLabel}
-            onClick={onReset}
-            data-testid={resetTestId}
-          >
-            <CloseIcon size={14} />
-          </button>
-          <button
-            type="button"
-            className="inkio-ie-action-btn inkio-ie-action-btn--primary inkio-ie-action-btn--compact"
-            onClick={onApply}
-            data-testid={applyTestId}
-          >
-            {applyLabel}
-          </button>
-        </>
-      )}
-    >
-      <div className="inkio-ie-control-stack">
-        <div className="inkio-ie-field-row">
-          <label className="inkio-ie-field">
-            <span className="inkio-ie-field-label">{widthLabel}</span>
-            <input
-              type="number"
-              className="inkio-ie-field-input"
-              data-testid={widthTestId}
-              min={1}
-              value={width}
-              onChange={(event) => {
-                const nextValue = Number.parseInt(event.target.value, 10);
-                if (Number.isNaN(nextValue) || nextValue <= 0) {
-                  return;
-                }
-
-                onWidthChange(nextValue);
-              }}
-            />
-          </label>
-          <label className="inkio-ie-field">
-            <span className="inkio-ie-field-label">{heightLabel}</span>
-            <input
-              type="number"
-              className="inkio-ie-field-input"
-              data-testid={heightTestId}
-              min={1}
-              value={height}
-              onChange={(event) => {
-                const nextValue = Number.parseInt(event.target.value, 10);
-                if (Number.isNaN(nextValue) || nextValue <= 0) {
-                  return;
-                }
-
-                onHeightChange(nextValue);
-              }}
-            />
-          </label>
-          <button
-            type="button"
-            className={`inkio-ie-inline-toggle${lockAspectRatio ? ' is-active' : ''}`}
-            aria-pressed={lockAspectRatio}
-            title={lockLabel}
-            aria-label={lockLabel}
-            onClick={onToggleLock}
-            data-testid={lockTestId}
-          >
-            {lockAspectRatio ? <LockIcon size={16} /> : <UnlockIcon size={16} />}
-          </button>
-        </div>
-      </div>
-    </ControlCard>
+    <div className="inkio-ie-field-row">
+      <DimensionInput label={widthLabel} value={width} testId={widthTestId} onChange={onWidthChange} />
+      <DimensionInput label={heightLabel} value={height} testId={heightTestId} onChange={onHeightChange} />
+      <button
+        type="button"
+        className={`inkio-ie-inline-toggle${lockAspectRatio ? ' is-active' : ''}`}
+        aria-pressed={lockAspectRatio}
+        title={lockLabel}
+        aria-label={lockLabel}
+        onClick={onToggleLock}
+        data-testid={lockTestId}
+      >
+        {lockAspectRatio ? <LockIcon size={16} /> : <UnlockIcon size={16} />}
+      </button>
+    </div>
   );
 }
 
-interface ApplyResetGroupProps {
-  label: string;
-  applyLabel: string;
-  resetLabel: string;
-  onApply: () => void;
-  onReset: () => void;
-  applyTestId?: string;
-  resetTestId?: string;
-}
-
-export function ApplyResetGroup({
-  label,
-  applyLabel,
-  resetLabel,
-  onApply,
-  onReset,
-  applyTestId,
-  resetTestId,
-}: ApplyResetGroupProps) {
-  return (
-    <ControlCard label={label}>
-      <div className="inkio-ie-action-row">
-        <button
-          type="button"
-          className="inkio-ie-icon-action-btn"
-          title={resetLabel}
-          aria-label={resetLabel}
-          onClick={onReset}
-          data-testid={resetTestId}
-        >
-          <CloseIcon size={16} />
-        </button>
-        <button
-          type="button"
-          className="inkio-ie-action-btn inkio-ie-action-btn--primary inkio-ie-action-btn--grow"
-          onClick={onApply}
-          data-testid={applyTestId}
-        >
-          {applyLabel}
-        </button>
-      </div>
-    </ControlCard>
-  );
-}
-
-interface TextStyleGroupProps {
-  label: string;
-  isBold: boolean;
-  isItalic: boolean;
-  boldLabel: string;
-  italicLabel: string;
-  onToggleBold: () => void;
-  onToggleItalic: () => void;
-}
-
-export function TextStyleGroup({
-  label,
-  isBold,
-  isItalic,
-  boldLabel,
-  italicLabel,
-  onToggleBold,
-  onToggleItalic,
-}: TextStyleGroupProps) {
-  return (
-    <ControlCard label={label}>
-      <div className="inkio-ie-action-row">
-        <button
-          type="button"
-          className={`inkio-ie-icon-action-btn${isBold ? ' is-active' : ''}`}
-          title={boldLabel}
-          aria-label={boldLabel}
-          onClick={onToggleBold}
-        >
-          <BoldIcon size={16} />
-        </button>
-        <button
-          type="button"
-          className={`inkio-ie-icon-action-btn${isItalic ? ' is-active' : ''}`}
-          title={italicLabel}
-          aria-label={italicLabel}
-          onClick={onToggleItalic}
-        >
-          <ItalicIcon size={16} />
-        </button>
-      </div>
-    </ControlCard>
-  );
-}
-
-interface LayerOrderGroupProps {
-  label: string;
-  items: Array<{
-    key: string;
-    label: string;
-    testId?: string;
-    disabled?: boolean;
-    onClick: () => void;
-  }>;
-}
-
-export function LayerOrderGroup({ label, items }: LayerOrderGroupProps) {
-  return (
-    <ControlCard label={label}>
-      <div className="inkio-ie-chip-row">
-        {items.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            className="inkio-ie-chip"
-            onClick={item.onClick}
-            disabled={item.disabled}
-            data-testid={item.testId}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-    </ControlCard>
-  );
-}
-
-interface RotateActionGroupProps {
+interface IconActionRowProps {
   label: string;
   actions: Array<{
     key: string;
@@ -487,42 +310,133 @@ interface RotateActionGroupProps {
   }>;
 }
 
-export function RotateActionGroup({ label, actions }: RotateActionGroupProps) {
+export function IconActionRow({ label, actions }: IconActionRowProps) {
   return (
-    <ControlCard label={label} className="inkio-ie-control-card--compact">
-      <div className="inkio-ie-action-row inkio-ie-action-row--wrap">
-        {actions.map((action) => (
-          <button
-            key={action.key}
-            type="button"
-            className="inkio-ie-icon-action-btn"
-            title={action.label}
-            aria-label={action.label}
-            data-testid={action.testId}
-            onClick={action.onClick}
-          >
-            {action.icon}
-          </button>
-        ))}
-      </div>
-    </ControlCard>
+    <div className="inkio-ie-icon-action-row" role="group" aria-label={label}>
+      {actions.map((action) => (
+        <button
+          key={action.key}
+          type="button"
+          className="inkio-ie-icon-action-btn"
+          title={action.label}
+          aria-label={action.label}
+          data-testid={action.testId}
+          onClick={action.onClick}
+        >
+          {action.icon}
+        </button>
+      ))}
+    </div>
   );
 }
 
-interface InlineValueProps {
+interface LayerOrderRowProps {
   label: string;
-  value: string;
-  icon?: React.ReactNode;
+  items: Array<{
+    key: string;
+    label: string;
+    testId?: string;
+    disabled?: boolean;
+    onClick: () => void;
+  }>;
 }
 
-export function InlineValue({ label, value, icon }: InlineValueProps) {
+export function LayerOrderRow({ label, items }: LayerOrderRowProps) {
   return (
-    <div className="inkio-ie-inline-value">
-      <span className="inkio-ie-inline-value-label">{label}</span>
-      <span className="inkio-ie-inline-value-content">
-        {icon ? <span className="inkio-ie-inline-value-icon">{icon}</span> : null}
-        {value}
-      </span>
+    <div className="inkio-ie-layer-row" role="group" aria-label={label}>
+      {items.map((item) => (
+        <button
+          key={item.key}
+          type="button"
+          className="inkio-ie-chip"
+          onClick={item.onClick}
+          disabled={item.disabled}
+          data-testid={item.testId}
+        >
+          {item.label}
+        </button>
+      ))}
     </div>
+  );
+}
+
+interface TextStyleRowProps {
+  isBold: boolean;
+  isItalic: boolean;
+  boldLabel: string;
+  italicLabel: string;
+  onToggleBold: () => void;
+  onToggleItalic: () => void;
+}
+
+export function TextStyleRow({
+  isBold,
+  isItalic,
+  boldLabel,
+  italicLabel,
+  onToggleBold,
+  onToggleItalic,
+}: TextStyleRowProps) {
+  return (
+    <div className="inkio-ie-text-style-row">
+      <button
+        type="button"
+        className={`inkio-ie-icon-action-btn${isBold ? ' is-active' : ''}`}
+        title={boldLabel}
+        aria-label={boldLabel}
+        aria-pressed={isBold}
+        onClick={onToggleBold}
+      >
+        <BoldIcon size={16} />
+      </button>
+      <button
+        type="button"
+        className={`inkio-ie-icon-action-btn${isItalic ? ' is-active' : ''}`}
+        title={italicLabel}
+        aria-label={italicLabel}
+        aria-pressed={isItalic}
+        onClick={onToggleItalic}
+      >
+        <ItalicIcon size={16} />
+      </button>
+    </div>
+  );
+}
+
+interface HeaderActionButtonProps {
+  label: string;
+  testId?: string;
+  onClick: () => void;
+}
+
+export function PanelPrimaryButton({ label, testId, onClick }: HeaderActionButtonProps) {
+  return (
+    <button
+      type="button"
+      className="inkio-ie-action-btn inkio-ie-action-btn--primary inkio-ie-action-btn--compact"
+      onClick={onClick}
+      data-testid={testId}
+    >
+      {label}
+    </button>
+  );
+}
+
+export function PanelIconButton({
+  label,
+  testId,
+  onClick,
+}: HeaderActionButtonProps) {
+  return (
+    <button
+      type="button"
+      className="inkio-ie-icon-action-btn inkio-ie-icon-action-btn--compact"
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+      data-testid={testId}
+    >
+      <CloseIcon size={14} />
+    </button>
   );
 }

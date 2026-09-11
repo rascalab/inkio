@@ -3,7 +3,16 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { isSafeUrl } from '../utils/url-safety';
 
 export interface LinkClickHandlerOptions {
-  /** Custom handler for link clicks. Default: open in new tab */
+  /**
+   * Custom handler for link clicks. Default: open in new tab.
+   *
+   * NOTE: `href` is the raw attribute value from the document — it is NOT
+   * validated before this callback runs. A custom handler MUST validate it
+   * (e.g. with `isSafeUrl` from `@inkio/core`) before navigating, opening a
+   * window, or rendering it, otherwise `javascript:`/malicious `data:` URLs
+   * can execute. The built-in default handler rejects unsafe URLs and opens
+   * safe ones with `noopener,noreferrer`.
+   */
   onLinkClick?: (href: string, event: MouseEvent) => void;
 }
 
@@ -17,10 +26,13 @@ export const LinkClickHandler = Extension.create<LinkClickHandlerOptions>({
   },
 
   addProseMirrorPlugins() {
+    // The default opener validates before opening. A custom `onLinkClick`
+    // intentionally receives the raw href (documented above) so consumers can
+    // implement their own policy — they must validate it themselves.
     const handler = this.options.onLinkClick
       ?? ((href: string) => {
         if (!isSafeUrl(href)) return;
-        window.open(href, '_blank', 'noopener');
+        window.open(href, '_blank', 'noopener,noreferrer');
       });
 
     return [

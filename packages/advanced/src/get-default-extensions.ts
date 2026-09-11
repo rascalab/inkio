@@ -32,7 +32,7 @@ export interface DefaultExtensionsOptions extends EssentialDefaultExtensionsOpti
   icons?: Partial<InkioIconRegistry>;
   onResolveBookmark?: (url: string) => Promise<BookmarkPreview>;
   onError?: InkioErrorHandler;
-  comment?: false | CommentConfig;
+  comment?: CommentConfig;
 }
 
 export function getDefaultExtensions(options: DefaultExtensionsOptions = {}) {
@@ -83,8 +83,8 @@ export function getDefaultExtensions(options: DefaultExtensionsOptions = {}) {
     ...(bookmark
       ? [Bookmark.configure({ onResolveBookmark })]
       : []),
-    ...(comment !== false
-      ? [Comment.configure({ ...(comment ? toCommentOptions(comment) : {}), locale, messages, icons })]
+    ...(comment
+      ? [Comment.configure({ ...toCommentOptions(comment), locale, messages, icons })]
       : []),
   ];
 

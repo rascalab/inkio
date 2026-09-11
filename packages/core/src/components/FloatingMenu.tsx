@@ -21,6 +21,19 @@ import {
 } from '../overlay/positioning';
 
 
+/**
+ * Whether the floating menu should hijack an ArrowLeft/ArrowRight keydown.
+ * Normal cursor movement must keep working while the user is typing in the
+ * editor: arrow keys only drive menu focus once focus is inside the menu or
+ * keyboard navigation of the menu has already started.
+ */
+export function shouldFloatingMenuHandleArrow(
+  menuFocusedIndex: number,
+  focusInMenu: boolean,
+): boolean {
+  return focusInMenu || menuFocusedIndex !== -1;
+}
+
 export interface FloatingMenuProps {
   editor: Editor | null;
   className?: string;
@@ -197,11 +210,15 @@ export const FloatingMenu = ({
     if (!isVisible || allActions.length === 0) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      const focusInMenu = menuRef.current?.contains(document.activeElement) ?? false;
       // Only handle keys when the editor or menu has focus
-      if (!editor?.isFocused && !menuRef.current?.contains(document.activeElement)) return;
+      if (!editor?.isFocused && !focusInMenu) return;
 
-      // Arrow left/right: always control menu focus when floating menu is visible
+      // Arrow left/right: only control menu focus once focus is inside the
+      // menu or keyboard navigation has started. Otherwise the editor keeps
+      // normal cursor movement (menu visible != menu relevant).
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        if (!shouldFloatingMenuHandleArrow(focusedIndexRef.current, focusInMenu)) return;
         e.preventDefault();
         e.stopPropagation();
         if (focusedIndexRef.current === -1) {

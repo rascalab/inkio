@@ -90,6 +90,9 @@ export const Mention = TiptapMention.extend<MentionOptions>({
     // Drop stale async responses: a slow earlier keystroke must not overwrite
     // a newer query's list.
     let latestRequestSeq = 0;
+    // Trailing debounce: rapid keystrokes resolve only the latest query, so
+    // an async items() source is not hammered once per keystroke. Superseded
+    // sequences return before ever invoking items().
 
     return {
       HTMLAttributes: {},
@@ -104,6 +107,9 @@ export const Mention = TiptapMention.extend<MentionOptions>({
           const options = editor.extensionManager.extensions
             .find((ext) => ext.name === extensionName)?.options as MentionOptions | undefined;
           const seq = ++latestRequestSeq;
+          const debounceMs = 150;
+          await new Promise<void>((resolve) => setTimeout(resolve, debounceMs));
+          if (seq !== latestRequestSeq) return [];
           try {
             const result = await options?.items?.({ query });
             if (seq !== latestRequestSeq) return [];

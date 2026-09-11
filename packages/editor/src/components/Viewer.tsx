@@ -25,21 +25,19 @@ export type ViewerProps = {
     messages?: InkioMessageOverrides;
     icons?: Partial<InkioIconRegistry>;
   };
-  comment?: false | ViewerCommentOptions;
+  comment?: ViewerCommentOptions;
   extensions?: ExtensionsInput;
   onCreate?: (editor: TiptapEditor) => void;
 };
 
 export function Viewer({ content, locale, theme, ui, comment, extensions, onCreate }: ViewerProps) {
-  const commentConfig: CommentConfig | false | undefined = comment === false
-    ? false
-    : comment
-      ? {
-          getComments: comment.getComments,
-          onReply: comment.onReply,
-          onResolve: comment.onResolve,
-        }
-      : undefined;
+  const commentConfig: CommentConfig | undefined = comment
+    ? {
+        getComments: comment.getComments,
+        onReply: comment.onReply,
+        onResolve: comment.onResolve,
+      }
+    : undefined;
 
   return (
     <Editor

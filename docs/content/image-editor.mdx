@@ -87,29 +87,48 @@ export function StandaloneEditor({ src }: { src: string }) {
 | `maxUndoSteps` | `number` | 실행 취소 기록 한도 (기본값: `30`) |
 | `onDirtyChange` | `(dirty: boolean) => void` | 미저장 변경 발생/해소 콜백 |
 
+## 레이아웃
+
+데스크톱 UI는 세 부분으로 구성됩니다.
+
+- **상단바** — 닫기, 실행 취소/다시 실행, 저장
+- **하단 도구 레일** — 활성화된 도구 한 줄 표시
+- **Util 패널** — 활성 도구의 옵션 인스펙터 (도구당 1개)
+
+화면 너비에 따라 Util 패널 위치가 바뀝니다.
+
+| 너비 | 배치 |
+|------|------|
+| 1200px 이상 | 우측 인스펙터 (이미지 영역을 가리지 않음) |
+| 901–1199px | 하단 패널 (캔버스가 패널 위로 밀림) |
+| 900px 이하 | 모바일 하단 스트립 + 도구 트레이 |
+
 ## 도구와 주석
 
 `ToolType`은 다음 도구를 정의합니다.
 
 ```ts
-type ToolType = 'crop' | 'rotate' | 'resize' | 'draw' | 'shape' | 'text';
+type ToolType = 'crop' | 'rotate' | 'resize' | 'draw' | 'shape' | 'text' | 'filter' | 'redact' | 'sticker';
 ```
 
-- `crop` — 자르기 영역 지정
+- `crop` — 자르기 영역 지정 (resize 패널의 비율 segmented 컨트롤에서 선택)
 - `rotate` — 회전 및 좌우/상하 반전
 - `resize` — 출력 크기 조절
 - `draw` — 자유 그리기 (브러시)
 - `shape` — 사각형, 타원, 화살표, 선 도형
 - `text` — 텍스트 주석
+- `filter` — 프리셋 필터 9종 + 밝기·대비·채도·선명도 미세 조정 (썸네일 미리보기)
+- `redact` — 모자이크/블러 영역 지정
+- `sticker` — 이모지 스티커 배치
 
-`tools`를 지정하지 않으면 기본 목록(`['resize', 'draw', 'shape', 'text', 'rotate']`)이 사용됩니다.
+`tools`를 지정하지 않으면 기본 목록(`['resize', 'draw', 'shape', 'text', 'filter', 'redact', 'sticker', 'rotate']`)이 사용됩니다.
 
 ```tsx
 <ImageEditor src={src} tools={['draw', 'text']} onSave={save} onCancel={cancel} />
 ```
 
-그리기·도형·텍스트로 추가한 항목은 주석(annotation)으로 관리됩니다. 모든 주석 타입은
-`Annotation` 유니온으로 export됩니다.
+그리기·도형·텍스트·모자이크·스티커로 추가한 항목은 주석(annotation)으로 관리됩니다.
+모든 주석 타입은 `Annotation` 유니온으로 export됩니다.
 
 | 타입 | 설명 |
 |------|------|
@@ -119,6 +138,8 @@ type ToolType = 'crop' | 'rotate' | 'resize' | 'draw' | 'shape' | 'text';
 | `LineAnnotation` | 직선 |
 | `TextAnnotationData` | 텍스트 주석 |
 | `FreeDrawAnnotation` | 자유 그리기 선 |
+| `RedactAnnotation` | 모자이크/블러 영역 (`mode: 'pixelate' \| 'blur'`) |
+| `StickerAnnotation` | 이모지 스티커 |
 
 이 외에 `CropRect`, `Transform`, `DrawOptions`, `ShapeOptions`, `TextOptions`,
 `ImageEditorState` 등의 보조 타입도 함께 export됩니다.

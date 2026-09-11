@@ -1,7 +1,7 @@
 'use client';
 
 import { EditorContent, type Extensions, type JSONContent, type Editor as TiptapEditor } from '@tiptap/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useInkioEditor } from '../hooks/use-inkio-editor';
 import { BubbleMenu } from './BubbleMenu';
 import type { BubbleMenuProps } from './BubbleMenu';
@@ -70,6 +70,24 @@ export type EditorProps = EditorContentMode & {
   icons?: Partial<InkioIconRegistry>;
 };
 
+/**
+ * Cheap equality for static SSR content. String content compares by value
+ * (React useMemo already does this, but JSON objects compare by identity —
+ * an inline object literal would otherwise re-run generateHTML + sanitize
+ * on every parent re-render). Identity wins first (O(1)); JSON.stringify
+ * is still far cheaper than generateHTML + sanitize-html.
+ */
+export function isEqualStaticContent(a: string | JSONContent | undefined, b: string | JSONContent | undefined): boolean {
+  if (Object.is(a, b)) return true;
+  if (typeof a !== typeof b) return false;
+  if (typeof a === 'string') return a === b;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
+
 const EMPTY_EDITOR_EXTENSIONS: Extensions = [];
 
 export const Editor = ({
@@ -132,10 +150,31 @@ export const Editor = ({
     },
   });
   const initialContentValue = content ?? initialContent;
-  const staticRender = useMemo(
-    () => renderInkioStaticContent(initialContentValue, resolvedExtensions),
-    [initialContentValue, resolvedExtensions],
-  );
+  // Static SSR shell: never recompute generateHTML + sanitize when content is
+  // unchanged. useMemo alone keys on object identity, so an inline JSON
+  // literal from a re-rendering parent would redo the expensive render every
+  // time — the ref cache below skips it on identity OR deep equality.
+  const staticCacheRef = useRef<{
+    content: string | JSONContent | undefined;
+    extensions: Extensions;
+    result: ReturnType<typeof renderInkioStaticContent>;
+  } | null>(null);
+  const cached = staticCacheRef.current;
+  let staticRender: ReturnType<typeof renderInkioStaticContent>;
+  if (
+    cached
+    && cached.extensions === resolvedExtensions
+    && isEqualStaticContent(cached.content, initialContentValue)
+  ) {
+    staticRender = cached.result;
+  } else {
+    staticRender = renderInkioStaticContent(initialContentValue, resolvedExtensions);
+    staticCacheRef.current = {
+      content: initialContentValue,
+      extensions: resolvedExtensions,
+      result: staticRender,
+    };
+  }
   const staticHtml = staticRender.html || (editable ? createEditorPlaceholderHtml(placeholder) : '<p></p>');
   const showInteractiveRuntime = isHydrated && !!editor;
 

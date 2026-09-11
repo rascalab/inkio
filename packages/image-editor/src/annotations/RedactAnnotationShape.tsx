@@ -24,19 +24,36 @@ export function RedactAnnotationShape({
   scale,
 }: Props) {
   const shapeRef = useRef<Konva.Image>(null);
+  const recacheFrame = useRef(0);
 
   // The cropped source region is re-cached whenever geometry or mode changes.
+  // Resize drags fire every mousemove, but cache() re-rasters pixels, so
+  // coalesce to at most one recalculation per frame (latest values win).
   useEffect(() => {
     const node = shapeRef.current;
     if (!node) return;
-    if (annotation.mode === 'blur') {
-      node.blurRadius(Math.max(0.5, annotation.strength * 0.75));
-    } else {
-      node.pixelSize(Math.max(2, Math.round(annotation.strength)));
+    if (recacheFrame.current) {
+      cancelAnimationFrame(recacheFrame.current);
     }
-    node.filters(redactFilters(annotation.mode));
-    node.cache();
-    node.getLayer()?.batchDraw();
+    recacheFrame.current = requestAnimationFrame(() => {
+      recacheFrame.current = 0;
+      const current = shapeRef.current;
+      if (!current) return;
+      if (annotation.mode === 'blur') {
+        current.blurRadius(Math.max(0.5, annotation.strength * 0.75));
+      } else {
+        current.pixelSize(Math.max(2, Math.round(annotation.strength)));
+      }
+      current.filters(redactFilters(annotation.mode));
+      current.cache();
+      current.getLayer()?.batchDraw();
+    });
+    return () => {
+      if (recacheFrame.current) {
+        cancelAnimationFrame(recacheFrame.current);
+        recacheFrame.current = 0;
+      }
+    };
   }, [annotation.mode, annotation.strength, annotation.x, annotation.y, annotation.width, annotation.height, image, scale]);
 
   if (!image) {

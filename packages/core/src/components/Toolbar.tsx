@@ -96,8 +96,16 @@ export const Toolbar = ({
       return;
     }
 
+    // A single keystroke fires both `transaction` and `selectionUpdate` —
+    // coalesce them into one recompute per microtask.
+    let scheduled = false;
     const updateState = () => {
+      if (scheduled) {
+        return;
+      }
+      scheduled = true;
       queueMicrotask(() => {
+        scheduled = false;
         const actions = getToolbarActionsFor(editor, 'toolbar', items);
         const key = actions
           .map((action) => `${action.id}:${action.isActive?.(editor) ? '1' : '0'}:${action.isDisabled?.(editor) ? 'd' : 'e'}`)

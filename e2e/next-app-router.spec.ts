@@ -45,6 +45,11 @@ test('next app router example opens the image editor from an inserted image bloc
   expect(frameBox!.width).toBeGreaterThan(600);
   expect(frameBox!.height).toBeGreaterThan(400);
   await page.getByTestId('inkio-ie-close').click();
+  // Dirty editors show an inline discard-confirm card instead of closing.
+  const confirm = page.getByTestId('inkio-ie-discard-confirm-ok');
+  if (await confirm.count()) {
+    await confirm.click();
+  }
   await expect(page.getByTestId('inkio-ie-modal-content')).toBeHidden();
 });
 

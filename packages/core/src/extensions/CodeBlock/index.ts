@@ -1,9 +1,10 @@
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import BaseCodeBlock from '@tiptap/extension-code-block';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { createLowlight } from 'lowlight';
 import { CodeBlockView } from './CodeBlockView';
 import { applyHljsTheme, isDarkTheme, removeHljsTheme } from './hljs-theme';
-import { ensureHljsLanguages } from './hljs-lazy';
+import { ensureHljsLanguages, releaseEditor } from './hljs-lazy';
+import { InkioLowlightPlugin } from './lowlight-plugin';
 
 // Grammars load on demand via `ensureHljsLanguages` (see `./hljs-lazy`):
 // the 37 highlight.js languages used to ship inside this chunk through
@@ -11,13 +12,24 @@ import { ensureHljsLanguages } from './hljs-lazy';
 // Tiptap's auto-detect fallback, exactly like unknown languages always did.
 const lowlight = createLowlight();
 
-export const CodeBlock = CodeBlockLowlight.extend({
+export const CodeBlock = BaseCodeBlock.extend({
   addStorage() {
     return { hljsObserver: null as MutationObserver | null };
   },
 
   addNodeView() {
     return ReactNodeViewRenderer(CodeBlockView);
+  },
+
+  addProseMirrorPlugins() {
+    return [
+      ...(this.parent?.() ?? []),
+      InkioLowlightPlugin({
+        name: this.name,
+        lowlight,
+        defaultLanguage: this.options.defaultLanguage,
+      }),
+    ];
   },
 
   onCreate() {
@@ -30,10 +42,15 @@ export const CodeBlock = CodeBlockLowlight.extend({
       applyHljsTheme(isDarkTheme(dom));
     });
 
-    // Watch class attribute on .inkio for dark mode changes
+    // Watch class attributes for dark mode changes: `.inkio` itself (the
+    // `theme` prop) and <html> (e.g. next-themes ancestor `.dark`, which
+    // isDarkTheme also honors).
     const inkio = dom.closest('.inkio');
     if (inkio) {
       observer.observe(inkio, { attributes: true, attributeFilter: ['class'] });
+    }
+    if (document.documentElement) {
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     }
 
     this.storage.hljsObserver = observer;
@@ -45,8 +62,7 @@ export const CodeBlock = CodeBlockLowlight.extend({
 
   onDestroy() {
     this.storage.hljsObserver?.disconnect();
+    releaseEditor(this.editor);
     removeHljsTheme();
   },
-}).configure({
-  lowlight,
 });

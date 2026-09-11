@@ -8,7 +8,7 @@
   padding: 1rem 1.25rem;
   border-radius: var(--inkio-radius-md, 8px);
   border-left: 4px solid var(--inkio-callout-border, var(--inkio-border, #e5e7eb));
-  background: var(--inkio-callout-bg, var(--inkio-surface-secondary, #f9fafb));
+  background: var(--inkio-callout-bg, var(--inkio-bg-subtle, #f9fafb));
   margin: 0.75rem 0;
 }
 

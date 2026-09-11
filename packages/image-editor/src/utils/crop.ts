@@ -5,8 +5,14 @@ export function getDefaultCropRect(
   height: number,
   aspectRatio: number | null,
 ): CropRect {
-  if (width <= 0 || height <= 0) {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
     return { x: 0, y: 0, width: 0, height: 0 };
+  }
+
+  // Guard non-finite/non-positive ratios (NaN, Infinity, 0, negatives):
+  // fall back to the full-frame rect instead of producing NaN geometry.
+  if (aspectRatio !== null && (!Number.isFinite(aspectRatio) || aspectRatio <= 0)) {
+    return { x: 0, y: 0, width, height };
   }
 
   if (aspectRatio) {

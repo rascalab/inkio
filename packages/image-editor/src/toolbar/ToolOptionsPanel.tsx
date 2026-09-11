@@ -107,7 +107,7 @@ export function ToolOptionsPanel({ panel, viewportKind }: ToolControlsProps) {
   return (
     <div
       className="inkio-ie-tool-controls"
-      data-testid={viewportKind === 'desktop' ? 'inkio-ie-bottom-dock-controls' : 'inkio-ie-mobile-option-strip-controls'}
+      data-testid={viewportKind === 'desktop' ? 'inkio-ie-util-panel-controls' : 'inkio-ie-mobile-option-strip-controls'}
       data-panel={panel}
       data-viewport-kind={viewportKind}
     >

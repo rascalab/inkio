@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isSafeUrl } from '../utils/url-safety';
+import { isSafeUrl, sanitizeUrlOrEmpty } from '../utils/url-safety';
 
 // Verifies the documented URL-safety guarantee:
 // isSafeUrl must reject javascript:/data:/vbscript: (case-insensitive, leading whitespace).
@@ -60,5 +60,55 @@ describe('url-safety: isSafeUrl', () => {
     expect(isSafeUrl('')).toBe(false);
     expect(isSafeUrl(null)).toBe(false);
     expect(isSafeUrl(undefined)).toBe(false);
+  });
+
+  it('rejects active-content data URLs while allowing safe raster MIMEs', () => {
+    const dangerous = [
+      'data:image/svg+xml;base64,PHN2Zz48c2NyaXB0PmFsZXJ0KDEpPC9zY3JpcHQ+PC9zdmc+',
+      'data:image/svg+xml,<svg onload="alert(1)">',
+      'DATA:IMAGE/SVG+XML,<svg></svg>',
+      'data:text/html,<script>alert(1)</script>',
+      'data:text/html;base64,PGI+MQ==',
+      'data:application/javascript,alert(1)',
+      'data:,alert(1)',
+    ];
+    for (const url of dangerous) {
+      expect(isSafeUrl(url), url).toBe(false);
+    }
+
+    const safeRaster = [
+      'data:image/png;base64,iVBORw0KGgo=',
+      'data:image/jpeg;base64,/9j/4AAQSkZJRg==',
+      'data:image/gif;base64,R0lGODdhAQABAIAAAP///////ywAAAAAAQABAAACAkQBADs=',
+      'data:image/webp;base64,UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA==',
+    ];
+    for (const url of safeRaster) {
+      expect(isSafeUrl(url), url).toBe(true);
+    }
+  });
+
+  it('normalizes invisible characters before the protocol check', () => {
+    const obfuscated = [
+      'java\u200Bscript:alert(1)',
+      'java\u200Cscript:alert(1)',
+      'java\u200Dscript:alert(1)',
+      'java\uFEFFscript:alert(1)',
+      'java\u00A0script:alert(1)',
+      '\u200Bjavascript:alert(1)',
+      'java\u200Escript:alert(1)',
+    ];
+    for (const url of obfuscated) {
+      expect(isSafeUrl(url), JSON.stringify(url)).toBe(false);
+    }
+  });
+
+  it('sanitizeUrlOrEmpty returns the normalized string, not the raw input', () => {
+    expect(sanitizeUrlOrEmpty('https://example.com/a')).toBe('https://example.com/a');
+    // Invisible chars must be stripped in the returned value.
+    expect(sanitizeUrlOrEmpty('java\u200Bscript:alert(1)')).toBe('');
+    expect(sanitizeUrlOrEmpty('https://example.com/\u200B')).toBe('https://example.com/');
+    // Unsafe input yields empty string.
+    expect(sanitizeUrlOrEmpty('javascript:alert(1)')).toBe('');
+    expect(sanitizeUrlOrEmpty(null)).toBe('');
   });
 });

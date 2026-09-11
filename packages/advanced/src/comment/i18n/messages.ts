@@ -79,6 +79,12 @@ function deepMerge<T>(base: T, override?: DeepPartial<T>): T {
       continue;
     }
 
+    // Prototype-pollution guard: never merge magic keys, even from
+    // consumer-supplied message overrides (e.g. JSON parsed payloads).
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      continue;
+    }
+
     const existing = result[key];
 
     if (isPlainObject(existing) && isPlainObject(value)) {

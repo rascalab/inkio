@@ -41,6 +41,7 @@ export const DEFAULT_LOCALE: ImageEditorLocale = {
   landscape: 'Landscape',
   portrait: 'Portrait',
   brushSize: 'Brush size',
+  strokeWidth: 'Stroke width',
   color: 'Color',
   customColor: 'Custom color',
   fontFamily: 'Font family',

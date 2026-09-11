@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react';
-import { FloatingMenu } from '../FloatingMenu';
+import { FloatingMenu, shouldFloatingMenuHandleArrow } from '../FloatingMenu';
 
 describe('FloatingMenu component', () => {
   it('should render null when editor is null', () => {
@@ -87,5 +87,20 @@ describe('FloatingMenu component', () => {
 
     expect(queryByLabelText('Heading 1')).not.toBeNull();
     expect(queryByLabelText('Heading 2')).toBeNull();
+  });
+
+  describe('shouldFloatingMenuHandleArrow', () => {
+    it('leaves normal cursor movement alone while typing in the editor', () => {
+      // Menu visible but focus in the editor and no keyboard navigation yet.
+      expect(shouldFloatingMenuHandleArrow(-1, false)).toBe(false);
+    });
+
+    it('drives menu focus once focus is inside the menu', () => {
+      expect(shouldFloatingMenuHandleArrow(-1, true)).toBe(true);
+    });
+
+    it('keeps driving menu focus after keyboard navigation started', () => {
+      expect(shouldFloatingMenuHandleArrow(2, false)).toBe(true);
+    });
   });
 });

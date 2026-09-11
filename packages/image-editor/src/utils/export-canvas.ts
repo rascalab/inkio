@@ -5,6 +5,47 @@ import { getTextAnnotationHeight, resolveTextFontSizePx, TEXT_DEFAULT_FONT_FAMIL
 import { applyImageFilter } from './filters';
 import { STICKER_FONT_FAMILY } from '../annotations/StickerAnnotationShape';
 
+export type ExportFormat = 'png' | 'jpeg' | 'webp';
+
+/** Hard cap: 100 MP RGBA ≈ 400 MiB pixel buffer; refuse before allocating. */
+export const MAX_EXPORT_PIXELS = 100_000_000;
+export const MAX_EXPORT_DIMENSION = 16_000;
+
+export function validateExportFormat(format: string): ExportFormat {
+  if (format === 'png' || format === 'jpeg' || format === 'webp') {
+    return format;
+  }
+  throw new Error(`Unsupported export format "${format}" (want png, jpeg, or webp)`);
+}
+
+export function validateExportQuality(quality: number): number {
+  if (!Number.isFinite(quality) || quality < 0 || quality > 1) {
+    throw new Error(`Invalid export quality ${String(quality)} (want 0-1)`);
+  }
+  return quality;
+}
+
+export function validateExportDimensions(width: number, height: number): void {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    throw new Error(`Invalid export dimensions ${String(width)}x${String(height)}`);
+  }
+  if (width > MAX_EXPORT_DIMENSION || height > MAX_EXPORT_DIMENSION) {
+    throw new Error(
+      `Export ${Math.round(width)}x${Math.round(height)} exceeds max side ${MAX_EXPORT_DIMENSION}px`,
+    );
+  }
+  if (width * height > MAX_EXPORT_PIXELS) {
+    throw new Error(
+      `Export ${Math.round(width)}x${Math.round(height)} exceeds ${MAX_EXPORT_PIXELS}-pixel limit`,
+    );
+  }
+}
+
+/** Yield to the main thread so a large export doesn't freeze input handling. */
+function yieldToMain(): Promise<void> {
+  return new Promise((resolve) => { setTimeout(resolve, 0); });
+}
+
 function applyAnnotationToGroup(
   container: Konva.Group | Konva.Layer,
   ann: Annotation,
@@ -147,12 +188,16 @@ export async function exportCanvas(
     throw new Error('No image loaded');
   }
 
+  const safeFormat = validateExportFormat(format);
+  const safeQuality = validateExportQuality(quality);
+
   const { width: outW, height: outH } = getTransformedDimensions(
     state.originalWidth,
     state.originalHeight,
     state.transform,
     state.outputSize,
   );
+  validateExportDimensions(outW, outH);
 
   const { width: baseW, height: baseH } = getBaseDisplayDimensions(
     outW, outH, state.transform.rotation,
@@ -161,6 +206,9 @@ export async function exportCanvas(
   if (typeof document === 'undefined') {
     throw new Error('Export requires a browser environment');
   }
+
+  // Let input/paint run before the heavy synchronous raster work below.
+  await yieldToMain();
 
   const container = document.createElement('div');
   container.style.cssText = 'position:fixed;left:-9999px;top:-9999px;pointer-events:none';
@@ -256,10 +304,17 @@ export async function exportCanvas(
     layer.batchDraw();
 
     const mimeType =
-      format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
+      safeFormat === 'jpeg' ? 'image/jpeg' : safeFormat === 'webp' ? 'image/webp' : 'image/png';
 
-    const dataURL = stage.toDataURL({ mimeType, quality });
-    return dataURL;
+    // Large lossy exports can OOM inside the encoder: retry once at a lower
+    // quality before surfacing the error instead of a blank-page crash.
+    try {
+      return stage.toDataURL({ mimeType, quality: safeQuality });
+    } catch (err) {
+      if (safeFormat === 'png' || safeQuality <= 0.6) throw err;
+      await yieldToMain();
+      return stage.toDataURL({ mimeType, quality: 0.6 });
+    }
   } finally {
     // Always release the offscreen stage, even when toDataURL throws
     // (e.g. tainted canvas or oversized output).

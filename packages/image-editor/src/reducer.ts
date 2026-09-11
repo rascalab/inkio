@@ -47,6 +47,7 @@ export type ImageEditorAction =
   | { type: 'ADD_ANNOTATION'; annotation: Annotation }
   | { type: 'UPDATE_ANNOTATION'; id: string; updates: Partial<Annotation> }
   | { type: 'UPDATE_ANNOTATION_COMMIT'; id: string; updates: Partial<Annotation> }
+  | { type: 'APPEND_ANNOTATION_POINTS'; id: string; points: number[] }
   | { type: 'DELETE_ANNOTATION'; id: string }
   | { type: 'SELECT_ANNOTATION'; id: string | null }
   | { type: 'APPLY_CROP' }
@@ -242,13 +243,33 @@ export function imageEditorReducer(
       return { ...state, annotations: [...state.annotations, action.annotation] };
 
     case 'UPDATE_ANNOTATION':
-    case 'UPDATE_ANNOTATION_COMMIT':
+    case 'UPDATE_ANNOTATION_COMMIT': {
+      // Stale id (e.g. drag events racing a delete): return the identical
+      // state so memoized layers skip the re-render entirely.
+      const index = state.annotations.findIndex((a) => a.id === action.id);
+      if (index < 0) return state;
       return {
         ...state,
         annotations: state.annotations.map((a) =>
           a.id === action.id ? ({ ...a, ...action.updates } as Annotation) : a,
         ),
       };
+    }
+
+    // Batched freedraw path: appends point deltas without the caller
+    // copying the full point array (the single spread below is the only
+    // copy per commit instead of one per mousemove event).
+    case 'APPEND_ANNOTATION_POINTS': {
+      if (action.points.length === 0) return state;
+      let changed = false;
+      const annotations = state.annotations.map((a) => {
+        if (a.id !== action.id) return a;
+        if (a.type !== 'freedraw' && a.type !== 'line' && a.type !== 'arrow') return a;
+        changed = true;
+        return { ...a, points: [...a.points, ...action.points] } as Annotation;
+      });
+      return changed ? { ...state, annotations } : state;
+    }
 
     case 'DELETE_ANNOTATION':
       return {
@@ -301,11 +322,12 @@ export function imageEditorReducer(
     case 'SET_ERROR':
       return { ...state, error: action.error };
 
-    case 'BRING_ANNOTATION_TO_FRONT':
-      return {
-        ...state,
-        annotations: moveAnnotation(state.annotations, action.id, state.annotations.length - 1),
-      };
+    case 'BRING_ANNOTATION_TO_FRONT': {
+      const annotations = moveAnnotation(state.annotations, action.id, state.annotations.length - 1);
+      // moveAnnotation returns the identical array when nothing moves;
+      // keep state referentially stable so history + memo layers skip it.
+      return annotations === state.annotations ? state : { ...state, annotations };
+    }
 
     case 'BRING_ANNOTATION_FORWARD': {
       const index = state.annotations.findIndex((annotation) => annotation.id === action.id);
@@ -331,11 +353,10 @@ export function imageEditorReducer(
       };
     }
 
-    case 'SEND_ANNOTATION_TO_BACK':
-      return {
-        ...state,
-        annotations: moveAnnotation(state.annotations, action.id, 0),
-      };
+    case 'SEND_ANNOTATION_TO_BACK': {
+      const annotations = moveAnnotation(state.annotations, action.id, 0);
+      return annotations === state.annotations ? state : { ...state, annotations };
+    }
 
     case 'RESET_CROP':
       return {
@@ -395,6 +416,13 @@ export function undoableReducer(
   action: UndoableAction,
   maxUndoSteps: number,
 ): UndoableEditorState {
+  // Clamp so a misconfigured provider can't grow history without bound.
+  // States are stored by reference (structural sharing: unchanged
+  // annotations and the originalImage keep their refs), so each entry
+  // costs one state shell + one annotations array, never deep copies.
+  const cap = Number.isFinite(maxUndoSteps)
+    ? Math.max(1, Math.min(Math.floor(maxUndoSteps), 100))
+    : 30;
   if (action.type === 'UNDO') {
     if (state.past.length === 0) return state;
     const previous = state.past[state.past.length - 1];
@@ -410,7 +438,7 @@ export function undoableReducer(
     const next = state.future[0];
     return {
       present: next,
-      past: [...state.past, state.present].slice(-maxUndoSteps),
+      past: [...state.past, state.present].slice(-cap),
       future: state.future.slice(1),
     };
   }
@@ -419,14 +447,18 @@ export function undoableReducer(
   const nextPresent = imageEditorReducer(state.present, baseAction as ImageEditorAction);
 
   if (_undoable) {
+    // Skip no-op undoable actions (e.g. BRING_FORWARD on the top item
+    // returns the identical state): pushing them wastes a history slot
+    // and breaks redo expectations.
+    if (nextPresent === state.present) return state;
     return {
       present: nextPresent,
-      past: [...state.past, state.present].slice(-maxUndoSteps),
+      past: [...state.past, state.present].slice(-cap),
       future: [],
     };
   }
 
-  return { ...state, present: nextPresent };
+  return nextPresent === state.present ? state : { ...state, present: nextPresent };
 }
 
 function moveAnnotation(

@@ -32,8 +32,23 @@ function getTextMeasureContext(): CanvasRenderingContext2D | null {
 }
 
 function estimateLineWidth(line: string, fontSizePx: number): number {
-  const effectiveLength = Math.max(line.length, 1);
-  return effectiveLength * fontSizePx * 0.62;
+  if (line.length === 0) return fontSizePx * 0.62;
+  // CJK/full-width glyphs advance ~1em (vs ~0.62em for Latin), so mixing the
+  // two per character keeps the canvas fallback estimate close for Korean,
+  // Japanese, and Chinese text when no measure context is available.
+  let width = 0;
+  for (const char of line) {
+    const code = char.codePointAt(0) ?? 0;
+    const isFullWidth =
+      (code >= 0x1100 && code <= 0x115f) || // Hangul Jamo
+      (code >= 0x2e80 && code <= 0x9fff) || // CJK radicals, ideographs
+      (code >= 0xac00 && code <= 0xd7af) || // Hangul syllables
+      (code >= 0xf900 && code <= 0xfaff) || // CJK compatibility ideographs
+      (code >= 0xff00 && code <= 0xffef) || // Full-width forms
+      (code >= 0x3000 && code <= 0x303f); // CJK symbols/punctuation
+    width += fontSizePx * (isFullWidth ? 1.0 : 0.62);
+  }
+  return width;
 }
 
 export function getTextAnnotationWidth(annotation: Pick<TextAnnotationData, 'width'>): number {

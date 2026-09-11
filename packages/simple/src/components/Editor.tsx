@@ -19,6 +19,7 @@ import type { InkioJSONContent as JSONContent } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import type { ExtensionsInput } from '../types';
 import { resolveExtensionsInput } from '../utils/resolve-extensions-input';
+import { useStableOptions } from '../utils/stable-options';
 
 type EditorContentMode =
   | { content: string | JSONContent; initialContent?: never }
@@ -75,25 +76,37 @@ export function Editor({
   onError,
   extensions,
 }: EditorProps) {
+  // Inline option literals from a re-rendering parent must not rebuild the
+  // extension set (tiptap compares extensions by identity → setOptions storm
+  // per keystroke). Structural inputs are stabilized; callbacks still compare
+  // by reference so updates are never swallowed.
+  const stableImageBlock = useStableOptions(imageBlock);
+  const stableMessages = useStableOptions(ui?.messages);
+  const stableIcons = useStableOptions(ui?.icons);
+  const stableToolbar = useStableOptions(ui?.toolbar);
+  const stableBubbleMenu = useStableOptions(ui?.bubbleMenu);
+  const stableFloatingMenu = useStableOptions(ui?.floatingMenu);
+  const stableTableMenu = useStableOptions(ui?.tableMenu);
+
   const coreExtensionOptions = useMemo<ExtensionsOptions>(() => {
     const opts: ExtensionsOptions = {
       placeholder,
       tabBehavior,
     };
 
-    if (onImageUpload !== undefined || imageBlock !== undefined || onError !== undefined) {
-      opts.imageBlock = { ...imageBlock, ...(onImageUpload ? { onUpload: onImageUpload } : {}), ...(onError ? { onError } : {}) };
+    if (onImageUpload !== undefined || stableImageBlock !== undefined || onError !== undefined) {
+      opts.imageBlock = { ...stableImageBlock, ...(onImageUpload ? { onUpload: onImageUpload } : {}), ...(onError ? { onError } : {}) };
     }
 
     return opts;
-  }, [placeholder, tabBehavior, onImageUpload, imageBlock, onError]);
+  }, [placeholder, tabBehavior, onImageUpload, stableImageBlock, onError]);
 
   const resolvedExtensions = useMemo(() => {
     const defaults = getExtensions(coreExtensionOptions);
     return resolveExtensionsInput(extensions, defaults);
   }, [coreExtensionOptions, extensions]);
 
-  const coreProps: CoreEditorProps = {
+  const coreProps: CoreEditorProps = useMemo(() => ({
     ...(content !== undefined ? { content } : { initialContent }),
     extensions: resolvedExtensions,
     editable,
@@ -102,8 +115,8 @@ export function Editor({
     onUpdate,
     onCreate,
     locale,
-    messages: ui?.messages,
-    icons: ui?.icons,
+    messages: stableMessages,
+    icons: stableIcons,
     className: ui?.className,
     style: ui?.style,
     fill: ui?.fill,
@@ -113,11 +126,36 @@ export function Editor({
     showBubbleMenu: ui?.showBubbleMenu ?? false,
     showFloatingMenu: ui?.showFloatingMenu ?? false,
     showTableMenu: ui?.showTableMenu ?? true,
-    toolbar: ui?.toolbar,
-    bubbleMenu: ui?.bubbleMenu,
-    floatingMenu: ui?.floatingMenu,
-    tableMenu: ui?.tableMenu,
-  };
+    toolbar: stableToolbar,
+    bubbleMenu: stableBubbleMenu,
+    floatingMenu: stableFloatingMenu,
+    tableMenu: stableTableMenu,
+  }), [
+    content,
+    initialContent,
+    resolvedExtensions,
+    editable,
+    placeholder,
+    theme,
+    onUpdate,
+    onCreate,
+    locale,
+    stableMessages,
+    stableIcons,
+    ui?.className,
+    ui?.style,
+    ui?.fill,
+    ui?.autoresize,
+    ui?.bordered,
+    ui?.showToolbar,
+    ui?.showBubbleMenu,
+    ui?.showFloatingMenu,
+    ui?.showTableMenu,
+    stableToolbar,
+    stableBubbleMenu,
+    stableFloatingMenu,
+    stableTableMenu,
+  ]);
 
   return <CoreEditor {...coreProps} />;
 }

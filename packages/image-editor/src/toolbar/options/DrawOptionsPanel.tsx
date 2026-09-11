@@ -2,7 +2,7 @@ import { useImageEditor } from '../../hooks/use-image-editor';
 import type { FreeDrawAnnotation } from '../../types';
 import { COLOR_PRESETS } from '../../color-presets';
 import { getSelectedAnnotation, isDrawAnnotation } from '../../utils/annotation-types';
-import { ColorSwatchGroup, RangeFieldGroup } from '../control-groups';
+import { ColorField, PanelSection, SliderRow, ToolPanel } from '../control-groups';
 import { LayerOrderControls } from './LayerOrderControls';
 
 export function DrawOptionsPanel() {
@@ -32,33 +32,36 @@ export function DrawOptionsPanel() {
   };
 
   return (
-    <>
-      <ColorSwatchGroup
-        label={locale.color}
-        value={color}
-        presets={COLOR_PRESETS}
-        pickerTestId="inkio-ie-draw-color-picker"
-        enableAlpha={false}
-        hexLabel={locale.colorHex}
-        alphaLabel={locale.colorAlpha}
-        paletteLabel={locale.colorPalette}
-        onChange={(nextColor) => {
-          if (selectedDraw) {
-            updateSelectedCommit({ stroke: nextColor });
-            return;
-          }
+    <ToolPanel title={selectedDraw ? locale.selectedDraw : locale.drawDefaults}>
+      <PanelSection label={locale.color}>
+        <ColorField
+          label={locale.color}
+          value={color}
+          presets={COLOR_PRESETS}
+          pickerTestId="inkio-ie-draw-color-picker"
+          enableAlpha={false}
+          hexLabel={locale.colorHex}
+          alphaLabel={locale.colorAlpha}
+          paletteLabel={locale.colorPalette}
+          onChange={(nextColor) => {
+            if (selectedDraw) {
+              updateSelectedCommit({ stroke: nextColor });
+              return;
+            }
 
-          dispatch({ type: 'SET_DRAW_OPTIONS', options: { color: nextColor } });
-        }}
-      />
-      <RangeFieldGroup
-        label={locale.brushSize}
-        valueLabel={String(strokeWidth)}
-        min={1}
-        max={50}
-        value={strokeWidth}
-        rangeTestId="inkio-ie-draw-brush-size-range"
-        numberTestId="inkio-ie-draw-brush-size-number"
+            dispatch({ type: 'SET_DRAW_OPTIONS', options: { color: nextColor } });
+          }}
+        />
+      </PanelSection>
+      <PanelSection>
+        <SliderRow
+          label={locale.brushSize}
+          valueLabel={String(strokeWidth)}
+          min={1}
+          max={50}
+          value={strokeWidth}
+          rangeTestId="inkio-ie-draw-brush-size-range"
+          numberTestId="inkio-ie-draw-brush-size-number"
         onPreviewChange={(nextStrokeWidth) => {
           if (selectedDraw) {
             updateSelectedPreview({ strokeWidth: nextStrokeWidth });
@@ -89,7 +92,7 @@ export function DrawOptionsPanel() {
           });
         }}
       />
-      <RangeFieldGroup
+      <SliderRow
         label={locale.opacity}
         valueLabel={`${Math.round(opacity * 100)}%`}
         min={0}
@@ -127,7 +130,8 @@ export function DrawOptionsPanel() {
           });
         }}
       />
+      </PanelSection>
       <LayerOrderControls annotationId={selectedDraw?.id ?? null} />
-    </>
+    </ToolPanel>
   );
 }

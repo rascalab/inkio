@@ -92,6 +92,11 @@ export function createCommentComposerPlugin(
         messages={options.messages}
         icons={options.icons}
         onSubmit={(text: string) => {
+          // The composer must never mutate a read-only editor.
+          if (!editor.isEditable) {
+            deactivate();
+            return;
+          }
           const commentId = generateId();
           const selectedText = view.state.doc.textBetween(from, to, ' ').trim();
 
@@ -147,6 +152,15 @@ export function createCommentComposerPlugin(
 
     view: () => {
       let wasActive = false;
+      let lastRenderedRange: { from: number; to: number } | null = null;
+      let positionRaf: number | null = null;
+
+      const cancelScheduledRender = () => {
+        if (positionRaf !== null) {
+          cancelAnimationFrame(positionRaf);
+          positionRaf = null;
+        }
+      };
 
       return {
         update: (view) => {
@@ -155,16 +169,39 @@ export function createCommentComposerPlugin(
           ) as ComposerPluginState;
 
           if (state.active && !wasActive) {
+            cancelScheduledRender();
             mountAndRender(view, state);
+            lastRenderedRange = { from: state.from, to: state.to };
             wasActive = true;
           } else if (!state.active && wasActive) {
+            cancelScheduledRender();
             teardown();
+            lastRenderedRange = null;
             wasActive = false;
           } else if (state.active && root) {
-            renderComposer(view, state);
+            // While composing, every keystroke/scroll/resize fires view.update.
+            // A full root re-render plus coordsAtPos (forced layout) per update
+            // is wasted when the commented range did not move — scroll/resize
+            // repositioning is already owned by CommentComposer's overlay
+            // engine. Re-render (rAF-coalesced) only on range change.
+            if (
+              lastRenderedRange
+              && lastRenderedRange.from === state.from
+              && lastRenderedRange.to === state.to
+            ) {
+              return;
+            }
+            lastRenderedRange = { from: state.from, to: state.to };
+            if (positionRaf !== null) return;
+            const snapshot = { ...state };
+            positionRaf = requestAnimationFrame(() => {
+              positionRaf = null;
+              if (root) renderComposer(view, snapshot);
+            });
           }
         },
         destroy: () => {
+          cancelScheduledRender();
           teardown();
         },
       };

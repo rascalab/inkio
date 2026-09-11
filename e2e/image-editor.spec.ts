@@ -194,6 +194,15 @@ async function triggerButton(page: Page, testId: string) {
   });
 }
 
+async function closeModal(page: Page) {
+  await triggerButton(page, 'inkio-ie-close');
+  // Dirty editors show an inline discard-confirm card instead of closing.
+  const confirm = page.getByTestId('inkio-ie-discard-confirm-ok');
+  if (await confirm.count()) {
+    await triggerButton(page, 'inkio-ie-discard-confirm-ok');
+  }
+}
+
 async function waitForLayoutSettle(page: Page) {
   await page.evaluate(async () => {
     await new Promise<void>((resolve) => {
@@ -212,17 +221,18 @@ test.beforeEach(async ({ page }) => {
   page.on('dialog', (dialog) => { void dialog.accept(); });
 });
 
-test('desktop shell starts with left rail + canvas + top-right close and the tool dock', async ({ page }) => {
+test('desktop shell starts with topbar + canvas + bottom tool rail and the util panel', async ({ page }) => {
   await waitForHarness(page);
 
-  await expect(page.getByTestId('inkio-ie-toolbar-history')).toBeVisible();
+  await expect(page.getByTestId('inkio-ie-topbar')).toBeVisible();
   await expect(page.getByTestId('inkio-ie-toolbar-tools')).toBeVisible();
+  await expect(page.getByTestId('inkio-ie-tool-rail')).toBeVisible();
   await expect(page.getByTestId('inkio-ie-close')).toBeVisible();
   await expect(page.getByTestId('inkio-ie-desktop-zoom-cluster')).toBeVisible();
   await expect(page.getByTestId('inkio-ie-zoom-controls')).toBeVisible();
-  // The default 'resize' tool is always active, so its options dock shows from the start.
-  await expect(page.getByTestId('inkio-ie-bottom-dock')).toBeVisible();
-  await expect(page.getByTestId('inkio-ie-bottom-dock-controls')).toHaveAttribute('data-panel', 'resize');
+  // The default 'resize' tool is always active, so its util panel shows from the start.
+  await expect(page.getByTestId('inkio-ie-util-panel')).toBeVisible();
+  await expect(page.getByTestId('inkio-ie-util-panel-controls')).toHaveAttribute('data-panel', 'resize');
 
   const modalBox = await page.getByTestId('inkio-ie-modal-content').boundingBox();
   const viewport = page.viewportSize();
@@ -233,6 +243,48 @@ test('desktop shell starts with left rail + canvas + top-right close and the too
   expect(Math.abs(modalBox!.height - viewport!.height)).toBeLessThanOrEqual(1);
 });
 
+test('wide desktop docks the util panel as a right inspector without covering the image', async ({ page }) => {
+  await waitForHarness(page);
+
+  await expect(page.getByTestId('inkio-ie-viewport')).toHaveAttribute('data-desktop-layout', 'side');
+  await triggerButton(page, 'inkio-ie-tool-filter');
+  await expect(page.getByTestId('inkio-ie-util-panel-controls')).toHaveAttribute('data-panel', 'filter');
+  await waitForLayoutSettle(page);
+
+  const panelBox = await page.getByTestId('inkio-ie-util-panel').boundingBox();
+  const stageBox = await page.getByTestId('inkio-ie-stage-frame').boundingBox();
+  expect(panelBox).not.toBeNull();
+  expect(stageBox).not.toBeNull();
+  // Inspector sits right of the stage: no overlap, panel right edge near the viewport edge.
+  expect(panelBox!.x).toBeGreaterThanOrEqual(stageBox!.x + stageBox!.width);
+  const viewport = page.viewportSize();
+  expect(viewport!.width - (panelBox!.x + panelBox!.width)).toBeLessThanOrEqual(32);
+});
+
+test('narrow desktop keeps the bottom panel below the image without overlap', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 800 });
+  await waitForHarness(page);
+
+  await expect(page.getByTestId('inkio-ie-viewport')).toHaveAttribute('data-desktop-layout', 'bottom');
+
+  for (const tool of ['resize', 'filter', 'shape']) {
+    await triggerButton(page, `inkio-ie-tool-${tool}`);
+    await expect(page.getByTestId('inkio-ie-util-panel')).toBeVisible();
+    await waitForLayoutSettle(page);
+
+    const panelBox = await page.getByTestId('inkio-ie-util-panel').boundingBox();
+    const stageBox = await page.getByTestId('inkio-ie-stage-frame').boundingBox();
+    expect(panelBox).not.toBeNull();
+    expect(stageBox).not.toBeNull();
+    const overlapY = Math.max(
+      0,
+      Math.min(panelBox!.y + panelBox!.height, stageBox!.y + stageBox!.height) -
+        Math.max(panelBox!.y, stageBox!.y),
+    );
+    expect(overlapY).toBe(0);
+  }
+});
+
 test('filter tool applies a preset and saves a filtered image', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => {
@@ -241,7 +293,8 @@ test('filter tool applies a preset and saves a filtered image', async ({ page })
   await waitForHarness(page);
 
   await triggerButton(page, 'inkio-ie-tool-filter');
-  await expect(page.getByTestId('inkio-ie-bottom-dock-controls')).toHaveAttribute('data-panel', 'filter');
+  await expect(page.getByTestId('inkio-ie-util-panel-controls')).toHaveAttribute('data-panel', 'filter');
+  await expect(page.locator('.inkio-ie-filter-thumb-img').first()).toBeVisible();
   await triggerButton(page, 'inkio-ie-filter-grayscale');
   await expect(page.getByTestId('inkio-ie-root')).toHaveAttribute('data-debug-filter', 'grayscale');
 
@@ -334,7 +387,7 @@ test('redact tool pixelates a region in the saved image', async ({ page }) => {
   await expect(page.getByTestId('inkio-ie-stage-frame')).toBeVisible();
 
   await triggerButton(page, 'inkio-ie-tool-redact');
-  await expect(page.getByTestId('inkio-ie-bottom-dock-controls')).toHaveAttribute('data-panel', 'redact');
+  await expect(page.getByTestId('inkio-ie-util-panel-controls')).toHaveAttribute('data-panel', 'redact');
   await dragWithinStage(page, { x: 120, y: 90 }, { x: 300, y: 200 });
   await expect(page.getByTestId('inkio-ie-root')).toHaveAttribute('data-debug-annotation-count', '1');
 
@@ -362,7 +415,7 @@ test('sticker tool places an emoji in the saved image', async ({ page }) => {
   await expect(page.getByTestId('inkio-ie-stage-frame')).toBeVisible();
 
   await triggerButton(page, 'inkio-ie-tool-sticker');
-  await expect(page.getByTestId('inkio-ie-bottom-dock-controls')).toHaveAttribute('data-panel', 'sticker');
+  await expect(page.getByTestId('inkio-ie-util-panel-controls')).toHaveAttribute('data-panel', 'sticker');
   await clickStage(page, { x: 200, y: 140 });
   await expect(page.getByTestId('inkio-ie-root')).toHaveAttribute('data-debug-annotation-count', '1');
 
@@ -374,12 +427,12 @@ test('sticker tool places an emoji in the saved image', async ({ page }) => {
   expect(pageErrors).toEqual([]);
 });
 
-test('desktop dock switches panel per tool and stays open on retoggle', async ({ page }) => {
+test('desktop rail switches util panel per tool and stays open on retoggle', async ({ page }) => {
   await waitForHarness(page);
 
   await triggerButton(page, 'inkio-ie-tool-draw');
-  await expect(page.getByTestId('inkio-ie-bottom-dock')).toBeVisible();
-  await expect(page.getByTestId('inkio-ie-bottom-dock-controls')).toHaveAttribute('data-panel', 'draw');
+  await expect(page.getByTestId('inkio-ie-util-panel')).toBeVisible();
+  await expect(page.getByTestId('inkio-ie-util-panel-controls')).toHaveAttribute('data-panel', 'draw');
   await waitForLayoutSettle(page);
   await expect(page.getByTestId('inkio-ie-stage-frame')).toBeVisible();
 
@@ -388,10 +441,10 @@ test('desktop dock switches panel per tool and stays open on retoggle', async ({
   );
   expect(transition).toContain('0.25s');
 
-  // Tools cannot be toggled off — re-selecting the active tool keeps the dock open.
+  // Tools cannot be toggled off — re-selecting the active tool keeps the panel open.
   await triggerButton(page, 'inkio-ie-tool-draw');
-  await expect(page.getByTestId('inkio-ie-bottom-dock')).toBeVisible();
-  await expect(page.getByTestId('inkio-ie-bottom-dock-controls')).toHaveAttribute('data-panel', 'draw');
+  await expect(page.getByTestId('inkio-ie-util-panel')).toBeVisible();
+  await expect(page.getByTestId('inkio-ie-util-panel-controls')).toHaveAttribute('data-panel', 'draw');
   await waitForLayoutSettle(page);
   await expect(page.getByTestId('inkio-ie-stage-frame')).toBeVisible();
 });
@@ -414,7 +467,7 @@ test('text selection shows floating actions and deselect falls back to the parke
   await clickStage(page, { x: 36, y: 36 });
 
   await expect(page.getByTestId('image-editor-e2e-selected-type')).toHaveText('none');
-  await expect(page.getByTestId('inkio-ie-bottom-dock-controls')).toHaveAttribute('data-panel', 'text');
+  await expect(page.getByTestId('inkio-ie-util-panel-controls')).toHaveAttribute('data-panel', 'text');
 });
 
 test('draw, shape, resize, and rotate controls work from the new desktop dock', async ({ page }) => {
@@ -446,7 +499,7 @@ test('draw, shape, resize, and rotate controls work from the new desktop dock', 
   });
   const box = await getStageFrameBox(page);
   await dragWithinStage(page, { x: 420, y: 220 }, { x: box.width + 120, y: box.height + 120 });
-  await expect(page.getByTestId('inkio-ie-bottom-dock-controls')).toHaveAttribute('data-panel', 'shape');
+  await expect(page.getByTestId('inkio-ie-util-panel-controls')).toHaveAttribute('data-panel', 'shape');
   await triggerButton(page, 'inkio-ie-shape-color-picker');
   await triggerButton(page, 'inkio-ie-shape-stroke-transparent');
   await setRangeValue(page.getByTestId('inkio-ie-shape-stroke-width-range'), 9);
@@ -473,7 +526,7 @@ test('draw, shape, resize, and rotate controls work from the new desktop dock', 
     });
 
   await triggerButton(page, 'inkio-ie-tool-resize');
-  await expect(page.getByTestId('inkio-ie-bottom-dock-controls')).toHaveAttribute('data-panel', 'resize');
+  await expect(page.getByTestId('inkio-ie-util-panel-controls')).toHaveAttribute('data-panel', 'resize');
   await expect.poll(async () => getRootDebugAttribute(page, 'data-debug-pending-crop')).not.toBe('');
   await triggerButton(page, 'inkio-ie-crop-preset-1-1');
   await triggerButton(page, 'inkio-ie-resize-lock-aspect');
@@ -489,7 +542,7 @@ test('draw, shape, resize, and rotate controls work from the new desktop dock', 
     height: Number(element.getAttribute('data-display-height')),
   }));
   await triggerButton(page, 'inkio-ie-tool-rotate');
-  await expect(page.getByTestId('inkio-ie-bottom-dock-controls')).toHaveAttribute('data-panel', 'rotate');
+  await expect(page.getByTestId('inkio-ie-util-panel-controls')).toHaveAttribute('data-panel', 'rotate');
   await triggerButton(page, 'inkio-ie-rotate-cw');
   await expect
     .poll(async () => page.getByTestId('inkio-ie-stage-frame').evaluate((element) => ({
@@ -505,7 +558,7 @@ test('mobile shell uses top command bar, bottom option strip, and bottom tool tr
 
   await expect(page.getByTestId('inkio-ie-mobile-command-bar')).toBeVisible();
   await expect(page.getByTestId('inkio-ie-mobile-tool-tray')).toBeVisible();
-  await expect(page.getByTestId('inkio-ie-bottom-dock')).toHaveCount(0);
+  await expect(page.getByTestId('inkio-ie-util-panel')).toHaveCount(0);
 
   await triggerButton(page, 'inkio-ie-tool-draw');
   await expect(page.getByTestId('inkio-ie-mobile-option-strip')).toBeVisible();
@@ -520,7 +573,7 @@ test('mobile shell uses top command bar, bottom option strip, and bottom tool tr
 
 test('text controls use font family, size px, and the shared color picker', async ({ page }) => {
   await waitForHarness(page);
-  await triggerButton(page, 'inkio-ie-close');
+  await closeModal(page);
   await expect(page.getByTestId('image-editor-e2e-open-state')).toHaveText('Modal: closed');
   await page.getByTestId('image-editor-e2e-theme-toggle').evaluate((element) => {
     (element as HTMLButtonElement).click();

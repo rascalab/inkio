@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
+import { isSafeUrl } from '../utils/url-safety';
 
 export interface BubbleMenuLinkInputPopoverProps {
   initialUrl?: string;
   placeholder?: string;
   cancelLabel?: string;
   saveLabel?: string;
+  invalidUrlLabel?: string;
   onSave: (url: string) => void;
   onCancel: () => void;
 }
@@ -14,10 +16,12 @@ export function BubbleMenuLinkInputPopover({
   placeholder = 'https://example.com',
   cancelLabel = 'Cancel',
   saveLabel = 'Save',
+  invalidUrlLabel = 'This URL is not allowed.',
   onSave,
   onCancel,
 }: BubbleMenuLinkInputPopoverProps) {
   const [url, setUrl] = useState(initialUrl);
+  const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -29,13 +33,22 @@ export function BubbleMenuLinkInputPopover({
 
   useEffect(() => {
     setUrl(initialUrl);
+    setError(null);
   }, [initialUrl]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (url.trim()) {
-      onSave(url.trim());
+    const trimmed = url.trim();
+    if (!trimmed) {
+      return;
     }
+    // Block javascript:/data:/vbscript: payloads before they reach the document.
+    if (!isSafeUrl(trimmed)) {
+      setError(invalidUrlLabel);
+      return;
+    }
+    setError(null);
+    onSave(trimmed);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -52,12 +65,22 @@ export function BubbleMenuLinkInputPopover({
           ref={inputRef}
           type="text"
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            if (error) setError(null);
+          }}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className="inkio-link-input"
           autoComplete="off"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? 'inkio-link-url-error' : undefined}
         />
+        {error && (
+          <p id="inkio-link-url-error" role="alert" className="inkio-link-error">
+            {error}
+          </p>
+        )}
         <div className="inkio-link-actions">
           <button
             type="button"

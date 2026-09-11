@@ -3,6 +3,7 @@ import type { Editor } from '@tiptap/core';
 import { Plugin } from '@tiptap/pm/state';
 import {
   commentThreadPopoverPluginKey,
+  COMMENT_THREADS_CHANGED_EVENT,
   type CommentOptions,
 } from './Comment';
 import { CommentThreadPopover } from './components/CommentThreadPopover';
@@ -144,9 +145,12 @@ export function createCommentThreadPopoverPlugin(
         messages={options.messages}
         icons={options.icons}
         onReply={(id: string, text: string) => {
+          // Read-only surfaces render threads but must not mutate.
+          if (!editor.isEditable) return;
           options.onCommentReply?.(id, text);
         }}
         onResolve={(id: string) => {
+          if (!editor.isEditable) return;
           // resolveComment() already invokes onCommentResolve internally.
           (
             editor.commands as unknown as {
@@ -156,6 +160,7 @@ export function createCommentThreadPopoverPlugin(
           deactivate();
         }}
         onDelete={(id: string) => {
+          if (!editor.isEditable) return;
           // Remove comment marks from the document
           const markType = editor.state.schema.marks.comment;
           if (markType) {
@@ -243,6 +248,19 @@ export function createCommentThreadPopoverPlugin(
       let wasActive = false;
       let lastThreadId = '';
 
+      // External thread data (the CommentPanel `threads` prop) can change
+      // without any document transaction — e.g. a reply arrives while the
+      // popover is open. Re-read getThread on notification so the popover
+      // never shows stale messages.
+      const handleThreadsChanged = () => {
+        if (wasActive && root && currentThreadId) {
+          renderPopover();
+        }
+      };
+      if (typeof window !== 'undefined') {
+        window.addEventListener(COMMENT_THREADS_CHANGED_EVENT, handleThreadsChanged);
+      }
+
       return {
         update: (view) => {
           const state = commentThreadPopoverPluginKey.getState(
@@ -265,6 +283,9 @@ export function createCommentThreadPopoverPlugin(
           }
         },
         destroy: () => {
+          if (typeof window !== 'undefined') {
+            window.removeEventListener(COMMENT_THREADS_CHANGED_EVENT, handleThreadsChanged);
+          }
           teardown();
         },
       };

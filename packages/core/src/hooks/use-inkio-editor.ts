@@ -22,6 +22,27 @@ export type UseInkioEditorOptions = InkioContentMode & {
 
 const EMPTY_EXTENSIONS: Extensions = [];
 
+let didWarnExtensionsChurn = false;
+
+/**
+ * Fired when the resolved `extensions` array identity changes across renders.
+ * Tiptap compares extensions by instance identity, so a new array on every
+ * render (e.g. inline callbacks/objects in extension options) forces
+ * `setOptions` + a full document redraw per keystroke. Memoize extension
+ * inputs with `useMemo`/`useCallback` instead.
+ */
+function warnExtensionsChurn() {
+  if (didWarnExtensionsChurn) {
+    return;
+  }
+  didWarnExtensionsChurn = true;
+  console.warn(
+    '[inkio] Editor extensions were recreated between renders. ' +
+      'Pass memoized `extensions` (and stable callbacks/objects in extension options) ' +
+      'to avoid a full document redraw on every keystroke.',
+  );
+}
+
 function isSameJson(a: JSONContent | undefined, b: JSONContent | undefined) {
   if (a === b) return true;
   if (!a || !b) return false;
@@ -54,6 +75,7 @@ export function useInkioEditor({
 
   const lastReportedJsonRef = useRef<JSONContent | null>(null);
   const lastReportedHtmlRef = useRef<string | null>(null);
+  const prevExtensionsRef = useRef<Extensions | null>(null);
   const onCreateRef = useRef(onCreate);
   const onUpdateRef = useRef(onUpdate);
   const isMountedRef = useRef(true);
@@ -157,6 +179,22 @@ export function useInkioEditor({
       editor.setEditable(editable);
     }
   }, [editor, editable]);
+
+  useEffect(() => {
+    const nodeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+      ?.env?.NODE_ENV;
+    if (nodeEnv === 'production') {
+      return;
+    }
+    if (!editor) {
+      prevExtensionsRef.current = finalExtensions;
+      return;
+    }
+    if (prevExtensionsRef.current !== null && prevExtensionsRef.current !== finalExtensions) {
+      warnExtensionsChurn();
+    }
+    prevExtensionsRef.current = finalExtensions;
+  });
 
   return editor;
 }

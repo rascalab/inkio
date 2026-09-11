@@ -7,6 +7,19 @@ export function useKeyboardShortcuts() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.isComposing) return;
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      // Never steal keys from text inputs, selects, or rich-text surfaces.
+      const tag = target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (target.isContentEditable) return;
+      // Only act on real editor focus: the event must originate inside the
+      // image editor DOM (or on <body> when nothing is focused). This keeps
+      // Backspace/Delete/undo from firing while the user types in a tiptap
+      // editor or any other surface sharing the page.
+      if (typeof target.closest === 'function') {
+        if (tag !== 'BODY' && !target.closest('.inkio-ie-root')) return;
+      }
       const isMeta = e.ctrlKey || e.metaKey;
 
       if (isMeta && e.shiftKey && e.key === 'z') {
@@ -22,9 +35,6 @@ export function useKeyboardShortcuts() {
       }
 
       if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedAnnotationId) {
-        // Only handle if not focused on an input/textarea
-        const target = e.target as HTMLElement;
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
         e.preventDefault();
         dispatch({ type: 'DELETE_ANNOTATION', id: state.selectedAnnotationId });
         return;

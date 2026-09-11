@@ -36,6 +36,14 @@ export const WikiLink = Node.create<WikiLinkOptions>({
     return {
       href: {
         default: null,
+        parseHTML: (element) => {
+          const raw = element.getAttribute('data-href') ?? element.textContent ?? '';
+          const href = raw.trim();
+          if (!href) return null;
+          // Reject javascript:/data:/vbscript: payloads pasted as HTML.
+          if (!isSafeUrl(href)) return null;
+          return href;
+        },
       },
     };
   },
@@ -44,12 +52,26 @@ export const WikiLink = Node.create<WikiLinkOptions>({
     return [
       {
         tag: 'span[data-wiki-link]',
+        getAttrs: (element) => {
+          if (!(element instanceof HTMLElement)) return {};
+          const raw = element.getAttribute('data-href') ?? element.textContent ?? '';
+          const href = raw.trim();
+          // Block active-content targets at parse time.
+          if (href && !isSafeUrl(href)) return false;
+          return href ? { href } : {};
+        },
       },
     ];
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['span', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, { 'data-wiki-link': '' }), HTMLAttributes.href];
+    const { href, ...rest } = HTMLAttributes;
+    const rawHref = typeof href === 'string' ? href : '';
+    // Never render an unsafe href, even if it bypassed create/parse guards.
+    // Drop it from both the attribute and the text output.
+    const safeAttrs = rawHref && isSafeUrl(rawHref) ? { href: rawHref } : {};
+    const safeText = rawHref && isSafeUrl(rawHref) ? rawHref : '';
+    return ['span', mergeAttributes(this.options.HTMLAttributes, rest, safeAttrs, { 'data-wiki-link': '' }), safeText];
   },
 
   addNodeView() {
@@ -108,6 +130,8 @@ export const WikiLink = Node.create<WikiLinkOptions>({
           const end = range.to;
           const text = (match[1] ?? '').trim();
           if (!text) return;
+          // Reject javascript:/data:/vbscript: targets typed by the user.
+          if (!isSafeUrl(text)) return;
 
           tr.replaceWith(start, end, this.type.create({ href: text }));
         },
@@ -125,6 +149,8 @@ export const WikiLink = Node.create<WikiLinkOptions>({
           const end = range.to;
           const text = (match[1] ?? '').trim();
           if (!text) return;
+          // Reject javascript:/data:/vbscript: targets from pasted content.
+          if (!isSafeUrl(text)) return;
 
           tr.replaceWith(start, end, this.type.create({ href: text }));
         },
