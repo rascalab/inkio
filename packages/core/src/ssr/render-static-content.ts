@@ -1,7 +1,7 @@
 import { type Extensions, type JSONContent } from '@tiptap/core';
 import { generateHTML } from '@tiptap/html';
 import sanitizeHtml from 'sanitize-html';
-import { getHeadingsFromContent, slugifyHeading, type HeadingItem } from '../components/ToC';
+import { getHeadingsFromContent, slugifyHeading, type HeadingItem } from '../components/headings';
 import { escapeHtml } from '../utils/html';
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] };

@@ -3,7 +3,7 @@ import { mergeAttributes, Node } from '@tiptap/core';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import type { EditorView } from '@tiptap/pm/view';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
-import { toError, type InkioErrorHandler } from '../utils';
+import { toError, type InkioErrorHandler } from '../errors';
 import { isSafeUrl } from '../utils/url-safety';
 import { ImageBlockView } from './ImageBlockView';
 

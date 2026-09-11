@@ -1,5 +1,4 @@
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { fireEvent, render, screen } from '@testing-library/react';
 import type { Editor } from '@tiptap/core';
 import { BlockHandleActionMenu } from '../extensions/BlockHandle/BlockHandleView';
 
@@ -42,20 +41,21 @@ describe('BlockHandleActionMenu read-only gating', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('dispatches delete when editable', async () => {
-    const user = userEvent.setup();
+  it('dispatches delete when editable', () => {
+    // fireEvent dispatches synchronously: no real-timer dependence, so this
+    // cannot flake under parallel-suite CPU contention (unlike userEvent).
     const onClose = vi.fn();
     const editor = createMockEditor(true);
 
     render(<BlockHandleActionMenu editor={editor} {...baseProps} onClose={onClose} />);
 
-    await user.click(screen.getByRole('menuitem', { name: /delete/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /delete/i }));
 
     expect(editor.view.dispatch).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('does not dispatch when read-only even if actions were reachable', async () => {
+  it('does not dispatch when read-only even if actions were reachable', () => {
     const editor = createMockEditor(false);
     render(<BlockHandleActionMenu editor={editor} {...baseProps} />);
     // No menu items exist to click.

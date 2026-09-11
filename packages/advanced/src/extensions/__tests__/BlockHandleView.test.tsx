@@ -1,5 +1,4 @@
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { fireEvent, render, screen } from '@testing-library/react';
 import type { Editor } from '@tiptap/core';
 import { BlockHandleActionMenu } from '../BlockHandle';
 
@@ -31,8 +30,7 @@ function createMockEditor() {
 }
 
 describe('BlockHandleActionMenu', () => {
-  it('uses the optional command helper for block transforms', async () => {
-    const user = userEvent.setup();
+  it('uses the optional command helper for block transforms', () => {
     const onClose = vi.fn();
     const { editor, chain } = createMockEditor();
 
@@ -45,7 +43,7 @@ describe('BlockHandleActionMenu', () => {
       />,
     );
 
-    await user.click(screen.getByRole('menuitem', { name: /heading 1/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /heading 1/i }));
 
     expect(chain.focus).toHaveBeenCalledTimes(1);
     expect(chain.setTextSelection).toHaveBeenCalledWith(6);

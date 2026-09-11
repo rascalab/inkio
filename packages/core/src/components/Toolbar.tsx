@@ -5,8 +5,8 @@ import type { InkioIconRegistry } from '../icons/registry';
 import {
   getToolbarActionsFor,
   splitToolbarActionGroups,
-} from '../menus/actions';
-import type { InkioToolbarActionTransform } from '../menus/actions';
+} from './toolbar-actions';
+import type { InkioToolbarActionTransform } from './toolbar-actions';
 import type {
   InkioCoreMessageOverrides,
   InkioLocaleInput,

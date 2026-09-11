@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/core';
-import { getHeadingsFromDoc, getHeadingElements } from './ToC';
-import type { HeadingItem } from './ToC';
+import { getHeadingsFromDoc, getHeadingElements } from './headings';
+import type { HeadingItem } from './headings';
 
 export function useHeadings(source: Editor | null | undefined, maxLevel = 3) {
   const [headings, setHeadings] = useState<HeadingItem[]>([]);

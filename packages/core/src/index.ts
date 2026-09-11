@@ -7,8 +7,8 @@ export { StaticViewer } from './components/StaticViewer';
 export type { StaticViewerProps } from './components/StaticViewer';
 export { InkioErrorBoundary } from './components/ErrorBoundary';
 export type { InkioErrorBoundaryProps, InkioErrorFallbackProps } from './components/ErrorBoundary';
-export type { HeadingItem } from './components/ToC';
-export { getHeadingsFromContent, getHeadingsFromDoc } from './components/ToC';
+export type { HeadingItem } from './components/headings';
+export { getHeadingsFromContent, getHeadingsFromDoc } from './components/headings';
 
 // Menus
 export { BubbleMenu } from './components/BubbleMenu';
@@ -25,7 +25,7 @@ export {
   defaultToolbarActions,
   getToolbarActionsFor,
   splitToolbarActionGroups,
-} from './menus/actions';
+} from './components/toolbar-actions';
 export type {
   BuiltinInkioToolbarActionId,
   InkioMenuSurface,
@@ -33,7 +33,7 @@ export type {
   InkioToolbarActionContext,
   InkioToolbarActionId,
   InkioToolbarActionTransform,
-} from './menus/actions';
+} from './components/toolbar-actions';
 export type { Editor as TiptapEditor } from '@tiptap/react';
 
 
@@ -61,10 +61,11 @@ export type { InkioAdapter } from './adapter';
 export { InkioError } from './errors';
 
 // Shared Utilities
-export { toError } from './utils';
-export type { InkioErrorHandler } from './utils';
+export { toError } from './errors';
+export type { InkioErrorHandler } from './errors';
 export { isSafeUrl, sanitizeUrlOrEmpty } from './utils/url-safety';
 export { mergeExtensions, resolveExtensionsInput } from './utils/extensions-input';
+export { isEqualOptionsValue, useStableOptions } from './utils/stable-options';
 export { resolveInkioExtensions } from './extensions/resolve-extensions';
 export type { ExtensionsInput, CoreExtensions } from './utils/extensions-input';
 export type { JSONContent as InkioJSONContent } from '@tiptap/core';
@@ -109,8 +110,8 @@ export type { CalloutOptions } from './extensions/Callout';
 export { KeyboardShortcuts } from './extensions/KeyboardShortcuts';
 
 // ToC Component
-export { ToC } from './components/TableOfContents';
-export type { ToCProps } from './components/TableOfContents';
+export { ToC } from './components/ToC';
+export type { ToCProps } from './components/ToC';
 
 // ImageBlock
 export { ImageBlock } from './extensions/ImageBlock';

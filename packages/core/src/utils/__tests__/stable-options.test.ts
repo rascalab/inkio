@@ -1,5 +1,5 @@
 import { renderHook } from '@testing-library/react';
-import { isEqualOptionsValue, useStableOptions } from '../utils/stable-options';
+import { isEqualOptionsValue, useStableOptions } from '../stable-options';
 
 describe('isEqualOptionsValue', () => {
   it('compares primitives and references', () => {
