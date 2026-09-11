@@ -22,12 +22,8 @@ import '@inkio/image-editor/style.css';
 export function EditorWithImages() {
   return (
     <Editor
-      defaultExtensionsOptions={{
-        imageBlock: {
-          onUpload: async (file) => URL.createObjectURL(file),
-          imageEditor: ImageEditorModal,
-        },
-      }}
+      onImageUpload={async (file) => URL.createObjectURL(file)}
+      imageBlock={{ imageEditor: ImageEditorModal }}
     />
   );
 }
@@ -43,12 +39,8 @@ import '@inkio/image-editor/style.css';
 export function SimpleWithImages() {
   return (
     <Editor
-      defaultExtensionsOptions={{
-        imageBlock: {
-          onUpload: async (file) => URL.createObjectURL(file),
-          imageEditor: ImageEditorModal,
-        },
-      }}
+      onImageUpload={async (file) => URL.createObjectURL(file)}
+      imageBlock={{ imageEditor: ImageEditorModal }}
     />
   );
 }
