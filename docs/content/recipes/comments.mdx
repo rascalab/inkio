@@ -112,6 +112,9 @@ export function DocumentPage({ documentId }: { documentId: string }) {
 읽기 전용 화면도 같은 캐시를 씁니다. 댓글 기능이 필요 없으면
 `comment` prop을 생략하세요 (기본 꺼짐).
 
+내용은 보여주되 액션을 막는 "얼린" 화면은 콜백을 빼면 됩니다.
+`getComments`만 넘기면 답글 입력·해결·삭제 버튼이 렌더되지 않습니다.
+
 ```tsx
 <Viewer
   content={content}

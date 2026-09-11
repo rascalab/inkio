@@ -17,6 +17,17 @@ const baseProps = {
   onClose: vi.fn(),
 };
 
+describe('CommentThreadPopover frozen view', () => {
+  it('renders messages with no actions when callbacks are omitted', () => {
+    const { onReply, onResolve, onDelete, ...frozenProps } = baseProps;
+    render(<CommentThreadPopover {...frozenProps} />);
+    expect(screen.getByText('hi')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/reply/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /resolve/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /delete/i })).toBeNull();
+  });
+});
+
 describe('CommentThreadPopover focus', () => {
   it('does not steal focus on mount by default', () => {
     render(<CommentThreadPopover {...baseProps} />);

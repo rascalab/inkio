@@ -107,4 +107,15 @@ describe('CommentPanel single source of truth', () => {
     expect(resolveComment).toHaveBeenCalledWith('t-orphan');
     expect(panelResolve).toHaveBeenCalledWith('t-orphan');
   });
+
+  it('renders a frozen view with no actions when callbacks are omitted', () => {
+    const { editor } = createMockEditor();
+    const { container } = render(
+      <CommentPanel editor={editor} threads={[orphanThread(false)]} currentUser="Tester" />,
+    );
+
+    expect(screen.getAllByText('orphan message')).toHaveLength(2);
+    expect(container.querySelector('.inkio-comment-reply-row')).toBeNull();
+    expect(container.querySelector('.inkio-comment-thread-actions')).toBeNull();
+  });
 });

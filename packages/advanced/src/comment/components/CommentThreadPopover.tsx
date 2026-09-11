@@ -17,9 +17,11 @@ export interface CommentThreadPopoverProps {
   quotedText: string;
   thread: CommentThreadData | null;
   currentUser: string;
-  onReply: (threadId: string, text: string) => void;
-  onResolve: (threadId: string) => void;
-  onDelete: (threadId: string) => void;
+  // All action callbacks are optional: omitting one hides its UI, so
+  // read-only consumers pass only getThread data (frozen discussion view).
+  onReply?: (threadId: string, text: string) => void;
+  onResolve?: (threadId: string) => void;
+  onDelete?: (threadId: string) => void;
   onClose: () => void;
   locale?: InkioLocaleInput;
   messages?: InkioCommentMessageOverrides | InkioMessageOverrides;
@@ -127,7 +129,7 @@ export function CommentThreadPopover({
 
   const handleReply = () => {
     const trimmed = replyText.trim();
-    if (!trimmed) return;
+    if (!trimmed || !onReply) return;
 
     onReply(threadId, trimmed);
     setReplyText('');
@@ -174,7 +176,7 @@ export function CommentThreadPopover({
       </div>
 
       {/* Reply input */}
-      {!isResolved && (
+      {onReply && !isResolved && (
         <div className="inkio-thread-popover-reply">
           <textarea
             ref={replyInputRef}
@@ -195,24 +197,28 @@ export function CommentThreadPopover({
       )}
 
       {/* Actions */}
-      <div className="inkio-thread-popover-actions">
-        {!isResolved && (
-          <button
-            type="button"
-            className="inkio-thread-popover-action-btn resolve"
-            onClick={() => onResolve(threadId)}
-          >
-            {'\u2713'} {ui.messages.commentPanel.resolve}
-          </button>
-        )}
-        <button
-          type="button"
-          className="inkio-thread-popover-action-btn delete"
-          onClick={() => onDelete(threadId)}
-        >
-          {'\u2715'} {ui.messages.commentPanel.delete}
-        </button>
-      </div>
+      {(onResolve || onDelete) && (
+        <div className="inkio-thread-popover-actions">
+          {onResolve && !isResolved && (
+            <button
+              type="button"
+              className="inkio-thread-popover-action-btn resolve"
+              onClick={() => onResolve(threadId)}
+            >
+              {'\u2713'} {ui.messages.commentPanel.resolve}
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              className="inkio-thread-popover-action-btn delete"
+              onClick={() => onDelete(threadId)}
+            >
+              {'\u2715'} {ui.messages.commentPanel.delete}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
