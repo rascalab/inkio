@@ -1,5 +1,4 @@
 export default {
-  index: '소개',
   'getting-started': '시작하기',
   development: '개발 가이드',
   components: '컴포넌트',
