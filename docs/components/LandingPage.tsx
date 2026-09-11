@@ -19,12 +19,12 @@ const DEMO_DOC = {
     {
       type: 'heading',
       attrs: { level: 2 },
-      content: [{ type: 'text', text: '동작하는 데모입니다' }],
+      content: [{ type: 'text', text: '만져보세요, 진짜입니다' }],
     },
     {
       type: 'paragraph',
       content: [
-        { type: 'text', text: '이 아래는 전부 실제 에디터입니다. ' },
+        { type: 'text', text: '밑에 있는 게 진짜 에디터입니다. ' },
         { type: 'text', marks: [{ type: 'bold' }], text: '고쳐 쓰고' },
         { type: 'text', text: ', ' },
         { type: 'text', marks: [{ type: 'code' }], text: '/' },
@@ -86,12 +86,12 @@ export default function LandingPage() {
             <div className="lp-hero-copy">
               <p className="lp-kicker">Tiptap 기반 · MIT 라이선스</p>
               <h1 className="lp-title">
-                에디터 만들 시간에
+                에디터는 그만 만들고,
                 <br />
                 <span className="lp-grad">제품을 만드세요.</span>
               </h1>
               <p className="lp-sub">
-                Inkio는 레이어드 리치 텍스트 키트입니다. 위지윅 한 줄부터
+                Inkio는 겹겹이 쌓는 리치 텍스트 키트입니다. 가벼운 위지윅부터
                 노션 스타일 풀 에디터, 브라우저 이미지 편집까지 — 필요한 것만 얹으세요.
               </p>
               <div className="lp-install">
@@ -112,7 +112,7 @@ export default function LandingPage() {
               </div>
               <div className="lp-hero-actions">
                 <a className="lp-btn-primary" href="./getting-started">5분 안에 붙이기</a>
-                <a className="lp-btn-ghost" href="./playground">살아있는 데모</a>
+                <a className="lp-btn-ghost" href="./playground">직접 만져보기</a>
               </div>
               <dl className="lp-stats">
                 <div><dt>패키지</dt><dd>5</dd></div>
@@ -134,7 +134,7 @@ export default function LandingPage() {
         </section>
 
         <section className="lp-section">
-          <h2 className="lp-h2">골라 담는 레이어</h2>
+          <h2 className="lp-h2">필요한 것만 얹으세요</h2>
           <div className="lp-bento">
             <a className="lp-card lp-span2" href="./getting-started">
               <span className="lp-card-ic"><Icon d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></span>
@@ -170,7 +170,7 @@ export default function LandingPage() {
         </section>
 
         <section className="lp-final">
-          <h2 className="lp-h2">복붙이 배포입니다.</h2>
+          <h2 className="lp-h2">붙여넣으면 끝입니다.</h2>
           <div className="lp-hero-actions lp-center">
             <a className="lp-btn-primary" href="./getting-started">문서 읽기</a>
             <a className="lp-btn-ghost" href="https://github.com/rascalab/inkio">GitHub에서 보기</a>
