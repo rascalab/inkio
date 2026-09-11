@@ -43,12 +43,12 @@ export interface CommentPanelProps {
   editor: Editor | null;
   /** Externally managed comment thread data */
   threads: CommentThreadData[];
-  /** Called when user submits a reply to a thread */
-  onReply: (commentId: string, text: string) => void;
-  /** Called to resolve a thread */
-  onResolve: (commentId: string) => void;
-  /** Called to delete a thread (removes mark + data) */
-  onDelete: (commentId: string) => void;
+  /** Called when user submits a reply to a thread (omit to hide reply UI) */
+  onReply?: (commentId: string, text: string) => void;
+  /** Called to resolve a thread (omit to hide the resolve action) */
+  onResolve?: (commentId: string) => void;
+  /** Called to delete a thread (omit to hide the delete action) */
+  onDelete?: (commentId: string) => void;
   /** Current user display name */
   currentUser?: string;
   /** ID of the thread to highlight and scroll to */
@@ -245,7 +245,7 @@ export const CommentPanel = ({
   const handleReply = useCallback(
     (commentId: string) => {
       const text = (replyTextsRef.current[commentId] || '').trim();
-      if (!text) return;
+      if (!text || !onReply) return;
 
       onReply(commentId, text);
       setReplyTexts((prev) => ({ ...prev, [commentId]: '' }));
@@ -255,7 +255,7 @@ export const CommentPanel = ({
 
   const handleDeleteThread = useCallback(
     (commentId: string) => {
-      if (!editor) return;
+      if (!editor || !onDelete) return;
 
       const mark = editorMarks.find((item) => item.commentId === commentId);
       if (mark) {
@@ -284,7 +284,7 @@ export const CommentPanel = ({
    */
   const handleResolveThread = useCallback(
     (commentId: string) => {
-      if (!editor) return;
+      if (!editor || !onResolve) return;
       const commentExtension = editor.extensionManager.extensions.find(
         (extension) => extension.name === 'comment',
       ) as { options?: { onCommentResolve?: (commentId: string) => void } } | undefined;
@@ -448,7 +448,7 @@ export const CommentPanel = ({
                   </div>
                 )}
 
-                {!isResolved && (
+                {onReply && !isResolved && (
                   <div className="inkio-comment-reply-row">
                     <input
                       type="text"
@@ -479,24 +479,28 @@ export const CommentPanel = ({
                   </div>
                 )}
 
-                <div className="inkio-comment-thread-actions">
-                  {!isResolved && (
-                    <button
-                      type="button"
-                      className="inkio-comment-action-btn resolve"
-                      onClick={() => handleResolveThread(commentId)}
-                    >
-                      ✓ {ui.messages.commentPanel.resolve}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="inkio-comment-action-btn delete"
-                    onClick={() => handleDeleteThread(commentId)}
-                  >
-                    ✕ {ui.messages.commentPanel.delete}
-                  </button>
-                </div>
+                {(onResolve || onDelete) && (
+                  <div className="inkio-comment-thread-actions">
+                    {onResolve && !isResolved && (
+                      <button
+                        type="button"
+                        className="inkio-comment-action-btn resolve"
+                        onClick={() => handleResolveThread(commentId)}
+                      >
+                        ✓ {ui.messages.commentPanel.resolve}
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button
+                        type="button"
+                        className="inkio-comment-action-btn delete"
+                        onClick={() => handleDeleteThread(commentId)}
+                      >
+                        ✕ {ui.messages.commentPanel.delete}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

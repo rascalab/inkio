@@ -135,6 +135,9 @@ export function createCommentThreadPopoverPlugin(
     const quotedText = collectMarkText(editor, currentThreadId);
     const currentUser = options.currentUser ?? 'User';
 
+    // Read-only surfaces render threads but offer no actions: omitting a
+    // callback hides its UI, so frozen discussion views fall out naturally.
+    const canMutate = editor.isEditable;
     root.render(
       <CommentThreadPopover
         threadId={currentThreadId}
@@ -144,37 +147,43 @@ export function createCommentThreadPopoverPlugin(
         locale={options.locale}
         messages={options.messages}
         icons={options.icons}
-        onReply={(id: string, text: string) => {
-          // Read-only surfaces render threads but must not mutate.
-          if (!editor.isEditable) return;
-          options.onCommentReply?.(id, text);
-        }}
-        onResolve={(id: string) => {
-          if (!editor.isEditable) return;
-          // resolveComment() already invokes onCommentResolve internally.
-          (
-            editor.commands as unknown as {
-              resolveComment?: (commentId: string) => boolean;
-            }
-          ).resolveComment?.(id);
-          deactivate();
-        }}
-        onDelete={(id: string) => {
-          if (!editor.isEditable) return;
-          // Remove comment marks from the document
-          const markType = editor.state.schema.marks.comment;
-          if (markType) {
-            const ranges = findMarkRanges(editor, id);
-            if (ranges.length > 0) {
-              const tr = editor.view.state.tr;
-              ranges.forEach(({ from, to }) => tr.removeMark(from, to, markType));
-              editor.view.dispatch(tr);
-            }
-          }
+        onReply={
+          canMutate && options.onCommentReply
+            ? (id: string, text: string) => options.onCommentReply?.(id, text)
+            : undefined
+        }
+        onResolve={
+          canMutate
+            ? (id: string) => {
+                // resolveComment() already invokes onCommentResolve internally.
+                (
+                  editor.commands as unknown as {
+                    resolveComment?: (commentId: string) => boolean;
+                  }
+                ).resolveComment?.(id);
+                deactivate();
+              }
+            : undefined
+        }
+        onDelete={
+          canMutate
+            ? (id: string) => {
+                // Remove comment marks from the document
+                const markType = editor.state.schema.marks.comment;
+                if (markType) {
+                  const ranges = findMarkRanges(editor, id);
+                  if (ranges.length > 0) {
+                    const tr = editor.view.state.tr;
+                    ranges.forEach(({ from, to }) => tr.removeMark(from, to, markType));
+                    editor.view.dispatch(tr);
+                  }
+                }
 
-          options.onCommentDelete?.(id);
-          deactivate();
-        }}
+                options.onCommentDelete?.(id);
+                deactivate();
+              }
+            : undefined
+        }
         onClose={() => {
           deactivate();
         }}
