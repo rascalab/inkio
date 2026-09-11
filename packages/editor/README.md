@@ -28,30 +28,35 @@ Install `@inkio/advanced` separately only if app code imports advanced exports s
 ## Usage
 
 ```tsx
-import { Editor, Viewer } from '@inkio/editor';
+import { Editor } from '@inkio/editor';
 import '@inkio/editor/minimal.css';
 
 export function EditorPage() {
   return (
     <Editor
       initialContent="<p>Hello Inkio</p>"
-      defaultExtensionsOptions={{
-        hashtagItems: ({ query }) => [
-          { id: query || 'inkio', label: `#${query || 'inkio'}` },
-        ],
-      }}
-      showBubbleMenu
-      showFloatingMenu
+      hashtagItems={({ query }) => [
+        { id: query || 'inkio', label: `#${query || 'inkio'}` },
+      ]}
     />
   );
 }
 ```
 
 ```tsx
-<Viewer
-  content={content}
-  tableOfContents={{ position: 'left', maxLevel: 4 }}
-/>
+import { useState } from 'react';
+import { Editor } from '@inkio/editor';
+import { ToC } from '@inkio/core';
+
+export function EditorPage() {
+  const [editor, setEditor] = useState(null);
+  return (
+    <div style={{ position: 'relative' }}>
+      <Editor initialContent="<p>Hello Inkio</p>" onCreate={setEditor} />
+      <ToC source={editor} maxLevel={4} />
+    </div>
+  );
+}
 ```
 
 Next App Router에서는 `Editor`를 client component 안에서 사용하되, hard refresh 시에도 초기 문서 HTML은 서버에서 먼저 렌더됩니다. `@inkio/image-editor` 같은 무거운 확장은 lazy component로 넘기는 구성을 권장합니다.

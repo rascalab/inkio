@@ -1,0 +1,346 @@
+/* Inkio landing — dark dev-tool hero + bento grid. Scoped under .inkio-landing. */
+
+.inkio-landing {
+  color: #f8fafc;
+  background:
+    radial-gradient(60rem 30rem at 50% -8rem, rgba(34, 197, 94, 0.12), transparent 60%),
+    radial-gradient(40rem 24rem at 85% 10rem, rgba(0, 144, 255, 0.1), transparent 60%),
+    #0f172a;
+}
+
+.inkio-landing-hero {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 5rem 1.5rem 3rem;
+  text-align: center;
+}
+
+.inkio-landing-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.875rem;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.08);
+  color: #cbd5e1;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.inkio-landing-badge-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #22c55e;
+}
+
+.inkio-landing-title {
+  margin: 1.5rem auto 0;
+  max-width: 60rem;
+  font-size: clamp(2.25rem, 5vw, 3.75rem);
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #f8fafc;
+  text-wrap: balance;
+}
+
+.inkio-landing-title-accent {
+  color: #22c55e;
+}
+
+.inkio-landing-sub {
+  margin: 1.25rem auto 0;
+  max-width: 42rem;
+  font-size: 1.125rem;
+  line-height: 1.7;
+  color: #94a3b8;
+}
+
+.inkio-landing-cta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 2rem;
+}
+
+.inkio-landing-cta a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 1.5rem;
+  border-radius: 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 200ms, border-color 200ms, transform 200ms;
+}
+
+.inkio-landing-cta a:hover {
+  transform: translateY(-1px);
+}
+
+.inkio-landing-cta a:focus-visible {
+  outline: 2px solid #22c55e;
+  outline-offset: 2px;
+}
+
+.inkio-landing-cta-primary {
+  background: #22c55e;
+  color: #052e16;
+}
+
+.inkio-landing-cta-primary:hover {
+  background: #4ade80;
+}
+
+.inkio-landing-cta-secondary {
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  color: #f8fafc;
+  background: rgba(148, 163, 184, 0.06);
+}
+
+.inkio-landing-cta-secondary:hover {
+  border-color: rgba(148, 163, 184, 0.55);
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.inkio-landing-install {
+  max-width: 36rem;
+  margin: 2rem auto 0;
+  text-align: left;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 0.875rem;
+  background: rgba(2, 6, 23, 0.7);
+  overflow: hidden;
+}
+
+.inkio-landing-install pre {
+  margin: 0;
+  padding: 1rem 1.25rem;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.875rem;
+  color: #e2e8f0;
+  overflow-x: auto;
+}
+
+/* Nextra wraps fenced code in its own themed container — force dark here. */
+.inkio-landing-install > div,
+.inkio-landing-install pre,
+.inkio-landing-install code {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.inkio-landing-install code,
+.inkio-landing-install code span {
+  color: #e2e8f0 !important;
+  background: transparent !important;
+}
+
+.inkio-landing-install button {
+  color: #94a3b8 !important;
+}
+
+.inkio-landing-demo-wrap {
+  max-width: 56rem;
+  margin: 3rem auto 0;
+  padding: 0 1.5rem;
+}
+
+.inkio-landing-demo {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 1rem;
+  background: #111113;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  text-align: left;
+}
+
+.inkio-landing-demo-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+  background: rgba(148, 163, 184, 0.05);
+}
+
+.inkio-landing-demo-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.35);
+}
+
+.inkio-landing-demo-dot:first-child {
+  background: rgba(34, 197, 94, 0.7);
+}
+
+.inkio-landing-demo-title {
+  margin-left: 0.5rem;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.inkio-landing-demo .inkio-editor {
+  border: 0;
+  min-height: 22rem;
+}
+
+.inkio-landing-section {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 4rem 1.5rem 0;
+}
+
+.inkio-landing-section-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #f8fafc;
+  text-align: center;
+  margin: 0 0 0.75rem;
+}
+
+.inkio-landing-section-sub {
+  text-align: center;
+  color: #94a3b8;
+  margin: 0 0 2rem;
+  font-size: 1rem;
+}
+
+.inkio-landing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.inkio-landing-card {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 1rem;
+  background: rgba(148, 163, 184, 0.05);
+  padding: 1.5rem;
+  transition: border-color 200ms, background-color 200ms, transform 200ms;
+}
+
+.inkio-landing-card:hover {
+  border-color: rgba(34, 197, 94, 0.45);
+  background: rgba(34, 197, 94, 0.06);
+  transform: translateY(-2px);
+}
+
+.inkio-landing-card-wide {
+  grid-column: span 2;
+}
+
+.inkio-landing-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  background: rgba(34, 197, 94, 0.12);
+  color: #4ade80;
+  margin-bottom: 1rem;
+}
+
+.inkio-landing-card h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 650;
+  color: #f8fafc;
+}
+
+.inkio-landing-card p {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: #94a3b8;
+}
+
+.inkio-landing-card code {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.8125rem;
+  color: #4ade80;
+  background: rgba(34, 197, 94, 0.1);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.375rem;
+}
+
+.inkio-landing-pkgs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.inkio-landing-pkg {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 1rem;
+  padding: 1.25rem 1.5rem;
+  background: rgba(2, 6, 23, 0.5);
+  text-decoration: none;
+  transition: border-color 200ms, transform 200ms;
+  cursor: pointer;
+}
+
+.inkio-landing-pkg:hover {
+  border-color: rgba(0, 144, 255, 0.5);
+  transform: translateY(-2px);
+}
+
+.inkio-landing-pkg code {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #7dd3fc;
+}
+
+.inkio-landing-pkg p {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  color: #94a3b8;
+  line-height: 1.6;
+}
+
+.inkio-landing-footer-cta {
+  text-align: center;
+  padding: 4rem 1.5rem 5rem;
+}
+
+@media (max-width: 820px) {
+  .inkio-landing-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .inkio-landing-card-wide {
+    grid-column: auto;
+  }
+
+  .inkio-landing-pkgs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .inkio-landing-hero {
+    padding-top: 3rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inkio-landing-cta a,
+  .inkio-landing-card,
+  .inkio-landing-pkg {
+    transition: none;
+  }
+
+  .inkio-landing-cta a:hover,
+  .inkio-landing-card:hover,
+  .inkio-landing-pkg:hover {
+    transform: none;
+  }
+}

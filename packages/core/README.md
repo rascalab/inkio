@@ -45,13 +45,19 @@ export function CoreEditor() {
 ## Viewer ToC
 
 ```tsx
-<Viewer
-  content={content}
-  tableOfContents={{ position: 'right', maxLevel: 3 }}
-/>
-```
+import { useState } from 'react';
+import { Editor, ToC, type TiptapEditor } from '@inkio/core';
 
-Use `onHeadingsReady` if you want to render your own table of contents UI outside the built-in viewer layout.
+export function Page() {
+  const [editor, setEditor] = useState<TiptapEditor | null>(null);
+  return (
+    <div style={{ position: 'relative' }}>
+      <Editor initialContent="<p>Hello</p>" onCreate={setEditor} />
+      <ToC source={editor} maxLevel={3} />
+    </div>
+  );
+}
+```
 
 `Viewer`는 static HTML 기반이라 SSR/CSR 모두에서 같은 마크업 계약으로 동작합니다.
 
