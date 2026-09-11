@@ -40,7 +40,9 @@ export default function Page() {
 - JSON 콘텐츠: `@tiptap/html`의 DOM 기반 렌더링으로 텍스트 노드 자동 이스케이프
 - HTML 문자열: `sanitize-html` 화이트리스트 기반 필터링
 - 허용된 스타일: `color`, `background-color`, `text-align`만 허용
-- 차단된 프로토콜: `javascript:`, `data:`, `vbscript:`
+- 차단된 프로토콜: `javascript:`, `vbscript:`, 활성 콘텐츠 `data:` URL(`image/svg+xml`, `text/html` 등). 안전한 래스터 이미지(`png`/`jpeg`/`gif`/`webp` 등) `data:` URL은 에디터 노드 레이어에서만 허용됩니다
+- 정적 HTML의 `<img src>`는 `http(s)`/`blob`만 허용됩니다
+- `target`이 있는 링크에는 `rel="noopener noreferrer"`가 자동 적용됩니다 (reverse tabnabbing 방지)
 
 ## 주의사항
 

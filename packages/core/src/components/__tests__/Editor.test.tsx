@@ -3,6 +3,7 @@ import { render, waitFor } from '@testing-library/react';
 import { hydrateRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
 import { Editor } from '../Editor';
+import { isEqualStaticContent } from '../Editor';
 
 describe('Editor component', () => {
   it('should render without crashing with default props', () => {
@@ -109,5 +110,30 @@ describe('Editor component', () => {
       consoleError.mockRestore();
       container.remove();
     }
+  });
+});
+
+describe('isEqualStaticContent', () => {
+  it('treats identical references and equal strings as unchanged', () => {
+    const json = { type: 'doc', content: [] };
+    expect(isEqualStaticContent(json, json)).toBe(true);
+    expect(isEqualStaticContent('<p>a</p>', '<p>a</p>')).toBe(true);
+    expect(isEqualStaticContent(undefined, undefined)).toBe(true);
+  });
+
+  it('treats deep-equal JSON with different identities as unchanged', () => {
+    const a = { type: 'doc', content: [{ type: 'paragraph' }] };
+    const b = { type: 'doc', content: [{ type: 'paragraph' }] };
+    expect(a).not.toBe(b);
+    expect(isEqualStaticContent(a as any, b as any)).toBe(true);
+  });
+
+  it('detects real content, type, and undefined changes', () => {
+    expect(isEqualStaticContent('<p>a</p>', '<p>b</p>')).toBe(false);
+    expect(isEqualStaticContent('<p>a</p>', { type: 'doc', content: [] } as any)).toBe(false);
+    expect(
+      isEqualStaticContent({ type: 'doc', content: [] } as any, { type: 'doc', content: [{ type: 'paragraph' }] } as any),
+    ).toBe(false);
+    expect(isEqualStaticContent(undefined, { type: 'doc', content: [] } as any)).toBe(false);
   });
 });

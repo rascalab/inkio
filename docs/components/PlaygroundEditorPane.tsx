@@ -19,6 +19,7 @@ import {
 } from '@inkio/advanced';
 import type { ImageEditorModalProps } from '@inkio/image-editor';
 import { PLAYGROUND_INITIAL_CONTENT } from './playground-content';
+import { useDebouncedState } from './use-debounced-state';
 
 const LazyImageEditorModal = dynamic<ImageEditorModalProps>(
   () => import('@inkio/image-editor').then((mod) => mod.ImageEditorModal),
@@ -51,7 +52,17 @@ export default function PlaygroundEditorPane({
 }: PlaygroundEditorPaneProps) {
   const { resolvedTheme } = useTheme();
   const inkioTheme = resolvedTheme === 'dark' ? 'dark' : 'light' as const;
-  const [content, setContent] = useState<unknown>(initialContent ?? PLAYGROUND_INITIAL_CONTENT);
+  const [content, handleUpdate] = useDebouncedState<unknown>(
+    initialContent ?? PLAYGROUND_INITIAL_CONTENT,
+  );
+  const handleImageUpload = useCallback(async (file: File) => URL.createObjectURL(file), []);
+  const hashtagItems = useCallback(({ query }: { query: string }) => {
+    const tags = ['inkio', 'tiptap', 'editor', 'react', 'markdown', 'playground'];
+    return tags
+      .filter((tag) => tag.toLowerCase().includes(query.toLowerCase()))
+      .map((tag) => ({ id: tag, label: `#${tag}` }));
+  }, []);
+  const imageBlock = useMemo(() => ({ imageEditor: LazyImageEditorModal }), []);
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
   const [viewerInstance, setViewerInstance] = useState<TiptapEditor | null>(null);
   const [comments, setComments] = useState<CommentData[]>([]);
@@ -131,17 +142,12 @@ export default function PlaygroundEditorPane({
               messages,
               icons: iconOverrides,
             }}
-            hashtagItems={({ query }: { query: string }) => {
-              const tags = ['inkio', 'tiptap', 'editor', 'react', 'markdown', 'playground'];
-              return tags
-                .filter((tag) => tag.toLowerCase().includes(query.toLowerCase()))
-                .map((tag) => ({ id: tag, label: `#${tag}` }));
-            }}
-            onImageUpload={async (file: File) => URL.createObjectURL(file)}
-            imageBlock={{ imageEditor: LazyImageEditorModal }}
+            hashtagItems={hashtagItems}
+            onImageUpload={handleImageUpload}
+            imageBlock={imageBlock}
             comment={comment}
             onCreate={setEditorInstance}
-            onUpdate={(next: unknown) => setContent(next)}
+            onUpdate={handleUpdate}
           />
           <ToC source={editorInstance} />
         </div>

@@ -55,15 +55,31 @@ export function ImageEditorModal({
     [localeOverrides, ui.messages.imageEditor],
   );
   const [isDirty, setIsDirty] = useState(false);
+  // Non-blocking close confirmation: when there are unsaved edits, closing
+  // surfaces an inline confirm card instead of window.confirm (which blocks
+  // the main thread and is suppressed in some embedded contexts).
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const portalTheme = theme ?? resolvePortalTheme();
 
   const requestClose = useCallback(() => {
-    if (typeof window !== 'undefined' && isDirty && !window.confirm(resolvedImageEditorLocale.closeConfirm ?? 'Discard your image edits?')) {
+    if (isDirty && !confirmDiscard) {
+      setConfirmDiscard(true);
       return;
     }
 
+    setConfirmDiscard(false);
     onClose();
-  }, [isDirty, onClose, resolvedImageEditorLocale.closeConfirm]);
+  }, [isDirty, confirmDiscard, onClose]);
+
+  const handleEscape = useCallback((event: { preventDefault: () => void }) => {
+    event.preventDefault();
+    // While the confirm card is open, Escape dismisses it — not the modal.
+    if (confirmDiscard) {
+      setConfirmDiscard(false);
+      return;
+    }
+    requestClose();
+  }, [confirmDiscard, requestClose]);
 
   return (
     <Dialog.Root open={isOpen} onOpenChange={(open) => { if (!open) requestClose(); }}>
@@ -77,14 +93,46 @@ export function ImageEditorModal({
             onPointerDownOutside={(event) => {
               event.preventDefault();
             }}
-            onEscapeKeyDown={(event) => {
-              event.preventDefault();
-              requestClose();
-            }}
+            onEscapeKeyDown={handleEscape}
           >
             <Dialog.Title asChild>
               <span className="inkio-ie-sr-only">Image editor</span>
             </Dialog.Title>
+            {confirmDiscard && (
+              <div
+                className="inkio-ie-discard-confirm"
+                role="alertdialog"
+                aria-modal="false"
+                aria-label={resolvedImageEditorLocale.closeConfirm ?? 'Discard your image edits?'}
+                data-testid="inkio-ie-discard-confirm"
+              >
+                <p className="inkio-ie-discard-confirm-text">
+                  {resolvedImageEditorLocale.closeConfirm ?? 'Discard your image edits?'}
+                </p>
+                <div className="inkio-ie-discard-confirm-actions">
+                  <button
+                    type="button"
+                    className="inkio-ie-discard-confirm-btn is-danger"
+                    data-testid="inkio-ie-discard-confirm-ok"
+                    onClick={() => {
+                      setConfirmDiscard(false);
+                      onClose();
+                    }}
+                    autoFocus
+                  >
+                    {resolvedImageEditorLocale.discardChanges ?? 'Discard changes'}
+                  </button>
+                  <button
+                    type="button"
+                    className="inkio-ie-discard-confirm-btn"
+                    data-testid="inkio-ie-discard-confirm-cancel"
+                    onClick={() => setConfirmDiscard(false)}
+                  >
+                    {resolvedImageEditorLocale.cancel ?? 'Cancel'}
+                  </button>
+                </div>
+              </div>
+            )}
             <ImageEditor
               src={imageSrc}
               onSave={(dataUrl) => {

@@ -151,20 +151,56 @@ export const TableMenu = ({
     refresh();
   }, [refresh]);
 
+  // A single keystroke fires both `transaction` and `selectionUpdate` —
+  // coalesce them into one recompute per animation frame. rAF (not microtask)
+  // keeps layout reads (getBoundingClientRect in measureTable) out of the
+  // keystroke path: bursts of synchronous transactions measure at most once,
+  // right before paint. Events arriving while no table can be visible skip
+  // measurement entirely.
+  const refreshRafRef = useRef<number | null>(null);
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  const refreshCoalesced = useCallback(() => {
+    if (!hoveredTableRef.current && editor && !isTableActive(editor)) {
+      // No hover target and selection outside any table: nothing to show.
+      // Clear once if stale metrics linger, otherwise skip the reflow.
+      if (tableRef.current !== null) {
+        refreshRef.current();
+      }
+      return;
+    }
+    if (refreshRafRef.current !== null) {
+      return;
+    }
+    refreshRafRef.current = window.requestAnimationFrame(() => {
+      refreshRafRef.current = null;
+      refreshRef.current();
+    });
+  }, [editor]);
+
+  useEffect(() => {
+    return () => {
+      if (refreshRafRef.current !== null) {
+        window.cancelAnimationFrame(refreshRafRef.current);
+        refreshRafRef.current = null;
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!editor) {
       return;
     }
 
-    editor.on('selectionUpdate', refresh);
-    editor.on('transaction', refresh);
-    editor.on('focus', refresh);
+    editor.on('selectionUpdate', refreshCoalesced);
+    editor.on('transaction', refreshCoalesced);
+    editor.on('focus', refreshCoalesced);
     return () => {
-      editor.off('selectionUpdate', refresh);
-      editor.off('transaction', refresh);
-      editor.off('focus', refresh);
+      editor.off('selectionUpdate', refreshCoalesced);
+      editor.off('transaction', refreshCoalesced);
+      editor.off('focus', refreshCoalesced);
     };
-  }, [editor, refresh]);
+  }, [editor, refreshCoalesced]);
 
   useEffect(() => {
     if (!editor || !metrics) {

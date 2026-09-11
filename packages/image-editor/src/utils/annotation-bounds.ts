@@ -14,6 +14,25 @@ export interface AnnotationDisplayBounds {
   height: number;
 }
 
+/**
+ * Viewport-culling predicate for DesignLayer: true when the bounds are fully
+ * outside the stage (plus margin), meaning the node can be hidden with
+ * `visible={false}` while staying mounted for selection/Transformer.
+ */
+export function isDisplayBoundsOutsideViewport(
+  bounds: AnnotationDisplayBounds,
+  viewportWidth: number,
+  viewportHeight: number,
+  margin = 64,
+): boolean {
+  return (
+    bounds.x + bounds.width < -margin
+    || bounds.x > viewportWidth + margin
+    || bounds.y + bounds.height < -margin
+    || bounds.y > viewportHeight + margin
+  );
+}
+
 interface DisplayProjectionOptions {
   annotationScale: number;
   cropX: number;

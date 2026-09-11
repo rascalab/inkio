@@ -3,7 +3,7 @@ import { useImageEditor } from '../../hooks/use-image-editor';
 import { COLOR_PRESETS } from '../../color-presets';
 import type { ShapeType } from '../../types';
 import { getSelectedAnnotation, isShapeAnnotation, type ShapeAnnotation } from '../../utils/annotation-types';
-import { ColorSwatchGroup, PresetChipGroup, RangeFieldGroup } from '../control-groups';
+import { ColorField, PanelSection, SegmentedControl, SliderRow, ToolPanel } from '../control-groups';
 import { LayerOrderControls } from './LayerOrderControls';
 
 interface ShapeButton {
@@ -49,104 +49,109 @@ export function ShapeOptionsPanel() {
   };
 
   return (
-    <>
+    <ToolPanel title={selectedShape ? locale.selectedShape : locale.shapeDefaults}>
       {!selectedShape && (
-        <PresetChipGroup
-          label={locale.shapes}
-          items={shapeButtons.map(({ type, label }) => ({
-            key: type,
-            label,
-            active: currentShapeType === type,
-            onClick: () => dispatch({ type: 'SET_SHAPE_OPTIONS', options: { shapeType: type } }),
-            testId: undefined,
-          }))}
-        />
+        <PanelSection label={locale.shapes}>
+          <SegmentedControl
+            label={locale.shapes}
+            items={shapeButtons.map(({ type, label }) => ({
+              key: type,
+              label,
+              active: currentShapeType === type,
+              onClick: () => dispatch({ type: 'SET_SHAPE_OPTIONS', options: { shapeType: type } }),
+              testId: undefined,
+            }))}
+          />
+        </PanelSection>
       )}
 
       {canEditFill && (
-        <ColorSwatchGroup
-          label={locale.fill}
-          value={fill}
+        <PanelSection label={locale.fill}>
+          <ColorField
+            label={locale.fill}
+            value={fill}
+            presets={COLOR_PRESETS}
+            pickerTestId="inkio-ie-shape-fill-picker"
+            allowTransparent
+            transparentLabel="Color: transparent"
+            enableAlpha
+            hexLabel={locale.colorHex}
+            alphaLabel={locale.colorAlpha}
+            paletteLabel={locale.colorPalette}
+            onChange={(nextColor) => {
+              if (selectedShape) {
+                updateSelectedCommit({ fill: nextColor });
+                return;
+              }
+
+              dispatch({ type: 'SET_SHAPE_OPTIONS', options: { fill: nextColor } });
+            }}
+          />
+        </PanelSection>
+      )}
+
+      <PanelSection>
+        <ColorField
+          label={locale.stroke}
+          value={stroke}
           presets={COLOR_PRESETS}
-          pickerTestId="inkio-ie-shape-fill-picker"
+          pickerTestId="inkio-ie-shape-color-picker"
           allowTransparent
-          transparentLabel="Color: transparent"
           enableAlpha
+          transparentLabel={`${locale.stroke}: ${locale.transparent}`}
+          transparentTestId="inkio-ie-shape-stroke-transparent"
           hexLabel={locale.colorHex}
           alphaLabel={locale.colorAlpha}
           paletteLabel={locale.colorPalette}
           onChange={(nextColor) => {
             if (selectedShape) {
-              updateSelectedCommit({ fill: nextColor });
+              updateSelectedCommit({ stroke: nextColor });
               return;
             }
 
-            dispatch({ type: 'SET_SHAPE_OPTIONS', options: { fill: nextColor } });
+            dispatch({ type: 'SET_SHAPE_OPTIONS', options: { stroke: nextColor } });
           }}
         />
-      )}
+        <SliderRow
+          label={locale.strokeWidth}
+          valueLabel={String(strokeWidth)}
+          min={1}
+          max={20}
+          value={strokeWidth}
+          rangeTestId="inkio-ie-shape-stroke-width-range"
+          numberTestId="inkio-ie-shape-stroke-width-number"
+          onPreviewChange={(nextStrokeWidth) => {
+            if (selectedShape) {
+              updateSelectedPreview({ strokeWidth: nextStrokeWidth });
+              return;
+            }
 
-      <ColorSwatchGroup
-        label={locale.stroke}
-        value={stroke}
-        presets={COLOR_PRESETS}
-        pickerTestId="inkio-ie-shape-color-picker"
-        allowTransparent
-        enableAlpha
-        transparentLabel={`${locale.stroke}: ${locale.transparent}`}
-        transparentTestId="inkio-ie-shape-stroke-transparent"
-        hexLabel={locale.colorHex}
-        alphaLabel={locale.colorAlpha}
-        paletteLabel={locale.colorPalette}
-        onChange={(nextColor) => {
-          if (selectedShape) {
-            updateSelectedCommit({ stroke: nextColor });
-            return;
-          }
+            dispatch({
+              type: 'SET_SHAPE_OPTIONS',
+              options: { strokeWidth: nextStrokeWidth },
+            });
+          }}
+          onCommitChange={(nextStrokeWidth) => {
+            if (!selectedShape) {
+              return;
+            }
 
-          dispatch({ type: 'SET_SHAPE_OPTIONS', options: { stroke: nextColor } });
-        }}
-      />
-
-      <RangeFieldGroup
-        label={locale.stroke}
-        valueLabel={String(strokeWidth)}
-        min={1}
-        max={20}
-        value={strokeWidth}
-        rangeTestId="inkio-ie-shape-stroke-width-range"
-        numberTestId="inkio-ie-shape-stroke-width-number"
-        onPreviewChange={(nextStrokeWidth) => {
-          if (selectedShape) {
-            updateSelectedPreview({ strokeWidth: nextStrokeWidth });
-            return;
-          }
-
-          dispatch({
-            type: 'SET_SHAPE_OPTIONS',
-            options: { strokeWidth: nextStrokeWidth },
-          });
-        }}
-        onCommitChange={(nextStrokeWidth) => {
-          if (!selectedShape) {
-            return;
-          }
-
-          updateSelectedCommit({ strokeWidth: nextStrokeWidth });
-        }}
-        onDirectChange={(nextStrokeWidth) => {
-          if (selectedShape) {
             updateSelectedCommit({ strokeWidth: nextStrokeWidth });
-            return;
-          }
+          }}
+          onDirectChange={(nextStrokeWidth) => {
+            if (selectedShape) {
+              updateSelectedCommit({ strokeWidth: nextStrokeWidth });
+              return;
+            }
 
-          dispatch({
-            type: 'SET_SHAPE_OPTIONS',
-            options: { strokeWidth: nextStrokeWidth },
-          });
-        }}
-      />
+            dispatch({
+              type: 'SET_SHAPE_OPTIONS',
+              options: { strokeWidth: nextStrokeWidth },
+            });
+          }}
+        />
+      </PanelSection>
       <LayerOrderControls annotationId={selectedShape?.id ?? null} />
-    </>
+    </ToolPanel>
   );
 }

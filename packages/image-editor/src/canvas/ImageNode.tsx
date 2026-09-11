@@ -4,7 +4,7 @@ import { Image as KonvaImage } from 'react-konva';
 import type Konva from 'konva';
 import type { FilterPresetId, FinetuneOptions, Transform } from '../types';
 import { getBaseDisplayDimensions } from '../utils/geometry';
-import { applyImageFilter, DEFAULT_FINETUNE } from '../utils/filters';
+import { DEFAULT_FINETUNE, scheduleFilteredPreview, cancelScheduledFilterPreview } from '../utils/filters';
 
 interface ImageNodeProps {
   image: HTMLImageElement;
@@ -31,6 +31,7 @@ export function ImageNode({
 
   // Konva filters only take effect on cached nodes; re-apply on every
   // filter/image/geometry change so preview matches export exactly.
+  // Slider drags coalesce to one cache() per frame via the scheduler.
   useEffect(() => {
     const node = imageRef.current;
     if (!node) return;
@@ -41,12 +42,17 @@ export function ImageNode({
       finetune.saturation === 0 &&
       finetune.clarity === 0;
     if (isNeutral) {
+      cancelScheduledFilterPreview(node);
       node.filters([]);
       node.clearCache();
+      node.getLayer()?.batchDraw();
     } else {
-      applyImageFilter(node, filter, finetune);
+      scheduleFilteredPreview(node, filter, finetune);
     }
-    node.getLayer()?.batchDraw();
+    return () => {
+      const current = imageRef.current;
+      if (current) cancelScheduledFilterPreview(current);
+    };
   }, [filter, finetune, image, baseW, baseH]);
 
   if (cropRect) {

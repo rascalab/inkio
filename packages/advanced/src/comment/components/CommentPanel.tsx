@@ -8,6 +8,7 @@ import {
   type InkioCommentMessageOverrides,
 } from '../i18n';
 import { getInitials } from '../utils';
+import { notifyCommentThreadsChanged } from '../Comment';
 
 // ─── Data types ────────────────────────────────────────────
 
@@ -65,6 +66,29 @@ export interface CommentPanelProps {
 }
 
 // ─── Helpers ───────────────────────────────────────────────
+
+/**
+ * Semantic equality for comment marks. Absolute positions shift on every
+ * keystroke before a mark, so compare text + resolved + range shapes only —
+ * typing elsewhere must not re-render the panel.
+ */
+function isSameEditorMarks(a: EditorCommentMark[], b: EditorCommentMark[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((mark, index) => {
+    const other = b[index];
+    return (
+      other !== undefined &&
+      mark.commentId === other.commentId &&
+      mark.text === other.text &&
+      mark.resolved === other.resolved &&
+      mark.ranges.length === other.ranges.length &&
+      mark.ranges.every(
+        (range, rangeIndex) =>
+          range.to - range.from === other.ranges[rangeIndex].to - other.ranges[rangeIndex].from,
+      )
+    );
+  });
+}
 
 function collectEditorMarks(editor: Editor): EditorCommentMark[] {
   const marks = new Map<string, EditorCommentMark>();
@@ -132,6 +156,13 @@ export const CommentPanel = ({
   const [activeThread, setActiveThread] = useState<string | null>(null);
   const threadRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
+  // Let the open thread popover re-read thread data: external `threads`
+  // updates don't produce document transactions, so without this the popover
+  // would keep showing stale messages.
+  useEffect(() => {
+    notifyCommentThreadsChanged();
+  }, [threads]);
+
   // Scroll to externally activated thread
   useEffect(() => {
     setActiveThread(activeThreadId ?? null);
@@ -180,7 +211,11 @@ export const CommentPanel = ({
     const refresh = () => {
       if (editor.state.doc !== lastDoc) {
         lastDoc = editor.state.doc;
-        setEditorMarks(collectEditorMarks(editor));
+        const next = collectEditorMarks(editor);
+        // Typing elsewhere shifts positions but usually leaves the mark set
+        // identical — keep the previous array identity so the panel (and its
+        // subtree) doesn't re-render on every keystroke.
+        setEditorMarks((prev) => (isSameEditorMarks(prev, next) ? prev : next));
       }
     };
 
@@ -240,26 +275,78 @@ export const CommentPanel = ({
     [editor, editorMarks, onDelete],
   );
 
+  /**
+   * Single source of truth for resolution: the document mark is always
+   * updated via the `resolveComment` command (which fires the extension's
+   * `onCommentResolve`), and the panel consumer is notified via `onResolve`.
+   * When both props are the same function reference (the common wiring), the
+   * consumer callback is skipped to avoid a double-call.
+   */
+  const handleResolveThread = useCallback(
+    (commentId: string) => {
+      if (!editor) return;
+      const commentExtension = editor.extensionManager.extensions.find(
+        (extension) => extension.name === 'comment',
+      ) as { options?: { onCommentResolve?: (commentId: string) => void } } | undefined;
+      (editor.commands as { resolveComment?: (commentId: string) => void }).resolveComment?.(commentId);
+      if (onResolve !== commentExtension?.options?.onCommentResolve) {
+        onResolve(commentId);
+      }
+    },
+    [editor, onResolve],
+  );
+
   const isResolvedMark = useCallback(
     (mark: EditorCommentMark, threadData: { resolved: boolean } | undefined) =>
       threadData?.resolved ?? mark.resolved,
     [],
   );
 
-  const displayThreads = useMemo(() => {
-    return editorMarks
-      .map((mark) => {
-        const threadData = threads.find((thread) => thread.id === mark.commentId);
-        return { mark, threadData };
-      })
-      .filter(({ mark, threadData }) => {
-        // Orphans (no threadData) fall back to the doc mark's resolved flag so
-        // they appear under open/resolved instead of vanishing outside "all".
-        if (filter === 'open') return !isResolvedMark(mark, threadData);
-        if (filter === 'resolved') return isResolvedMark(mark, threadData);
-        return true;
+  interface PanelRow {
+    commentId: string;
+    /** Null for orphan threads (external data without a document mark). */
+    mark: EditorCommentMark | null;
+    threadData: CommentThreadData | undefined;
+    resolved: boolean;
+    /** Quote text: doc mark text, else first message, else empty. */
+    quoteText: string;
+  }
+
+  const allRows = useMemo<PanelRow[]>(() => {
+    const rows: PanelRow[] = editorMarks.map((mark) => {
+      const threadData = threads.find((thread) => thread.id === mark.commentId);
+      return {
+        commentId: mark.commentId,
+        mark,
+        threadData,
+        resolved: isResolvedMark(mark, threadData),
+        quoteText: mark.text,
+      };
+    });
+    // Orphans: external threads whose document mark is gone (deleted text,
+    // loaded doc without marks). Render them from thread data so the panel
+    // never desyncs from the external store — resolved state comes from the
+    // thread itself and scroll-to is unavailable.
+    for (const thread of threads) {
+      if (rows.some((row) => row.commentId === thread.id)) continue;
+      rows.push({
+        commentId: thread.id,
+        mark: null,
+        threadData: thread,
+        resolved: thread.resolved,
+        quoteText: thread.messages[0]?.text ?? '',
       });
-  }, [editorMarks, threads, filter, isResolvedMark]);
+    }
+    return rows;
+  }, [editorMarks, threads, isResolvedMark]);
+
+  const displayThreads = useMemo(() => {
+    return allRows.filter((row) => {
+      if (filter === 'open') return !row.resolved;
+      if (filter === 'resolved') return row.resolved;
+      return true;
+    });
+  }, [allRows, filter]);
 
   if (!editor) return null;
 
@@ -270,15 +357,9 @@ export const CommentPanel = ({
 
   const resolvedCurrentUser = currentUser || ui.messages.commentPanel.you;
   // Counts share the displayThreads denominator (doc marks joined with thread
-  // data) so badges match the filtered lists. Orphans count via mark.resolved.
-  const openCount = editorMarks.filter((mark) => {
-    const threadData = threads.find((thread) => thread.id === mark.commentId);
-    return !isResolvedMark(mark, threadData);
-  }).length;
-  const resolvedCount = editorMarks.filter((mark) => {
-    const threadData = threads.find((thread) => thread.id === mark.commentId);
-    return isResolvedMark(mark, threadData);
-  }).length;
+  // data, plus orphan threads) so badges match the filtered lists.
+  const openCount = allRows.filter((row) => !row.resolved).length;
+  const resolvedCount = allRows.filter((row) => row.resolved).length;
 
   return (
     <div className={`inkio inkio-comment-panel ${className || ''}`} style={style}>
@@ -295,7 +376,7 @@ export const CommentPanel = ({
           className={`inkio-comment-filter-btn ${filter === 'all' ? 'is-active' : ''}`}
           onClick={() => setFilter('all')}
         >
-          {ui.messages.commentPanel.all} ({editorMarks.length})
+          {ui.messages.commentPanel.all} ({allRows.length})
         </button>
         <button
           type="button"
@@ -315,33 +396,32 @@ export const CommentPanel = ({
 
       {displayThreads.length === 0 ? (
         <div className="inkio-comment-empty">
-          {editorMarks.length === 0
+          {allRows.length === 0
             ? ui.messages.commentPanel.emptyNoComments
             : ui.messages.commentPanel.emptyNoMatch}
         </div>
       ) : (
         <div className="inkio-comment-list">
-          {displayThreads.map(({ mark, threadData }) => {
-            const isActive = activeThread === mark.commentId;
-            const isResolved = threadData?.resolved ?? mark.resolved;
+          {displayThreads.map(({ commentId, mark, threadData, resolved: isResolved, quoteText }) => {
+            const isActive = activeThread === commentId;
 
             return (
               <div
-                key={mark.commentId}
+                key={commentId}
                 ref={(el) => {
-                  if (el) threadRefs.current.set(mark.commentId, el);
-                  else threadRefs.current.delete(mark.commentId);
+                  if (el) threadRefs.current.set(commentId, el);
+                  else threadRefs.current.delete(commentId);
                 }}
                 className={`inkio-comment-thread ${isResolved ? 'is-resolved' : ''} ${isActive ? 'is-active' : ''}`}
               >
                 <div
                   className="inkio-comment-thread-quote"
-                  onClick={() => handleScrollTo(mark)}
-                  title={ui.messages.commentPanel.quoteHint}
+                  onClick={() => mark && handleScrollTo(mark)}
+                  title={mark ? ui.messages.commentPanel.quoteHint : undefined}
                 >
                   <div className="inkio-comment-quote-bar" />
                   <span className="inkio-comment-quote-text">
-                    {mark.text.length > 100 ? `${mark.text.slice(0, 100)}…` : mark.text}
+                    {quoteText.length > 100 ? `${quoteText.slice(0, 100)}…` : quoteText}
                   </span>
                 </div>
 
@@ -374,24 +454,24 @@ export const CommentPanel = ({
                       type="text"
                       className="inkio-comment-reply-input"
                       placeholder={ui.messages.commentPanel.replyPlaceholder}
-                      value={replyTexts[mark.commentId] || ''}
+                      value={replyTexts[commentId] || ''}
                       onChange={(event) =>
-                        setReplyTexts((prev) => ({ ...prev, [mark.commentId]: event.target.value }))
+                        setReplyTexts((prev) => ({ ...prev, [commentId]: event.target.value }))
                       }
                       onKeyDown={(event) => {
                         if (event.nativeEvent.isComposing) return;
                         if (event.key === 'Enter' && !event.shiftKey) {
                           event.preventDefault();
-                          handleReply(mark.commentId);
+                          handleReply(commentId);
                         }
                       }}
-                      onFocus={() => setActiveThread(mark.commentId)}
+                      onFocus={() => setActiveThread(commentId)}
                     />
-                    {(replyTexts[mark.commentId] || '').trim() && (
+                    {(replyTexts[commentId] || '').trim() && (
                       <button
                         type="button"
                         className="inkio-comment-reply-send"
-                        onClick={() => handleReply(mark.commentId)}
+                        onClick={() => handleReply(commentId)}
                       >
                         ↵
                       </button>
@@ -404,12 +484,7 @@ export const CommentPanel = ({
                     <button
                       type="button"
                       className="inkio-comment-action-btn resolve"
-                      onClick={() => {
-                        // resolveComment() fires the extension's onCommentResolve;
-                        // the panel's own onResolve notifies panel-only consumers.
-                        (editor.commands as { resolveComment?: (commentId: string) => void }).resolveComment?.(mark.commentId);
-                        onResolve(mark.commentId);
-                      }}
+                      onClick={() => handleResolveThread(commentId)}
                     >
                       ✓ {ui.messages.commentPanel.resolve}
                     </button>
@@ -417,7 +492,7 @@ export const CommentPanel = ({
                   <button
                     type="button"
                     className="inkio-comment-action-btn delete"
-                    onClick={() => handleDeleteThread(mark.commentId)}
+                    onClick={() => handleDeleteThread(commentId)}
                   >
                     ✕ {ui.messages.commentPanel.delete}
                   </button>

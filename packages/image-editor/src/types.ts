@@ -245,6 +245,7 @@ export interface ImageEditorLocale {
   landscape: string;
   portrait: string;
   brushSize: string;
+  strokeWidth: string;
   color: string;
   /** @deprecated Shared color picker UI no longer renders a dedicated custom-color label. */
   customColor: string;
@@ -294,6 +295,8 @@ export interface ImageEditorLocale {
   strength: string;
   emoji: string;
   closeConfirm: string;
+  /** Label for the discard button in the non-blocking close confirmation. */
+  discardChanges?: string;
   /** @deprecated Tiny viewport hard-disable was removed in favor of a scroll shell. */
   smallViewportTitle: string;
   /** @deprecated Tiny viewport hard-disable was removed in favor of a scroll shell. */

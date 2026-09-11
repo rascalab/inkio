@@ -22,7 +22,26 @@ function decodeUrlEntities(input: string): string {
     });
 }
 
-const CONTROL_RE = new RegExp('[\\u0000-\\u0020\\u007F]+', 'g');
+const CONTROL_RE = new RegExp(
+  '[\\u0000-\\u0020\\u007F\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF\\u200B-\\u200F\\u061C\\u180E\\u00AD]+',
+  'g',
+);
+
+/**
+ * Raster image MIMEs that are safe to embed as `data:` URLs.
+ * Notably excludes `image/svg+xml` (executable script content) and any
+ * `text/*` / `application/*` payloads.
+ */
+const SAFE_DATA_IMAGE_MIMES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'image/avif',
+  'image/bmp',
+  'image/x-icon',
+  'image/vnd.microsoft.icon',
+]);
 
 function normalizeForProtocolCheck(url: string): string {
   const decoded = decodeUrlEntities(url.trim());
@@ -48,8 +67,12 @@ export function isSafeUrl(url: string | null | undefined): boolean {
   if (BLOCKED_PROTOCOLS.has(protocol)) return false;
 
   if (protocol === 'data') {
-    const after = normalized.slice(5).toLowerCase();
-    return after.indexOf('image/') === 0;
+    // Only allow safe raster image payloads (e.g. data:image/png;base64,...).
+    // Active-content data URLs such as image/svg+xml, text/html or
+    // application/javascript can execute script and must be rejected.
+    const after = normalized.slice(5);
+    const mime = after.split(/[;,]/, 1)[0]?.trim().toLowerCase() ?? '';
+    return SAFE_DATA_IMAGE_MIMES.has(mime);
   }
 
   if (ALLOWED_PROTOCOLS.has(protocol)) return true;
@@ -59,5 +82,9 @@ export function isSafeUrl(url: string | null | undefined): boolean {
 
 export function sanitizeUrlOrEmpty(url: string | null | undefined): string {
   if (typeof url !== 'string') return '';
-  return isSafeUrl(url) ? url : '';
+  if (!isSafeUrl(url)) return '';
+  // Return the normalized form (control/invisible chars stripped, entities
+  // decoded, trimmed) so obfuscated payloads can't slip through downstream
+  // consumers that re-parse the raw string.
+  return normalizeForProtocolCheck(url.trim());
 }

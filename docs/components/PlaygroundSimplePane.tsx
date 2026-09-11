@@ -1,13 +1,15 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import {
   Editor as SimpleEditor,
   Viewer as SimpleViewer,
 } from '@inkio/simple';
+import type { InkioJSONContent } from '@inkio/core';
 import type { ImageEditorModalProps } from '@inkio/image-editor';
 import { PLAYGROUND_INITIAL_CONTENT } from './playground-content';
+import { useDebouncedState } from './use-debounced-state';
 
 const LazyImageEditorModal = dynamic<ImageEditorModalProps>(
   () => import('@inkio/image-editor').then((mod) => mod.ImageEditorModal),
@@ -25,7 +27,11 @@ export default function PlaygroundSimplePane({
   showViewer,
   showJSON,
 }: PlaygroundSimplePaneProps) {
-  const [content, setContent] = useState<unknown>(initialContent ?? PLAYGROUND_INITIAL_CONTENT);
+  const [content, handleUpdate] = useDebouncedState<unknown>(
+    initialContent ?? PLAYGROUND_INITIAL_CONTENT,
+  );
+  const handleImageUpload = useCallback(async (file: File) => URL.createObjectURL(file), []);
+  const imageBlock = useMemo(() => ({ imageEditor: LazyImageEditorModal }), []);
 
   return (
     <>
@@ -38,17 +44,17 @@ export default function PlaygroundSimplePane({
           initialContent={initialContent ?? PLAYGROUND_INITIAL_CONTENT}
           placeholder="Write a document..."
           locale="en-US,en;q=0.9"
-          onImageUpload={async (file: File) => URL.createObjectURL(file)}
-          imageBlock={{ imageEditor: LazyImageEditorModal }}
+          onImageUpload={handleImageUpload}
+          imageBlock={imageBlock}
           ui={{ autoresize: true, showToolbar: true }}
-          onUpdate={(next: unknown) => setContent(next)}
+          onUpdate={handleUpdate}
         />
       </section>
 
       {showViewer && content && (
         <section className="playground-section">
           <div className="playground-section-label">Viewer</div>
-          <SimpleViewer content={content} />
+          <SimpleViewer content={content as InkioJSONContent} />
         </section>
       )}
 

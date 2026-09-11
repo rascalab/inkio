@@ -42,15 +42,33 @@ function hasSchemaNode(editor: Editor, name: string): boolean {
   return name in editor.state.schema.nodes;
 }
 
-function filterSlashCommandItems(items: SlashCommandItem[], query: string, editor: Editor) {
-  const normalizedQuery = query.toLowerCase();
-  return items.filter((item) => {
-    if (item.isAvailable && !item.isAvailable(editor)) {
-      return false;
-    }
+/**
+ * Cap on suggestion rows. The popup renders every returned item, so an
+ * unbounded custom items() list costs layout per keystroke; the filter stops
+ * collecting once the cap is reached instead of scanning the rest.
+ */
+export const SLASH_COMMAND_MAX_ITEMS = 50;
 
-    return item.label.toLowerCase().includes(normalizedQuery);
-  });
+export function filterSlashCommandItems(
+  items: SlashCommandItem[],
+  query: string,
+  editor: Editor,
+  limit: number = SLASH_COMMAND_MAX_ITEMS,
+) {
+  if (limit <= 0) return [];
+  const normalizedQuery = query.toLowerCase();
+  const result: SlashCommandItem[] = [];
+  for (const item of items) {
+    if (result.length >= limit) break;
+    if (item.isAvailable && !item.isAvailable(editor)) {
+      continue;
+    }
+    if (normalizedQuery && !item.label.toLowerCase().includes(normalizedQuery)) {
+      continue;
+    }
+    result.push(item);
+  }
+  return result;
 }
 
 // Default slash commands
@@ -230,10 +248,13 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
 
     const resolvedItems = async ({ query, editor }: SlashCommandContext) => {
       const seq = ++latestRequestSeq;
+      // Cheap early-exit: an empty base list cannot produce suggestions, so
+      // skip transform + filter entirely.
       const base = items
         ? await items({ query, editor })
         : defaultSlashCommands.map((item) => ({ ...item }));
       if (seq !== latestRequestSeq) return [];
+      if (base.length === 0) return base;
       // transformItems always applies — even on top of custom `items` — so
       // combining `slashCommands` + `transformSlashCommands` is not silently dead.
       const transformed = transformItems

@@ -1,0 +1,138 @@
+# 댓글 서버 연동
+
+댓글 본문은 문서(JSON)에 `comment` 마크로 저장되지 않습니다. 문서에는
+`commentId` 참조만 남고, 스레드 내용(메시지·작성자·해결 상태)은 서버가
+가집니다. 그래서 연동에 문서 마이그레이션은 필요 없고, 아래 4개 콜백만
+fetch로 바꾸면 됩니다.
+
+읽기 전용(`editable={false}`) 에디터에서는 댓글 작성·답글·해결·삭제가 모두
+비활성화됩니다. 스레드 조회(popover 표시)는 동작합니다.
+
+## 서버 계약
+
+스레드 하나당 필요한 연산은 4개입니다. 키는 전부 `commentId`입니다.
+
+| 연산 | 예시 엔드포인트 | 설명 |
+|------|----------------|------|
+| 스레드 조회 | `GET /api/comments?ids=a,b,c` | `CommentData[]` 반환 |
+| 작성 | `POST /api/comments` `{ commentId, text, selection }` | 첫 메시지 스레드 생성 |
+| 답글 | `POST /api/comments/:id/replies` `{ text }` | 메시지 추가 |
+| 해결/삭제 | `PATCH /api/comments/:id` `{ resolved }`, `DELETE /api/comments/:id` | 상태 변경 |
+
+```ts
+// 서버가 들고 있을 행 모양 (ORM은 자유)
+interface CommentRow {
+  id: string;          // commentId
+  documentId: string;  // 어떤 문서의 댓글인지
+  resolved: boolean;
+  messages: Array<{ id: string; author: string; text: string; createdAt: string }>;
+}
+```
+
+## 클라이언트 어댑터
+
+```tsx
+import { useCallback, useEffect, useState } from 'react';
+import { Editor, type CommentData } from '@inkio/editor';
+
+async function api<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: { 'content-type': 'application/json', ...init?.headers },
+  });
+  if (!res.ok) throw new Error(`comments API failed: ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
+export function DocumentPage({ documentId }: { documentId: string }) {
+  // 스레드 캐시: getComments는 동기 함수라서 캐시에서 읽습니다.
+  const [threads, setThreads] = useState<Map<string, CommentData>>(new Map());
+  const upsert = useCallback((data: CommentData) => {
+    setThreads((prev) => new Map(prev).set(data.id, data));
+  }, []);
+
+  // 문서에 달린 스레드 목록을 미리 로드 (commentId는 문서 JSON에서 수집).
+  useEffect(() => {
+    api<CommentData[]>(`/api/comments?documentId=${documentId}`).then((rows) => {
+      setThreads(new Map(rows.map((r) => [r.id, r])));
+    });
+  }, [documentId]);
+
+  return (
+    <Editor
+      initialContent="<p>...</p>"
+      comment={{
+        getComments: (commentId) => threads.get(commentId) ?? null,
+        onSubmit: async (commentId, text) => {
+          const row = await api<CommentData>('/api/comments', {
+            method: 'POST',
+            body: JSON.stringify({ documentId, commentId, text }),
+          });
+          upsert(row);
+        },
+        onReply: async (commentId, text) => {
+          const row = await api<CommentData>(`/api/comments/${commentId}/replies`, {
+            method: 'POST',
+            body: JSON.stringify({ text }),
+          });
+          upsert(row);
+        },
+        onResolve: async (commentId) => {
+          const row = await api<CommentData>(`/api/comments/${commentId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ resolved: true }),
+          });
+          upsert(row);
+        },
+        onDelete: async (commentId) => {
+          await api(`/api/comments/${commentId}`, { method: 'DELETE' });
+          setThreads((prev) => {
+            const next = new Map(prev);
+            next.delete(commentId);
+            return next;
+          });
+        },
+      }}
+    />
+  );
+}
+```
+
+## 동작 흐름
+
+1. 사용자가 텍스트를 선택하고 댓글을 달면 에디터가 `commentId`를 생성해
+   문서에 마크로 저장하고 `onSubmit`을 호출합니다.
+2. 마크 클릭 시 팝오버가 `getComments(commentId)`로 캐시에서 스레드를 읽어 보여줍니다.
+3. 답글·해결·삭제는 각 콜백 → 서버 반영 → 캐시 갱신 순서로 동작합니다.
+4. `CommentPanel`에는 `threads={[...threads.values()]}`를 그대로 넘기면
+   목록·필터·스크롤 이동이 따라옵니다.
+
+## Viewer
+
+읽기 전용 화면도 같은 캐시를 씁니다. 댓글 기능이 필요 없으면
+`comment` prop을 생략하세요 (기본 꺼짐).
+
+```tsx
+<Viewer
+  content={content}
+  comment={{
+    getComments: (commentId) => threads.get(commentId) ?? null,
+    onReply: ...,
+    onResolve: ...,
+  }}
+/>
+```
+
+## 주의사항
+
+- `getComments`는 동기 함수입니다. 비동기 fetch를 직접 넣지 말고 위처럼
+  캐시를 먼저 채워 두세요.
+- 낙관적 업데이트가 필요하면 `upsert`를 먼저 하고 실패 시 롤백하세요.
+- 문서 JSON에는 `commentId`만 남으니, 스레드 삭제 시 문서의 마크는
+  `unsetComment`로 별도 정리하거나 orphan 마크 정책을 정하세요.
+- 해결(resolve) 호출은 중복 안전합니다. 패널의 `onResolve`와 확장 옵션의
+  `onResolve`에 같은 함수를 넘기면 한 번만 호출되고, 문서 마크는 항상 함께
+  갱신되어 외부 스레드와 어긋나지 않습니다.
+- 문서 마크가 사라진 스레드(orphan)는 패널에 스레드 데이터 기준으로 계속
+  표시됩니다. 인용문 클릭 스크롤은 마크가 있을 때만 동작합니다.
+- 열린 팝오버는 `threads`가 바뀌면 자동으로 최신 메시지를 다시 읽습니다.

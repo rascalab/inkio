@@ -18,6 +18,7 @@ import type { HashTagItem, MentionItem, SlashCommandItem, SlashCommandTransform,
 import { getDefaultExtensions, type DefaultExtensionsOptions } from '@inkio/advanced';
 import type { ExtensionsInput } from '../types';
 import { resolveExtensionsInput } from '../utils/resolve-extensions-input';
+import { useStableOptions } from '../utils/stable-options';
 import type { InkioJSONContent as JSONContent } from '@inkio/core';
 
 interface EditorUiOptions {
@@ -63,7 +64,7 @@ export type EditorProps = EditorContentMode & {
   onError?: InkioErrorHandler;
 
   // Complex features
-  comment?: false | CommentConfig;
+  comment?: CommentConfig;
   imageBlock?: Omit<Partial<ImageBlockOptions>, 'onUpload' | 'HTMLAttributes'>;
   bookmark?: false | { onResolveBookmark?: (url: string) => Promise<BookmarkPreview> };
 
@@ -106,12 +107,25 @@ export function Editor({
   toggleList,
   extensions,
 }: EditorProps) {
+  // Parent re-renders with inline option literals must not rebuild the
+  // extension set (tiptap compares extensions by identity → setOptions storm
+  // per keystroke). Stabilize structural inputs; callbacks still compare by
+  // reference so updates are never swallowed.
+  const stableMessages = useStableOptions(ui?.messages);
+  const stableIcons = useStableOptions(ui?.icons);
+  const stableBubbleMenu = useStableOptions(ui?.bubbleMenu);
+  const stableFloatingMenu = useStableOptions(ui?.floatingMenu);
+  const stableTableMenu = useStableOptions(ui?.tableMenu);
+  const stableComment = useStableOptions(comment);
+  const stableImageBlock = useStableOptions(imageBlock);
+  const stableBookmark = useStableOptions(bookmark);
+
   const defaultExtensionsOptions = useMemo<DefaultExtensionsOptions>(() => {
     const opts: DefaultExtensionsOptions = {
       placeholder,
       locale,
-      messages: ui?.messages,
-      icons: ui?.icons,
+      messages: stableMessages,
+      icons: stableIcons,
       tabBehavior,
       onError,
       mentionItems,
@@ -121,28 +135,28 @@ export function Editor({
       onWikiLinkClick,
       blockHandle,
       wikiLink,
-      comment,
+      comment: stableComment,
       callout: callout === false ? false : undefined,
       toggleList: toggleList === false ? false : undefined,
       table: table === false ? false : undefined,
     };
 
     // imageBlock: merge onImageUpload into imageBlock options
-    if (imageBlock !== undefined || onImageUpload !== undefined) {
-      opts.imageBlock = imageBlock
-        ? { ...imageBlock, ...(onImageUpload ? { onUpload: onImageUpload } : {}) }
+    if (stableImageBlock !== undefined || onImageUpload !== undefined) {
+      opts.imageBlock = stableImageBlock
+        ? { ...stableImageBlock, ...(onImageUpload ? { onUpload: onImageUpload } : {}) }
         : onImageUpload
           ? { onUpload: onImageUpload }
           : undefined;
     }
 
     // bookmark
-    if (bookmark === false) {
+    if (stableBookmark === false) {
       opts.bookmark = false;
-    } else if (bookmark !== undefined) {
+    } else if (stableBookmark !== undefined) {
       opts.bookmark = true;
-      if (bookmark.onResolveBookmark) {
-        opts.onResolveBookmark = bookmark.onResolveBookmark;
+      if (stableBookmark.onResolveBookmark) {
+        opts.onResolveBookmark = stableBookmark.onResolveBookmark;
       }
     }
 
@@ -150,8 +164,8 @@ export function Editor({
   }, [
     placeholder,
     locale,
-    ui?.messages,
-    ui?.icons,
+    stableMessages,
+    stableIcons,
     tabBehavior,
     onError,
     mentionItems,
@@ -161,13 +175,13 @@ export function Editor({
     onWikiLinkClick,
     blockHandle,
     wikiLink,
-    comment,
+    stableComment,
     callout,
     toggleList,
     table,
-    imageBlock,
+    stableImageBlock,
     onImageUpload,
-    bookmark,
+    stableBookmark,
   ]);
 
   const resolvedExtensions = useMemo(() => {
@@ -175,7 +189,7 @@ export function Editor({
     return resolveExtensionsInput(extensions, defaults);
   }, [defaultExtensionsOptions, extensions]);
 
-  const coreProps: CoreEditorProps = {
+  const coreProps: CoreEditorProps = useMemo(() => ({
     ...(content !== undefined ? { content } : { initialContent }),
     extensions: resolvedExtensions,
     editable,
@@ -184,8 +198,8 @@ export function Editor({
     onUpdate,
     onCreate,
     locale,
-    messages: ui?.messages,
-    icons: ui?.icons,
+    messages: stableMessages,
+    icons: stableIcons,
     className: ui?.className,
     style: ui?.style,
     fill: ui?.fill,
@@ -195,10 +209,33 @@ export function Editor({
     showBubbleMenu: ui?.showBubbleMenu ?? true,
     showFloatingMenu: ui?.showFloatingMenu ?? true,
     showTableMenu: ui?.showTableMenu ?? true,
-    bubbleMenu: ui?.bubbleMenu,
-    floatingMenu: ui?.floatingMenu,
-    tableMenu: ui?.tableMenu,
-  };
+    bubbleMenu: stableBubbleMenu,
+    floatingMenu: stableFloatingMenu,
+    tableMenu: stableTableMenu,
+  }), [
+    content,
+    initialContent,
+    resolvedExtensions,
+    editable,
+    placeholder,
+    theme,
+    onUpdate,
+    onCreate,
+    locale,
+    stableMessages,
+    stableIcons,
+    ui?.className,
+    ui?.style,
+    ui?.fill,
+    ui?.autoresize,
+    ui?.bordered,
+    ui?.showBubbleMenu,
+    ui?.showFloatingMenu,
+    ui?.showTableMenu,
+    stableBubbleMenu,
+    stableFloatingMenu,
+    stableTableMenu,
+  ]);
 
   return <CoreEditor {...coreProps} />;
 }

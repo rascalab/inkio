@@ -1,8 +1,9 @@
 import { NodeViewWrapper, NodeViewContent, type NodeViewProps } from '@tiptap/react';
+import { memo } from 'react';
 import { CheckIcon as DefaultCheckIcon } from '../icons';
 import type { InkioIconComponent } from '../icons';
 
-export function TaskItemView({ node, updateAttributes, extension }: NodeViewProps) {
+function TaskItemViewInner({ node, updateAttributes, extension, editor }: NodeViewProps) {
   const checked = node.attrs.checked as boolean;
   const CheckIcon: InkioIconComponent = extension.options.checkIcon || DefaultCheckIcon;
 
@@ -21,6 +22,10 @@ export function TaskItemView({ node, updateAttributes, extension }: NodeViewProp
             // Prevent ProseMirror from intercepting the click event
             e.preventDefault();
             e.stopPropagation();
+            // Read-only surfaces (Viewer) render the state statically.
+            if (!editor.isEditable) {
+              return;
+            }
             updateAttributes({ checked: !checked });
           }}
         >
@@ -31,3 +36,16 @@ export function TaskItemView({ node, updateAttributes, extension }: NodeViewProp
     </NodeViewWrapper>
   );
 }
+
+// Same per-transaction re-invocation issue as CodeBlockView: ProseMirror
+// keeps node identity for untouched subtrees, so bail out unless our node,
+// selection, or the extension config changed. `updateAttributes`/`getPos`
+// are excluded — tiptap rebinds them on every update.
+export const TaskItemView = memo(
+  TaskItemViewInner,
+  (prev, next) =>
+    prev.node === next.node &&
+    prev.selected === next.selected &&
+    prev.editor === next.editor &&
+    prev.extension === next.extension,
+);

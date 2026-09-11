@@ -11,7 +11,10 @@ const BUDGETS = {
   advanced: 160_000,
   simple: 12_000,
   editor: 30_000,
-  'image-editor': 220_000,
+  // 225k -> 234k: viewport culling, export guards/retry, rAF-throttled
+  // filters/redact/thumbnails, append-only freedraw buffer, versioned dirty
+  // tracking (perf batch). Deliberate increase for shipped features.
+  'image-editor': 234_000,
 };
 
 function jsBytes(dir) {

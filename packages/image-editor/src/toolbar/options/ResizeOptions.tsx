@@ -4,8 +4,12 @@ import { ASPECT_RATIO_PRESETS } from '../../constants';
 import { getDefaultCropRect } from '../../utils/crop';
 import { getTransformedDimensions } from '../../utils/geometry';
 import {
-  PresetChipGroup,
-  ResizeDimensionGroup,
+  DimensionsField,
+  PanelIconButton,
+  PanelPrimaryButton,
+  PanelSection,
+  SegmentedControl,
+  ToolPanel,
 } from '../control-groups';
 
 export function ResizeOptions() {
@@ -89,48 +93,61 @@ export function ResizeOptions() {
   );
 
   return (
-    <>
-      <PresetChipGroup
-        label={locale.cropArea}
-        items={ASPECT_RATIO_PRESETS.map((preset) => ({
-          key: String(preset.label ?? preset.labelKey),
-          label: preset.label ?? locale[preset.labelKey],
-          active: state.cropOptions.aspectRatio === preset.value,
-          onClick: () => handleCropPreset(preset.value),
-          testId: `inkio-ie-crop-preset-${String(preset.label ?? preset.labelKey).replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()}`,
-        }))}
-        caption={effectiveCrop
-          ? `${locale.cropPendingNotice} ${Math.round(effectiveCrop.width)} × ${Math.round(effectiveCrop.height)}`
-          : undefined}
-        captionTestId="inkio-ie-crop-size"
-      />
-      <ResizeDimensionGroup
-        label={locale.resize}
-        cardClassName="inkio-ie-control-card--wide"
-        width={resizeOptions.width}
-        height={resizeOptions.height}
-        lockAspectRatio={resizeOptions.lockAspectRatio}
-        widthLabel={locale.width}
-        heightLabel={locale.height}
-        lockLabel={locale.lockAspectRatio}
-        applyLabel={locale.apply}
-        resetLabel={locale.reset}
-        onWidthChange={handleWidthChange}
-        onHeightChange={handleHeightChange}
-        onToggleLock={() =>
-          dispatch({
-            type: 'SET_RESIZE_OPTIONS',
-            options: { lockAspectRatio: !resizeOptions.lockAspectRatio },
-          })
-        }
-        onApply={() => dispatch({ type: 'COMMIT_RESIZE_SESSION' })}
-        onReset={() => dispatch({ type: 'RESET_RESIZE_SESSION' })}
-        widthTestId="inkio-ie-resize-width"
-        heightTestId="inkio-ie-resize-height"
-        lockTestId="inkio-ie-resize-lock-aspect"
-        applyTestId="inkio-ie-resize-apply"
-        resetTestId="inkio-ie-resize-reset"
-      />
-    </>
+    <ToolPanel
+      title={locale.resize}
+      actions={(
+        <>
+          <PanelIconButton
+            label={locale.reset}
+            testId="inkio-ie-resize-reset"
+            onClick={() => dispatch({ type: 'RESET_RESIZE_SESSION' })}
+          />
+          <PanelPrimaryButton
+            label={locale.apply}
+            testId="inkio-ie-resize-apply"
+            onClick={() => dispatch({ type: 'COMMIT_RESIZE_SESSION' })}
+          />
+        </>
+      )}
+    >
+      <PanelSection label={locale.cropArea}>
+        <SegmentedControl
+          label={locale.cropArea}
+          items={ASPECT_RATIO_PRESETS.map((preset) => ({
+            key: String(preset.label ?? preset.labelKey),
+            label: preset.label ?? locale[preset.labelKey],
+            active: state.cropOptions.aspectRatio === preset.value,
+            onClick: () => handleCropPreset(preset.value),
+            testId: `inkio-ie-crop-preset-${String(preset.label ?? preset.labelKey).replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()}`,
+          }))}
+        />
+        {effectiveCrop && (
+          <p className="inkio-ie-control-caption" data-testid="inkio-ie-crop-size">
+            {locale.cropPendingNotice} {Math.round(effectiveCrop.width)} × {Math.round(effectiveCrop.height)}
+          </p>
+        )}
+      </PanelSection>
+      <PanelSection label={locale.resize}>
+        <DimensionsField
+          width={resizeOptions.width}
+          height={resizeOptions.height}
+          lockAspectRatio={resizeOptions.lockAspectRatio}
+          widthLabel={locale.width}
+          heightLabel={locale.height}
+          lockLabel={locale.lockAspectRatio}
+          onWidthChange={handleWidthChange}
+          onHeightChange={handleHeightChange}
+          onToggleLock={() =>
+            dispatch({
+              type: 'SET_RESIZE_OPTIONS',
+              options: { lockAspectRatio: !resizeOptions.lockAspectRatio },
+            })
+          }
+          widthTestId="inkio-ie-resize-width"
+          heightTestId="inkio-ie-resize-height"
+          lockTestId="inkio-ie-resize-lock-aspect"
+        />
+      </PanelSection>
+    </ToolPanel>
   );
 }

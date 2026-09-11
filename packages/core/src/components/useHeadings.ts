@@ -13,6 +13,13 @@ export function useHeadings(source: Editor | null | undefined, maxLevel = 3) {
       return;
     }
     const update = () => {
+      // PERF NOTE (deliberately not guarded further): this is a single
+      // descendants() pass that only allocates when headings change (see the
+      // shallow compare below), and it already skips non-docChanged
+      // transactions. A ListMerge-style mapping guard is not applicable here:
+      // the `update` event exposes only the new state, not the old state or
+      // the transactions, so intersecting changed ranges with heading nodes
+      // would require a second full walk — costing more than it saves.
       const next = getHeadingsFromDoc(source.state.doc);
       setHeadings(prev => {
         if (prev.length !== next.length) return next;

@@ -14,7 +14,7 @@ import {
 } from '@inkio/core/icons';
 import type { Root } from 'react-dom/client';
 import type { Editor } from '@tiptap/core';
-import { BlockHandleActionMenu } from './BlockHandleView';
+import { BlockHandleActionMenu, fingerprintBlockAt, type BlockFingerprint } from './BlockHandleView';
 import type { BlockMenuIcons } from './icons';
 import { getCreateRoot } from '../../utils/create-root';
 
@@ -263,6 +263,7 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
   let menuRoot: Root | null = null;
   let menuReadyPromise: Promise<void> | null = null;
   let openMenuBlockPos: number | null = null;
+  let openMenuBlockFingerprint: BlockFingerprint | null = null;
   let abortController: AbortController | null = null;
   let pendingHover: { x: number; y: number } | null = null;
   let hoverRaf = 0;
@@ -285,6 +286,7 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
 
   const closeMenu = () => {
     openMenuBlockPos = null;
+    openMenuBlockFingerprint = null;
     menuRoot?.render(null);
   };
 
@@ -330,10 +332,11 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
       return;
     }
 
-    menuRoot.render(
+      menuRoot.render(
       React.createElement(BlockHandleActionMenu, {
         editor: options.editor,
         blockPos: openMenuBlockPos,
+        blockFingerprint: openMenuBlockFingerprint,
         anchorRect: getHandleAnchorRect(),
         anchorResolver: getHandleAnchorRect,
         icons: options.icons,
@@ -346,7 +349,19 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
   };
 
   const openMenu = (blockPos: number) => {
+    // Defense in depth: the menu is only reachable through the handle
+    // (already gated), but never open it on a read-only view.
+    if (editorView && !editorView.editable) {
+      return;
+    }
     openMenuBlockPos = blockPos;
+    // Snapshot the target block's identity now; menu actions validate
+    // against it so later doc edits can't redirect onto an adjacent block.
+    try {
+      openMenuBlockFingerprint = fingerprintBlockAt(options.editor.state.doc, blockPos);
+    } catch {
+      openMenuBlockFingerprint = null;
+    }
     clearHideTimer();
 
     ensureMenuRoot().then(() => {
@@ -395,6 +410,10 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
   };
 
   const showHandle = (view: EditorView, hovered: HoveredBlock) => {
+    // Read-only surfaces (Viewer) never show the drag handle or block menu.
+    if (!view.editable) {
+      return;
+    }
     if (!handleElement) {
       return;
     }
@@ -467,6 +486,10 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
     }, { signal });
 
     handleElement.addEventListener('dragstart', (event) => {
+      if (!editorView || !editorView.editable) {
+        event.preventDefault();
+        return;
+      }
       const blockPos = capturedBlockPos ?? activeBlockPos;
       capturedBlockPos = null;
       if (!editorView || blockPos === null) {
@@ -523,6 +546,9 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
     }, { signal });
 
     handleElement.addEventListener('click', (event) => {
+      if (!editorView || !editorView.editable) {
+        return;
+      }
       const posForMenu = capturedBlockPos ?? activeBlockPos;
       capturedBlockPos = null;
       if (!editorView || posForMenu === null) {
@@ -748,6 +774,15 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
 
           const pluginState = blockHandlePluginKey.getState(nextView.state);
           const nextActivePos = pluginState?.activeBlockPos;
+
+          // Never display the handle on a read-only view.
+          if (!nextView.editable) {
+            handleElement.classList.remove('visible');
+            activeBlockPos = null;
+            activeBlockElement = null;
+            closeMenu();
+            return;
+          }
 
           if (nextActivePos === null || nextActivePos === undefined) {
             handleElement.classList.remove('visible');

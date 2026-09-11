@@ -93,6 +93,24 @@ export function toCommentOptions(config: CommentConfig): Partial<CommentOptions>
   };
 }
 
+// ─── Cross-surface sync ────────────────────────────────────
+
+/**
+ * Fired whenever externally managed thread data changes (e.g. the
+ * `CommentPanel` `threads` prop). The open thread popover listens for this
+ * and re-reads `getThread` so it never shows stale messages. The event name
+ * is part of the internal contract between `CommentPanel` and the popover
+ * plugin — use {@link notifyCommentThreadsChanged} to emit it.
+ */
+export const COMMENT_THREADS_CHANGED_EVENT = 'inkio:comment-threads-changed';
+
+/** Notify open comment surfaces (popover) that thread data changed. */
+export function notifyCommentThreadsChanged(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(COMMENT_THREADS_CHANGED_EVENT));
+  }
+}
+
 // ─── Command Augmentation ───────────────────────────────────
 
 declare module '@tiptap/core' {
@@ -183,6 +201,10 @@ export const Comment = Mark.create<CommentOptions>({
   addKeyboardShortcuts() {
     return {
       'Mod-Shift-m': () => {
+        // Read-only surfaces must not open the composer.
+        if (!this.editor.isEditable) {
+          return false;
+        }
         const { state, view } = this.editor;
         const { from, to } = state.selection;
 
@@ -231,6 +253,10 @@ export const Comment = Mark.create<CommentOptions>({
       setComment:
         (attrs) =>
           ({ commands }) => {
+            // Read-only surfaces must not mutate the document.
+            if (!this.editor.isEditable) {
+              return false;
+            }
             const commentId = attrs.commentId?.trim();
 
             if (!commentId) {
@@ -245,11 +271,17 @@ export const Comment = Mark.create<CommentOptions>({
       unsetComment:
         () =>
           ({ commands }) => {
+            if (!this.editor.isEditable) {
+              return false;
+            }
             return commands.unsetMark(this.name);
           },
       resolveComment:
         (commentId) =>
           ({ state, dispatch }) => {
+            if (!this.editor.isEditable) {
+              return false;
+            }
             const trimmedId = commentId.trim();
 
             if (!trimmedId) {
@@ -312,6 +344,9 @@ export const Comment = Mark.create<CommentOptions>({
       unresolveComment:
         (commentId) =>
           ({ state, dispatch }) => {
+            if (!this.editor.isEditable) {
+              return false;
+            }
             const trimmedId = commentId.trim();
             if (!trimmedId) return false;
 
@@ -362,6 +397,9 @@ export const Comment = Mark.create<CommentOptions>({
       openCommentComposer:
         () =>
           ({ state, dispatch }) => {
+            if (!this.editor.isEditable) {
+              return false;
+            }
             const { from, to } = state.selection;
 
             if (from === to) {

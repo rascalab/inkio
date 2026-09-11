@@ -159,3 +159,44 @@ export function applyImageFilter(
   node.cache();
   node.getLayer()?.batchDraw();
 }
+
+interface PendingFilterPreview {
+  frame: number;
+  id: FilterPresetId;
+  finetune: FinetuneOptions;
+}
+
+const pendingFilterPreviews = new WeakMap<Konva.Image, PendingFilterPreview>();
+
+/**
+ * Coalesced preview path for slider drags: rapid `SET_FINETUNE` ticks only
+ * schedule one `cache()` (the expensive pixel pass) per animation frame,
+ * always with the latest values. Export still uses `applyImageFilter`
+ * synchronously so output never depends on frame timing.
+ */
+export function scheduleFilteredPreview(
+  node: Konva.Image,
+  id: FilterPresetId,
+  finetune: FinetuneOptions = DEFAULT_FINETUNE,
+): void {
+  const pending = pendingFilterPreviews.get(node);
+  if (pending) {
+    pending.id = id;
+    pending.finetune = finetune;
+    return;
+  }
+  const frame = requestAnimationFrame(() => {
+    const latest = pendingFilterPreviews.get(node);
+    pendingFilterPreviews.delete(node);
+    applyImageFilter(node, latest?.id ?? id, latest?.finetune ?? finetune);
+  });
+  pendingFilterPreviews.set(node, { frame, id, finetune });
+}
+
+export function cancelScheduledFilterPreview(node: Konva.Image): void {
+  const pending = pendingFilterPreviews.get(node);
+  if (pending) {
+    cancelAnimationFrame(pending.frame);
+    pendingFilterPreviews.delete(node);
+  }
+}

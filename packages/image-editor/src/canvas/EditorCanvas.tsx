@@ -411,19 +411,16 @@ export function EditorCanvas({
       freedrawPoints.current.push(pos.x, pos.y);
       if (!rafId.current) {
         rafId.current = requestAnimationFrame(() => {
-          const currentId = currentAnnotationId.current;
-          if (currentId) {
-            const ann = annotationsRef.current.find((annotation) => annotation.id === currentId);
-            if (ann?.type === 'freedraw') {
-              dispatch({
-                type: 'UPDATE_ANNOTATION',
-                id: currentId,
-                updates: { points: [...ann.points, ...freedrawPoints.current] },
-              });
-              freedrawPoints.current = [];
-            }
-          }
           rafId.current = 0;
+          const currentId = currentAnnotationId.current;
+          // Swap the mutable buffer instead of copying: the chunk below is
+          // the only array handed to the reducer per frame, and points keep
+          // accumulating without a full copy per mousemove event.
+          const chunk = freedrawPoints.current;
+          if (currentId && chunk.length > 0) {
+            freedrawPoints.current = [];
+            dispatch({ type: 'APPEND_ANNOTATION_POINTS', id: currentId, points: chunk });
+          }
         });
       }
       return;
@@ -507,15 +504,9 @@ export function EditorCanvas({
     }
     if (freedrawPoints.current.length > 0 && currentAnnotationId.current) {
       const flushId = currentAnnotationId.current;
-      const annotation = annotationsRef.current.find((item) => item.id === flushId);
-      if (annotation?.type === 'freedraw') {
-        dispatch({
-          type: 'UPDATE_ANNOTATION',
-          id: flushId,
-          updates: { points: [...annotation.points, ...freedrawPoints.current] },
-        });
-      }
+      const chunk = freedrawPoints.current;
       freedrawPoints.current = [];
+      dispatch({ type: 'APPEND_ANNOTATION_POINTS', id: flushId, points: chunk });
     }
 
     const id = currentAnnotationId.current;
@@ -762,7 +753,10 @@ export function EditorCanvas({
 
     document.addEventListener('mousemove', handleDocumentMove);
     document.addEventListener('mouseup', handleDocumentUp);
-    document.addEventListener('touchmove', handleDocumentMove);
+    // Passive so page/panel scroll stays smooth on mobile: this handler never
+    // calls preventDefault (see the non-passive workspace touchmove below
+    // that only intercepts while actively drawing).
+    document.addEventListener('touchmove', handleDocumentMove, { passive: true });
     document.addEventListener('touchend', handleDocumentUp);
 
     return () => {
@@ -787,12 +781,23 @@ export function EditorCanvas({
     dispatch({ type: 'SELECT_ANNOTATION', id });
   }, [dispatch]);
 
+  // Stable reference so memo(DesignLayer) can skip re-renders when only
+  // unrelated state (tool, zoom, selection) changes.
+  const handleChangeAnnotation = useCallback((id: string, updates: Partial<Annotation>) => {
+    dispatch({ type: 'UPDATE_ANNOTATION_COMMIT', id, updates });
+  }, [dispatch]);
+
+  const isDrawGestureTool =
+    state.activeTool === 'draw' || state.activeTool === 'shape' || state.activeTool === 'redact';
+
   const stageFrameStyle: CSSProperties = {
     position: 'absolute',
     left: `${offsetX}px`,
     top: `${offsetY}px`,
     width: `${displayWidth}px`,
     height: `${displayHeight}px`,
+    // Drag-gesture tools take over touch; otherwise let the browser scroll.
+    touchAction: isDrawGestureTool ? 'none' : 'pan-x pan-y',
     cursor: isCropMode
       ? 'grab'
       : state.activeTool === 'draw' || state.activeTool === 'shape'
@@ -836,6 +841,24 @@ export function EditorCanvas({
     return () => node.removeEventListener('wheel', handleWheel);
   }, [handleWheel]);
 
+  // Scroll-vs-draw branching for touch: intercept scrolling only while a
+  // stroke is in progress so plain panel/page scroll stays native + smooth.
+  // (The document-level touchmove above is passive and never intercepts.)
+  useEffect(() => {
+    const node = workspaceRef.current;
+    if (!node) {
+      return;
+    }
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (isDrawing.current) {
+        event.preventDefault();
+      }
+    };
+    node.addEventListener('touchmove', onTouchMove, { passive: false });
+    return () => node.removeEventListener('touchmove', onTouchMove);
+  }, []);
+
   return (
     <div
       ref={workspaceRef}
@@ -875,9 +898,7 @@ export function EditorCanvas({
               displayWidth={displayWidth}
               displayHeight={displayHeight}
               onSelectAnnotation={handleSelectAnnotation}
-              onChangeAnnotation={(id, updates) =>
-                dispatch({ type: 'UPDATE_ANNOTATION_COMMIT', id, updates: updates as Partial<Annotation> })
-              }
+              onChangeAnnotation={handleChangeAnnotation}
             />
             <TransformersLayer
               selectedAnnotationId={visibleSelectedAnnotationId}

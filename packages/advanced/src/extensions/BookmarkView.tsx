@@ -1,5 +1,5 @@
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { isSafeUrl } from '@inkio/core';
 import type { BookmarkOptions, BookmarkPreview } from './Bookmark';
 
@@ -31,7 +31,7 @@ const resolvePreviewUpdate = (preview: BookmarkPreview): Record<string, string |
   return nextAttributes;
 };
 
-export const BookmarkView = ({ node, updateAttributes, extension }: NodeViewProps) => {
+const BookmarkViewInner = ({ node, updateAttributes, extension }: NodeViewProps) => {
   const [resolving, setResolving] = useState(false);
   const options = extension.options as BookmarkOptions;
   const resolver = options.onResolveBookmark;
@@ -109,3 +109,16 @@ export const BookmarkView = ({ node, updateAttributes, extension }: NodeViewProp
     </NodeViewWrapper>
   );
 };
+
+// Same per-transaction re-invocation issue as CodeBlockView: tiptap hands a
+// fresh decorations array and rebound callbacks on every update, so bail out
+// unless our node, selection, or extension config changed. URL/preview
+// changes always produce a new node, so the resolve effect still fires.
+export const BookmarkView = memo(
+  BookmarkViewInner,
+  (prev, next) =>
+    prev.node === next.node &&
+    prev.selected === next.selected &&
+    prev.editor === next.editor &&
+    prev.extension === next.extension,
+);

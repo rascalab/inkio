@@ -7,7 +7,7 @@ import type { ImageEditorLocale, ImageEditorState, ToolType } from '../types';
 import { getSelectedAnnotation } from '../utils/annotation-types';
 import { loadImage } from '../utils/image-loader';
 import { isResizeTool, normalizeTool } from '../utils/tooling';
-import { getVisualStateSnapshot } from '../utils/visual-state';
+import { areVisualRefsEqual, getVisualRefs, nextVisualVersion, type VisualRefs } from '../utils/visual-state';
 
 interface UseImageEditorSessionOptions {
   src: string;
@@ -31,11 +31,26 @@ export function useImageEditorSession({
   const { state, dispatch, undo, redo, canUndo, canRedo } = useImageEditor();
   const { exportToDataURL } = useCanvasExport();
   const [isSaving, setIsSaving] = useState(false);
-  const [baselineSnapshot, setBaselineSnapshot] = useState<string | null>(null);
+  const [baseline, setBaseline] = useState<{ version: number; refs: VisualRefs } | null>(null);
   const loadErrorRef = useRef(locale.error);
 
-  const resetDirtyBaseline = useCallback((nextState: ImageEditorState | null) => {
-    setBaselineSnapshot(nextState ? getVisualStateSnapshot(nextState) : null);
+  // Incremental dirty version: O(1) integer bump per visual state change
+  // instead of a full JSON.stringify per stroke frame. Updated during render
+  // (ref writes only, no re-render triggered); StrictMode-safe because a
+  // repeated render with the same state object is a no-op.
+  const prevStateRef = useRef<ImageEditorState | null>(null);
+  const versionRef = useRef(0);
+  if (prevStateRef.current !== state) {
+    versionRef.current = nextVisualVersion(prevStateRef.current, versionRef.current, state);
+    prevStateRef.current = state;
+  }
+
+  const resetDirtyBaseline = useCallback((nextState: ImageEditorState | null, nextVersion?: number) => {
+    if (!nextState) {
+      setBaseline(null);
+    } else {
+      setBaseline({ version: nextVersion ?? versionRef.current, refs: getVisualRefs(nextState) });
+    }
     onDirtyChange?.(false);
   }, [onDirtyChange]);
 
@@ -99,12 +114,18 @@ export function useImageEditorSession({
   }, [resetDirtyBaseline, state.originalImage]);
 
   const isDirty = useMemo(() => {
-    if (!state.originalImage || !baselineSnapshot) {
+    if (!state.originalImage || !baseline) {
       return false;
     }
 
-    return baselineSnapshot !== getVisualStateSnapshot(state);
-  }, [baselineSnapshot, state.originalImage, state.transform, state.pendingCrop, state.outputSize, state.annotations]);
+    // Fast path: undo back to the exact baseline object restores identical
+    // refs even though the version counter moved on.
+    if (areVisualRefsEqual(getVisualRefs(state), baseline.refs)) {
+      return false;
+    }
+
+    return versionRef.current !== baseline.version;
+  }, [baseline, state]);
 
   useEffect(() => {
     if (isDirty) {
@@ -166,7 +187,9 @@ export function useImageEditorSession({
 
       const dataUrl = await exportToDataURL(outputFormat, outputQuality, exportState);
       onSave(dataUrl);
-      resetDirtyBaseline(exportState);
+      // The commit above bumps the version by exactly one on the next render
+      // (new transform/outputSize refs), so anticipate it to stay clean.
+      resetDirtyBaseline(exportState, versionRef.current + (isResizeSessionActive || state.pendingCrop ? 1 : 0));
     } catch (err) {
       dispatch({ type: 'SET_ERROR', error: locale.error });
       console.error('[ImageEditor] Export failed:', err);

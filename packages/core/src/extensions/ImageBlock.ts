@@ -99,10 +99,60 @@ export interface ImageBlockOptions {
   imageEditor?: React.ComponentType<ImageEditorComponentProps>;
 }
 
+/**
+ * Best-effort content sniffing for uploaded files.
+ * `File.type` is client-controlled, so a `.png` name can still carry HTML/SVG
+ * script content. Rejects files whose leading bytes match executable markups
+ * (HTML/SVG/XML prologues, scripts) or non-image containers (PDF, MZ).
+ * Fail-open: when bytes can't be read (or the file is empty), returns true so
+ * existing flows and tests keep working; MIME allowlist stays authoritative.
+ */
+const EXECUTABLE_PREFIXES = [
+  '<!doctype', '<html', '<head', '<body', '<script', '<svg', '<?xml', '<!',
+  '%pdf', 'mz',
+];
+
+async function sniffImageContent(file: File): Promise<boolean> {
+  try {
+    const slice = typeof file.slice === 'function' ? file.slice(0, 64) : file;
+    const buffer = await slice.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    if (bytes.length === 0) return true;
+    const head = Array.from(bytes.slice(0, 32))
+      .map((b) => String.fromCharCode(b))
+      .join('')
+      .trimStart()
+      .toLowerCase();
+    if (!head) return true;
+    return !EXECUTABLE_PREFIXES.some((prefix) => head.startsWith(prefix));
+  } catch {
+    return true;
+  }
+}
+
 /** Shared upload helpers — used by both addCommands and addProseMirrorPlugins. */
 function createImageUploadHelpers(options: ImageBlockOptions) {
   const { onUpload, resolveFileUrl, allowedMimeTypes, maxFileSize, onUploadError, onError } = options;
 
+  /**
+   * Single-walk placeholder lookup. Upload completion and upload failure both
+   * need the transient placeholder's position; the walk early-exits at the
+   * first match so at most one pass ever runs per call site.
+   */
+  const findPlaceholderPos = (state: { doc: { descendants: (fn: (node: { type: { name: string }; attrs: Record<string, unknown> }, pos: number) => void | false) => void } }, placeholderSrc: string): number => {
+    let placeholderPos = -1;
+    state.doc.descendants((node, nodePos) => {
+      if (
+        placeholderPos === -1 &&
+        node.type.name === 'imageBlock' &&
+        node.attrs.src === placeholderSrc
+      ) {
+        placeholderPos = nodePos;
+        return false;
+      }
+    });
+    return placeholderPos;
+  };
   const reportUploadError = (error: unknown, source: string, recoverable = true) => {
     const normalizedError = toError(error);
     if (onUploadError) {
@@ -119,6 +169,10 @@ function createImageUploadHelpers(options: ImageBlockOptions) {
     }
     if (maxFileSize && file.size > maxFileSize) {
       reportUploadError(new Error(`File size exceeds maximum allowed size.`), 'imageBlock.validation');
+      return false;
+    }
+    if (!(await sniffImageContent(file))) {
+      reportUploadError(new Error(`File content is not a supported image.`), 'imageBlock.validation');
       return false;
     }
 
@@ -146,20 +200,19 @@ function createImageUploadHelpers(options: ImageBlockOptions) {
         });
         attrs = { src, alt: file.name };
       }
-      if (!attrs.src || typeof attrs.src !== 'string') throw new Error('Invalid upload result.');
-      if (resolveFileUrl) attrs.src = await resolveFileUrl(attrs.src);
-
-      let placeholderPos = -1;
-      view.state.doc.descendants((node, nodePos) => {
-        if (
-          placeholderPos === -1 &&
-          node.type.name === 'imageBlock' &&
-          node.attrs.src === placeholderSrc
-        ) {
-          placeholderPos = nodePos;
-          return false;
+      if (!attrs.src || typeof attrs.src !== 'string' || !isSafeUrl(attrs.src)) {
+        throw new Error('Invalid upload result.');
+      }
+      if (resolveFileUrl) {
+        const resolved = await resolveFileUrl(attrs.src);
+        // A custom resolver must not smuggle javascript:/data: URLs into the doc.
+        if (typeof resolved !== 'string' || !isSafeUrl(resolved)) {
+          throw new Error('Invalid resolved file URL.');
         }
-      });
+        attrs.src = resolved;
+      }
+
+      let placeholderPos = findPlaceholderPos(view.state, placeholderSrc);
 
       if (placeholderPos === -1) {
         return false;
@@ -170,17 +223,7 @@ function createImageUploadHelpers(options: ImageBlockOptions) {
       view.dispatch(tr);
       return true;
     } catch (error) {
-      let placeholderPos = -1;
-      view.state.doc.descendants((node, nodePos) => {
-        if (
-          placeholderPos === -1 &&
-          node.type.name === 'imageBlock' &&
-          node.attrs.src === placeholderSrc
-        ) {
-          placeholderPos = nodePos;
-          return false;
-        }
-      });
+      const placeholderPos = findPlaceholderPos(view.state, placeholderSrc);
       if (placeholderPos !== -1) {
         view.dispatch(view.state.tr.delete(placeholderPos, placeholderPos + 1));
       }

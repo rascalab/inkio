@@ -200,6 +200,15 @@ export function createCalloutToolbarPlugin(editor: Editor): Plugin {
 
       return {
         update(view) {
+          // Read-only surfaces (Viewer) never show the editing toolbar.
+          if (!view.editable) {
+            if (wasVisible) {
+              teardown();
+              wasVisible = false;
+              lastCalloutPos = -1;
+            }
+            return;
+          }
           const callout = getCalloutNode(view);
 
           if (!callout) {

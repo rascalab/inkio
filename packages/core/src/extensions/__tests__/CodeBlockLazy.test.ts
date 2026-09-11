@@ -1,4 +1,5 @@
 import { Editor } from '@tiptap/core';
+import Blockquote from '@tiptap/extension-blockquote';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
@@ -61,6 +62,41 @@ describe('CodeBlock with lazy grammars', () => {
     });
 
     const code = () => editor.view.dom.querySelector('pre code');
+    const deadline = Date.now() + 5000;
+    while (!code()?.querySelector('[class*="hljs"]') && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    expect(code()?.querySelector('[class*="hljs"]')).not.toBeNull();
+    editor.destroy();
+  });
+
+  it('still discovers code blocks nested in containers (pruned textblock walk)', async () => {
+    const editor = new Editor({
+      element: document.createElement('div'),
+      extensions: [Document, Paragraph, Text, Blockquote, CodeBlock],
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Some introductory prose that must be pruned, not walked.' }],
+          },
+          {
+            type: 'blockquote',
+            content: [
+              {
+                type: 'codeBlock',
+                attrs: { language: 'python' },
+                content: [{ type: 'text', text: 'print("nested")' }],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const code = () => editor.view.dom.querySelector('blockquote pre code');
+    expect(code()?.textContent).toBe('print("nested")');
     const deadline = Date.now() + 5000;
     while (!code()?.querySelector('[class*="hljs"]') && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 50));

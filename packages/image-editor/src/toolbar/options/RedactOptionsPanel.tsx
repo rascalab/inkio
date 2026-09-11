@@ -1,7 +1,7 @@
 import { useImageEditor } from '../../hooks/use-image-editor';
 import type { RedactAnnotation, RedactMode } from '../../types';
 import { getSelectedAnnotation, isRedactAnnotation } from '../../utils/annotation-types';
-import { PresetChipGroup, RangeFieldGroup } from '../control-groups';
+import { PanelSection, SegmentedControl, SliderRow, ToolPanel } from '../control-groups';
 import { LayerOrderControls } from './LayerOrderControls';
 
 export function RedactOptionsPanel() {
@@ -33,40 +33,44 @@ export function RedactOptionsPanel() {
   };
 
   return (
-    <>
-      <PresetChipGroup
-        label={locale.redact}
-        items={[
-          {
-            key: 'pixelate',
-            label: locale.pixelate,
-            active: mode === 'pixelate',
-            onClick: () => applyMode('pixelate'),
-            testId: 'inkio-ie-redact-mode-pixelate',
-          },
-          {
-            key: 'blur',
-            label: locale.blur,
-            active: mode === 'blur',
-            onClick: () => applyMode('blur'),
-            testId: 'inkio-ie-redact-mode-blur',
-          },
-        ]}
-      />
-      <RangeFieldGroup
-        label={locale.strength}
-        valueLabel={String(Math.round(strength))}
-        min={2}
-        max={24}
-        step={1}
-        value={strength}
-        onPreviewChange={(value) => applyStrength(value, false)}
-        onCommitChange={(value) => applyStrength(value, true)}
-        onDirectChange={(value) => applyStrength(value, true)}
-        rangeTestId="inkio-ie-redact-strength-range"
-        numberTestId="inkio-ie-redact-strength-number"
-      />
+    <ToolPanel title={locale.redact}>
+      <PanelSection>
+        <SegmentedControl
+          label={locale.redact}
+          items={[
+            {
+              key: 'pixelate',
+              label: locale.pixelate,
+              active: mode === 'pixelate',
+              onClick: () => applyMode('pixelate'),
+              testId: 'inkio-ie-redact-mode-pixelate',
+            },
+            {
+              key: 'blur',
+              label: locale.blur,
+              active: mode === 'blur',
+              onClick: () => applyMode('blur'),
+              testId: 'inkio-ie-redact-mode-blur',
+            },
+          ]}
+        />
+      </PanelSection>
+      <PanelSection label={locale.strength}>
+        <SliderRow
+          label={locale.strength}
+          valueLabel={String(Math.round(strength))}
+          min={2}
+          max={24}
+          step={1}
+          value={strength}
+          onPreviewChange={(value) => applyStrength(value, false)}
+          onCommitChange={(value) => applyStrength(value, true)}
+          onDirectChange={(value) => applyStrength(value, true)}
+          rangeTestId="inkio-ie-redact-strength-range"
+          numberTestId="inkio-ie-redact-strength-number"
+        />
+      </PanelSection>
       <LayerOrderControls annotationId={selectedRedact?.id ?? null} />
-    </>
+    </ToolPanel>
   );
 }

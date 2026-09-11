@@ -52,6 +52,7 @@ export const enImageEditorMessages: InkioImageEditorMessages = {
     landscape: 'Landscape',
     portrait: 'Portrait',
     brushSize: 'Brush size',
+    strokeWidth: 'Stroke width',
     color: 'Color',
     customColor: 'Custom color',
     fontFamily: 'Font family',
@@ -123,6 +124,12 @@ function deepMerge<T>(base: T, override?: DeepPartial<T>): T {
 
   for (const [key, value] of Object.entries(override as Record<string, unknown>)) {
     if (value === undefined) {
+      continue;
+    }
+
+    // Prototype-pollution guard: never merge magic keys, even from
+    // consumer-supplied message overrides (e.g. JSON parsed payloads).
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
       continue;
     }
 

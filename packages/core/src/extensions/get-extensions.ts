@@ -296,17 +296,36 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
       Extension.create({
         name: 'tabIndent',
         addKeyboardShortcuts() {
+          // Only trap Tab inside list items. Anywhere else the key must keep
+          // its default browser behavior (focus navigation) so keyboard and
+          // screen-reader users can leave the editor.
+          const isInList = (editor: { state: { selection: unknown; schema: unknown } }) => {
+            try {
+              const { state } = editor;
+              const sel = state.selection as { $from?: { depth: number; node: (d: number) => { type: { name: string } } } };
+              const $from = sel.$from;
+              if (!$from) return false;
+              for (let d = $from.depth; d >= 0; d--) {
+                const name = $from.node(d).type.name;
+                if (name === 'listItem' || name === 'taskItem') return true;
+              }
+            } catch {
+              return false;
+            }
+            return false;
+          };
           return {
             Tab: ({ editor }) => {
+              if (!isInList(editor)) return false;
               if (editor.can().sinkListItem('listItem')) return editor.commands.sinkListItem('listItem');
               if (editor.can().sinkListItem('taskItem')) return editor.commands.sinkListItem('taskItem');
-              // Prevent Tab from leaving the editor
-              return true;
+              return false;
             },
             'Shift-Tab': ({ editor }) => {
+              if (!isInList(editor)) return false;
               if (editor.can().liftListItem('listItem')) return editor.commands.liftListItem('listItem');
               if (editor.can().liftListItem('taskItem')) return editor.commands.liftListItem('taskItem');
-              return true;
+              return false;
             },
           };
         },

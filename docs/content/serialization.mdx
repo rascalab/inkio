@@ -34,10 +34,13 @@ const mentions = extractMentions(content); // [{ id: 'u1', label: 'Alice' }]
 const tags = extractHashtags(content);     // ['inkio', 'editor']
 ```
 
-Markdown import/export는 별도 subpath로 제공합니다.
+Markdown import/export는 별도 subpath로 제공합니다. 패키지 루트에서는
+re-export하지 않으므로(에디터 번들에 `remark/unified`가 딸려오지 않게),
+반드시 subpath로 import하세요.
 
 ```tsx
 import { parseMarkdown, stringifyMarkdown } from '@inkio/editor/markdown';
+// 또는 '@inkio/simple/markdown', '@inkio/core/markdown'
 ```
 
 Markdown round-trip은 `core` 범위까지만 보장합니다.

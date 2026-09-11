@@ -24,6 +24,12 @@ export interface CommentThreadPopoverProps {
   locale?: InkioLocaleInput;
   messages?: InkioCommentMessageOverrides | InkioMessageOverrides;
   icons?: Partial<InkioIconRegistry>;
+  /**
+   * Opt-in autofocus of the reply field (e.g. the thread was opened via an
+   * explicit keyboard action). Defaults to false so screen-reader and mouse
+   * users are never yanked into the popover on mount.
+   */
+  autoFocusReply?: boolean;
 }
 
 
@@ -39,6 +45,7 @@ export function CommentThreadPopover({
   locale,
   messages,
   icons,
+  autoFocusReply = false,
 }: CommentThreadPopoverProps) {
   const [replyText, setReplyText] = useState('');
   const replyInputRef = useRef<HTMLTextAreaElement>(null);
@@ -73,10 +80,14 @@ export function CommentThreadPopover({
     ],
   );
 
-  // Focus reply input on mount
+  // Focus the reply field only on an explicit opt-in (e.g. keyboard-open).
+  // Never steal focus on mount: screen-reader users stay in context and can
+  // tab into the popover when ready. Escape/outside-click still close it.
   useEffect(() => {
-    requestAnimationFrame(() => replyInputRef.current?.focus());
-  }, []);
+    if (!autoFocusReply) return;
+    const frame = requestAnimationFrame(() => replyInputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [autoFocusReply]);
 
   // Close on Escape — only when focus is within the popover
   useEffect(() => {

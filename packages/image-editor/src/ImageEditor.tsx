@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MobileCommandBar } from './chrome/MobileCommandBar';
 import { MobileToolTray } from './chrome/MobileToolTray';
-import { DesktopBottomDock } from './chrome/DesktopBottomDock';
+import { DesktopTopBar } from './chrome/DesktopTopBar';
+import { DesktopToolRail } from './chrome/DesktopToolRail';
+import { DesktopUtilPanel } from './chrome/DesktopUtilPanel';
 import { DesktopZoomControls } from './chrome/DesktopZoomControls';
 import { ImageEditorProvider } from './ImageEditorContext';
 import { useElementSize } from './hooks/use-element-size';
@@ -11,8 +13,6 @@ import { useImageEditor } from './hooks/use-image-editor';
 import { useImageEditorSession } from './hooks/use-image-editor-session';
 import { DEFAULT_LOCALE, DEFAULT_TOOLS } from './constants';
 import { EditorCanvas } from './canvas/EditorCanvas';
-import { CloseIcon } from './icons';
-import { EditorToolbar } from './toolbar/EditorToolbar';
 import { ToolOptionsPanel } from './toolbar/ToolOptionsPanel';
 import type { EnabledToolType, ImageEditorLocale, ImageEditorProps } from './types';
 import { normalizeTool, normalizeTools } from './utils/tooling';
@@ -44,6 +44,9 @@ function InnerEditor({
 }: InnerEditorProps) {
   const { ref: rootRef, size: rootSize } = useElementSize<HTMLDivElement>();
   const viewportKind = rootSize.width > 0 && rootSize.width <= 900 ? 'mobile' : 'desktop';
+  // Wide desktop docks the util panel as a right inspector; narrow desktop
+  // keeps a bottom panel with reserved canvas space. Mobile is unchanged.
+  const desktopLayout = viewportKind === 'desktop' ? (rootSize.width >= 1200 ? 'side' : 'bottom') : null;
   const {
     state,
     undo,
@@ -115,48 +118,34 @@ function InnerEditor({
           className="inkio-ie-viewport"
           data-testid="inkio-ie-viewport"
           data-viewport-kind={viewportKind}
+          data-desktop-layout={desktopLayout ?? undefined}
           data-controls-open={isControlsVisible ? 'true' : 'false'}
         >
           <div className="inkio-ie-overlay-host" aria-hidden="true" />
           {viewportKind === 'desktop' && (
-            <div className="inkio-ie-desktop-rail" data-testid="inkio-ie-desktop-rail">
-              <EditorToolbar
-                activeTool={normalizeTool(state.activeTool)}
-                enabledTools={enabledTools}
-                locale={locale}
-                canUndo={canUndo}
-                canRedo={canRedo}
-                onToolChange={handleToolChange}
-                onUndo={undo}
-                onRedo={redo}
-              />
-            </div>
+            <DesktopTopBar
+              locale={locale}
+              canUndo={canUndo}
+              canRedo={canRedo}
+              isSaving={isSaving}
+              isLoading={state.isLoading}
+              onClose={onCancel}
+              onUndo={undo}
+              onRedo={redo}
+              onSave={handleSave}
+            />
           )}
           {viewportKind === 'desktop' ? (
-            <>
-              <DesktopZoomControls
-                locale={locale}
-                zoomLabel={zoomLabel}
-                isZoomMin={isZoomMin}
-                isZoomMax={isZoomMax}
-                isZoomFit={isZoomFit}
-                onZoomOut={() => setZoom(Number((previewZoom - PREVIEW_ZOOM_STEP).toFixed(2)))}
-                onZoomIn={() => setZoom(Number((previewZoom + PREVIEW_ZOOM_STEP).toFixed(2)))}
-                onZoomFit={() => setZoom(1)}
-              />
-              <div className="inkio-ie-action-cluster" data-testid="inkio-ie-action-cluster">
-                <button
-                  type="button"
-                  className="inkio-ie-floating-btn inkio-ie-floating-btn--ghost"
-                  onClick={onCancel}
-                  title={locale.cancel}
-                  aria-label={locale.cancel}
-                  data-testid="inkio-ie-close"
-                >
-                  <CloseIcon size={18} strokeWidth={2} />
-                </button>
-              </div>
-            </>
+            <DesktopZoomControls
+              locale={locale}
+              zoomLabel={zoomLabel}
+              isZoomMin={isZoomMin}
+              isZoomMax={isZoomMax}
+              isZoomFit={isZoomFit}
+              onZoomOut={() => setZoom(Number((previewZoom - PREVIEW_ZOOM_STEP).toFixed(2)))}
+              onZoomIn={() => setZoom(Number((previewZoom + PREVIEW_ZOOM_STEP).toFixed(2)))}
+              onZoomFit={() => setZoom(1)}
+            />
           ) : (
             <MobileCommandBar
               locale={locale}
@@ -199,14 +188,15 @@ function InnerEditor({
             )}
           </div>
           {viewportKind === 'desktop' && controls.kind === 'surface' && (
-            <DesktopBottomDock
+            <DesktopUtilPanel panel={controls.panel} />
+          )}
+          {viewportKind === 'desktop' && (
+            <DesktopToolRail
+              activeTool={normalizeTool(state.activeTool)}
+              enabledTools={enabledTools}
               locale={locale}
-              onSave={handleSave}
-              isSaving={isSaving}
-              isLoading={state.isLoading}
-            >
-              <ToolOptionsPanel panel={controls.panel} viewportKind="desktop" />
-            </DesktopBottomDock>
+              onToolChange={handleToolChange}
+            />
           )}
           {viewportKind === 'mobile' && controls.kind === 'surface' && (
             <div className="inkio-ie-mobile-option-strip" data-testid="inkio-ie-mobile-option-strip">

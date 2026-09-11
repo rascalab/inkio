@@ -1,5 +1,5 @@
 import { NodeViewWrapper, NodeViewProps } from '@tiptap/react';
-import React, { useRef, useState, useEffect, useCallback, Suspense } from 'react';
+import React, { memo, useRef, useState, useEffect, useCallback, Suspense } from 'react';
 import {
   AlignCenterIcon,
   AlignLeftIcon,
@@ -13,10 +13,24 @@ function parseWidthPercent(w: unknown): number {
   return parseFloat(String(w).replace('%', '')) || 100;
 }
 
-export function ImageBlockView(props: NodeViewProps) {
+function ImageBlockViewInner(props: NodeViewProps) {
   const { node, updateAttributes, selected, editor, extension } = props;
   const ImageEditorComponent = (extension?.options as any)?.imageEditor as React.ComponentType<ImageEditorComponentProps> | undefined;
-  const isEditable = editor.isEditable;
+  // Track editability via subscription (not render-time read) so the memo
+  // below stays exact: same value bails out of setState on every keystroke,
+  // and only a real setEditable flip re-renders.
+  const [isEditable, setIsEditable] = useState(editor.isEditable);
+  useEffect(() => {
+    const syncEditable = () => {
+      const next = editor.isEditable;
+      setIsEditable((prev) => (prev === next ? prev : next));
+    };
+    syncEditable();
+    editor.on('update', syncEditable);
+    return () => {
+      editor.off('update', syncEditable);
+    };
+  }, [editor]);
   const imageRef = useRef<HTMLImageElement>(null);
   const [resizing, setResizing] = useState(false);
   const [currentWidth, setCurrentWidth] = useState(parseWidthPercent(node.attrs.width));
@@ -24,6 +38,44 @@ export function ImageBlockView(props: NodeViewProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const cleanupRef = useRef<(() => void) | null>(null);
+  // Caption draft: typing only updates local state (live preview). The doc
+  // is committed on blur or after a pause so every keystroke doesn't dispatch
+  // updateAttributes (history spam + NodeView re-renders).
+  const [captionDraft, setCaptionDraft] = useState<string>(node.attrs.caption || '');
+  const captionCommitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const commitCaption = useCallback(
+    (next: string) => {
+      if (captionCommitTimer.current) {
+        clearTimeout(captionCommitTimer.current);
+        captionCommitTimer.current = null;
+      }
+      if (next !== (node.attrs.caption || '')) {
+        updateAttributes({ caption: next });
+      }
+    },
+    [node.attrs.caption, updateAttributes],
+  );
+
+  const handleCaptionChange = useCallback((value: string) => {
+    setCaptionDraft(value);
+    if (captionCommitTimer.current) clearTimeout(captionCommitTimer.current);
+    captionCommitTimer.current = setTimeout(() => commitCaption(value), 600);
+  }, [commitCaption]);
+
+  // External caption changes (undo, collaboration) replace the draft.
+  // Internal commits already match the draft, so this only fires on real
+  // external updates and never clobbers in-progress typing.
+  useEffect(() => {
+    const external = node.attrs.caption || '';
+    setCaptionDraft((prev) => (prev === external ? prev : external));
+  }, [node.attrs.caption]);
+
+  useEffect(() => {
+    return () => {
+      if (captionCommitTimer.current) clearTimeout(captionCommitTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     setIsMounted(true);
@@ -118,8 +170,9 @@ export function ImageBlockView(props: NodeViewProps) {
             type="text"
             placeholder="Write a caption..."
             className="inkio-image-block-caption"
-            value={node.attrs.caption || ''}
-            onChange={(e) => updateAttributes({ caption: e.target.value })}
+            value={captionDraft}
+            onChange={(e) => handleCaptionChange(e.target.value)}
+            onBlur={() => commitCaption(captionDraft)}
           />
         ) : node.attrs.caption ? (
           <div className="inkio-image-block-caption">{node.attrs.caption}</div>
@@ -192,3 +245,16 @@ export function ImageBlockView(props: NodeViewProps) {
     </NodeViewWrapper>
   );
 }
+
+// Same per-transaction re-invocation issue as CodeBlockView. Safe: editable
+// flows through internal state (not props), and content/attrs changes always
+// produce a new node. `updateAttributes`/`getPos` are excluded — tiptap
+// rebinds them on every update.
+export const ImageBlockView = memo(
+  ImageBlockViewInner,
+  (prev, next) =>
+    prev.node === next.node &&
+    prev.selected === next.selected &&
+    prev.editor === next.editor &&
+    prev.extension === next.extension,
+);

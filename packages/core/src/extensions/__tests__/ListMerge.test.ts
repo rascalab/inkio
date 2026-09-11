@@ -174,4 +174,37 @@ describe('ListMerge extension', () => {
 
     editor.destroy();
   });
+
+  it('still merges lists inserted after list-free typing (fast-path transition)', () => {
+    const editor = createEditor({ type: 'doc', content: [{ type: 'paragraph' }] });
+
+    // Plain typing in a list-free doc exercises the guarded fast path.
+    editor.commands.insertContent('hello');
+
+    // Introducing lists afterwards must fall back to the full scan and merge.
+    editor.commands.setContent({
+      type: 'doc',
+      content: [
+        {
+          type: 'bulletList',
+          content: [
+            { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Item A' }] }] },
+          ],
+        },
+        {
+          type: 'bulletList',
+          content: [
+            { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Item B' }] }] },
+          ],
+        },
+      ],
+    });
+
+    const doc = editor.getJSON();
+    const bulletLists = doc.content?.filter((node: any) => node.type === 'bulletList') ?? [];
+    expect(bulletLists.length).toBe(1);
+    expect(bulletLists[0].content?.length).toBe(2);
+
+    editor.destroy();
+  });
 });

@@ -19,7 +19,7 @@ import '@inkio/editor/style.css';
 | `placeholder` | `string` | 빈 에디터 placeholder 텍스트 |
 | `locale` | `InkioLocaleInput` | 로케일 |
 | `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 부모 환경을 따름) |
-| `tabBehavior` | `'indent' \| 'default'` | Tab 키 동작 (기본값: `'indent'`) |
+| `tabBehavior` | `'indent' \| 'default'` | Tab 키 동작 (기본값: `'indent'`). `'indent'`에서도 리스트 밖에서는 브라우저 기본 포커스 이동을 유지합니다 |
 | `onUpdate` | `(content: JSONContent) => void` | 콘텐츠 변경 콜백 |
 | `onCreate` | `(editor: TiptapEditor) => void` | 에디터 인스턴스 준비 콜백 |
 | `onError` | `InkioErrorHandler` | 에러 핸들러 |
@@ -29,11 +29,11 @@ import '@inkio/editor/style.css';
 | `slashCommands` | `(query: string) => SlashCommandItem[] \| Promise<SlashCommandItem[]>` | 슬래시 커맨드 오버라이드 |
 | `transformSlashCommands` | `SlashCommandTransform` | 슬래시 커맨드 변환 |
 | `onWikiLinkClick` | `(href: string) => void` | 위키 링크 클릭 핸들러 |
-| `onImageUpload` | `(file: File) => Promise<string \| { src: string }>` | 이미지 업로드 핸들러 |
+| `onImageUpload` | `(file: File) => Promise<string \| { src: string }>` | 이미지 업로드 핸들러. 반환 URL은 안전성 검사를 통과해야 저장됩니다 |
 | `imageBlock` | `Partial<ImageBlockOptions>` | ImageBlock 확장 옵션 |
-| `comment` | `false \| CommentConfig` | 댓글 기능 설정 (`false`로 비활성화) |
+| `comment` | `CommentConfig` | 댓글 기능 설정 (미지정 시 꺼짐) |
 | `bookmark` | `false \| { onResolveBookmark? }` | 북마크 기능 설정 |
-| `blockHandle` | `boolean` | 블록 핸들 표시 여부 |
+| `blockHandle` | `boolean` | 블록 핸들 표시 여부 (읽기 전용에서는 표시·동작하지 않음) |
 | `wikiLink` | `boolean` | 위키 링크 활성화 여부 |
 | `table` | `boolean` | 테이블 활성화 여부 |
 | `callout` | `boolean` | Callout 활성화 여부 |
@@ -93,11 +93,11 @@ import '@inkio/simple/style.css';
 | `placeholder` | `string` | placeholder 텍스트 |
 | `locale` | `InkioLocaleInput` | 로케일 |
 | `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 부모 환경을 따름) |
-| `tabBehavior` | `'indent' \| 'default'` | Tab 키 동작 |
+| `tabBehavior` | `'indent' \| 'default'` | Tab 키 동작 (리스트 밖에서는 기본 포커스 이동 유지) |
 | `onUpdate` | `(content: JSONContent) => void` | 콘텐츠 변경 콜백 |
 | `onCreate` | `(editor: TiptapEditor) => void` | 에디터 인스턴스 준비 콜백 |
 | `onError` | `InkioErrorHandler` | 에러 핸들러 |
-| `onImageUpload` | `(file: File) => Promise<string \| { src: string }>` | 이미지 업로드 핸들러 |
+| `onImageUpload` | `(file: File) => Promise<string \| { src: string }>` | 이미지 업로드 핸들러. 반환 URL은 안전성 검사를 통과해야 저장됩니다 |
 | `imageBlock` | `Partial<ImageBlockOptions>` | ImageBlock 확장 옵션 |
 | `ui` | `SimpleEditorUiOptions` | UI 옵션 |
 | `extensions` | `ExtensionsInput` | 확장 추가/교체 |
@@ -145,7 +145,7 @@ import { Viewer } from '@inkio/editor';
 | `locale` | `InkioLocaleInput` | 로케일 |
 | `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 부모 환경을 따름) |
 | `ui` | `{ className?, style?, bordered?, messages?, icons? }` | UI 옵션 |
-| `comment` | `false \| ViewerCommentOptions` | 댓글 표시 설정 |
+| `comment` | `ViewerCommentOptions` | 댓글 표시 설정 (미지정 시 꺼짐) |
 | `extensions` | `ExtensionsInput` | 확장 추가/교체 |
 | `onCreate` | `(editor: TiptapEditor) => void` | 에디터 인스턴스 준비 콜백 |
 
@@ -185,6 +185,11 @@ import { Viewer } from '@inkio/simple';
 | `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 부모 환경을 따름) |
 | `ui` | `{ className?, style?, bordered?, messages?, icons? }` | UI 옵션 |
 | `extensions` | `ExtensionsInput` | 확장 추가/교체 |
+
+Viewer에서는 문서 편집 액션이 비활성화됩니다. 콜아웃 색상/아이콘 툴바와
+블록 핸들은 표시되지 않고, 할 일(체크박스)·이미지 컨트롤도 상태를
+바꾸지 않습니다. 댓글(reply/resolve)은 읽기 전용 인터랙션이라 그대로
+동작합니다.
 
 ### @inkio/core — StaticViewer (읽기 전용 경량 경로)
 

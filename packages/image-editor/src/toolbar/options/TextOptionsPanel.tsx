@@ -5,11 +5,12 @@ import { COLOR_PRESETS } from '../../color-presets';
 import type { TextAnnotationData } from '../../types';
 import { getSelectedAnnotation, isTextAnnotation } from '../../utils/annotation-types';
 import {
-  ColorSwatchGroup,
-  ControlCard,
-  RangeFieldGroup,
-  SelectFieldGroup,
-  TextStyleGroup,
+  ColorField,
+  PanelSection,
+  SelectField,
+  SliderRow,
+  TextStyleRow,
+  ToolPanel,
 } from '../control-groups';
 import { LayerOrderControls } from './LayerOrderControls';
 
@@ -102,9 +103,9 @@ export function TextOptionsPanel() {
   };
 
   return (
-    <>
+    <ToolPanel title={selectedText ? locale.selectedText : locale.textDefaults}>
       {selectedText && (
-        <ControlCard label={locale.textContent}>
+        <PanelSection label={locale.textContent}>
           <textarea
             data-testid="inkio-ie-text-content-input"
             className="inkio-ie-textarea"
@@ -119,93 +120,98 @@ export function TextOptionsPanel() {
               commitTextContent(event.target.value);
             }}
           />
-        </ControlCard>
+        </PanelSection>
       )}
 
-      <ColorSwatchGroup
-        label={locale.color}
-        value={color}
-        presets={COLOR_PRESETS}
-        pickerTestId="inkio-ie-text-color-picker"
-        enableAlpha
-        hexLabel={locale.colorHex}
-        alphaLabel={locale.colorAlpha}
-        paletteLabel={locale.colorPalette}
-        onChange={(nextColor) => {
-          if (selectedText) {
-            updateSelectedCommit({ fill: nextColor });
-            return;
-          }
+      <PanelSection label={locale.color}>
+        <ColorField
+          label={locale.color}
+          value={color}
+          presets={COLOR_PRESETS}
+          pickerTestId="inkio-ie-text-color-picker"
+          enableAlpha
+          hexLabel={locale.colorHex}
+          alphaLabel={locale.colorAlpha}
+          paletteLabel={locale.colorPalette}
+          onChange={(nextColor) => {
+            if (selectedText) {
+              updateSelectedCommit({ fill: nextColor });
+              return;
+            }
 
-          dispatch({ type: 'SET_TEXT_OPTIONS', options: { color: nextColor } });
-        }}
-      />
+            dispatch({ type: 'SET_TEXT_OPTIONS', options: { color: nextColor } });
+          }}
+        />
+      </PanelSection>
 
-      <SelectFieldGroup
-        label={locale.fontFamily}
-        value={fontFamily}
-        options={FONT_FAMILY_OPTIONS}
-        testId="inkio-ie-font-family-input"
-        onChange={(nextFontFamily) => {
-          if (selectedText) {
-            updateSelectedCommit({ fontFamily: nextFontFamily || 'system-ui' });
-            return;
-          }
+      <PanelSection>
+        <SelectField
+          label={locale.fontFamily}
+          value={fontFamily}
+          options={FONT_FAMILY_OPTIONS}
+          testId="inkio-ie-font-family-input"
+          onChange={(nextFontFamily) => {
+            if (selectedText) {
+              updateSelectedCommit({ fontFamily: nextFontFamily || 'system-ui' });
+              return;
+            }
 
-          dispatch({ type: 'SET_TEXT_OPTIONS', options: { fontFamily: nextFontFamily || 'system-ui' } });
-        }}
-      />
+            dispatch({ type: 'SET_TEXT_OPTIONS', options: { fontFamily: nextFontFamily || 'system-ui' } });
+          }}
+        />
+        <div className="inkio-ie-font-row">
+          <div className="inkio-ie-font-size">
+            <SliderRow
+              label={locale.fontSize}
+              valueLabel={`${fontSize}px`}
+              min={8}
+              max={160}
+              step={1}
+              value={fontSize}
+              rangeTestId="inkio-ie-text-font-size-range"
+              numberTestId="inkio-ie-font-size"
+              onPreviewChange={(nextFontSize) => {
+                if (selectedText) {
+                  updateSelectedPreview({ fontSize: nextFontSize });
+                  return;
+                }
 
-      <RangeFieldGroup
-        label={locale.fontSize}
-        valueLabel={`${fontSize}px`}
-        min={8}
-        max={160}
-        step={1}
-        value={fontSize}
-        rangeTestId="inkio-ie-text-font-size-range"
-        numberTestId="inkio-ie-font-size"
-        onPreviewChange={(nextFontSize) => {
-          if (selectedText) {
-            updateSelectedPreview({ fontSize: nextFontSize });
-            return;
-          }
+                dispatch({
+                  type: 'SET_TEXT_OPTIONS',
+                  options: { fontSize: nextFontSize },
+                });
+              }}
+              onCommitChange={(nextFontSize) => {
+                if (!selectedText) {
+                  return;
+                }
 
-          dispatch({
-            type: 'SET_TEXT_OPTIONS',
-            options: { fontSize: nextFontSize },
-          });
-        }}
-        onCommitChange={(nextFontSize) => {
-          if (!selectedText) {
-            return;
-          }
+                updateSelectedCommit({ fontSize: nextFontSize });
+              }}
+              onDirectChange={(nextFontSize) => {
+                if (selectedText) {
+                  updateSelectedCommit({ fontSize: nextFontSize });
+                  return;
+                }
 
-          updateSelectedCommit({ fontSize: nextFontSize });
-        }}
-        onDirectChange={(nextFontSize) => {
-          if (selectedText) {
-            updateSelectedCommit({ fontSize: nextFontSize });
-            return;
-          }
-
-          dispatch({
-            type: 'SET_TEXT_OPTIONS',
-            options: { fontSize: nextFontSize },
-          });
-        }}
-      />
-
-      <TextStyleGroup
-        label={selectedText ? locale.selectedText : locale.textDefaults}
-        isBold={isBold}
-        isItalic={isItalic}
-        boldLabel={locale.bold}
-        italicLabel={locale.italic}
-        onToggleBold={() => updateFontStyle(!isBold, isItalic)}
-        onToggleItalic={() => updateFontStyle(isBold, !isItalic)}
-      />
+                dispatch({
+                  type: 'SET_TEXT_OPTIONS',
+                  options: { fontSize: nextFontSize },
+                });
+              }}
+            />
+          </div>
+          <TextStyleRow
+            isBold={isBold}
+            isItalic={isItalic}
+            boldLabel={locale.bold}
+            italicLabel={locale.italic}
+            onToggleBold={() => updateFontStyle(!isBold, isItalic)}
+            onToggleItalic={() => updateFontStyle(isBold, !isItalic)}
+          />
+        </div>
+      </PanelSection>
       <LayerOrderControls annotationId={selectedText?.id ?? null} />
-    </>
+    </ToolPanel>
   );
 }

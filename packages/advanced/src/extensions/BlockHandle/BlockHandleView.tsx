@@ -34,6 +34,69 @@ interface BlockHandleActionMenuProps {
   messages?: InkioCoreMessageOverrides | InkioMessageOverrides;
   coreIcons?: Partial<InkioIconRegistry>;
   onClose: () => void;
+  /**
+   * Identity snapshot of the block the menu was opened for (captured at
+   * open time). Actions validate the resolved node against it and refuse to
+   * run when it no longer matches, so a stale `blockPos` can never delete,
+   * duplicate, or transform an adjacent block. Optional for backwards
+   * compatibility — when absent, only structural guards apply.
+   */
+  blockFingerprint?: BlockFingerprint | null;
+}
+
+/** Minimal structural view of a ProseMirror node, for identity checks. */
+export interface FingerprintableNode {
+  type: { name: string };
+  nodeSize: number;
+  textContent: string;
+  isText: boolean;
+  isInline: boolean;
+}
+
+/** Identity snapshot of a block, captured when the menu opens. */
+export interface BlockFingerprint {
+  type: string;
+  size: number;
+  textPrefix: string;
+}
+
+const FINGERPRINT_TEXT_LENGTH = 64;
+
+/** Capture the identity of the node at `pos`, or null when there is none. */
+export function fingerprintBlockAt(
+  doc: { nodeAt: (pos: number) => FingerprintableNode | null | undefined },
+  pos: number,
+): BlockFingerprint | null {
+  try {
+    const node = doc.nodeAt(pos);
+    if (!node) return null;
+    return {
+      type: node.type.name,
+      size: node.nodeSize,
+      textPrefix: node.textContent.slice(0, FINGERPRINT_TEXT_LENGTH),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Verify a resolved node is still the block the menu was opened for.
+ * Rejects inline/text nodes outright (never valid block targets) and, when a
+ * fingerprint is available, requires type/size/text-prefix to match so doc
+ * edits between open and action can't redirect onto an adjacent block.
+ */
+export function isExpectedBlock(
+  node: FingerprintableNode | null | undefined,
+  fingerprint?: BlockFingerprint | null,
+): boolean {
+  if (!node || node.isText || node.isInline) return false;
+  if (!fingerprint) return true;
+  return (
+    node.type.name === fingerprint.type &&
+    node.nodeSize === fingerprint.size &&
+    node.textContent.slice(0, FINGERPRINT_TEXT_LENGTH) === fingerprint.textPrefix
+  );
 }
 
 interface MenuItem {
@@ -90,6 +153,7 @@ export const BlockHandleActionMenu = ({
   messages,
   coreIcons,
   onClose,
+  blockFingerprint,
 }: BlockHandleActionMenuProps) => {
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [activeIndex, setActiveIndex] = useState(0);
@@ -109,22 +173,28 @@ export const BlockHandleActionMenu = ({
   }, [iconOverrides]);
 
   // blockPos is captured at menu-open time and may be stale after doc edits.
-  // Clamp into range and verify a node exists before every action.
+  // Clamp into range, verify a node exists, and validate its identity before
+  // every action — never act on an adjacent block.
   const resolveBlockPos = useCallback(() => {
     if (!editor) return null;
     const size = editor.state.doc.content.size;
     const pos = Math.max(0, Math.min(blockPos, size));
     try {
       const node = editor.state.doc.nodeAt(pos);
-      if (!node) return null;
+      if (!node || !isExpectedBlock(node, blockFingerprint)) return null;
       return { pos, node };
     } catch {
       return null;
     }
-  }, [blockPos, editor]);
+  }, [blockPos, blockFingerprint, editor]);
 
   const turnInto = useCallback(
     (command: InkioOptionalChainCommand, attrs?: Record<string, unknown>) => {
+      // No mutations from read-only surfaces.
+      if (!editor.isEditable) {
+        onClose();
+        return;
+      }
       const resolved = resolveBlockPos();
       const didRun = runOptionalChainCommand(editor, command, {
         args: attrs,
@@ -151,6 +221,10 @@ export const BlockHandleActionMenu = ({
   );
 
   const deleteBlock = useCallback(() => {
+    if (!editor.isEditable) {
+      onClose();
+      return;
+    }
     const resolved = resolveBlockPos();
     if (!editor || !resolved) {
       onClose();
@@ -163,6 +237,10 @@ export const BlockHandleActionMenu = ({
   }, [editor, onClose, resolveBlockPos]);
 
   const duplicateBlock = useCallback(() => {
+    if (!editor.isEditable) {
+      onClose();
+      return;
+    }
     const resolved = resolveBlockPos();
     if (!editor || !resolved) {
       onClose();
@@ -360,6 +438,12 @@ export const BlockHandleActionMenu = ({
     },
     [activeIndex, menuItems, navigate, onClose],
   );
+
+  // The menu must never display on a read-only editor, even if opened
+  // programmatically. Per-action guards above are defense in depth.
+  if (!editor.isEditable) {
+    return null;
+  }
 
   return (
     <div
