@@ -4,10 +4,10 @@ import { Selection } from '@tiptap/pm/state';
 import {
   getToolbarActionsFor,
   splitToolbarActionGroups,
-} from '../menus/actions';
+} from './toolbar-actions';
 import type {
   InkioToolbarActionTransform,
-} from '../menus/actions';
+} from './toolbar-actions';
 import type { InkioIconRegistry } from '../icons/registry';
 import type {
   InkioCoreMessageOverrides,

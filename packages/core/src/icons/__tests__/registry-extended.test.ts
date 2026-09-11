@@ -9,7 +9,7 @@ import {
   defaultToolbarActions,
   getToolbarActionsFor,
   splitToolbarActionGroups,
-} from '../../menus/actions';
+} from '../../components/toolbar-actions';
 
 const ALL_ICON_IDS: InkioIconId[] = [
   'bold', 'italic', 'underline', 'strike', 'code', 'highlight',

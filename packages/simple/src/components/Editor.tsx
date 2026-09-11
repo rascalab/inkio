@@ -19,7 +19,7 @@ import type { InkioJSONContent as JSONContent } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import type { ExtensionsInput } from '../types';
 import { resolveExtensionsInput } from '../utils/resolve-extensions-input';
-import { useStableOptions } from '../utils/stable-options';
+import { useStableOptions } from '@inkio/core';
 
 type EditorContentMode =
   | { content: string | JSONContent; initialContent?: never }

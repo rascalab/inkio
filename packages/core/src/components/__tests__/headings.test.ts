@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { slugifyHeading, getHeadingsFromContent, getHeadingElements } from '../ToC';
+import { slugifyHeading, getHeadingsFromContent, getHeadingElements } from '../headings';
 import type { JSONContent } from '@tiptap/core';
 
 describe('slugifyHeading', () => {

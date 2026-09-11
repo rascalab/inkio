@@ -1,6 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { ToC, calcTocTop } from '../TableOfContents';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { ToC, calcTocTop } from '../ToC';
 import type { JSONContent } from '@tiptap/core';
 
 // jsdom doesn't have IntersectionObserver
@@ -138,12 +137,11 @@ describe('ToC component', () => {
   });
 
   it('sets active index on link click', async () => {
-    const user = userEvent.setup();
     const source = createMockSource(DOC_WITH_HEADINGS);
     render(<ToC source={source} />);
 
     const links = document.querySelectorAll('.inkio-toc-link');
-    await user.click(links[1]); // click "Section A"
+    fireEvent.click(links[1]); // click "Section A"
 
     await waitFor(() => {
       const bars = document.querySelectorAll('.inkio-toc-bar');

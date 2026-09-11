@@ -5,8 +5,8 @@ import { BubbleMenuLinkInputPopover } from './BubbleMenuLinkInputPopover';
 import {
   getToolbarActionsFor,
   splitToolbarActionGroups,
-} from '../menus/actions';
-import type { InkioToolbarActionTransform } from '../menus/actions';
+} from './toolbar-actions';
+import type { InkioToolbarActionTransform } from './toolbar-actions';
 import type { InkioIconRegistry } from '../icons/registry';
 import type {
   InkioCoreMessageOverrides,
