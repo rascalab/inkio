@@ -152,13 +152,14 @@ describe('ToC component', () => {
     expect(items[1].classList.contains('is-active')).toBe(true);
   });
 
-  it('updates headings when source emits update with docChanged', () => {
+  it('updates headings when source emits a transaction that may affect headings', () => {
     const source = createMockSource(DOC_WITH_HEADINGS);
     const { rerender } = render(<ToC source={source} />);
 
     expect(document.querySelectorAll('.inkio-toc-link')).toHaveLength(3);
 
-    // Simulate doc change — source now returns fewer headings
+    // Simulate doc change — source now returns fewer headings. A step
+    // without localizable position takes the conservative path (rescan).
     const updatedDoc: JSONContent = {
       type: 'doc',
       content: [
@@ -166,7 +167,7 @@ describe('ToC component', () => {
       ],
     };
     source._setDoc(updatedDoc);
-    source._emit('update', { transaction: { docChanged: true } });
+    source._emit('transaction', { docChanged: true, steps: [{}], before: source.state.doc });
 
     rerender(<ToC source={source} />);
     expect(document.querySelectorAll('.inkio-toc-link')).toHaveLength(1);
@@ -178,7 +179,7 @@ describe('ToC component', () => {
     render(<ToC source={source} />);
 
     const docForEach = vi.spyOn(source.state.doc, 'forEach');
-    source._emit('update', { transaction: { docChanged: false } });
+    source._emit('transaction', { docChanged: false, steps: [], before: source.state.doc });
     // doc should not have been traversed again
     expect(docForEach).not.toHaveBeenCalled();
     docForEach.mockRestore();
@@ -210,9 +211,9 @@ describe('ToC component', () => {
     const source = createMockSource(DOC_WITH_HEADINGS);
     const { unmount } = render(<ToC source={source} />);
 
-    expect(source.on).toHaveBeenCalledWith('update', expect.any(Function));
+    expect(source.on).toHaveBeenCalledWith('transaction', expect.any(Function));
     unmount();
-    expect(source.off).toHaveBeenCalledWith('update', expect.any(Function));
+    expect(source.off).toHaveBeenCalledWith('transaction', expect.any(Function));
   });
 });
 
