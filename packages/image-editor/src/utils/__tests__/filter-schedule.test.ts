@@ -80,6 +80,24 @@ describe('scheduleFilteredPreview', () => {
     expect(node.cache).not.toHaveBeenCalled();
   });
 
+  it('freezes scheduled values against later caller mutation', () => {
+    const node = createMockNode();
+    const finetune = { ...DEFAULT_FINETUNE, brightness: 0.1 };
+    scheduleFilteredPreview(node, 'none', finetune);
+    finetune.brightness = 0.9;
+    flushRaf();
+    expect(node.brightness).toHaveBeenLastCalledWith(0.1);
+  });
+
+  it('applies synchronously when no animation frame exists (SSR)', () => {
+    vi.unstubAllGlobals();
+    expect(typeof requestAnimationFrame).toBe('undefined');
+    const node = createMockNode();
+    scheduleFilteredPreview(node, 'none', { ...DEFAULT_FINETUNE, brightness: 0.4 });
+    expect(node.cache).toHaveBeenCalledTimes(1);
+    expect(node.brightness).toHaveBeenLastCalledWith(0.4);
+  });
+
   it('schedules again after a frame has flushed', () => {
     const node = createMockNode();
     scheduleFilteredPreview(node, 'none', { ...DEFAULT_FINETUNE, brightness: 0.1 });

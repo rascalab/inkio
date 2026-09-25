@@ -45,14 +45,15 @@ export function useImageEditorSession({
     prevStateRef.current = state;
   }
 
+  // Dirty notification has a single source: the transition effect below.
+  // Emitting here as well would double-notify every baseline reset.
   const resetDirtyBaseline = useCallback((nextState: ImageEditorState | null, nextVersion?: number) => {
     if (!nextState) {
       setBaseline(null);
     } else {
       setBaseline({ version: nextVersion ?? versionRef.current, refs: getVisualRefs(nextState) });
     }
-    onDirtyChange?.(false);
-  }, [onDirtyChange]);
+  }, []);
 
   useKeyboardShortcuts();
 
@@ -127,9 +128,11 @@ export function useImageEditorSession({
     return versionRef.current !== baseline.version;
   }, [baseline, state]);
 
+  const prevDirtyRef = useRef(false);
   useEffect(() => {
-    if (isDirty) {
-      onDirtyChange?.(true);
+    if (isDirty !== prevDirtyRef.current) {
+      prevDirtyRef.current = isDirty;
+      onDirtyChange?.(isDirty);
     }
   }, [isDirty, onDirtyChange]);
 
@@ -163,6 +166,10 @@ export function useImageEditorSession({
 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
+    // Capture before dispatch: versionRef is read after the export await
+    // below, by which time the commit render already bumped it — adding +1
+    // then would double-count and pin dirty forever.
+    const saveBaseVersion = versionRef.current;
 
     try {
       const isResizeSessionActive = isResizeTool(state.activeTool);
@@ -188,8 +195,11 @@ export function useImageEditorSession({
       const dataUrl = await exportToDataURL(outputFormat, outputQuality, exportState);
       onSave(dataUrl);
       // The commit above bumps the version by exactly one on the next render
-      // (new transform/outputSize refs), so anticipate it to stay clean.
-      resetDirtyBaseline(exportState, versionRef.current + (isResizeSessionActive || state.pendingCrop ? 1 : 0));
+      // (COMMIT/APPLY always mint fresh transform/outputSize refs), so the
+      // post-save baseline anticipates the pre-dispatch version plus one.
+      // Edits racing the export keep the flag dirty, correctly: they are not
+      // in the exported bytes.
+      resetDirtyBaseline(exportState, saveBaseVersion + (isResizeSessionActive || state.pendingCrop ? 1 : 0));
     } catch (err) {
       dispatch({ type: 'SET_ERROR', error: locale.error });
       console.error('[ImageEditor] Export failed:', err);

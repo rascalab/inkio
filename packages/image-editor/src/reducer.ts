@@ -66,33 +66,42 @@ export type ImageEditorAction =
   | { type: 'RESET_CROP' }
   | { type: 'RESET' };
 
-export const initialState: ImageEditorState = {
-  originalImage: null,
-  originalWidth: 0,
-  originalHeight: 0,
-  transform: {
-    rotation: 0,
-    flipX: false,
-    flipY: false,
-    crop: null,
-  },
-  outputSize: null,
-  annotations: [],
-  selectedAnnotationId: null,
-  activeTool: null,
-  filter: 'none',
-  finetune: { ...DEFAULT_FINETUNE },
-  drawOptions: DEFAULT_DRAW_OPTIONS,
-  shapeOptions: DEFAULT_SHAPE_OPTIONS,
-  textOptions: DEFAULT_TEXT_OPTIONS,
-  cropOptions: DEFAULT_CROP_OPTIONS,
-  resizeOptions: DEFAULT_RESIZE_OPTIONS,
-  redactOptions: DEFAULT_REDACT_OPTIONS,
-  stickerOptions: DEFAULT_STICKER_OPTIONS,
-  pendingCrop: null,
-  isLoading: false,
-  error: null,
-};
+/**
+ * Fresh nested option objects per call: sharing the DEFAULT_* singletons
+ * (or a single initialState's nested refs) across sessions means one
+ * accidental in-place mutation corrupts defaults for every future session.
+ */
+export function createInitialState(): ImageEditorState {
+  return {
+    originalImage: null,
+    originalWidth: 0,
+    originalHeight: 0,
+    transform: {
+      rotation: 0,
+      flipX: false,
+      flipY: false,
+      crop: null,
+    },
+    outputSize: null,
+    annotations: [],
+    selectedAnnotationId: null,
+    activeTool: null,
+    filter: 'none',
+    finetune: { ...DEFAULT_FINETUNE },
+    drawOptions: { ...DEFAULT_DRAW_OPTIONS },
+    shapeOptions: { ...DEFAULT_SHAPE_OPTIONS },
+    textOptions: { ...DEFAULT_TEXT_OPTIONS },
+    cropOptions: { ...DEFAULT_CROP_OPTIONS },
+    resizeOptions: { ...DEFAULT_RESIZE_OPTIONS },
+    redactOptions: { ...DEFAULT_REDACT_OPTIONS },
+    stickerOptions: { ...DEFAULT_STICKER_OPTIONS },
+    pendingCrop: null,
+    isLoading: false,
+    error: null,
+  };
+}
+
+export const initialState: ImageEditorState = createInitialState();
 
 export function imageEditorReducer(
   state: ImageEditorState,
@@ -122,7 +131,9 @@ export function imageEditorReducer(
         ...state,
         activeTool: action.tool,
         selectedAnnotationId: action.preserveSelection ? state.selectedAnnotationId : null,
-        pendingCrop: state.pendingCrop,
+        // Crop/resize sessions belong to their tool: carrying a stale
+        // pendingCrop across tools blocks the next session from starting.
+        pendingCrop: null,
       };
 
     case 'START_RESIZE_SESSION': {
@@ -248,6 +259,13 @@ export function imageEditorReducer(
       // state so memoized layers skip the re-render entirely.
       const index = state.annotations.findIndex((a) => a.id === action.id);
       if (index < 0) return state;
+      // No-op updates (blur commits with unchanged values, settling sliders)
+      // return the identical state too: otherwise every one spreads into a
+      // new object and pollutes undo history plus re-renders.
+      const current = state.annotations[index] as unknown as Record<string, unknown>;
+      const updates = action.updates as Record<string, unknown>;
+      const changed = Object.keys(updates).some((key) => !Object.is(current[key], updates[key]));
+      if (!changed) return state;
       return {
         ...state,
         annotations: state.annotations.map((a) =>
@@ -366,7 +384,7 @@ export function imageEditorReducer(
       };
 
     case 'RESET':
-      return { ...initialState };
+      return createInitialState();
 
     default:
       return state;

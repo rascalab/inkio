@@ -179,18 +179,26 @@ export function scheduleFilteredPreview(
   id: FilterPresetId,
   finetune: FinetuneOptions = DEFAULT_FINETUNE,
 ): void {
+  // Snapshot by value: the caller may mutate its object before the frame
+  // fires, and the flush must apply what was scheduled.
+  const snapshot = { ...finetune };
+  if (typeof requestAnimationFrame === 'undefined') {
+    // SSR / non-DOM runtimes have no frame to coalesce on: apply directly.
+    applyImageFilter(node, id, snapshot);
+    return;
+  }
   const pending = pendingFilterPreviews.get(node);
   if (pending) {
     pending.id = id;
-    pending.finetune = finetune;
+    pending.finetune = snapshot;
     return;
   }
   const frame = requestAnimationFrame(() => {
     const latest = pendingFilterPreviews.get(node);
     pendingFilterPreviews.delete(node);
-    applyImageFilter(node, latest?.id ?? id, latest?.finetune ?? finetune);
+    applyImageFilter(node, latest?.id ?? id, latest?.finetune ?? snapshot);
   });
-  pendingFilterPreviews.set(node, { frame, id, finetune });
+  pendingFilterPreviews.set(node, { frame, id, finetune: snapshot });
 }
 
 export function cancelScheduledFilterPreview(node: Konva.Image): void {

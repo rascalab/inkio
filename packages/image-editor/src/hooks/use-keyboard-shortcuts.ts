@@ -21,16 +21,23 @@ export function useKeyboardShortcuts() {
         if (tag !== 'BODY' && !target.closest('.inkio-ie-root')) return;
       }
       const isMeta = e.ctrlKey || e.metaKey;
+      // Lowercased: CapsLock/layouts produce 'Z', and Ctrl+Y is the
+      // standard Windows redo gesture.
+      const key = e.key.toLowerCase();
 
-      if (isMeta && e.shiftKey && e.key === 'z') {
+      if (isMeta && e.shiftKey && key === 'z') {
         e.preventDefault();
         if (canRedo) redo();
         return;
       }
 
-      if (isMeta && e.key === 'z') {
+      if (isMeta && (key === 'z' || key === 'y')) {
         e.preventDefault();
-        if (canUndo) undo();
+        if (key === 'y') {
+          if (canRedo) redo();
+        } else if (canUndo) {
+          undo();
+        }
         return;
       }
 

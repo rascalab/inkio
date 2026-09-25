@@ -59,7 +59,7 @@ export function ShapeOptionsPanel() {
               label,
               active: currentShapeType === type,
               onClick: () => dispatch({ type: 'SET_SHAPE_OPTIONS', options: { shapeType: type } }),
-              testId: undefined,
+              testId: `inkio-ie-shape-${type}`,
             }))}
           />
         </PanelSection>

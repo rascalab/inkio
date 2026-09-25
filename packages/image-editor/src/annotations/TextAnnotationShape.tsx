@@ -1,8 +1,9 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useLayoutEffect, useState } from 'react';
 import { Group, Rect, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { TextAnnotationData, Annotation } from '../types';
 import { handleCursorPointer, handleCursorDefault } from '../theme';
+import { parseColor, rgbaToCss } from '../utils/color';
 import {
   TEXT_DEFAULT_FONT_FAMILY,
   TEXT_LINE_HEIGHT,
@@ -38,9 +39,36 @@ export function TextAnnotationShape({
     onSelect(annotation.id);
   }, [annotation.id, onSelect]);
 
-  // Compute text height for hit region
-  const textNode = textRef.current;
-  const textHeight = Math.max(scaledHeight, textNode ? textNode.height() : scaledFontSize * 1.4 + 4);
+  // Measure the painted text after commit so the hit region matches what
+  // Konva actually draws; reading the ref during render freezes the first
+  // (null) measurement forever. Re-measures whenever the text inputs change.
+  const [measuredHeight, setMeasuredHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const node = textRef.current;
+    if (!node) {
+      setMeasuredHeight(null);
+      return;
+    }
+    const height = node.height();
+    setMeasuredHeight((prev) => (prev === height ? prev : height));
+  }, [
+    annotation.text,
+    annotation.fontSize,
+    annotation.fontFamily,
+    annotation.fontStyle,
+    scaledWidth,
+    scaledFontSize,
+  ]);
+  const textHeight = Math.max(scaledHeight, measuredHeight ?? scaledFontSize * 1.4 + 4);
+
+  // Placeholder ghost: derive translucency through the color pipeline so
+  // non-hex fills (named colors, transparent, short hex) stay valid.
+  const parsedFill = parseColor(annotation.fill);
+  const displayFill = annotation.text
+    ? annotation.fill
+    : parsedFill
+      ? rgbaToCss({ ...parsedFill, a: 0x44 / 255 })
+      : annotation.fill;
 
   return (
     <Group
@@ -89,7 +117,7 @@ export function TextAnnotationShape({
         text={annotation.text || 'Text'}
         fontSize={scaledFontSize}
         fontFamily={annotation.fontFamily || TEXT_DEFAULT_FONT_FAMILY}
-        fill={annotation.text ? annotation.fill : `${annotation.fill}44`}
+        fill={displayFill}
         fontStyle={annotation.fontStyle}
         width={scaledWidth}
         height={scaledHeight}

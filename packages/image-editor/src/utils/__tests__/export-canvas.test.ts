@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MAX_EXPORT_DIMENSION,
+  normalizeExportCrop,
   validateExportDimensions,
   validateExportFormat,
   validateExportQuality,
@@ -33,6 +34,31 @@ describe('export guards', () => {
   it('rejects oversized sides before allocating a canvas', () => {
     expect(() => validateExportDimensions(MAX_EXPORT_DIMENSION + 1, 100)).toThrow(/max side/);
     expect(() => validateExportDimensions(100, MAX_EXPORT_DIMENSION + 1)).toThrow(/max side/);
+  });
+
+  it('clamps out-of-bounds crops into the image', () => {
+    expect(normalizeExportCrop({ x: -10, y: -20, width: 900, height: 800 }, 800, 600)).toEqual({
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+    });
+    expect(normalizeExportCrop({ x: 700, y: 500, width: 200, height: 200 }, 800, 600)).toEqual({
+      x: 700,
+      y: 500,
+      width: 100,
+      height: 100,
+    });
+  });
+
+  it('rejects missing, degenerate, and non-finite crops', () => {
+    expect(normalizeExportCrop(null, 800, 600)).toBeNull();
+    expect(() => normalizeExportCrop({ x: 0, y: 0, width: 0, height: 100 }, 800, 600)).toThrow(
+      /Invalid crop rect/,
+    );
+    expect(() =>
+      normalizeExportCrop({ x: 0, y: 0, width: Number.NaN, height: 100 }, 800, 600),
+    ).toThrow(/Invalid crop rect/);
   });
 
   it('rejects pixel counts that would OOM the encoder', () => {

@@ -8,6 +8,12 @@ export function normalizeTool(tool: ToolType | null): EnabledToolType | null {
   return tool;
 }
 
+/**
+ * Normalize a tool list for the toolbar: 'crop' is an alias of 'resize'
+ * (same session machinery), nulls are dropped, and duplicates collapse to
+ * first occurrence. Callers passing ['crop', 'resize'] intentionally get
+ * ['resize'] — the alias is resolved here, not at every call site.
+ */
 export function normalizeTools(tools: ToolType[]): EnabledToolType[] {
   const normalized: EnabledToolType[] = [];
   const seen = new Set<EnabledToolType>();

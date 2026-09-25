@@ -219,9 +219,22 @@ export function ColorPickerButton({
       document.removeEventListener('pointerup', handleUp);
     };
 
+    // pointercancel (interrupted drag) tears down the same way: without it
+    // the listeners stay attached until the next pointerup somewhere.
+    const handleCancel = () => {
+      document.removeEventListener('pointermove', handleMove);
+      document.removeEventListener('pointerup', handleUp);
+      document.removeEventListener('pointercancel', handleCancel);
+    };
+    const wrappedUp = () => {
+      handleUp();
+      document.removeEventListener('pointercancel', handleCancel);
+    };
+
     handleBoardPointer(event.clientX, event.clientY);
     document.addEventListener('pointermove', handleMove);
-    document.addEventListener('pointerup', handleUp);
+    document.addEventListener('pointerup', wrappedUp);
+    document.addEventListener('pointercancel', handleCancel);
   };
 
   const currentColor = allowTransparent && normalizedValue === 'transparent'

@@ -27,4 +27,13 @@ describe('isTransformerInteraction', () => {
 
     expect(isTransformerInteraction(rect as never)).toBe(false);
   });
+
+  it('terminates on cyclic parents instead of hanging', () => {
+    const loop: FakeNode = {
+      getClassName: () => 'Group',
+      getParent: () => loop,
+    };
+
+    expect(isTransformerInteraction(loop as never)).toBe(false);
+  });
 });

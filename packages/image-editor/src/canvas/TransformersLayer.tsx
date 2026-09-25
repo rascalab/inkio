@@ -27,7 +27,10 @@ export function TransformersLayer({
     const stage = stageRef.current;
     if (!stage) return;
 
-    const node = stage.findOne(`#${selectedAnnotationId}`);
+    // Match by predicate, never by `#id` selector: annotation ids may
+    // contain selector-significant characters (spaces, dots, colons,
+    // quotes) that silently fail to match and drop the transformer.
+    const node = stage.find((candidate: Konva.Node) => candidate.id() === selectedAnnotationId)[0];
     if (node) {
       tr.nodes([node as Konva.Node]);
     } else {
@@ -36,7 +39,7 @@ export function TransformersLayer({
     tr.getLayer()?.batchDraw();
   }, [selectedAnnotationId, stageRef]);
 
-  const colors = getIEColors();
+  const colors = getIEColors(stageRef.current?.container() ?? undefined);
 
   return (
     <Layer>

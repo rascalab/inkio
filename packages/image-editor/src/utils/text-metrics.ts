@@ -101,7 +101,14 @@ export function getPreferredTextAnnotationWidth(
   const fontFamily = annotation.fontFamily || TEXT_DEFAULT_FONT_FAMILY;
 
   if (context) {
-    context.font = `${fontStyle} ${fontWeight} ${fontSizePx}px ${fontFamily}`;
+    // A crafted fontFamily (quotes/semicolons) must not break measurement:
+    // invalid assignments are ignored and the fallback estimator below
+    // still yields a finite width.
+    try {
+      context.font = `${fontStyle} ${fontWeight} ${fontSizePx}px ${fontFamily}`;
+    } catch {
+      // Keep the default font; estimate from it.
+    }
   }
 
   const measuredWidth = lines.reduce((maxWidth, line) => {

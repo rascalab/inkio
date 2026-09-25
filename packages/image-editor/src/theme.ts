@@ -29,20 +29,19 @@ const FALLBACK_COLORS: IEColors = {
   textEditBorder: '#3b82f6',
 };
 
-let _cache: IEColors | null = null;
-let _cacheTheme: string | null | undefined;
-
-/** Resolve image-editor colors from CSS variables.
- *  Results are cached and only re-resolved when the theme attribute changes. */
-export function getIEColors(): IEColors {
+/**
+ * Resolve image-editor colors from CSS variables. Deliberately uncached:
+ * a light/dark-keyed cache goes stale on runtime token swaps, and a global
+ * first-match root is wrong on multi-editor pages. Callers pass their own
+ * DOM anchor when they have one (the transformer uses its stage).
+ */
+export function getIEColors(fromElement?: Element | null): IEColors {
   if (typeof document === 'undefined') return FALLBACK_COLORS;
-  const root = document.querySelector('.inkio-ie-portal-theme') ?? document.querySelector('.inkio');
-  if (!root) return _cache ?? FALLBACK_COLORS;
-  const isDark = root.classList.contains('dark');
-  const cacheKey = isDark ? 'dark' : 'light';
-  if (_cache && cacheKey === _cacheTheme) return _cache;
-  _cacheTheme = cacheKey;
-  _cache = {
+  const root = fromElement?.closest('.inkio-ie-modal-content, .inkio-ie-portal-theme, .inkio')
+    ?? document.querySelector('.inkio-ie-portal-theme')
+    ?? document.querySelector('.inkio');
+  if (!root) return FALLBACK_COLORS;
+  return {
     selection: getCssVar(root, '--inkio-selection-bg', '#c2e5ff'),
     primary: getCssVar(root, '--inkio-primary', '#0090ff'),
     handle: getCssVar(root, '--inkio-overlay-text', '#ffffff'),
@@ -50,7 +49,6 @@ export function getIEColors(): IEColors {
     canvasBg: getCssVar(root, '--inkio-ie-canvas-bg', '#fcfcfd'),
     textEditBorder: getCssVar(root, '--inkio-border-focus', '#3b82f6'),
   };
-  return _cache;
 }
 
 /* ---- Cursor helpers (hoisted to avoid per-render allocations) ---- */

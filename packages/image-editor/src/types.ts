@@ -1,4 +1,4 @@
-import type { InkioMessageOverrides } from '@inkio/core';
+import type { InkioLocaleInput, InkioMessageOverrides } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import type { InkioImageEditorMessageOverrides } from './i18n';
 
@@ -228,9 +228,9 @@ export interface ImageEditorLocale {
   apply: string;
   reset: string;
   /** @deprecated Crop editing is now always live inside resize mode. */
-  editCrop: string;
+  editCrop?: string;
   /** @deprecated Crop editing is now always live inside resize mode. */
-  doneCropping: string;
+  doneCropping?: string;
   cropArea: string;
   cropPendingNotice: string;
   undo: string;
@@ -248,10 +248,10 @@ export interface ImageEditorLocale {
   strokeWidth: string;
   color: string;
   /** @deprecated Shared color picker UI no longer renders a dedicated custom-color label. */
-  customColor: string;
+  customColor?: string;
   fontFamily: string;
   /** @deprecated Font family now uses a curated select field. */
-  fontFamilyPlaceholder: string;
+  fontFamilyPlaceholder?: string;
   fontSize: string;
   fontSizePercent: string;
   colorHex: string;
@@ -298,9 +298,9 @@ export interface ImageEditorLocale {
   /** Label for the discard button in the non-blocking close confirmation. */
   discardChanges?: string;
   /** @deprecated Tiny viewport hard-disable was removed in favor of a scroll shell. */
-  smallViewportTitle: string;
+  smallViewportTitle?: string;
   /** @deprecated Tiny viewport hard-disable was removed in favor of a scroll shell. */
-  smallViewportBody: string;
+  smallViewportBody?: string;
   loading: string;
   error: string;
   deleteLabel?: string;
@@ -332,7 +332,7 @@ export interface ImageEditorModalProps {
   imageQuality?: number;
   imageFormat?: 'png' | 'jpeg' | 'webp';
   tools?: ToolType[];
-  locale?: unknown;
+  locale?: InkioLocaleInput | Partial<ImageEditorLocale>;
   messages?: InkioImageEditorMessageOverrides | InkioMessageOverrides;
   icons?: Partial<InkioIconRegistry>;
 }

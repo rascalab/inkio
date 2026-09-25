@@ -238,6 +238,22 @@ describe('imageEditorReducer', () => {
   });
 
   describe('UPDATE_ANNOTATION', () => {
+    it('returns the identical state for no-op updates (no history pollution)', () => {
+      const ann = makeRect('r1');
+      const withAnn = { ...initialState, annotations: [ann] };
+
+      expect(
+        imageEditorReducer(withAnn, { type: 'UPDATE_ANNOTATION_COMMIT', id: 'r1', updates: {} }),
+      ).toBe(withAnn);
+      expect(
+        imageEditorReducer(withAnn, {
+          type: 'UPDATE_ANNOTATION_COMMIT',
+          id: 'r1',
+          updates: { x: ann.x },
+        }),
+      ).toBe(withAnn);
+    });
+
     it('updates specific annotation by id', () => {
       const ann = makeRect('r1');
       const withAnn = { ...initialState, annotations: [ann] };
@@ -350,18 +366,18 @@ describe('imageEditorReducer', () => {
       expect(next.selectedAnnotationId).toBe('r1');
     });
 
-    it('preserves pendingCrop when switching to crop tool', () => {
+    it('clears pendingCrop when switching tools so stale sessions cannot block a fresh start', () => {
       const cropRect = { x: 0, y: 0, width: 100, height: 100 };
       const state = { ...initialState, pendingCrop: cropRect };
       const next = imageEditorReducer(state, { type: 'SET_TOOL', tool: 'crop' });
-      expect(next.pendingCrop).toEqual(cropRect);
+      expect(next.pendingCrop).toBeNull();
     });
 
-    it('preserves pendingCrop when switching away from crop tool', () => {
+    it('clears pendingCrop when switching away from crop tool', () => {
       const cropRect = { x: 0, y: 0, width: 100, height: 100 };
       const state = { ...initialState, activeTool: 'crop' as ToolType, pendingCrop: cropRect };
       const next = imageEditorReducer(state, { type: 'SET_TOOL', tool: 'draw' });
-      expect(next.pendingCrop).toEqual(cropRect);
+      expect(next.pendingCrop).toBeNull();
     });
 
     it('clears selected text when switching tools from the toolbar', () => {

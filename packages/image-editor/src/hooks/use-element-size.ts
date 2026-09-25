@@ -34,10 +34,10 @@ export function useElementSize<T extends HTMLElement>() {
         return;
       }
 
-      setSize({
-        width: entry.contentRect.width,
-        height: entry.contentRect.height,
-      });
+      // Guard against no-op observations: setSize with a fresh object every
+      // tick re-renders consumers even when nothing changed.
+      const { width, height } = entry.contentRect;
+      setSize((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
     });
 
     observer.observe(node);

@@ -3,6 +3,8 @@ import type { ImageEditorState, Annotation } from '../types';
 import { getTransformedDimensions, getBaseDisplayDimensions } from './geometry';
 import { getTextAnnotationHeight, resolveTextFontSizePx, TEXT_DEFAULT_FONT_FAMILY } from './text-metrics';
 import { applyImageFilter } from './filters';
+import { isImageTainted } from './image-loader';
+import type { CropRect } from '../types';
 import { STICKER_FONT_FAMILY } from '../annotations/StickerAnnotationShape';
 
 export type ExportFormat = 'png' | 'jpeg' | 'webp';
@@ -39,6 +41,31 @@ export function validateExportDimensions(width: number, height: number): void {
       `Export ${Math.round(width)}x${Math.round(height)} exceeds ${MAX_EXPORT_PIXELS}-pixel limit`,
     );
   }
+}
+
+/**
+ * Clamp a crop rect into image bounds. A stale out-of-bounds or degenerate
+ * crop would otherwise blank or throw inside the offscreen Konva stage,
+ * far from the actual cause.
+ */
+export function normalizeExportCrop(
+  crop: CropRect | null | undefined,
+  imageWidth: number,
+  imageHeight: number,
+): CropRect | null {
+  if (!crop) return null;
+  const coords = [crop.x, crop.y, crop.width, crop.height];
+  if (!coords.every(Number.isFinite)) {
+    throw new Error(`Invalid crop rect ${JSON.stringify(crop)}`);
+  }
+  const x = Math.min(Math.max(0, crop.x), imageWidth);
+  const y = Math.min(Math.max(0, crop.y), imageHeight);
+  const width = Math.min(Math.max(0, crop.width), imageWidth - x);
+  const height = Math.min(Math.max(0, crop.height), imageHeight - y);
+  if (width <= 0 || height <= 0) {
+    throw new Error(`Invalid crop rect ${JSON.stringify(crop)}`);
+  }
+  return { x, y, width, height };
 }
 
 /** Yield to the main thread so a large export doesn't freeze input handling. */
@@ -207,6 +234,21 @@ export async function exportCanvas(
     throw new Error('Export requires a browser environment');
   }
 
+  const exportCrop = normalizeExportCrop(
+    state.transform.crop,
+    state.originalWidth,
+    state.originalHeight,
+  );
+
+  // Fail before the heavy offscreen raster work: a CORS-fallback source
+  // taints the canvas and toDataURL would throw a bare SecurityError.
+  if (isImageTainted(state.originalImage)) {
+    throw new Error(
+      'Cannot export: the source image was loaded without CORS approval ' +
+        '(canvas is tainted). Serve the image with Access-Control-Allow-Origin or load it from a data: URL.',
+    );
+  }
+
   // Let input/paint run before the heavy synchronous raster work below.
   await yieldToMain();
 
@@ -239,13 +281,12 @@ export async function exportCanvas(
       scaleY: state.transform.flipY ? -1 : 1,
     });
 
-    if (state.transform.crop) {
-      const crop = state.transform.crop;
+    if (exportCrop) {
       imageNode.crop({
-        x: crop.x,
-        y: crop.y,
-        width: crop.width,
-        height: crop.height,
+        x: exportCrop.x,
+        y: exportCrop.y,
+        width: exportCrop.width,
+        height: exportCrop.height,
       });
       imageNode.width(baseW);
       imageNode.height(baseH);
@@ -264,10 +305,10 @@ export async function exportCanvas(
     // Render annotations
     // Annotations use original-image-space coordinates.
     // With crop, offset by crop origin and scale to output size.
-    const cropX = state.transform.crop?.x ?? 0;
-    const cropY = state.transform.crop?.y ?? 0;
-    const srcW = state.transform.crop?.width ?? state.originalWidth;
-    const srcH = state.transform.crop?.height ?? state.originalHeight;
+    const cropX = exportCrop?.x ?? 0;
+    const cropY = exportCrop?.y ?? 0;
+    const srcW = exportCrop?.width ?? state.originalWidth;
+    const srcH = exportCrop?.height ?? state.originalHeight;
     const rawAnnScale = Math.min(
       srcW > 0 ? baseW / srcW : Number.POSITIVE_INFINITY,
       srcH > 0 ? baseH / srcH : Number.POSITIVE_INFINITY,

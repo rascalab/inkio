@@ -2,6 +2,7 @@
 
 import * as Dialog from '@radix-ui/react-dialog';
 import { useCallback, useMemo, useState } from 'react';
+import { useStableOptions } from '@inkio/core';
 import { ImageEditor } from './ImageEditor';
 import type { ImageEditorLocale, ImageEditorModalProps } from './types';
 import { useInkioImageEditorUi } from './i18n';
@@ -45,8 +46,11 @@ export function ImageEditorModal({
     icons,
   });
 
-  const localeOverrides: Partial<ImageEditorLocale> | undefined =
-    isImageEditorLocaleOverrides(locale) ? (locale as Partial<ImageEditorLocale>) : undefined;
+  // Stabilize by structure: an inline locale object from the parent would
+  // otherwise rebuild the resolved locale (and the whole editor) per render.
+  const localeOverrides = useStableOptions(
+    isImageEditorLocaleOverrides(locale) ? (locale as Partial<ImageEditorLocale>) : undefined,
+  );
   const resolvedImageEditorLocale: Partial<ImageEditorLocale> = useMemo(
     () => ({
       ...ui.messages.imageEditor,
@@ -90,9 +94,6 @@ export function ImageEditorModal({
             className={`inkio-ie-modal-content${portalTheme === 'dark' ? ' dark' : ''}`}
             data-testid="inkio-ie-modal-content"
             aria-describedby={undefined}
-            onPointerDownOutside={(event) => {
-              event.preventDefault();
-            }}
             onEscapeKeyDown={handleEscape}
           >
             <Dialog.Title asChild>

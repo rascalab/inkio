@@ -85,15 +85,13 @@ export function MobileCommandBar({
         >
           <MinusIcon size={16} />
         </button>
-        <button
-          type="button"
+        <span
           className="inkio-ie-mobile-zoom-label"
-          onClick={onZoomFit}
-          disabled={isZoomFit}
           data-testid="inkio-ie-zoom-label"
+          aria-live="polite"
         >
           {zoomLabel}
-        </button>
+        </span>
         <button
           type="button"
           className="inkio-ie-mobile-command-btn"

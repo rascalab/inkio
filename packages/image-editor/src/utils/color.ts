@@ -50,21 +50,31 @@ export function parseColor(value: string): RgbaColor | null {
     const hex = normalized.slice(1);
     if (hex.length === 3 || hex.length === 4) {
       const alpha = hex.length === 4 ? parseInt(`${hex[3]}${hex[3]}`, 16) / 255 : 1;
-      return {
+      const channels = {
         r: parseInt(`${hex[0]}${hex[0]}`, 16),
         g: parseInt(`${hex[1]}${hex[1]}`, 16),
         b: parseInt(`${hex[2]}${hex[2]}`, 16),
         a: alpha,
       };
+      if (![channels.r, channels.g, channels.b, channels.a].every(Number.isFinite)) {
+        return null;
+      }
+      return channels;
     }
 
     if (hex.length === 6 || hex.length === 8) {
-      return {
+      const channels = {
         r: parseInt(hex.slice(0, 2), 16),
         g: parseInt(hex.slice(2, 4), 16),
         b: parseInt(hex.slice(4, 6), 16),
         a: hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1,
       };
+      // "#zzzzzz" parses to NaN channels: reject so callers fall back
+      // instead of emitting "#nan..." into canvas fills.
+      if (![channels.r, channels.g, channels.b, channels.a].every(Number.isFinite)) {
+        return null;
+      }
+      return channels;
     }
   }
 

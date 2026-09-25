@@ -1,5 +1,5 @@
-import type { Annotation, CropRect, Transform } from '../types';
-import { imageSpaceToCanvasSpace } from './geometry';
+import type { Annotation, CropRect } from '../types';
+import { getBaseDisplayDimensions } from './geometry';
 import { getTextAnnotationHeight, getTextAnnotationWidth } from './text-metrics';
 
 interface Point {
@@ -52,33 +52,35 @@ export function getAnnotationDisplayBounds(
 ): AnnotationDisplayBounds {
   const corners = getAnnotationCorners(annotation);
 
-  // Construct transform from options
-  const crop = (options.cropX !== 0 || options.cropY !== 0)
-    ? {
-      x: options.cropX,
-      y: options.cropY,
-      width: options.originalWidth,
-      height: options.originalHeight,
-    }
-    : null;
-  const transform: Transform = {
-    rotation: options.rotation,
-    flipX: options.flipX,
-    flipY: options.flipY,
-    crop,
-  };
-
-  const projected = corners.map((corner) =>
-    imageSpaceToCanvasSpace(
-      corner.x,
-      corner.y,
-      options.displayWidth,
-      options.displayHeight,
-      options.originalWidth,
-      options.originalHeight,
-      transform,
-    ),
+  // Mirror the DesignLayer group chain exactly: annotations render at
+  // image-space coords times the uniform annotationScale (NOT a per-axis
+  // display/original stretch), shifted by the crop origin, then centered on
+  // the unrotated base, flipped, rotated, and centered on the stage.
+  // Routing through imageSpaceToCanvasSpace instead divided by the full
+  // original dims, drifting bounds whenever a crop is active.
+  const scale =
+    Number.isFinite(options.annotationScale) && options.annotationScale > 0
+      ? options.annotationScale
+      : 1;
+  const { width: baseW, height: baseH } = getBaseDisplayDimensions(
+    options.displayWidth,
+    options.displayHeight,
+    options.rotation,
   );
+  const rad = (options.rotation * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+
+  const projected = corners.map((corner) => {
+    let lx = (corner.x - options.cropX) * scale - baseW / 2;
+    let ly = (corner.y - options.cropY) * scale - baseH / 2;
+    lx *= options.flipX ? -1 : 1;
+    ly *= options.flipY ? -1 : 1;
+    return {
+      x: lx * cos - ly * sin + options.displayWidth / 2,
+      y: lx * sin + ly * cos + options.displayHeight / 2,
+    };
+  });
 
   const xs = projected.map((point) => point.x);
   const ys = projected.map((point) => point.y);

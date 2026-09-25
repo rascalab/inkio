@@ -32,6 +32,31 @@ describe('getAnnotationDisplayBounds', () => {
     expect(Number.isFinite(bounds.height)).toBe(true);
   });
 
+  it('scales by annotationScale and offsets by the crop origin', () => {
+    const annotation = {
+      id: 'c',
+      type: 'rect',
+      x: 100,
+      y: 50,
+      width: 40,
+      height: 30,
+      rotation: 0,
+    } as unknown as Annotation;
+
+    const bounds = getAnnotationDisplayBounds(annotation, {
+      ...baseOptions,
+      annotationScale: 2,
+      cropX: 100,
+      cropY: 50,
+    });
+    // Crop-origin corner lands on the stage origin; size follows the
+    // uniform annotation scale, not a full-dims stretch.
+    expect(bounds.x).toBeCloseTo(0, 4);
+    expect(bounds.y).toBeCloseTo(0, 4);
+    expect(bounds.width).toBeCloseTo(80, 4);
+    expect(bounds.height).toBeCloseTo(60, 4);
+  });
+
   it('returns a finite zero rect for empty points', () => {
     const annotation = {
       id: 'b',

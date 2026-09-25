@@ -27,7 +27,15 @@ export function StickerOptionsPanel() {
           })}
         </div>
       </PanelSection>
-      <LayerOrderControls annotationId={state.selectedAnnotationId} />
+      <LayerOrderControls
+        annotationId={
+          state.annotations.some(
+            (annotation) => annotation.id === state.selectedAnnotationId && annotation.type === 'sticker',
+          )
+            ? state.selectedAnnotationId
+            : null
+        }
+      />
     </ToolPanel>
   );
 }

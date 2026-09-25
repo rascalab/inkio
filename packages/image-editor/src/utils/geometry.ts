@@ -152,8 +152,15 @@ export function transformPoint(
 ): { x: number; y: number } {
   const cx = width / 2;
   const cy = height / 2;
-  let lx = x - cx;
-  let ly = y - cy;
+  // Quarter turns swap the output space (w x h -> h x w): the forward path
+  // leaves from the original center and lands on the swapped one, and the
+  // inverse path does the reverse. Centering both ways on the original
+  // un-centers non-square rects by (w-h)/2.
+  const isQT = isQuarterTurn(rotation);
+  const swappedCx = isQT ? cy : cx;
+  const swappedCy = isQT ? cx : cy;
+  let lx = x - (inverse ? swappedCx : cx);
+  let ly = y - (inverse ? swappedCy : cy);
 
   if (inverse) {
     // Un-rotate then un-flip
@@ -177,11 +184,7 @@ export function transformPoint(
     ly = ry;
   }
 
-  // For quarter turns, the output center shifts
-  const isQT = isQuarterTurn(rotation);
-  const outCx = inverse ? cx : isQT ? cy : cx;
-  const outCy = inverse ? cy : isQT ? cx : cy;
-  return { x: lx + outCx, y: ly + outCy };
+  return { x: lx + (inverse ? cx : swappedCx), y: ly + (inverse ? cy : swappedCy) };
 }
 
 /**

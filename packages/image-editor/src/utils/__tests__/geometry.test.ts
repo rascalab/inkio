@@ -4,6 +4,8 @@ import {
   getBaseDisplayDimensions,
   getTransformedDimensions,
   imageSpaceToCanvasSpace,
+  transformPoint,
+  transformRect,
 } from '../geometry';
 import type { Transform } from '../../types';
 
@@ -116,6 +118,25 @@ describe('geometry helpers', () => {
     const toCanvas = imageSpaceToCanvasSpace(10, 10, 0, 0, 0, 0, transform);
     expect(Number.isFinite(toCanvas.x)).toBe(true);
     expect(Number.isFinite(toCanvas.y)).toBe(true);
+  });
+
+  it('inverts quarter turns around the swapped center for non-square rects', () => {
+    // Forward maps 100x50 around (50,25) into 50x100 space around (25,50);
+    // the inverse must start from the swapped center, not (50,25).
+    const forward = transformPoint(70, 30, 100, 50, 90, false, false, false);
+    const back = transformPoint(forward.x, forward.y, 100, 50, 90, false, false, true);
+    expect(back.x).toBeCloseTo(70, 4);
+    expect(back.y).toBeCloseTo(30, 4);
+  });
+
+  it('inverts quarter-turn rects without drift', () => {
+    const rect = { x: 10, y: 5, width: 60, height: 20 };
+    const forward = transformRect(rect, 100, 50, 270, false, false, false);
+    const back = transformRect(forward, 100, 50, 270, false, false, true);
+    expect(back.x).toBeCloseTo(rect.x, 4);
+    expect(back.y).toBeCloseTo(rect.y, 4);
+    expect(back.width).toBeCloseTo(rect.width, 4);
+    expect(back.height).toBeCloseTo(rect.height, 4);
   });
 
   it('treats non-normalized quarter turns consistently', () => {

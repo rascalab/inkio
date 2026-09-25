@@ -38,6 +38,9 @@ export function StickerAnnotationShape({
       onMouseEnter={handleCursorPointer}
       onMouseLeave={handleCursorDefault}
       onDragEnd={(e) => {
+        // Stage size is zero before first layout: dividing by a zero scale
+        // would persist Infinity/NaN positions.
+        if (!Number.isFinite(scale) || scale <= 0) return;
         onChange(annotation.id, {
           x: e.target.x() / scale,
           y: e.target.y() / scale,
@@ -46,6 +49,9 @@ export function StickerAnnotationShape({
       onTransformEnd={() => {
         const node = textRef.current;
         if (!node) return;
+        if (!Number.isFinite(scale) || scale <= 0) return;
+        // Emoji stickers keep a uniform size: non-uniform handle stretches
+        // normalize to the dominant axis rather than distorting the glyph.
         const nextSize = Math.max(
           8,
           annotation.size * Math.max(Math.abs(node.scaleX()), Math.abs(node.scaleY())),

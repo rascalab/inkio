@@ -40,6 +40,12 @@ export function areVisualRefsEqual(a: VisualRefs, b: VisualRefs): boolean {
  * changed), replacing a full JSON.stringify per stroke frame. Call once per
  * new state object with the previous state/version pair.
  */
+/**
+ * Immutability contract: versions advance only when the reducer mints fresh
+ * visual refs. Any in-place mutation of transform/annotations bypasses the
+ * bump and silently freezes thumbnails and dirty tracking — always spread,
+ * never mutate.
+ */
 export function nextVisualVersion(
   prevState: ImageEditorState | null,
   prevVersion: number,
