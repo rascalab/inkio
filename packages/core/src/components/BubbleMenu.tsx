@@ -48,7 +48,11 @@ export const BubbleMenu = ({
   const [linkPopoverOpen, setLinkPopoverOpen] = useState(false);
   const linkPopoverOpenRef = useRef(false);
   const [currentLinkUrl, setCurrentLinkUrl] = useState('');
-  const portalContainerRef = useRef<HTMLElement | null>(null);
+  const linkPopoverContentRef = useRef<HTMLDivElement | null>(null);
+  // Resolved after every render (not just on mount): an `.inkio` ancestor
+  // remount leaves a mount-time ref pointing at detached DOM, and the
+  // portal would silently fall back to document.body without token scoping.
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
   const [activeStateKey, setActiveStateKey] = useState('');
   const ui = useInkioCoreUi({
     locale,
@@ -61,10 +65,9 @@ export const BubbleMenu = ({
   }, [linkPopoverOpen]);
 
   useEffect(() => {
-    if (menuRef.current) {
-      portalContainerRef.current = menuRef.current.closest('.inkio') as HTMLElement | null;
-    }
-  }, []);
+    const next = menuRef.current?.closest('.inkio') as HTMLElement | null;
+    setPortalContainer((prev) => (prev === next ? prev : next));
+  });
 
   useEffect(() => {
     if (!editor) {
@@ -340,7 +343,14 @@ export const BubbleMenu = ({
                       setLinkPopoverOpen(open);
                       if (!open) {
                         setCurrentLinkUrl('');
-                        editor.chain().focus().run();
+                        const active = document.activeElement as HTMLElement | null;
+                        if (
+                          !active ||
+                          active === document.body ||
+                          linkPopoverContentRef.current?.contains(active)
+                        ) {
+                          editor.chain().focus().run();
+                        }
                       }
                     }}
                   >
@@ -351,7 +361,7 @@ export const BubbleMenu = ({
                           else buttonRefs.current.delete(idx);
                         }}
                         type="button"
-                        tabIndex={focusedIndex === idx ? 0 : -1}
+                        tabIndex={focusedIndex === -1 ? (idx === 0 ? 0 : -1) : (focusedIndex === idx ? 0 : -1)}
                         onFocus={() => setFocusedIndex(idx)}
                         onMouseDown={(event) => {
                           event.preventDefault();
@@ -370,8 +380,9 @@ export const BubbleMenu = ({
                         {iconNode}
                       </button>
                     </Popover.Anchor>
-                    <Popover.Portal container={portalContainerRef.current}>
+                    <Popover.Portal container={portalContainer}>
                       <Popover.Content
+                        ref={linkPopoverContentRef}
                         sideOffset={6}
                         className="inkio-popover-content"
                         onOpenAutoFocus={(event) => event.preventDefault()}
@@ -381,6 +392,7 @@ export const BubbleMenu = ({
                           placeholder={ui.messages.linkPopover.placeholder}
                           cancelLabel={ui.messages.linkPopover.cancel}
                           saveLabel={ui.messages.linkPopover.save}
+                          invalidUrlLabel={ui.messages.linkPopover.invalidUrl}
                           onSave={(url) => {
                             if (currentLinkUrl) {
                               editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
@@ -429,7 +441,7 @@ export const BubbleMenu = ({
                     else buttonRefs.current.delete(idx);
                   }}
                   type="button"
-                  tabIndex={focusedIndex === idx ? 0 : -1}
+                  tabIndex={focusedIndex === -1 ? (idx === 0 ? 0 : -1) : (focusedIndex === idx ? 0 : -1)}
                   onFocus={() => setFocusedIndex(idx)}
                   onMouseDown={onMouseDown}
                   className={buttonClass}

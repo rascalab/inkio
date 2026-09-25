@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Editor } from '@tiptap/react';
 import * as Popover from '@radix-ui/react-popover';
 import type { InkioIconRegistry } from '../icons/registry';
@@ -75,16 +75,19 @@ export const Toolbar = ({
   // tokens would not resolve (transparent popover backgrounds). Scope the
   // token root onto the popover content, mirroring the editor dark mode —
   // the same pattern as the suggestion renderer popup.
-  const portalContentClassName = useMemo(() => {
-    try {
-      const dom = editor?.view.dom as Element | undefined;
-      const root = typeof dom?.closest === 'function' ? dom.closest('.inkio') : null;
-      const dark = root?.classList.contains('dark') ?? false;
-      return `inkio inkio-popover-content${dark ? ' dark' : ''}`;
-    } catch {
-      return 'inkio inkio-popover-content';
+  // Computed during render (not memoized): a memoized class goes stale when
+  // `.dark` toggles while a popover is open, and closest() is trivial.
+  const linkPopoverContentRef = useRef<HTMLDivElement | null>(null);
+  let portalContentClassName = 'inkio inkio-popover-content';
+  try {
+    const dom = editor?.view.dom as Element | undefined;
+    const root = typeof dom?.closest === 'function' ? dom.closest('.inkio') : null;
+    if (root?.classList.contains('dark')) {
+      portalContentClassName += ' dark';
     }
-  }, [editor, linkPopoverOpen, textColorOpen]);
+  } catch {
+    // Non-DOM runtimes keep the default class.
+  }
   const ui = useInkioCoreUi({
     locale,
     messages: messageOverrides,
@@ -218,7 +221,18 @@ export const Toolbar = ({
                       setLinkPopoverOpen(open);
                       if (!open) {
                         setCurrentLinkUrl('');
-                        editor.chain().focus().run();
+                        // Dismissal by outside-click/Escape must not steal
+                        // focus the user already moved elsewhere: refocus
+                        // only when focus is still inside the closing popover
+                        // (or already lost to the body).
+                        const active = document.activeElement as HTMLElement | null;
+                        if (
+                          !active ||
+                          active === document.body ||
+                          linkPopoverContentRef.current?.contains(active)
+                        ) {
+                          editor.chain().focus().run();
+                        }
                       }
                     }}
                   >
@@ -241,6 +255,7 @@ export const Toolbar = ({
                     </Popover.Anchor>
                     <Popover.Portal>
                       <Popover.Content
+                        ref={linkPopoverContentRef}
                         sideOffset={8}
                         className={portalContentClassName}
                         onOpenAutoFocus={(event) => event.preventDefault()}
@@ -250,6 +265,7 @@ export const Toolbar = ({
                           placeholder={ui.messages.linkPopover.placeholder}
                           cancelLabel={ui.messages.linkPopover.cancel}
                           saveLabel={ui.messages.linkPopover.save}
+                          invalidUrlLabel={ui.messages.linkPopover.invalidUrl}
                           onSave={(url) => {
                             if (currentLinkUrl) {
                               editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();

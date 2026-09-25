@@ -34,9 +34,13 @@ export function isInkioAdapter(value: unknown): value is InkioAdapter {
 
   if (
     candidate.locale !== undefined &&
-    typeof candidate.locale !== 'string' &&
-    typeof candidate.locale !== 'object'
+    (typeof candidate.locale !== 'string' && typeof candidate.locale !== 'object')
   ) {
+    return false;
+  }
+
+  // Arrays are objects but never valid locales.
+  if (Array.isArray(candidate.locale)) {
     return false;
   }
 

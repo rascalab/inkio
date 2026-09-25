@@ -18,7 +18,9 @@ export const TocBlock = Node.create<TocBlockOptions>({
 
   addAttributes() {
     return {
-      maxLevel: { default: 3, rendered: false },
+      // Default follows the configured option so `configure({ maxLevel })`
+      // applies to inserted blocks; explicit attrs still win per node.
+      maxLevel: { default: this.options.maxLevel, rendered: false },
     };
   },
 

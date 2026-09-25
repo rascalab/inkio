@@ -1,7 +1,7 @@
 import { DetailsShortcut } from '../DetailsShortcut';
 
 describe('DetailsShortcut', () => {
-  it('converts "> " into a details command when available', () => {
+  it('converts ">>> " into a details command when available', () => {
     const rules = DetailsShortcut.config.addInputRules?.call({} as never) ?? [];
     expect(rules).toHaveLength(1);
 

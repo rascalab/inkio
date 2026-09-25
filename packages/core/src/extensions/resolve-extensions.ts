@@ -5,6 +5,9 @@ export function resolveInkioExtensions(
   extensions: Extensions | undefined,
   placeholder?: string,
 ): Extensions {
-  if (extensions && extensions.length > 0) return extensions;
+  // undefined means "defaults"; an explicit empty array means a bare
+  // document. The Editor's default prop is undefined so the two never
+  // conflate here.
+  if (extensions !== undefined) return extensions;
   return getExtensions({ placeholder }) as Extensions;
 }

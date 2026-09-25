@@ -112,8 +112,11 @@ export interface CoreExtensionOptions {
   table?: false;
   /** Set to `false` to disable keyboard shortcuts extension */
   keyboardShortcuts?: false;
-  /** Set to `false` to disable the inline table of contents block */
-  tocBlock?: false;
+  /**
+   * Set to `false` to disable the inline table of contents block.
+   * Pass `{ maxLevel }` to cap heading depth for inserted blocks.
+   */
+  tocBlock?: false | { maxLevel?: number };
 }
 
 export const getExtensions = (options: CoreExtensionOptions = {}) => {
@@ -288,7 +291,11 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
   }
 
   if (tocBlock !== false) {
-    extensions.push(TocBlock);
+    extensions.push(
+      tocBlock && typeof tocBlock === 'object'
+        ? TocBlock.configure({ maxLevel: tocBlock.maxLevel ?? 3 })
+        : TocBlock,
+    );
   }
 
   if (options.tabBehavior !== 'default') {
@@ -299,32 +306,34 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
           // Only trap Tab inside list items. Anywhere else the key must keep
           // its default browser behavior (focus navigation) so keyboard and
           // screen-reader users can leave the editor.
-          const isInList = (editor: { state: { selection: unknown; schema: unknown } }) => {
+          const listItemTypeAtSelection = (
+            editor: { state: { selection: unknown } },
+          ): 'listItem' | 'taskItem' | null => {
             try {
               const { state } = editor;
               const sel = state.selection as { $from?: { depth: number; node: (d: number) => { type: { name: string } } } };
               const $from = sel.$from;
-              if (!$from) return false;
-              for (let d = $from.depth; d >= 0; d--) {
+              if (!$from) return null;
+              for (let d = $from.depth; d >= 1; d--) {
                 const name = $from.node(d).type.name;
-                if (name === 'listItem' || name === 'taskItem') return true;
+                if (name === 'listItem' || name === 'taskItem') return name;
               }
             } catch {
-              return false;
+              return null;
             }
-            return false;
+            return null;
           };
           return {
             Tab: ({ editor }) => {
-              if (!isInList(editor)) return false;
-              if (editor.can().sinkListItem('listItem')) return editor.commands.sinkListItem('listItem');
-              if (editor.can().sinkListItem('taskItem')) return editor.commands.sinkListItem('taskItem');
+              const type = listItemTypeAtSelection(editor);
+              if (!type) return false;
+              if (editor.can().sinkListItem(type)) return editor.commands.sinkListItem(type);
               return false;
             },
             'Shift-Tab': ({ editor }) => {
-              if (!isInList(editor)) return false;
-              if (editor.can().liftListItem('listItem')) return editor.commands.liftListItem('listItem');
-              if (editor.can().liftListItem('taskItem')) return editor.commands.liftListItem('taskItem');
+              const type = listItemTypeAtSelection(editor);
+              if (!type) return false;
+              if (editor.can().liftListItem(type)) return editor.commands.liftListItem(type);
               return false;
             },
           };

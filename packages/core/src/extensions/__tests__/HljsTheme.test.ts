@@ -1,4 +1,10 @@
-import { applyHljsTheme, isDarkTheme, removeHljsTheme } from '../CodeBlock/hljs-theme';
+import {
+  applyHljsTheme,
+  isDarkTheme,
+  releaseHljsTheme,
+  removeHljsTheme,
+  retainHljsTheme,
+} from '../CodeBlock/hljs-theme';
 
 describe('isDarkTheme', () => {
   it('detects .dark on the .inkio element itself (theme prop)', () => {
@@ -44,5 +50,31 @@ describe('applyHljsTheme', () => {
     applyHljsTheme(true);
     applyHljsTheme(false);
     expect(document.getElementById('inkio-hljs-theme')?.textContent).toContain('#d73a49');
+  });
+});
+
+describe('hljs theme refcount', () => {
+  afterEach(() => {
+    removeHljsTheme();
+  });
+
+  it('keeps the shared tag while any editor remains', () => {
+    applyHljsTheme(false);
+    retainHljsTheme();
+    retainHljsTheme();
+    releaseHljsTheme();
+    expect(document.getElementById('inkio-hljs-theme')).not.toBeNull();
+    releaseHljsTheme();
+    expect(document.getElementById('inkio-hljs-theme')).toBeNull();
+  });
+
+  it('never drops below zero on unbalanced release', () => {
+    applyHljsTheme(false);
+    releaseHljsTheme();
+    releaseHljsTheme();
+    expect(document.getElementById('inkio-hljs-theme')).toBeNull();
+    retainHljsTheme();
+    releaseHljsTheme();
+    expect(document.getElementById('inkio-hljs-theme')).toBeNull();
   });
 });

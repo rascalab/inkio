@@ -47,3 +47,18 @@ export function removeHljsTheme() {
   document.getElementById(STYLE_ID)?.remove();
   currentTheme = null;
 }
+
+// Refcount for the shared tag: destroying one editor must not unstyle the
+// survivors on the same page. Balanced by onCreate/onDestroy pairs.
+let themeUsers = 0;
+
+export function retainHljsTheme(): void {
+  themeUsers += 1;
+}
+
+export function releaseHljsTheme(): void {
+  themeUsers = Math.max(0, themeUsers - 1);
+  if (themeUsers === 0) {
+    removeHljsTheme();
+  }
+}

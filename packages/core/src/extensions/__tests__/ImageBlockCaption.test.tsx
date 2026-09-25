@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import type { NodeViewProps } from '@tiptap/react';
-import { ImageBlockView } from '../ImageBlockView';
+import { IMAGE_BLOCK_CAPTION_DEBOUNCE_MS, ImageBlockView } from '../ImageBlockView';
 
 function createProps(caption = ''): NodeViewProps & { updateAttributes: ReturnType<typeof vi.fn> } {
   const updateAttributes = vi.fn();
@@ -48,10 +48,32 @@ describe('ImageBlockView caption', () => {
 
     fireEvent.change(input, { target: { value: 'hello' } });
     act(() => {
-      vi.advanceTimersByTime(600);
+      vi.advanceTimersByTime(IMAGE_BLOCK_CAPTION_DEBOUNCE_MS);
     });
     expect(props.updateAttributes).toHaveBeenCalledTimes(1);
     expect(props.updateAttributes).toHaveBeenCalledWith({ caption: 'hello' });
+  });
+
+  it('drops a pending commit when the caption changes externally', () => {
+    const props = createProps('');
+    const { rerender } = render(<ImageBlockView {...props} />);
+    const input = screen.getByPlaceholderText('Write a caption...');
+
+    fireEvent.change(input, { target: { value: 'draft' } });
+    rerender(
+      <ImageBlockView
+        {...props}
+        node={{ ...props.node, attrs: { ...props.node.attrs, caption: 'external' } } as never}
+      />,
+    );
+    act(() => {
+      vi.advanceTimersByTime(IMAGE_BLOCK_CAPTION_DEBOUNCE_MS + 100);
+    });
+    // The stale draft must not overwrite the external value.
+    expect(props.updateAttributes).not.toHaveBeenCalled();
+    expect((screen.getByPlaceholderText('Write a caption...') as HTMLInputElement).value).toBe(
+      'external',
+    );
   });
 
   it('commits the caption on blur', () => {

@@ -18,6 +18,13 @@ describe('slugifyHeading', () => {
     expect(slugifyHeading('Hello! @World#', used)).toBe('hello-world');
   });
 
+  it('preserves CJK and accented-Latin characters instead of collapsing', () => {
+    const used = new Set<string>();
+    expect(slugifyHeading('日本語の見出し', used)).toBe('日本語の見出し');
+    expect(slugifyHeading('标题测试', used)).toBe('标题测试');
+    expect(slugifyHeading('Café au lait', used)).toBe('café-au-lait');
+  });
+
   it('preserves Korean characters', () => {
     const used = new Set<string>();
     expect(slugifyHeading('소개 페이지', used)).toBe('소개-페이지');
@@ -152,6 +159,13 @@ describe('getHeadingElements', () => {
     expect(els[0].tagName).toBe('H1');
     expect(els[1].tagName).toBe('H2');
     expect(els[2].tagName).toBe('H3');
+  });
+
+  it('returns empty array for maxLevel below 1 instead of throwing', () => {
+    const editor = { view: { dom: document.createElement('div') } };
+    expect(() => getHeadingElements(editor, 0)).not.toThrow();
+    expect(getHeadingElements(editor, 0)).toEqual([]);
+    expect(getHeadingElements(editor, -2)).toEqual([]);
   });
 
   it('filters by maxLevel', () => {

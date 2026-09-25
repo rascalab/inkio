@@ -23,7 +23,7 @@ function decodeUrlEntities(input: string): string {
 }
 
 const CONTROL_RE = new RegExp(
-  '[\\u0000-\\u0020\\u007F\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF\\u200B-\\u200F\\u061C\\u180E\\u00AD]+',
+  '[\\u0000-\\u001F\\u007F\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF\\u200B-\\u200F\\u061C\\u180E\\u00AD]+',
   'g',
 );
 
@@ -45,7 +45,10 @@ const SAFE_DATA_IMAGE_MIMES = new Set([
 
 function normalizeForProtocolCheck(url: string): string {
   const decoded = decodeUrlEntities(url.trim());
-  return decoded.replace(CONTROL_RE, '');
+  // A legitimate space encodes to %20 (dropping it would join path
+  // segments into a different URL); invisible/control characters still
+  // strip, since an encoded zero-width space would render invisibly.
+  return decoded.replace(/ /g, '%20').replace(CONTROL_RE, '');
 }
 
 function getProtocol(normalized: string): string | null {

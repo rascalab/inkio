@@ -65,7 +65,7 @@ export { toError } from './errors';
 export type { InkioErrorHandler } from './errors';
 export { isSafeUrl, sanitizeUrlOrEmpty } from './utils/url-safety';
 export { mergeExtensions, resolveExtensionsInput } from './utils/extensions-input';
-export { isEqualOptionsValue, useStableOptions } from './utils/stable-options';
+export { isEqualOptionsValue, useStableCallback, useStableOptions } from './utils/stable-options';
 export { getCreateRoot } from './utils/create-root';
 export type { CreateRootFn } from './utils/create-root';
 export { resolveInkioExtensions } from './extensions/resolve-extensions';
@@ -77,7 +77,7 @@ export { toPlainText, toSummary, getContentStats } from './serialization';
 
 // i18n
 export { resolveLocaleInput, pickMessageLocale } from './i18n';
-export { enCoreMessages } from './i18n';
+export { enCoreMessages, mergeCoreMessages, toCoreMessageOverrides } from './i18n';
 export type {
   DeepPartial,
   InkioCoreLocaleId,
@@ -117,7 +117,7 @@ export type { ToCProps } from './components/ToC';
 
 // ImageBlock
 export { ImageBlock } from './extensions/ImageBlock';
-export type { ImageBlockOptions, ImageEditorComponentProps } from './extensions/ImageBlock';
+export type { ImageBlockOptions, ImageEditorComponentProps, ImageUploadContext } from './extensions/ImageBlock';
 
 // TocBlock
 export { TocBlock } from './extensions/TocBlock';

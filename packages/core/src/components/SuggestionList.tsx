@@ -135,10 +135,12 @@ export function SuggestionList({
   );
 
   const upHandler = useCallback(() => {
+    if (items.length === 0) return;
     setSelectedIndex((prev) => (prev + items.length - 1) % items.length);
   }, [items.length]);
 
   const downHandler = useCallback(() => {
+    if (items.length === 0) return;
     setSelectedIndex((prev) => (prev + 1) % items.length);
   }, [items.length]);
 

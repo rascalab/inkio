@@ -2,7 +2,7 @@ import BaseCodeBlock from '@tiptap/extension-code-block';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { createLowlight } from 'lowlight';
 import { CodeBlockView } from './CodeBlockView';
-import { applyHljsTheme, isDarkTheme, removeHljsTheme } from './hljs-theme';
+import { applyHljsTheme, isDarkTheme, releaseHljsTheme, retainHljsTheme } from './hljs-theme';
 import { ensureHljsLanguages, releaseEditor } from './hljs-lazy';
 import { InkioLowlightPlugin } from './lowlight-plugin';
 
@@ -33,6 +33,7 @@ export const CodeBlock = BaseCodeBlock.extend({
   },
 
   onCreate() {
+    retainHljsTheme();
     ensureHljsLanguages(lowlight, this.editor);
 
     const dom = this.editor.view.dom;
@@ -63,6 +64,6 @@ export const CodeBlock = BaseCodeBlock.extend({
   onDestroy() {
     this.storage.hljsObserver?.disconnect();
     releaseEditor(this.editor);
-    removeHljsTheme();
+    releaseHljsTheme();
   },
 });

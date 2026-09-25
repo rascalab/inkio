@@ -103,6 +103,13 @@ function parseAcceptLanguage(raw: string): string[] {
   return candidates;
 }
 
+// Locale input is untrusted (query params, navigator.languages, host app
+// state): an adversarial Symbol.iterator or cyclic structure must not hang
+// the tab or overflow the stack. Real locale lists are tiny, so both the
+// iterator walk and the recursion depth are capped.
+const MAX_LOCALE_ITERATIONS = 64;
+const MAX_LOCALE_DEPTH = 8;
+
 function readLocaleLikeObject(input: Record<string, unknown>): unknown[] {
   const candidates: unknown[] = [];
 
@@ -110,8 +117,11 @@ function readLocaleLikeObject(input: Record<string, unknown>): unknown[] {
   if (typeof iteratorFactory === 'function') {
     try {
       const iterator = (iteratorFactory as () => Iterator<unknown>).call(input);
+      let steps = 0;
       let iteration = iterator.next();
       while (!iteration.done) {
+        if (steps >= MAX_LOCALE_ITERATIONS) break;
+        steps += 1;
         candidates.push(iteration.value);
         iteration = iterator.next();
       }
@@ -138,8 +148,8 @@ function readLocaleLikeObject(input: Record<string, unknown>): unknown[] {
   return candidates;
 }
 
-function collectLocaleCandidates(input: unknown, out: string[]) {
-  if (input == null) {
+function collectLocaleCandidates(input: unknown, out: string[], depth = 0) {
+  if (input == null || depth > MAX_LOCALE_DEPTH) {
     return;
   }
 
@@ -161,24 +171,24 @@ function collectLocaleCandidates(input: unknown, out: string[]) {
   }
 
   if (Array.isArray(input)) {
-    input.forEach((value) => collectLocaleCandidates(value, out));
+    input.forEach((value) => collectLocaleCandidates(value, out, depth + 1));
     return;
   }
 
   if (typeof Intl !== 'undefined' && typeof Intl.Locale !== 'undefined' && input instanceof Intl.Locale) {
-    collectLocaleCandidates(input.toString(), out);
+    collectLocaleCandidates(input.toString(), out, depth + 1);
     return;
   }
 
   if (typeof input === 'object') {
     readLocaleLikeObject(input as Record<string, unknown>).forEach((value) => {
-      collectLocaleCandidates(value, out);
+      collectLocaleCandidates(value, out, depth + 1);
     });
     return;
   }
 
   if (typeof input === 'number' || typeof input === 'boolean') {
-    collectLocaleCandidates(String(input), out);
+    collectLocaleCandidates(String(input), out, depth + 1);
   }
 }
 

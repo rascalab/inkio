@@ -1,4 +1,5 @@
 import type { Extensions, JSONContent } from '@tiptap/core';
+import { normalizeCalloutColor, normalizeCalloutIcon } from '../extensions/Callout';
 import { escapeHtml } from '../utils/html';
 import { isSafeUrl } from '../utils/url-safety';
 import { unified } from 'unified';
@@ -273,11 +274,13 @@ function tableCellToJson(node: MdastNode, type: 'tableHeader' | 'tableCell'): JS
 
 function directiveToJson(node: MdastNode): JSONContent[] {
   if (node.name === 'callout') {
+    // Same write boundary as the callout commands: markdown import must not
+    // persist payloads that renderHTML alone would have to catch.
     return [{
       type: 'callout',
       attrs: {
-        icon: node.attributes?.icon ?? null,
-        color: node.attributes?.color ?? null,
+        icon: normalizeCalloutIcon(node.attributes?.icon) ?? null,
+        color: normalizeCalloutColor(node.attributes?.color) ?? null,
       },
       content: ensureBlockContent(mdastBlocksToJson(node.children ?? [])),
     }];
@@ -505,10 +508,19 @@ function jsonListItemToMdast(node: JSONContent, task: boolean): MdastNode {
 }
 
 function jsonTableCellToMdast(node: JSONContent): MdastNode {
-  const block = node.content?.[0];
-  const inline = block?.type === 'paragraph'
-    ? jsonInlineToMdast(block.content ?? [])
-    : [{ type: 'text', value: textFromJson(block) }];
+  // GFM cells hold phrasing content only, but a JSON cell may carry several
+  // blocks: serialize every block (joined by a space) instead of dropping
+  // all but the first.
+  const inline: MdastNode[] = [];
+  for (const block of node.content ?? []) {
+    if (inline.length > 0) inline.push({ type: 'text', value: ' ' });
+    if (block?.type === 'paragraph') {
+      inline.push(...jsonInlineToMdast(block.content ?? []));
+    } else {
+      const text = textFromJson(block);
+      if (text) inline.push({ type: 'text', value: text });
+    }
+  }
 
   return {
     type: 'tableCell',

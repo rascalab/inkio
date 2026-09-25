@@ -107,6 +107,40 @@ describe('ImageBlock upload URL validation', () => {
     editor.destroy();
   });
 
+  it('rejects markup hidden behind leading NUL bytes', async () => {
+    const onUploadError = vi.fn();
+    const editor = createEditor({
+      onUpload: async () => 'https://example.com/a.png',
+      onUploadError,
+    });
+
+    editor.commands.uploadImageBlock([
+      makeFile('\0\0\0<svg onload="alert(1)">', 'evil.png', 'image/png'),
+    ]);
+    await flushUploads();
+
+    expect(docText(editor)).not.toContain('https://example.com/a.png');
+    expect(onUploadError).toHaveBeenCalled();
+    editor.destroy();
+  });
+
+  it('clamps a negative upload pos to 0 instead of throwing', async () => {
+    const onUploadError = vi.fn();
+    const editor = createEditor({
+      onUpload: async () => 'https://example.com/a.png',
+      onUploadError,
+    });
+
+    expect(() =>
+      editor.commands.uploadImageBlock([makeFile('x', 'a.png', 'image/png')], -50),
+    ).not.toThrow();
+    await flushUploads();
+
+    expect(docText(editor)).toContain('https://example.com/a.png');
+    expect(onUploadError).not.toHaveBeenCalled();
+    editor.destroy();
+  });
+
   it('setImageBlock command rejects unsafe src', () => {
     const editor = createEditor({});
     const result = editor.commands.setImageBlock({ src: 'javascript:alert(1)' });

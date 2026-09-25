@@ -76,13 +76,33 @@ function resolveActiveTable(editor: Editor): HTMLTableElement | null {
 
 function measureTable(table: HTMLTableElement): TableMetrics | null {
   const allRows = Array.from(table.rows);
-  const headCells = allRows[0] ? Array.from(allRows[0].cells) : [];
-  if (allRows.length === 0 || headCells.length === 0) {
+  if (allRows.length === 0 || allRows.every((row) => row.cells.length === 0)) {
     return null;
   }
 
+  // First-row boundaries preserve the legacy guide count (including
+  // zero-layout environments where every rect reads 0); edges unique to
+  // later rows are added so colspan/rowspan tables still get aligned
+  // insert guides instead of first-row-only ones.
+  const baseRow = allRows.find((row) => row.cells.length > 0);
+  if (!baseRow) return null;
+  const headCells = Array.from(baseRow.cells);
   const columns = headCells.map((cell) => cell.getBoundingClientRect().left);
   columns.push(headCells[headCells.length - 1].getBoundingClientRect().right);
+  const seen = new Set(columns.map((edge) => Math.round(edge)));
+  for (const row of allRows.slice(1)) {
+    for (const cell of Array.from(row.cells)) {
+      const rect = cell.getBoundingClientRect();
+      for (const edge of [rect.left, rect.right]) {
+        const rounded = Math.round(edge);
+        if (!seen.has(rounded)) {
+          seen.add(rounded);
+          columns.push(edge);
+        }
+      }
+    }
+  }
+  columns.sort((a, b) => a - b);
 
   const rows = allRows.map((row) => row.getBoundingClientRect().top);
   rows.push(allRows[allRows.length - 1].getBoundingClientRect().bottom);
@@ -242,6 +262,20 @@ export const TableMenu = ({
     dom.addEventListener('contextmenu', handleContextMenu);
     return () => dom.removeEventListener('contextmenu', handleContextMenu);
   }, [editor]);
+
+  // Reclamp the context menu to the real rendered size: the open-time
+  // estimate uses fixed constants, which long i18n labels or zoom overflow.
+  useEffect(() => {
+    if (!contextMenu || !menuRef.current) {
+      return;
+    }
+    const rect = menuRef.current.getBoundingClientRect();
+    const x = Math.max(8, Math.min(contextMenu.x, window.innerWidth - rect.width - 8));
+    const y = Math.max(8, Math.min(contextMenu.y, window.innerHeight - rect.height - 8));
+    if (x !== contextMenu.x || y !== contextMenu.y) {
+      setContextMenu({ ...contextMenu, x, y });
+    }
+  }, [contextMenu]);
 
   // Dismiss the context menu on any outside interaction.
   useEffect(() => {

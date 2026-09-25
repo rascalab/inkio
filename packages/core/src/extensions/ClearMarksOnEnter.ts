@@ -1,8 +1,8 @@
 import { Extension } from '@tiptap/core';
 
 /**
- * Enter 키를 누르면 모든 inline 마크(bold, italic 등)를 해제하는 extension
- * GitHub Markdown 스타일처럼 새 줄에서는 마크가 유지되지 않음
+ * Clears all inline marks (bold, italic, etc.) on Enter, GitHub Markdown
+ * style: marks never carry over to the new line.
  */
 export const ClearMarksOnEnter = Extension.create({
   name: 'clearMarksOnEnter',
@@ -23,41 +23,44 @@ export const ClearMarksOnEnter = Extension.create({
   addKeyboardShortcuts() {
     return {
       Enter: ({ editor }) => {
-        try {
-          const { state } = editor;
-          if (!state || !state.selection) {
-            return false;
-          }
-
-          const { $from } = state.selection;
-          if (!$from) {
-            return false;
-          }
-
-          // storedMarks가 있거나 현재 위치에 마크가 있으면 해제
-          const hasStoredMarks = state.storedMarks && state.storedMarks.length > 0;
-          const marks = $from.marks?.();
-          const hasCurrentMarks = marks && marks.length > 0;
-          
-          if (hasStoredMarks || hasCurrentMarks) {
-            // Enter 처리 후 마크 해제 (이중 트랜잭션 방지).
-            // 이전 타이머를 취소해야 빠른 연속 Enter에서 타이머가 누수되고
-            // unsetAllMarks가 중복 실행되지 않는다.
-            if (this.storage.timeoutId !== null) {
-              clearTimeout(this.storage.timeoutId);
-            }
-            this.storage.timeoutId = setTimeout(() => {
-              this.storage.timeoutId = null;
-              if (!editor.isDestroyed) {
-                editor.commands.unsetAllMarks();
-              }
-            }, 0);
-          }
-        } catch {
-          // 에러 발생 시 무시하고 기본 동작 수행
+        const { state } = editor;
+        if (!state || !state.selection) {
+          return false;
         }
-        
-        // false를 반환하여 기본 Enter 동작(줄바꿈) 수행
+
+        const { $from } = state.selection;
+        if (!$from) {
+          return false;
+        }
+
+        // Only the marks lookup is guarded: a torn-down selection can throw
+        // here, and a failed lookup must fall through to plain Enter.
+        let marks: readonly unknown[] | undefined;
+        try {
+          marks = $from.marks?.() as readonly unknown[] | undefined;
+        } catch {
+          return false;
+        }
+
+        const hasStoredMarks = !!state.storedMarks && state.storedMarks.length > 0;
+        const hasCurrentMarks = !!marks && marks.length > 0;
+
+        if (hasStoredMarks || hasCurrentMarks) {
+          // Clear after Enter lands to avoid a double transaction.
+          // Cancel the previous timer so rapid Enters neither leak timers
+          // nor run unsetAllMarks twice.
+          if (this.storage.timeoutId !== null) {
+            clearTimeout(this.storage.timeoutId);
+          }
+          this.storage.timeoutId = setTimeout(() => {
+            this.storage.timeoutId = null;
+            if (!editor.isDestroyed) {
+              editor.commands.unsetAllMarks();
+            }
+          }, 0);
+        }
+
+        // Always return false so the default Enter behavior (newline) runs.
         return false;
       },
     };

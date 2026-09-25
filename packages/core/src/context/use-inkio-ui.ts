@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { mergeCoreMessages, toCoreMessageOverrides } from '../i18n/messages';
+import { useStableOptions } from '../utils/stable-options';
 import type {
   InkioCoreMessageOverrides,
   InkioCoreMessages,
@@ -26,19 +27,21 @@ export interface ResolvedInkioCoreUi {
 
 export function useInkioCoreUi(overrides: InkioCoreUiOverrides = {}): ResolvedInkioCoreUi {
   const context = useInkioContext();
+  const stableLocalMessages = useStableOptions(overrides.messages);
+  const stableLocalIcons = useStableOptions(overrides.icons);
 
   return useMemo(() => {
     const locale = overrides.locale ?? context.locale;
     const providerMessages = toCoreMessageOverrides(context.messages);
-    const localMessages = toCoreMessageOverrides(overrides.messages);
+    const localMessages = toCoreMessageOverrides(stableLocalMessages);
 
     return {
       locale,
       messages: mergeCoreMessages(locale, providerMessages, localMessages),
       icons: resolveIconRegistry({
         ...(context.icons ?? {}),
-        ...(overrides.icons ?? {}),
+        ...(stableLocalIcons ?? {}),
       }),
     };
-  }, [context.icons, context.locale, context.messages, overrides.icons, overrides.locale, overrides.messages]);
+  }, [context.icons, context.locale, context.messages, stableLocalIcons, overrides.locale, stableLocalMessages]);
 }

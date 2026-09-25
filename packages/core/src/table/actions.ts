@@ -165,7 +165,18 @@ export type TableInsertCommand = 'addColumnBefore' | 'addColumnAfter' | 'addRowB
  * insert (the `+` buttons) targets a specific row/column.
  */
 export function runTableCommandAt(editor: Editor, pos: number, command: TableInsertCommand): boolean {
-  const chain = editor.chain().focus().setTextSelection(pos);
+  // setTextSelection throws on out-of-range positions; sibling helpers
+  // return false instead, so validate before touching the chain. When the
+  // doc shape is unavailable the raw pos passes through (legacy behavior).
+  if (!Number.isFinite(pos)) {
+    return false;
+  }
+  const size = editor.state.doc?.content?.size;
+  const safePos =
+    typeof size === 'number' && Number.isFinite(size)
+      ? Math.max(0, Math.min(Math.floor(pos), size))
+      : pos;
+  const chain = editor.chain().focus().setTextSelection(safePos);
   const result = invokeCommand(chain as ChainRecord, command);
 
   if (result && typeof (result as { run?: unknown }).run === 'function') {

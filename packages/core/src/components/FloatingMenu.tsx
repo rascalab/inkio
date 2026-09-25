@@ -137,8 +137,14 @@ export const FloatingMenu = ({
   }, [editor]);
 
   const handleBlur = useCallback(() => {
-    // Delay to check if focus moved to the floating menu itself
+    // Delay to check if focus moved to the floating menu itself.
+    // Cancel any pending frame first: rapid blur/focus bursts would
+    // otherwise queue redundant hides behind the latest focus.
+    if (blurRafRef.current) {
+      cancelAnimationFrame(blurRafRef.current);
+    }
     blurRafRef.current = requestAnimationFrame(() => {
+      blurRafRef.current = 0;
       if (menuRef.current?.contains(document.activeElement)) return;
       setIsVisible(false);
     });

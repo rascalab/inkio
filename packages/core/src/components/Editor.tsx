@@ -88,12 +88,10 @@ export function isEqualStaticContent(a: string | JSONContent | undefined, b: str
   }
 }
 
-const EMPTY_EDITOR_EXTENSIONS: Extensions = [];
-
 export const Editor = ({
   content,
   initialContent,
-  extensions = EMPTY_EDITOR_EXTENSIONS,
+  extensions,
   placeholder,
   editable = true,
   onUpdate,
@@ -132,9 +130,13 @@ export const Editor = ({
     setIsHydrated(true);
   }, []);
 
-  if (fill && autoresize) {
-    console.warn('Inkio Editor: `fill` and `autoresize` are mutually exclusive. `fill` takes precedence.');
-  }
+  // Warn in an effect, not during render: parent re-renders (and
+  // StrictMode double-render) would spam the console otherwise.
+  useEffect(() => {
+    if (fill && autoresize) {
+      console.warn('Inkio Editor: `fill` and `autoresize` are mutually exclusive. `fill` takes precedence.');
+    }
+  }, [fill, autoresize]);
 
   const editor = useInkioEditor({
     ...(content !== undefined ? { content } : { initialContent }),

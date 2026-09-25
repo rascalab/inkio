@@ -47,8 +47,10 @@ describe('Callout toolbar in read-only surfaces', () => {
     const { editor, cleanup } = mountEditor({ editable: false });
 
     selectInsideCallout(editor);
-    // Let any async mount settle, then assert absence.
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // The read-only path returns before any async mount: flushing microtasks
+    // is sufficient and wall-clock independent.
+    await Promise.resolve();
+    await Promise.resolve();
     expect(document.querySelector('.inkio-callout-toolbar')).toBeNull();
     cleanup();
   });

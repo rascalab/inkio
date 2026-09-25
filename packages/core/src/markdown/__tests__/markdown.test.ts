@@ -99,6 +99,35 @@ describe('@inkio/core/markdown', () => {
     expect(roundTrip).toContain('| Inkio | 2');
   });
 
+  it('keeps every block of a multi-block table cell instead of the first only', () => {
+    const content: JSONContent = {
+      type: 'doc',
+      content: [
+        {
+          type: 'table',
+          content: [
+            {
+              type: 'tableRow',
+              content: [
+                {
+                  type: 'tableCell',
+                  content: [
+                    { type: 'paragraph', content: [{ type: 'text', text: 'first' }] },
+                    { type: 'paragraph', content: [{ type: 'text', text: 'second' }] },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const markdown = stringifyMarkdown(content);
+    expect(markdown).toContain('first');
+    expect(markdown).toContain('second');
+  });
+
   it('degrades advanced-only nodes to markdown-safe output', () => {
     const content: JSONContent = {
       type: 'doc',

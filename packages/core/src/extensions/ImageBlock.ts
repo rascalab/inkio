@@ -9,6 +9,30 @@ import { ImageBlockView } from './ImageBlockView';
 
 type ImageUploadResult = string | Record<string, any>;
 type ImageAlign = 'left' | 'center' | 'right';
+
+export const IMAGE_BLOCK_MIN_WIDTH_PERCENT = 10;
+export const IMAGE_BLOCK_MAX_WIDTH_PERCENT = 100;
+
+/**
+ * Single width boundary for the resize handle and the setImageBlockWidth
+ * command: finite percents clamp into range, non-finite input is rejected
+ * (null) so NaN/Infinity can never persist into attrs.
+ */
+export function clampImageBlockWidthPercent(width: number): number | null {
+  if (!Number.isFinite(width)) return null;
+  return Math.min(
+    IMAGE_BLOCK_MAX_WIDTH_PERCENT,
+    Math.max(IMAGE_BLOCK_MIN_WIDTH_PERCENT, width),
+  );
+}
+
+/**
+ * Per-upload correlation context. `blockId` is the transient placeholder id
+ * for this upload, so adapter authors can scope concurrent uploads.
+ */
+export interface ImageUploadContext {
+  blockId?: string;
+}
 type ImageNodeAttributes = {
   src: string;
   alt?: string;
@@ -84,7 +108,7 @@ export interface ImageEditorComponentProps {
 export interface ImageBlockOptions {
   HTMLAttributes: Record<string, any>;
   /** Callback to handle file upload, should return the URL of the uploaded image */
-  onUpload?: (file: File) => Promise<ImageUploadResult>;
+  onUpload?: (file: File, context?: ImageUploadContext) => Promise<ImageUploadResult>;
   /** Optional callback to resolve a persisted URL into a public URL */
   resolveFileUrl?: (url: string) => Promise<string>;
   /** Allowed MIME types for image upload */
@@ -118,10 +142,12 @@ async function sniffImageContent(file: File): Promise<boolean> {
     const buffer = await slice.arrayBuffer();
     const bytes = new Uint8Array(buffer);
     if (bytes.length === 0) return true;
-    const head = Array.from(bytes.slice(0, 32))
+    // Strip leading NUL/control bytes as well as whitespace: trimStart()
+    // alone lets `\0\0<svg` sail past the prefix check below.
+    const head = Array.from(bytes.slice(0, 64))
       .map((b) => String.fromCharCode(b))
       .join('')
-      .trimStart()
+      .replace(/^[\0\x01-\x08\x0B\x0C\x0E-\x1F\x7F\s]+/, '')
       .toLowerCase();
     if (!head) return true;
     return !EXECUTABLE_PREFIXES.some((prefix) => head.startsWith(prefix));
@@ -184,12 +210,12 @@ function createImageUploadHelpers(options: ImageBlockOptions) {
         src: placeholderSrc,
         alt: file.name,
       });
-      const clampedPos = Math.min(pos, view.state.doc.content.size);
+      const clampedPos = Math.max(0, Math.min(pos, view.state.doc.content.size));
       view.dispatch(view.state.tr.insert(clampedPos, placeholderNode));
 
       let attrs: Partial<ImageNodeAttributes>;
       if (onUpload) {
-        const uploadResult = await onUpload(file);
+        const uploadResult = await onUpload(file, { blockId: placeholderSrc });
         attrs = toImageNodeAttributes(uploadResult, file.name);
       } else {
         const src = await new Promise<string>((resolve, reject) => {
@@ -414,7 +440,9 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
       setImageBlockWidth:
         (width) =>
           ({ commands }) => {
-            return commands.updateAttributes('imageBlock', { width: `${width}%` });
+            const clamped = clampImageBlockWidthPercent(width);
+            if (clamped === null) return false;
+            return commands.updateAttributes('imageBlock', { width: `${clamped}%` });
           },
       uploadImageBlock:
         (files, pos) =>

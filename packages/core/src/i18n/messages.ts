@@ -56,11 +56,14 @@ export interface InkioCoreMessages {
     placeholder: string;
     cancel: string;
     save: string;
+    invalidUrl: string;
   };
   suggestion: {
     empty: string;
   };
   blockHandle: {
+    menu: string;
+    handle: string;
     delete: string;
     duplicate: string;
     transformSection: string;
@@ -130,11 +133,14 @@ export const enCoreMessages: InkioCoreMessages = {
     placeholder: 'https://example.com',
     cancel: 'Cancel',
     save: 'Save',
+    invalidUrl: 'This URL is not allowed.',
   },
   suggestion: {
     empty: 'No results found',
   },
   blockHandle: {
+    menu: 'Block actions',
+    handle: 'Block handle',
     delete: 'Delete',
     duplicate: 'Duplicate',
     transformSection: 'Turn into',
@@ -153,8 +159,16 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function deepMerge<T>(base: T, override?: DeepPartial<T>): T {
+// Message trees are at most a few levels deep: beyond this the input is
+// adversarial or cyclic, and recursing would overflow the stack.
+const MAX_MERGE_DEPTH = 8;
+
+function deepMerge<T>(base: T, override?: DeepPartial<T>, depth = 0): T {
   if (!override) {
+    return base;
+  }
+
+  if (depth > MAX_MERGE_DEPTH) {
     return base;
   }
 
@@ -174,7 +188,7 @@ function deepMerge<T>(base: T, override?: DeepPartial<T>): T {
     const existing = result[key];
 
     if (isPlainObject(existing) && isPlainObject(value)) {
-      result[key] = deepMerge(existing, value as DeepPartial<typeof existing>);
+      result[key] = deepMerge(existing, value as DeepPartial<typeof existing>, depth + 1);
       continue;
     }
 
@@ -192,7 +206,15 @@ export function toCoreMessageOverrides(
   }
 
   if ('core' in input || 'extensions' in input) {
-    return (input as InkioMessageOverrides).core;
+    const { core, extensions: _extensions, ...direct } = input as InkioMessageOverrides &
+      Record<string, unknown>;
+    void _extensions;
+    // Mixed shapes ({ core, ...directKeys }): fold the direct keys over the
+    // nested set instead of silently dropping them.
+    if (Object.keys(direct).length === 0) {
+      return core;
+    }
+    return deepMerge((core ?? {}) as InkioCoreMessageOverrides, direct as InkioCoreMessageOverrides);
   }
 
   return input as InkioCoreMessageOverrides;

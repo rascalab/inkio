@@ -1,5 +1,29 @@
 import { renderHook } from '@testing-library/react';
-import { isEqualOptionsValue, useStableOptions } from '../stable-options';
+import { isEqualOptionsValue, useStableCallback, useStableOptions } from '../stable-options';
+
+describe('useStableCallback', () => {
+  it('keeps one identity across inline closures while forwarding to the newest', () => {
+    const { result, rerender } = renderHook(({ tag }) => useStableCallback(() => tag), {
+      initialProps: { tag: 'a' },
+    });
+    const first = result.current;
+    rerender({ tag: 'b' });
+    expect(result.current).toBe(first);
+    expect(result.current?.()).toBe('b');
+  });
+
+  it('tracks defined-ness: undefined in, undefined out', () => {
+    const { result, rerender } = renderHook(
+      ({ fn }: { fn?: () => string }) => useStableCallback(fn),
+      { initialProps: { fn: undefined as (() => string) | undefined } },
+    );
+    expect(result.current).toBeUndefined();
+    rerender({ fn: () => 'x' });
+    expect(result.current?.()).toBe('x');
+    rerender({ fn: undefined });
+    expect(result.current).toBeUndefined();
+  });
+});
 
 describe('isEqualOptionsValue', () => {
   it('compares primitives and references', () => {

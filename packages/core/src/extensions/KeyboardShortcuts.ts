@@ -58,6 +58,11 @@ const setNearestSelectionInside = (
 };
 
 const duplicateCurrentBlock = (editor: Editor): boolean => {
+  // Direct view.dispatch bypasses the command pipeline, so editable must be
+  // checked here: keymaps still fire in a read-only Viewer.
+  if (!editor.isEditable) {
+    return false;
+  }
   const context = findCurrentBlockContext(editor.state);
 
   if (!context) {
@@ -73,6 +78,10 @@ const duplicateCurrentBlock = (editor: Editor): boolean => {
 };
 
 const moveCurrentBlock = (editor: Editor, direction: -1 | 1): boolean => {
+  // Same direct-dispatch bypass as duplicateCurrentBlock (see above).
+  if (!editor.isEditable) {
+    return false;
+  }
   const context = findCurrentBlockContext(editor.state);
 
   if (!context) {

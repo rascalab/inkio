@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getExtensions } from '../../extensions/get-extensions';
-import { renderInkioStaticContent } from '../render-static-content';
+import { normalizeInkioContent, renderInkioStaticContent } from '../render-static-content';
 
 const extensions = getExtensions();
 
@@ -46,6 +46,12 @@ describe('static render: never crashes, always sanitizes', () => {
     const result = renderInkioStaticContent(doc, extensions);
     expect(result.html).not.toContain('javascript:');
     expect(result.html).not.toContain('<img');
+  });
+
+  it('preserves comparison text like a<3 instead of stripping it as markup', () => {
+    const json = normalizeInkioContent('a<3 and 1<2 are true');
+    expect(JSON.stringify(json)).toContain('a<3');
+    expect(JSON.stringify(json)).toContain('1<2');
   });
 
   it('injects stable heading ids for anchors', () => {

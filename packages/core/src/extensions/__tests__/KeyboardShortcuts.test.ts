@@ -1,4 +1,7 @@
-import type { Editor } from '@tiptap/core';
+import { Editor } from '@tiptap/core';
+import Document from '@tiptap/extension-document';
+import Paragraph from '@tiptap/extension-paragraph';
+import Text from '@tiptap/extension-text';
 import { KeyboardShortcuts } from '../KeyboardShortcuts';
 
 function createMockEditor(commandName?: string) {
@@ -44,5 +47,28 @@ describe('KeyboardShortcuts extension', () => {
     expect(shortcuts['Mod-Shift-h']({ editor })).toBe(false);
     expect(chain.focus).toHaveBeenCalled();
     expect(chain.run).not.toHaveBeenCalled();
+  });
+
+  it('refuses block mutation in a read-only editor', () => {
+    const shortcuts = KeyboardShortcuts.config.addKeyboardShortcuts!.call({} as never);
+    const dispatch = vi.fn();
+    const editor = { isEditable: false, view: { dispatch } } as unknown as Editor;
+    expect(shortcuts['Mod-d']({ editor })).toBe(false);
+    expect(shortcuts['Mod-Shift-ArrowUp']({ editor })).toBe(false);
+    expect(shortcuts['Mod-Shift-ArrowDown']({ editor })).toBe(false);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('still duplicates the current block when editable', () => {
+    const editor = new Editor({
+      element: document.createElement('div'),
+      extensions: [Document, Paragraph, Text, KeyboardShortcuts],
+      content: '<p>one</p>',
+    });
+    const shortcuts = KeyboardShortcuts.config.addKeyboardShortcuts!.call({} as never);
+
+    expect(shortcuts['Mod-d']({ editor })).toBe(true);
+    expect(editor.getHTML()).toBe('<p>one</p><p>one</p>');
+    editor.destroy();
   });
 });

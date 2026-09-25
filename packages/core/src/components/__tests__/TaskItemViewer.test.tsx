@@ -75,7 +75,7 @@ describe('TaskItem checkbox in read-only surfaces', () => {
       expect(document.querySelector('.inkio-task-checkbox-btn')).not.toBeNull();
     });
     const button = document.querySelector('.inkio-task-checkbox-btn');
-    fireEvent.mouseDown(button!);
+    fireEvent.click(button!);
     expect(isChecked(editor)).toBe(false);
     cleanup();
   });
@@ -86,7 +86,7 @@ describe('TaskItem checkbox in read-only surfaces', () => {
       expect(document.querySelector('.inkio-task-checkbox-btn')).not.toBeNull();
     });
     const button = document.querySelector('.inkio-task-checkbox-btn');
-    fireEvent.mouseDown(button!);
+    fireEvent.click(button!);
     expect(isChecked(editor)).toBe(true);
     cleanup();
   });

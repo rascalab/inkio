@@ -29,6 +29,20 @@ function getHighlightNodes(result: { value?: unknown; children?: unknown }): unk
   return value || children || [];
 }
 
+/**
+ * A throwing grammar must degrade to plain text, never break the
+ * ProseMirror transaction that asked for decorations.
+ */
+function safeHighlight(
+  run: () => { value?: unknown; children?: unknown },
+): { value?: unknown; children?: unknown } {
+  try {
+    return run();
+  } catch {
+    return { value: [] };
+  }
+}
+
 function registered(aliasOrLanguage: string): boolean {
   return Boolean(highlight.getLanguage(aliasOrLanguage));
 }
@@ -54,8 +68,8 @@ function getDecorations({
       (languages.includes(language) ||
         registered(language) ||
         lowlight.registered?.(language))
-        ? getHighlightNodes(lowlight.highlight(language, block.node.textContent))
-        : getHighlightNodes(lowlight.highlightAuto(block.node.textContent));
+        ? getHighlightNodes(safeHighlight(() => lowlight.highlight(language, block.node.textContent)))
+        : getHighlightNodes(safeHighlight(() => lowlight.highlightAuto(block.node.textContent)));
     parseNodes(nodes as Parameters<typeof parseNodes>[0]).forEach((node) => {
       const to = from + node.text.length;
       if (node.classes.length) {

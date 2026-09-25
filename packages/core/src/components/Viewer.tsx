@@ -29,13 +29,16 @@ export function Viewer({
   bordered = true,
 }: ViewerProps) {
   const resolved = useMemo(
-    () => resolveInkioExtensions(extensions ?? [], undefined),
+    () => resolveInkioExtensions(extensions, undefined),
     [extensions],
   );
   const html = useMemo(() => {
     try {
       return renderInkioStaticContent(content, resolved).html || '<p></p>';
-    } catch {
+    } catch (error) {
+      // Schema/content mismatches (e.g. foreign JSON pasted as content)
+      // otherwise render as an undebuggable empty paragraph.
+      console.error('[inkio] Viewer failed to render content:', error);
       return '<p></p>';
     }
   }, [content, resolved]);

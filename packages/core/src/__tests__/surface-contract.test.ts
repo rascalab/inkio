@@ -1,11 +1,14 @@
 /// <reference types="node" />
 
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const packageDir = dirname(fileURLToPath(import.meta.url));
 import { describe, expect, it } from 'vitest';
 
-const tokensCss = readFileSync(resolve(process.cwd(), 'src/tokens.css'), 'utf8');
-const styleCss = readFileSync(resolve(process.cwd(), 'src/style.css'), 'utf8');
+const tokensCss = readFileSync(resolve(packageDir, '../tokens.css'), 'utf8');
+const styleCss = readFileSync(resolve(packageDir, '../style.css'), 'utf8');
 
 describe('surface token contract', () => {
   it('defines the shared surface token ladder', () => {

@@ -1,3 +1,4 @@
+import { waitFor } from '@testing-library/react';
 import { Editor } from '@tiptap/core';
 import Blockquote from '@tiptap/extension-blockquote';
 import Document from '@tiptap/extension-document';
@@ -10,6 +11,11 @@ describe('resolveHljsLanguageName', () => {
   it('maps UI language values to loadable grammars', () => {
     expect(resolveHljsLanguageName('typescript')).toBe('typescript');
     expect(resolveHljsLanguageName('TSX')).toBe('typescript');
+    expect(resolveHljsLanguageName('c++')).toBe('cpp');
+    expect(resolveHljsLanguageName('C#')).toBe('csharp');
+    expect(resolveHljsLanguageName('sh')).toBe('bash');
+    expect(resolveHljsLanguageName('zsh')).toBe('bash');
+    expect(resolveHljsLanguageName('py')).toBe('python');
     expect(resolveHljsLanguageName('jsx')).toBe('typescript');
     expect(resolveHljsLanguageName('Python')).toBe('python');
     expect(resolveHljsLanguageName('bash')).toBe('bash');
@@ -62,11 +68,9 @@ describe('CodeBlock with lazy grammars', () => {
     });
 
     const code = () => editor.view.dom.querySelector('pre code');
-    const deadline = Date.now() + 5000;
-    while (!code()?.querySelector('[class*="hljs"]') && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    expect(code()?.querySelector('[class*="hljs"]')).not.toBeNull();
+    await waitFor(() => {
+      expect(code()?.querySelector('[class*="hljs"]')).not.toBeNull();
+    });
     editor.destroy();
   });
 
@@ -97,11 +101,9 @@ describe('CodeBlock with lazy grammars', () => {
 
     const code = () => editor.view.dom.querySelector('blockquote pre code');
     expect(code()?.textContent).toBe('print("nested")');
-    const deadline = Date.now() + 5000;
-    while (!code()?.querySelector('[class*="hljs"]') && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    expect(code()?.querySelector('[class*="hljs"]')).not.toBeNull();
+    await waitFor(() => {
+      expect(code()?.querySelector('[class*="hljs"]')).not.toBeNull();
+    });
     editor.destroy();
   });
 });

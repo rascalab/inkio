@@ -42,6 +42,19 @@ function toViewportRect(): RectLike {
   };
 }
 
+/**
+ * SSR-safe boundary default: a zero rect positions deterministically
+ * instead of throwing on `window` when no boundaryRect is given. Shift
+ * clamps against an empty boundary pin to the origin edge by design
+ * (min wins on inverted ranges); there is no viewport to honor server-side.
+ */
+function defaultBoundaryRect(): RectLike {
+  if (typeof window === 'undefined') {
+    return { top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0 };
+  }
+  return toViewportRect();
+}
+
 function clamp(value: number, min: number, max: number): number {
   if (value < min) {
     return min;
@@ -153,8 +166,10 @@ export function computeOverlayPosition(options: OverlayPositionOptions): Overlay
     padding = DEFAULT_PADDING,
     flip = true,
     shift = true,
-    boundaryRect = toViewportRect(),
+    boundaryRect,
   } = options;
+
+  const boundary = boundaryRect ?? defaultBoundaryRect();
 
   let resolvedPlacement = placement;
   let { top, left } = computeCoordinates(resolvedPlacement, align, anchorRect, floatingRect, offset);
@@ -163,12 +178,12 @@ export function computeOverlayPosition(options: OverlayPositionOptions): Overlay
     const opposite = getOppositePlacement(placement);
     const oppositeCoords = computeCoordinates(opposite, align, anchorRect, floatingRect, offset);
 
-    const currentOverflow = overflowScore(top, left, floatingRect, boundaryRect, padding);
+    const currentOverflow = overflowScore(top, left, floatingRect, boundary, padding);
     const oppositeOverflow = overflowScore(
       oppositeCoords.top,
       oppositeCoords.left,
       floatingRect,
-      boundaryRect,
+      boundary,
       padding,
     );
 
@@ -182,14 +197,14 @@ export function computeOverlayPosition(options: OverlayPositionOptions): Overlay
   if (shift) {
     top = clamp(
       top,
-      boundaryRect.top + padding,
-      boundaryRect.bottom - floatingRect.height - padding,
+      boundary.top + padding,
+      boundary.bottom - floatingRect.height - padding,
     );
 
     left = clamp(
       left,
-      boundaryRect.left + padding,
-      boundaryRect.right - floatingRect.width - padding,
+      boundary.left + padding,
+      boundary.right - floatingRect.width - padding,
     );
   }
 

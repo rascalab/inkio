@@ -7,11 +7,20 @@ import {
   Loader2Icon,
   PencilIcon,
 } from '../icons';
-import { UPLOAD_PLACEHOLDER_PREFIX, type ImageEditorComponentProps } from './ImageBlock';
+import {
+  IMAGE_BLOCK_MAX_WIDTH_PERCENT,
+  IMAGE_BLOCK_MIN_WIDTH_PERCENT,
+  UPLOAD_PLACEHOLDER_PREFIX,
+  type ImageEditorComponentProps,
+} from './ImageBlock';
+import { isSafeUrl } from '../utils/url-safety';
 
 function parseWidthPercent(w: unknown): number {
   return parseFloat(String(w).replace('%', '')) || 100;
 }
+
+/** Keystroke quiet period before a caption draft commits to the document. */
+export const IMAGE_BLOCK_CAPTION_DEBOUNCE_MS = 600;
 
 function ImageBlockViewInner(props: NodeViewProps) {
   const { node, updateAttributes, selected, editor, extension } = props;
@@ -60,14 +69,24 @@ function ImageBlockViewInner(props: NodeViewProps) {
   const handleCaptionChange = useCallback((value: string) => {
     setCaptionDraft(value);
     if (captionCommitTimer.current) clearTimeout(captionCommitTimer.current);
-    captionCommitTimer.current = setTimeout(() => commitCaption(value), 600);
+    captionCommitTimer.current = setTimeout(() => commitCaption(value), IMAGE_BLOCK_CAPTION_DEBOUNCE_MS);
   }, [commitCaption]);
 
-  // External caption changes (undo, collaboration) replace the draft.
-  // Internal commits already match the draft, so this only fires on real
-  // external updates and never clobbers in-progress typing.
+  // External caption changes (undo, collaboration) replace the draft and
+  // cancel a pending keystroke commit; otherwise the stale timer would
+  // re-commit the abandoned draft over the external value. Internal commits
+  // already match the draft, so this only fires on real external updates
+  // and never clobbers in-progress typing.
+  const prevExternalCaptionRef = useRef(node.attrs.caption || '');
   useEffect(() => {
     const external = node.attrs.caption || '';
+    if (prevExternalCaptionRef.current !== external) {
+      prevExternalCaptionRef.current = external;
+      if (captionCommitTimer.current) {
+        clearTimeout(captionCommitTimer.current);
+        captionCommitTimer.current = null;
+      }
+    }
     setCaptionDraft((prev) => (prev === external ? prev : external));
   }, [node.attrs.caption]);
 
@@ -97,7 +116,10 @@ function ImageBlockViewInner(props: NodeViewProps) {
       const onMouseMove = (moveEvent: MouseEvent) => {
         const diff = moveEvent.clientX - startX;
         const newPixelWidth = startWidth + diff;
-        const newPercent = Math.min(100, Math.max(10, (newPixelWidth / parentWidth) * 100));
+        const newPercent = Math.min(
+          IMAGE_BLOCK_MAX_WIDTH_PERCENT,
+          Math.max(IMAGE_BLOCK_MIN_WIDTH_PERCENT, (newPixelWidth / parentWidth) * 100),
+        );
         latestPercent = newPercent;
         setCurrentWidth(newPercent);
       };
@@ -130,6 +152,10 @@ function ImageBlockViewInner(props: NodeViewProps) {
   // an `<img src>` would make the browser fetch a bogus relative path.
   const isUploading =
     typeof node.attrs.src === 'string' && node.attrs.src.startsWith(UPLOAD_PLACEHOLDER_PREFIX);
+  // Mirror the renderHTML fallback: never hand an unsafe persisted src to
+  // the DOM (or to the third-party editor component below), even if it
+  // arrived via a writer that predates the guards.
+  const safeSrc = typeof node.attrs.src === 'string' && isSafeUrl(node.attrs.src) ? node.attrs.src : null;
   const showControls = isEditable && !isUploading && (selected || isHovered || resizing);
   const align = node.attrs.align === 'left' ? 'left' : node.attrs.align === 'right' ? 'right' : 'center';
 
@@ -147,13 +173,15 @@ function ImageBlockViewInner(props: NodeViewProps) {
           <div className="inkio-image-block-placeholder" role="img" aria-label={node.attrs.alt || 'Uploading image'}>
             <Loader2Icon size={20} className="inkio-image-block-editor-spinner" />
           </div>
-        ) : (
+        ) : safeSrc ? (
           <img
             ref={imageRef}
-            src={node.attrs.src}
+            src={safeSrc}
             alt={node.attrs.alt}
             className="inkio-image-block-img"
           />
+        ) : (
+          <div className="inkio-image-block-placeholder" role="img" aria-label={node.attrs.alt || 'Blocked image'} />
         )}
 
         {/* Resize Handle - Editor only, hidden when image editor is open */}
@@ -233,9 +261,13 @@ function ImageBlockViewInner(props: NodeViewProps) {
         >
           <ImageEditorComponent
             isOpen={isEditorOpen}
-            imageSrc={node.attrs.src}
+            imageSrc={safeSrc ?? ''}
             onSave={(editedImageData: string) => {
-              updateAttributes({ src: editedImageData });
+              // Same boundary as setImageBlock/parseHTML: the image editor
+              // component may be third-party, so validate before persisting.
+              if (typeof editedImageData === 'string' && isSafeUrl(editedImageData)) {
+                updateAttributes({ src: editedImageData });
+              }
               setIsEditorOpen(false);
             }}
             onClose={() => setIsEditorOpen(false)}

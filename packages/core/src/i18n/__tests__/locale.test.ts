@@ -36,6 +36,24 @@ describe('locale parser', () => {
   });
 });
 
+describe('locale parser adversarial input', () => {
+  it('terminates on an infinite iterator', () => {
+    const evil = {
+      *[Symbol.iterator]() {
+        for (;;) yield 'en';
+      },
+    };
+    expect(resolveLocaleInput(evil)).toEqual(['en']);
+  });
+
+  it('terminates on cyclic structures instead of overflowing the stack', () => {
+    const cyclic: unknown[] = ['en'];
+    cyclic.push(cyclic);
+    expect(() => resolveLocaleInput(cyclic)).not.toThrow();
+    expect(resolveLocaleInput(cyclic)).toContain('en');
+  });
+});
+
 describe('pickMessageLocale', () => {
   it('selects the best matching locale by exact match', () => {
     expect(pickMessageLocale('en-US,en;q=0.8', ['ko', 'en'])).toBe('en');

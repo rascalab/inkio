@@ -26,6 +26,22 @@ describe('core messages', () => {
     expect(merged.linkPopover.cancel).toBe(enCoreMessages.linkPopover.cancel);
   });
 
+  it('folds mixed direct keys over the nested core set instead of dropping them', () => {
+    const extracted = toCoreMessageOverrides({
+      core: { actions: { comment: 'Discuss' } },
+      linkPopover: { save: 'Apply' },
+    } as never);
+
+    expect(extracted?.actions?.comment).toBe('Discuss');
+    expect(extracted?.linkPopover?.save).toBe('Apply');
+  });
+
+  it('terminates on cyclic overrides instead of overflowing the stack', () => {
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+    expect(() => mergeCoreMessages('en', cyclic as never)).not.toThrow();
+  });
+
   it('extracts core namespace from root message overrides', () => {
     const extracted = toCoreMessageOverrides({
       core: { actions: { comment: 'Discuss' } },

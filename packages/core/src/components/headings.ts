@@ -24,12 +24,14 @@ function getTextFromNode(node: JSONContent | null | undefined): string {
 }
 
 export function slugifyHeading(text: string, used: Set<string>): string {
+  // Unicode letter/number classes keep CJK and accented-Latin headings
+  // readable instead of collapsing them all to `section-N`.
   const base = (
     text
       .trim()
       .replace(/\s+/g, '-')
-      .replace(/^[^a-zA-Z0-9\uac00-\ud7a3]+/, '')
-      .replace(/[^a-zA-Z0-9\uac00-\ud7a3_-]/g, '')
+      .replace(/^[^\p{L}\p{N}]+/u, '')
+      .replace(/[^\p{L}\p{N}_-]+/gu, '')
       || 'section'
   ).toLowerCase();
 
@@ -120,6 +122,10 @@ export function getHeadingsFromDoc(
 export function getHeadingElements(editor: { view?: { dom?: Element } } | null | undefined, maxLevel = 6): HTMLElement[] {
   const container = editor?.view?.dom;
   if (!container) return [];
-  const selector = Array.from({ length: maxLevel }, (_, i) => `h${i + 1}`).join(', ');
+  // maxLevel < 1 means "no headings"; without the guard an empty selector
+  // string throws SyntaxError in querySelectorAll.
+  const level = Math.min(6, Math.max(1, Math.floor(maxLevel)));
+  if (!(maxLevel >= 1)) return [];
+  const selector = Array.from({ length: level }, (_, i) => `h${i + 1}`).join(', ');
   return Array.from(container.querySelectorAll<HTMLElement>(selector));
 }

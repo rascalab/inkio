@@ -54,6 +54,21 @@ const LANGUAGE_LOADERS: Record<string, () => Promise<HljsLanguageModule>> = {
 
 /** UI language values that resolve to a different grammar module. */
 const LANGUAGE_ALIASES: Record<string, string> = {
+  'c++': 'cpp',
+  'c#': 'csharp',
+  'c++11': 'cpp',
+  'c++14': 'cpp',
+  'c++17': 'cpp',
+  'c++20': 'cpp',
+  'c++23': 'cpp',
+  sh: 'bash',
+  shell: 'bash',
+  zsh: 'bash',
+  js: 'javascript',
+  ts: 'typescript',
+  py: 'python',
+  rb: 'ruby',
+  yml: 'yaml',
   jsx: 'typescript',
   tsx: 'typescript',
 };
@@ -231,17 +246,23 @@ export function ensureHljsLanguages(lowlight: InkioLowlight, editor: Editor): vo
 const RETRY_DELAYS_MS = [1500, 4000];
 const loadAttempts = new Map<string, number>();
 
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
 function scheduleRetry(lowlight: InkioLowlight, failed: string[]): void {
   const retryable = failed.filter(
     (name) => (loadAttempts.get(name) ?? 0) < RETRY_DELAYS_MS.length,
   );
   if (retryable.length === 0) return;
-  const delay = Math.max(...retryable.map((name) => RETRY_DELAYS_MS[loadAttempts.get(name) ?? 0]!));
+  // One pending retry covers all grammars: repeated failures while a retry
+  // is already queued only bump per-grammar attempt counts.
   for (const name of retryable) {
     loadAttempts.set(name, (loadAttempts.get(name) ?? 0) + 1);
   }
   touchGrammarState();
-  setTimeout(() => {
+  if (retryTimer !== null) return;
+  const delay = Math.max(...retryable.map((name) => RETRY_DELAYS_MS[(loadAttempts.get(name) ?? 1) - 1]!));
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
     for (const editor of liveEditors) {
       if (editor.isDestroyed) {
         liveEditors.delete(editor);
@@ -250,6 +271,8 @@ function scheduleRetry(lowlight: InkioLowlight, failed: string[]): void {
       ensureHljsLanguages(lowlight, editor);
     }
   }, delay);
+  // Don't hold test runners / SSR processes open for a background retry.
+  (retryTimer as unknown as { unref?: () => void }).unref?.();
 }
 
 /**

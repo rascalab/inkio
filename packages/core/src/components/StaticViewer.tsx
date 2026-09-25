@@ -31,7 +31,7 @@ export type StaticViewerProps = {
  */
 export function StaticViewer({ content, theme, ui, extensions }: StaticViewerProps) {
   const resolved = useMemo(
-    () => resolveExtensionsInput(extensions, resolveInkioExtensions([], undefined)),
+    () => resolveExtensionsInput(extensions, resolveInkioExtensions(undefined, undefined)),
     [extensions],
   );
 

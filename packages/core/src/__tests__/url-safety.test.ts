@@ -102,6 +102,11 @@ describe('url-safety: isSafeUrl', () => {
     }
   });
 
+  it('encodes legitimate spaces instead of joining path segments', () => {
+    expect(isSafeUrl('https://example.com/a b')).toBe(true);
+    expect(sanitizeUrlOrEmpty('https://example.com/a b')).toBe('https://example.com/a%20b');
+  });
+
   it('sanitizeUrlOrEmpty returns the normalized string, not the raw input', () => {
     expect(sanitizeUrlOrEmpty('https://example.com/a')).toBe('https://example.com/a');
     // Invisible chars must be stripped in the returned value.

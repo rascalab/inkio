@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import type { InkioLocaleInput, InkioMessageOverrides } from '../i18n/messages';
 import type { InkioIconRegistry } from '../icons/registry';
+import { useStableOptions } from '../utils/stable-options';
 
 interface InkioContextValue {
   locale?: InkioLocaleInput;
@@ -23,9 +24,13 @@ export function InkioProvider({
   icons,
   children,
 }: InkioProviderProps) {
+  // Inline option literals from a re-rendering parent must not churn every
+  // useInkioCoreUi consumer: stabilize by structure, propagate real changes.
+  const stableMessages = useStableOptions(messages);
+  const stableIcons = useStableOptions(icons);
   const value = useMemo<InkioContextValue>(
-    () => ({ locale, messages, icons }),
-    [locale, messages, icons],
+    () => ({ locale, messages: stableMessages, icons: stableIcons }),
+    [locale, stableMessages, stableIcons],
   );
 
   return (

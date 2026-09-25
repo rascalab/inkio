@@ -7,6 +7,14 @@ function TaskItemViewInner({ node, updateAttributes, extension, editor }: NodeVi
   const checked = node.attrs.checked as boolean;
   const CheckIcon: InkioIconComponent = extension.options.checkIcon || DefaultCheckIcon;
 
+  const toggleChecked = () => {
+    // Read-only surfaces (Viewer) render the state statically.
+    if (!editor.isEditable) {
+      return;
+    }
+    updateAttributes({ checked: !checked });
+  };
+
   return (
     <NodeViewWrapper
       as="li"
@@ -19,15 +27,13 @@ function TaskItemViewInner({ node, updateAttributes, extension, editor }: NodeVi
           type="button"
           className={`inkio-task-checkbox-btn${checked ? ' is-checked' : ''}`}
           onMouseDown={(e) => {
-            // Prevent ProseMirror from intercepting the click event
+            // Prevent ProseMirror from intercepting the pointer event. The
+            // toggle itself runs on click so keyboard (Enter/Space), touch,
+            // and assistive tech activate it — mousedown alone never toggles.
             e.preventDefault();
             e.stopPropagation();
-            // Read-only surfaces (Viewer) render the state statically.
-            if (!editor.isEditable) {
-              return;
-            }
-            updateAttributes({ checked: !checked });
           }}
+          onClick={toggleChecked}
         >
           {checked && <CheckIcon size={14} strokeWidth={2.5} />}
         </button>

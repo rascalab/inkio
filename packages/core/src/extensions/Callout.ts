@@ -26,6 +26,47 @@ function isSafeColor(value: string): boolean {
   return true;
 }
 
+/**
+ * Boundary normalization for callout colors: preset names pass through,
+ * safe custom values pass through, everything else drops to null so raw
+ * attrs never carry a payload for alternate renderers/exporters that read
+ * them directly (renderHTML sanitizes, but it is not the only consumer).
+ */
+export function normalizeCalloutColor(color: unknown): string | null {
+  if (typeof color !== 'string') return null;
+  if (color in CALLOUT_COLOR_PRESETS) return color;
+  return isSafeColor(color) ? color : null;
+}
+
+/**
+ * Icon values render verbatim into data attributes: cap length and strip
+ * controls so a programmatic caller cannot stash payloads. The toolbar
+ * caps input at 2 chars; 8 code points leaves generous headroom.
+ */
+export function normalizeCalloutIcon(icon: unknown): string | null {
+  if (typeof icon !== 'string') return null;
+  const trimmed = icon.trim();
+  // Icons are short names or glyphs (the toolbar caps input at 2 chars;
+  // the longest in-repo fixture is 'lightbulb' at 9). Anything longer or
+  // carrying control characters is not an icon.
+  if (!trimmed || Array.from(trimmed).length > 32 || /[\0\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
+export function sanitizeCalloutAttrs<T extends { color?: unknown; icon?: unknown }>(attributes: T | undefined): T | undefined {
+  if (!attributes) return attributes;
+  const next = { ...attributes };
+  if (next.color !== undefined) {
+    (next as Record<string, unknown>).color = normalizeCalloutColor(next.color);
+  }
+  if (next.icon !== undefined) {
+    (next as Record<string, unknown>).icon = normalizeCalloutIcon(next.icon);
+  }
+  return next;
+}
+
 export const CALLOUT_COLOR_PRESETS: Record<string, string> = {
   blue: 'var(--inkio-callout-blue)',
   yellow: 'var(--inkio-callout-yellow)',
@@ -142,12 +183,12 @@ export const Callout = Node.create<CalloutOptions>({
       setCallout:
         (attributes) =>
         ({ commands }) => {
-          return commands.wrapIn(this.name, attributes);
+          return commands.wrapIn(this.name, sanitizeCalloutAttrs(attributes));
         },
       toggleCallout:
         (attributes) =>
         ({ commands }) => {
-          return commands.toggleWrap(this.name, attributes);
+          return commands.toggleWrap(this.name, sanitizeCalloutAttrs(attributes));
         },
       unsetCallout:
         () =>
@@ -157,12 +198,16 @@ export const Callout = Node.create<CalloutOptions>({
       updateCalloutIcon:
         (icon) =>
         ({ commands }) => {
-          return commands.updateAttributes(this.name, { icon });
+          const safeIcon = normalizeCalloutIcon(icon);
+          if (safeIcon === null) return false;
+          return commands.updateAttributes(this.name, { icon: safeIcon });
         },
       updateCalloutColor:
         (color) =>
         ({ commands }) => {
-          return commands.updateAttributes(this.name, { color });
+          const safeColor = normalizeCalloutColor(color);
+          if (safeColor === null) return false;
+          return commands.updateAttributes(this.name, { color: safeColor });
         },
     };
   },

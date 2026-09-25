@@ -176,11 +176,13 @@ export function createInkioIcon(
 
 export function createInkioIconElement(
   iconNode: InkioIconNode,
-  props: Pick<InkioIconProps, 'color' | 'size' | 'strokeWidth' | 'className'> = {},
+  props: Pick<InkioIconProps, 'color' | 'size' | 'strokeWidth' | 'absoluteStrokeWidth' | 'className'> = {},
 ): SVGSVGElement {
   const element = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   const size = props.size ?? 24;
-  const strokeWidth = props.strokeWidth ?? 2;
+  // Same scaling as the React path so DOM-built and React-built icons
+  // agree at non-24 sizes.
+  const strokeWidth = resolveStrokeWidth(props.strokeWidth ?? 2, size, props.absoluteStrokeWidth ?? false);
 
   element.setAttribute('xmlns', DEFAULT_ATTRIBUTES.xmlns);
   element.setAttribute('viewBox', DEFAULT_ATTRIBUTES.viewBox);
