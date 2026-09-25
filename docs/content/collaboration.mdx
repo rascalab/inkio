@@ -26,7 +26,7 @@ import { EditorContent } from '@tiptap/react';
 export function Room({ docId, token }: { docId: string; token: string }) {
   const { editor, provider, status } = useInkioCollaborativeEditor({
     docId,
-    url: 'http://localhost:3123',
+    url: 'http://localhost:3123/inkio-collab',
     token,
     user: { name: 'Ada', color: '#ff0077' },
     initialContent: '<p>Start here</p>',
@@ -59,6 +59,8 @@ export function Room({ docId, token }: { docId: string; token: string }) {
 ```ts
 import { SocketIOCollabProvider } from '@inkio/collab';
 
+// existingSocket must already be connected to the /inkio-collab namespace:
+// the engine listens nowhere else.
 const provider = new SocketIOCollabProvider({ docId, socket: existingSocket, token });
 provider.connect();
 ```

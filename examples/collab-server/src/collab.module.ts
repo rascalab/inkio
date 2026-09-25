@@ -8,6 +8,15 @@ export const COLLAB_ENGINE_OPTIONS = 'INKIO_COLLAB_ENGINE_OPTIONS';
 @Module({})
 export class InkioCollabModule {
   static forRoot(options: CollabEngineOptions = {}): DynamicModule {
+    // Fail fast on nonsense instead of arming immediate-fire timers.
+    if (
+      options.persistThrottleMs !== undefined &&
+      (!Number.isFinite(options.persistThrottleMs) || options.persistThrottleMs < 0)
+    ) {
+      throw new Error(
+        `[collab] invalid persistThrottleMs: ${String(options.persistThrottleMs)}`,
+      );
+    }
     return {
       module: InkioCollabModule,
       providers: [

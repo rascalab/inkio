@@ -3,7 +3,13 @@ name: Publish Packages
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[0-9]*'
+
+# Serialize releases per tag: a stray re-push must queue behind the
+# in-flight publish, never run alongside it.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish:

@@ -3,7 +3,9 @@ import * as Y from 'yjs';
 
 const PORT = Number(process.env.PORT ?? 3123);
 const URL = `http://127.0.0.1:${PORT}/inkio-collab`;
-const DOC_ID = 'smoke-doc';
+// Unique per run: re-runs against a live server must sync clean, not
+// merge into a dirty room left by the previous run.
+const DOC_ID = `smoke-doc-${Date.now().toString(36)}`;
 
 const EV = {
   join: 'inkio:collab:join',
@@ -45,8 +47,12 @@ async function main() {
     waitFor(socketA, 'connect').then(() => socketA.emit(EV.join, { docId: DOC_ID })),
     waitFor(socketB, 'connect').then(() => socketB.emit(EV.join, { docId: DOC_ID })),
   ]);
-  await Promise.all([waitFor(socketA, EV.init), waitFor(socketB, EV.init)]);
-  console.log('smoke: both clients joined and received init');
+  // Snapshot sync is the core property: apply both init payloads to the
+  // local docs instead of discarding them.
+  const [initA, initB] = await Promise.all([waitFor(socketA, EV.init), waitFor(socketB, EV.init)]);
+  Y.applyUpdate(docA, initA.update);
+  Y.applyUpdate(docB, initB.update);
+  console.log('smoke: both clients joined and applied init snapshots');
 
   const converged = new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('docB did not converge')), 5000);

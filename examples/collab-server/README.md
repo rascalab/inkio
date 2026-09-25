@@ -12,8 +12,12 @@ Wire protocol (single source of truth): `@inkio/collab/protocol` subpath
 (`inkio:collab:join/init/update/awareness/error` on namespace `/inkio-collab`).
 The subpath is dependency-free and Node-safe.
 
+> Development defaults only: no auth (`verify` unwired) and open CORS.
+> Never expose this example to the internet — wire `verify` and restrict
+> CORS first (see `src/main.ts`).
+
 ```bash
 pnpm --filter example-collab-server build
 pnpm --filter example-collab-server start &  # or node examples/collab-server/dist/main.js
-pnpm --filter example-collab-server smoke
+pnpm --filter example-collab-server smoke  # waits for connect; ensure the server booted first
 ```
