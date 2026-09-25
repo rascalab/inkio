@@ -33,7 +33,12 @@ export interface CollabInitPayload {
   update: Uint8Array;
 }
 
-export type CollabErrorCode = 'unauthorized' | 'forbidden' | 'internal';
+export type CollabErrorCode =
+  | 'unauthorized'
+  | 'forbidden'
+  | 'internal'
+  | 'invalid-message'
+  | 'rate-limited';
 
 export interface CollabErrorPayload {
   docId: string;

@@ -3,7 +3,6 @@ import {
   Awareness,
   applyAwarenessUpdate,
   encodeAwarenessUpdate,
-  removeAwarenessStates,
 } from 'y-protocols/awareness';
 import { io, type Socket } from 'socket.io-client';
 import {
@@ -47,8 +46,46 @@ export interface SocketIOCollabProviderOptions {
   user?: CollabUser;
 }
 
-function toUint8Array(update: Uint8Array | ArrayBuffer): Uint8Array {
-  return update instanceof Uint8Array ? update : new Uint8Array(update);
+/** Upper bound for a room id that is also used as an IDB name and log field. */
+const MAX_DOC_ID_LENGTH = 256;
+
+export function assertValidDocId(docId: string): void {
+  if (typeof docId !== 'string' || docId.trim() === '') {
+    throw new Error('SocketIOCollabProvider: `docId` must be a non-empty string.');
+  }
+  if (docId.length > MAX_DOC_ID_LENGTH) {
+    throw new Error(
+      `SocketIOCollabProvider: \`docId\` exceeds ${MAX_DOC_ID_LENGTH} characters.`,
+    );
+  }
+}
+
+/**
+ * Wire-only shape check: network bytes must be binary. Anything else is a
+ * buggy or hostile frame and is dropped before it can throw inside the
+ * sync loop. (Size caps are server policy: Init legitimately carries full
+ * snapshots.)
+ */
+function toUint8Array(update: unknown): Uint8Array | null {
+  if (update instanceof Uint8Array) return update;
+  if (update instanceof ArrayBuffer) return new Uint8Array(update);
+  if (ArrayBuffer.isView(update)) {
+    // Cross-realm typed arrays (vm isolation, iframes): `instanceof`
+    // fails across realms but an indexed copy still succeeds.
+    try {
+      return Uint8Array.from(update as unknown as ArrayLike<number>);
+    } catch {
+      return null;
+    }
+  }
+  if (Object.prototype.toString.call(update) === '[object ArrayBuffer]') {
+    try {
+      return new Uint8Array((update as ArrayBuffer).slice(0));
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 export class SocketIOCollabProvider implements CollabProvider {
@@ -68,6 +105,7 @@ export class SocketIOCollabProvider implements CollabProvider {
     if (!options.socket && !options.url) {
       throw new Error('SocketIOCollabProvider: pass either `socket` or `url`.');
     }
+    assertValidDocId(options.docId);
     this.docId = options.docId;
     this.doc = options.doc ?? new Y.Doc();
     this.awareness = new Awareness(this.doc);
@@ -126,8 +164,9 @@ export class SocketIOCollabProvider implements CollabProvider {
       this.socket.disconnect();
     }
     this.awareness.destroy();
-    this.listeners.clear();
+    // Notify before clearing: observers must see the final transition.
     this.setStatus('disconnected');
+    this.listeners.clear();
   }
 
   private setStatus(status: CollabStatus): void {
@@ -167,28 +206,55 @@ export class SocketIOCollabProvider implements CollabProvider {
   };
 
   private async join(): Promise<void> {
-    const token = typeof this.token === 'function' ? await this.token() : this.token;
+    let token: string | undefined;
+    try {
+      token = typeof this.token === 'function' ? await this.token() : this.token;
+    } catch {
+      // A rejecting token function surfaces as a disconnected status, not
+      // an unhandled rejection: both join() callers (connect/handleConnect)
+      // intentionally void the promise.
+      this.joined = false;
+      this.setStatus('disconnected');
+      return;
+    }
     this.socket.emit(CollabClientEvents.Join, {
       docId: this.docId,
       ...(token ? { token } : {}),
     });
   }
 
+  private applyWireUpdate(update: unknown): boolean {
+    const bytes = toUint8Array(update);
+    if (!bytes) return false;
+    try {
+      applyRemoteUpdate(this.doc, bytes);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private handleInit = (payload: CollabInitPayload): void => {
-    if (payload.docId !== this.docId) return;
-    applyRemoteUpdate(this.doc, toUint8Array(payload.update));
+    if (!payload || payload.docId !== this.docId) return;
+    if (!this.applyWireUpdate(payload.update)) return;
     this.joined = true;
     this.setStatus('synced');
   };
 
   private handleUpdate = (payload: CollabUpdatePayload): void => {
-    if (payload.docId !== this.docId || !this.joined) return;
-    applyRemoteUpdate(this.doc, toUint8Array(payload.update));
+    if (!payload || payload.docId !== this.docId || !this.joined) return;
+    this.applyWireUpdate(payload.update);
   };
 
   private handleAwareness = (payload: CollabAwarenessPayload): void => {
-    if (payload.docId !== this.docId || !this.joined) return;
-    applyAwarenessUpdate(this.awareness, toUint8Array(payload.update), this);
+    if (!payload || payload.docId !== this.docId || !this.joined) return;
+    const bytes = toUint8Array(payload.update);
+    if (!bytes) return;
+    try {
+      applyAwarenessUpdate(this.awareness, bytes, this);
+    } catch {
+      // Drop malformed presence frames; the next update resyncs.
+    }
   };
 
   private handleError = (payload: CollabErrorPayload): void => {
@@ -211,9 +277,9 @@ export class SocketIOCollabProvider implements CollabProvider {
     if (!this.joined) return;
     const changedClients = [...changed.added, ...changed.updated, ...changed.removed];
     if (changedClients.length === 0) return;
-    if (changed.removed.length > 0) {
-      removeAwarenessStates(this.awareness, changed.removed, this);
-    }
+    // No local removeAwarenessStates here: applyAwarenessUpdate already
+    // manages local state, and removing would re-fire this handler
+    // (duplicate echo per leave) since the origin cannot be filtered.
     this.socket.emit(CollabClientEvents.Awareness, {
       docId: this.docId,
       update: encodeAwarenessUpdate(this.awareness, changedClients),

@@ -27,6 +27,16 @@ export function createInlineNodeClickPlugin(
         } catch {
           return false;
         }
+        // Boundary clicks may resolve to the parent: fall back to the node
+        // directly after the resolved position.
+        if ((!node || node.type.name !== nodeName) && pos >= 0) {
+          try {
+            const after = view.state.doc.resolve(pos).nodeAfter;
+            if (after && after.type.name === nodeName) node = after;
+          } catch {
+            return false;
+          }
+        }
         if (!node || node.type.name !== nodeName) return false;
         const id = (node.attrs as Record<string, unknown>).id;
         if (typeof id !== 'string' || !id) return false;

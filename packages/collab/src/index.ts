@@ -18,7 +18,7 @@ export {
   encodeDocState,
   applyRemoteUpdate,
 } from './ydoc';
-export { SocketIOCollabProvider } from './provider';
+export { SocketIOCollabProvider, assertValidDocId } from './provider';
 export type {
   CollabProvider,
   CollabUser,

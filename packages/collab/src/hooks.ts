@@ -143,8 +143,10 @@ export function useInkioCollaborativeEditor({
   const ydoc = useYDoc(docId, doc);
   const provider = useCollabProvider({ docId, doc: ydoc, socket, url, socketOptions, token, user });
   const status = useCollabStatus(provider);
-  const wasEmptyAtConnect = useMemo(() => isYDocEmpty(ydoc), [docId]);
-  const seededRef = useRef(false);
+  const wasEmptyAtConnect = useMemo(() => isYDocEmpty(ydoc), [docId, ydoc]);
+  // Keyed by docId (not a plain boolean): reusing the hook across rooms
+  // must re-evaluate seeding for the new doc.
+  const seededDocIdRef = useRef<string | null>(null);
 
   const finalExtensions = useMemo(() => {
     const base = extensions && extensions.length > 0 ? extensions : (getExtensions() as Extensions);
@@ -184,12 +186,12 @@ export function useInkioCollaborativeEditor({
 
   useEffect(() => {
     if (!provider || !editor || editor.isDestroyed) return;
-    if (status !== 'synced' || seededRef.current) return;
-    seededRef.current = true;
+    if (status !== 'synced' || seededDocIdRef.current === docId) return;
+    seededDocIdRef.current = docId;
     if (wasEmptyAtConnect && isYDocEmpty(ydoc) && initialContent !== undefined) {
       editor.commands.setContent(initialContent);
     }
-  }, [provider, editor, status, wasEmptyAtConnect, ydoc, initialContent]);
+  }, [provider, editor, status, wasEmptyAtConnect, ydoc, initialContent, docId]);
 
   return { editor, provider, doc: ydoc, status };
 }
