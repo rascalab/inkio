@@ -16,7 +16,7 @@ import type { Root } from 'react-dom/client';
 import type { Editor } from '@tiptap/core';
 import { BlockHandleActionMenu, fingerprintBlockAt, type BlockFingerprint } from './BlockHandleView';
 import type { BlockMenuIcons } from './icons';
-import { getCreateRoot } from '../../utils/create-root';
+import { getCreateRoot } from '@inkio/core';
 
 export interface BlockHandlePluginState {
   activeBlockPos: number | null;

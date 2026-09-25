@@ -8,7 +8,7 @@ import {
   type CommentOptions,
 } from './Comment';
 import { CommentComposer } from './components/CommentComposer';
-import { getCreateRoot } from '../utils/create-root';
+import { getCreateRoot } from '@inkio/core';
 
 function getSelectionRect(view: EditorView, from: number, to: number) {
   const start = view.coordsAtPos(from);

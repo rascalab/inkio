@@ -1,0 +1,94 @@
+# 실시간 협업
+
+`@inkio/collab`는 Yjs 기반 실시간 협업을 Inkio 에디터에 연결하는 독립 패키지입니다.
+서버는 포함하지 않습니다. 클라이언트(문서 동기화·presence)와 와이어 프로토콜만 제공하고,
+서버는 직접 구현하거나 `examples/collab-server` 참조 구현에서 출발하세요.
+
+## 설치
+
+```bash
+pnpm add @inkio/collab yjs y-protocols socket.io-client
+```
+
+`yjs`·`y-protocols`·`socket.io-client`는 external이라 호스트 앱과 단일 복사본을 공유합니다.
+오프라인 저장이 필요하면 `y-indexeddb`를 추가하세요.
+
+## 방 만들기
+
+Next.js App Router에서는 에디터가 클라이언트 컴포넌트 안에 있어야 합니다.
+
+```tsx
+'use client';
+
+import { useInkioCollaborativeEditor, CollabPresence } from '@inkio/collab';
+import { EditorContent } from '@tiptap/react';
+
+export function Room({ docId, token }: { docId: string; token: string }) {
+  const { editor, provider, status } = useInkioCollaborativeEditor({
+    docId,
+    url: 'http://localhost:3123',
+    token,
+    user: { name: 'Ada', color: '#ff0077' },
+    initialContent: '<p>Start here</p>',
+  });
+  if (!editor) return null;
+  return (
+    <>
+      <span>{status}</span>
+      <CollabPresence provider={provider} />
+      <EditorContent editor={editor} />
+    </>
+  );
+}
+```
+
+훅이 대신 처리하는 규칙:
+
+- 협업 모드에서는 `history`/`undoRedo` 확장을 제거합니다 (Yjs undo와 충돌).
+  다른 기본 확장을 넘기거나, 생략하면 core 기본값을 사용합니다.
+- `initialContent`는 첫 동기화 이후 문서가 비어 있을 때 단 한 번만 심습니다.
+  공유 문서와 `content`를 함께 쓰지 마세요.
+- transport 옵션(`socket`, `url`, `token`)은 `docId` 마운트 시 1회만 읽습니다.
+  토큰 로테이션은 매 join마다 재평가되는 함수로 전달하세요.
+
+## 기존 소켓 재사용
+
+이미 socket.io-client 소켓을 가진 앱은 새로 연결하지 않고 얹을 수 있습니다.
+남의 소켓은 끊지 않습니다.
+
+```ts
+import { SocketIOCollabProvider } from '@inkio/collab';
+
+const provider = new SocketIOCollabProvider({ docId, socket: existingSocket, token });
+provider.connect();
+```
+
+## 서버
+
+프로토콜 단일 소스: `@inkio/collab/protocol` 서브패스
+(`inkio:collab:join/init/update/awareness/error`, 네임스페이스 `/inkio-collab`).
+의존성이 없어 Node 서버에서 React 엔트리 없이 import할 수 있습니다.
+
+`examples/collab-server`는 NestJS 참조 구현입니다 (배포하지 않음).
+
+- `CollabSyncEngine`: room = docId 릴레이, `verify` 인증 훅, 스로틀 `onPersist` 훅.
+- `InkioCollabModule.forRoot(options)`: NestJS 다이나믹 모듈.
+- `InkioCollabModule.attachToExistingServer(server, options)`: 기존 socket.io 서버에 얹기.
+
+```bash
+pnpm --filter example-collab-server build
+pnpm --filter example-collab-server start
+pnpm --filter example-collab-server smoke
+```
+
+## 오프라인과 presence
+
+```ts
+import { persistDocToIndexedDB } from '@inkio/collab';
+persistDocToIndexedDB(docId, doc);
+```
+
+awareness 상태는 `{ user: { name, color } }`를 싣습니다. `CollabPresence`가 접속자 목록을
+그리고, `useCollabPeers(provider)`로 직접 받을 수도 있습니다. 에디터 내 원격 캐럿은
+지원하지 않습니다. Tiptap v3의 협업 바인딩이 동기화 플러그인 키를 비공개로 들고 있어
+`y-prosemirror` 커서 플러그인을 장착할 수 없기 때문입니다.

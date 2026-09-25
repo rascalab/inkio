@@ -66,6 +66,8 @@ export type { InkioErrorHandler } from './errors';
 export { isSafeUrl, sanitizeUrlOrEmpty } from './utils/url-safety';
 export { mergeExtensions, resolveExtensionsInput } from './utils/extensions-input';
 export { isEqualOptionsValue, useStableOptions } from './utils/stable-options';
+export { getCreateRoot } from './utils/create-root';
+export type { CreateRootFn } from './utils/create-root';
 export { resolveInkioExtensions } from './extensions/resolve-extensions';
 export type { ExtensionsInput, CoreExtensions } from './utils/extensions-input';
 export type { JSONContent as InkioJSONContent } from '@tiptap/core';

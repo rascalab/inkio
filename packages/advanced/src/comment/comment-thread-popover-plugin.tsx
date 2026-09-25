@@ -10,8 +10,8 @@ import { CommentThreadPopover } from './components/CommentThreadPopover';
 import {
   autoUpdateOverlayPosition,
   computeOverlayPosition,
+  getCreateRoot,
 } from '@inkio/core';
-import { getCreateRoot } from '../utils/create-root';
 
 interface ThreadPopoverPluginState {
   active: boolean;

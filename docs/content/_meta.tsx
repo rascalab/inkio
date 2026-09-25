@@ -6,6 +6,7 @@ export default {
   'overlay-positioning': 'Overlay Positioning',
   extensions: '확장',
   'image-editor': '이미지 에디터',
+  collaboration: '실시간 협업',
   ssr: 'SSR',
   adapter: '어댑터',
   serialization: '직렬화',
