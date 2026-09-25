@@ -3,12 +3,13 @@ import type { Editor } from '@tiptap/react';
 import type { InkioLocaleInput, InkioMessageOverrides } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import {
-  formatRelativeTime,
+  formatTimeAgo,
   useInkioCommentUi,
   type InkioCommentMessageOverrides,
 } from '../i18n';
 import { getInitials } from '../utils';
 import { notifyCommentThreadsChanged } from '../Comment';
+import { CommentActionIcon } from './CommentActionIcon';
 
 // ─── Data types ────────────────────────────────────────────
 
@@ -178,29 +179,6 @@ export const CommentPanel = ({
     icons,
   });
 
-  const formatTimeAgo = useCallback(
-    (value: Date | string | number): string => {
-      const time = value instanceof Date ? value.getTime() : new Date(value).getTime();
-      if (Number.isNaN(time)) return ui.messages.commentPanel.time.justNow;
-      const diff = Date.now() - time;
-      const seconds = Math.floor(diff / 1000);
-      if (seconds < 60) return ui.messages.commentPanel.time.justNow;
-
-      const minutes = Math.floor(seconds / 60);
-      if (minutes < 60) {
-        return formatRelativeTime(ui.messages.commentPanel.time.minutesAgo, minutes);
-      }
-
-      const hours = Math.floor(minutes / 60);
-      if (hours < 24) {
-        return formatRelativeTime(ui.messages.commentPanel.time.hoursAgo, hours);
-      }
-
-      const days = Math.floor(hours / 24);
-      return formatRelativeTime(ui.messages.commentPanel.time.daysAgo, days);
-    },
-    [ui.messages.commentPanel.time.daysAgo, ui.messages.commentPanel.time.hoursAgo, ui.messages.commentPanel.time.justNow, ui.messages.commentPanel.time.minutesAgo],
-  );
 
   useEffect(() => {
     if (!editor) return;
@@ -232,8 +210,25 @@ export const CommentPanel = ({
       // Select the first contiguous range only — never the gap between
       // non-contiguous same-id runs.
       const target = mark.ranges[0] ?? { from: mark.from, to: mark.to };
+      const size = editor.state.doc.content.size;
+      if (
+        !Number.isFinite(target.from) ||
+        !Number.isFinite(target.to) ||
+        target.from < 0 ||
+        target.to > size
+      ) {
+        return;
+      }
       editor.chain().focus().setTextSelection({ from: target.from, to: target.to }).run();
-      const { node } = editor.view.domAtPos(target.from);
+      // Scroll is best-effort: a remapped position may have no DOM node even
+      // inside range. The selection above already applied, so a missing node
+      // ends the gesture instead of breaking the click handler.
+      let node: unknown = null;
+      try {
+        node = editor.view.domAtPos(target.from).node;
+      } catch {
+        return;
+      }
       (node as HTMLElement)?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
     },
     [editor],
@@ -435,7 +430,7 @@ export const CommentPanel = ({
                         <div className="inkio-comment-msg-body">
                           <div className="inkio-comment-msg-header">
                             <span className="inkio-comment-msg-author">{msg.author || resolvedCurrentUser}</span>
-                            <span className="inkio-comment-msg-time">{formatTimeAgo(msg.createdAt)}</span>
+                            <span className="inkio-comment-msg-time">{formatTimeAgo(ui.messages.commentPanel.time, msg.createdAt)}</span>
                           </div>
                           <div className="inkio-comment-msg-text">{msg.text}</div>
                         </div>
@@ -473,7 +468,7 @@ export const CommentPanel = ({
                         className="inkio-comment-reply-send"
                         onClick={() => handleReply(commentId)}
                       >
-                        ↵
+                        <CommentActionIcon icon={ui.icons.reply} />↵
                       </button>
                     )}
                   </div>
@@ -487,7 +482,7 @@ export const CommentPanel = ({
                         className="inkio-comment-action-btn resolve"
                         onClick={() => handleResolveThread(commentId)}
                       >
-                        ✓ {ui.messages.commentPanel.resolve}
+                        <CommentActionIcon icon={ui.icons.resolve} />✓ {ui.messages.commentPanel.resolve}
                       </button>
                     )}
                     {onDelete && (
@@ -496,7 +491,7 @@ export const CommentPanel = ({
                         className="inkio-comment-action-btn delete"
                         onClick={() => handleDeleteThread(commentId)}
                       >
-                        ✕ {ui.messages.commentPanel.delete}
+                        <CommentActionIcon icon={ui.icons.delete} />✕ {ui.messages.commentPanel.delete}
                       </button>
                     )}
                   </div>

@@ -9,6 +9,7 @@ import {
   useInkioCommentUi,
   type InkioCommentMessageOverrides,
 } from '../i18n';
+import { CommentActionIcon } from './CommentActionIcon';
 
 const MAX_TEXTAREA_HEIGHT = 120;
 
@@ -67,6 +68,12 @@ export function CommentComposer({
   const resolveAnchor = useCallback((): CommentComposerAnchorRect | null => {
     return anchorResolver?.() ?? anchorRect;
   }, [anchorRect, anchorResolver]);
+
+  // Resolve once per render: the visibility guard and updatePosition share
+  // this value. Event-time callers (scroll/resize listeners) still resolve
+  // fresh through updatePosition, because viewport-relative coords change
+  // without a re-render.
+  const anchor = open ? resolveAnchor() : null;
 
   const updatePosition = useCallback(() => {
     const rect = resolveAnchor();
@@ -184,7 +191,7 @@ export function CommentComposer({
     target.style.overflowY = target.scrollHeight > MAX_TEXTAREA_HEIGHT ? 'auto' : 'hidden';
   }, []);
 
-  if (!open || !resolveAnchor()) {
+  if (!anchor) {
     return null;
   }
 
@@ -224,6 +231,7 @@ export function CommentComposer({
             onClick={handleSubmit}
             disabled={!text.trim()}
           >
+            <CommentActionIcon icon={ui.icons.submit} />
             {ui.messages.commentComposer.submit}
           </button>
         </div>

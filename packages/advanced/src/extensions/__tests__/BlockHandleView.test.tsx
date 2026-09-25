@@ -11,10 +11,22 @@ function createMockEditor() {
   };
 
   const editor = {
+    // The menu renders only for editable editors (read-only gating is
+    // covered by blockhandle-readonly.test.tsx); this suite tests actions.
+    isEditable: true,
     chain: vi.fn(() => chain),
     state: {
       doc: {
-        nodeAt: vi.fn(() => null),
+        content: { size: 10 },
+        nodeAt: vi.fn(() => ({
+          isAtom: false,
+          isLeaf: false,
+          isText: false,
+          isInline: false,
+          type: { name: 'paragraph' },
+          nodeSize: 4,
+          textContent: 'x',
+        })),
       },
       tr: {
         delete: vi.fn(),

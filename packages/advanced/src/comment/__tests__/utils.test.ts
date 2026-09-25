@@ -34,4 +34,13 @@ describe('getInitials', () => {
     // filter(Boolean) removes empty strings from split
     expect(getInitials('Anna   Maria')).toBe('AM');
   });
+
+  it('keeps emoji graphemes intact instead of lone surrogates', () => {
+    expect(getInitials('😀 Smith')).toBe('😀S');
+  });
+
+  it('returns empty string for non-string input', () => {
+    expect(getInitials(null as unknown as string)).toBe('');
+    expect(getInitials(undefined as unknown as string)).toBe('');
+  });
 });

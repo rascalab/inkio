@@ -14,6 +14,7 @@ import {
 } from '@inkio/core/icons';
 import type { Root } from 'react-dom/client';
 import type { Editor } from '@tiptap/core';
+import { mergeCoreMessages, toCoreMessageOverrides } from '@inkio/core';
 import { BlockHandleActionMenu, fingerprintBlockAt, type BlockFingerprint } from './BlockHandleView';
 import type { BlockMenuIcons } from './icons';
 import { getCreateRoot } from '@inkio/core';
@@ -54,12 +55,12 @@ export const blockHandlePluginKey = new PluginKey<BlockHandlePluginState>('block
 
 const isHTMLElement = (value: unknown): value is HTMLElement => value instanceof HTMLElement;
 
-const createHandleElement = () => {
+const createHandleElement = (label: string) => {
   const handle = document.createElement('div');
   handle.className = HANDLE_CLASS_NAME;
   handle.setAttribute('draggable', 'true');
   handle.setAttribute('data-block-handle', '');
-  handle.setAttribute('aria-label', 'Block handle');
+  handle.setAttribute('aria-label', label);
   handle.style.userSelect = 'none';
 
   const icon = createInkioIconElement(GripVerticalIconNode, { size: 14 });
@@ -450,7 +451,13 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
       return;
     }
 
-    handleElement = createHandleElement();
+    // Resolve the screen-reader label through the same message merge as
+    // the React menu so locale overrides apply to the handle too.
+    const handleLabel = mergeCoreMessages(
+      options.locale,
+      toCoreMessageOverrides(options.messages),
+    ).blockHandle.handle;
+    handleElement = createHandleElement(handleLabel);
     document.body.appendChild(handleElement);
 
     abortController?.abort();
@@ -593,7 +600,9 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
         };
         currentBlockCleanup = cleanup;
         view.dom.addEventListener('mousedown', cleanup, { once: true });
-        document.addEventListener('keydown', onKeyCleanup);
+        // Once: without it a menu-action click with no subsequent keypress
+        // leaves this listener behind until the next key or block click.
+        document.addEventListener('keydown', onKeyCleanup, { once: true });
       }
 
       editorView.focus();

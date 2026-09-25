@@ -108,6 +108,107 @@ describe('CommentPanel single source of truth', () => {
     expect(panelResolve).toHaveBeenCalledWith('t-orphan');
   });
 
+  it('renders override action icons when provided, text-only otherwise', () => {
+    const { editor } = createMockEditor();
+    const StubIcon = () => (
+      <svg data-testid="resolve-override-icon" />
+    );
+    const base = {
+      editor,
+      threads: [orphanThread(false)],
+      currentUser: 'Tester',
+      onResolve: () => {},
+    };
+    const { container, rerender } = render(<CommentPanel {...base} />);
+    expect(container.querySelector('[data-testid="resolve-override-icon"]')).toBeNull();
+
+    rerender(<CommentPanel {...base} icons={{ resolve: StubIcon as never }} />);
+    expect(container.querySelector('[data-testid="resolve-override-icon"]')).not.toBeNull();
+  });
+
+  it('ignores scroll-to for stale mark positions instead of throwing', () => {
+    const markType = {};
+    const staleNode = {
+      isText: true,
+      nodeSize: 5,
+      text: 'stale',
+      marks: [{ type: markType, attrs: { commentId: 't-stale', resolved: false } }],
+    };
+    const setTextSelection = vi.fn(() => ({ run: vi.fn(() => true) }));
+    const domAtPos = vi.fn(() => {
+      throw new Error('no node at stale position');
+    });
+    const editor = {
+      extensionManager: { extensions: [{ name: 'comment', options: {} }] },
+      commands: {},
+      state: {
+        schema: { marks: { comment: markType } },
+        doc: {
+          content: { size: 5 },
+          descendants: (fn: (node: unknown, pos: number) => void) => {
+            fn(staleNode, 9999);
+          },
+        },
+      },
+      view: { dispatch: vi.fn(), domAtPos },
+      on: vi.fn(),
+      off: vi.fn(),
+      chain: () => ({ focus: () => ({ setTextSelection }) }),
+    } as unknown as Editor;
+    const { container } = render(
+      <CommentPanel editor={editor} threads={[]} currentUser="Tester" />,
+    );
+
+    const quote = container.querySelector('.inkio-comment-thread-quote');
+    expect(quote).not.toBeNull();
+    // Out-of-range target returns before touching the editor.
+    expect(() => fireEvent.click(quote!)).not.toThrow();
+    expect(setTextSelection).not.toHaveBeenCalled();
+    expect(domAtPos).not.toHaveBeenCalled();
+  });
+
+  it('still selects when the position maps but has no DOM node', () => {
+    const markType = {};
+    const remappedNode = {
+      isText: true,
+      nodeSize: 3,
+      text: 'old',
+      marks: [{ type: markType, attrs: { commentId: 't-remap', resolved: false } }],
+    };
+    const run = vi.fn(() => true);
+    const setTextSelection = vi.fn(() => ({ run }));
+    const domAtPos = vi.fn(() => {
+      throw new Error('remapped position has no DOM node');
+    });
+    const editor = {
+      extensionManager: { extensions: [{ name: 'comment', options: {} }] },
+      commands: {},
+      state: {
+        schema: { marks: { comment: markType } },
+        doc: {
+          content: { size: 20 },
+          descendants: (fn: (node: unknown, pos: number) => void) => {
+            fn(remappedNode, 2);
+          },
+        },
+      },
+      view: { dispatch: vi.fn(), domAtPos },
+      on: vi.fn(),
+      off: vi.fn(),
+      chain: () => ({ focus: () => ({ setTextSelection }) }),
+    } as unknown as Editor;
+    const { container } = render(
+      <CommentPanel editor={editor} threads={[]} currentUser="Tester" />,
+    );
+
+    const quote = container.querySelector('.inkio-comment-thread-quote');
+    expect(quote).not.toBeNull();
+    // Selection applies; only the best-effort scroll is skipped.
+    expect(() => fireEvent.click(quote!)).not.toThrow();
+    expect(setTextSelection).toHaveBeenCalledWith({ from: 2, to: 5 });
+    expect(run).toHaveBeenCalled();
+  });
+
   it('renders a frozen view with no actions when callbacks are omitted', () => {
     const { editor } = createMockEditor();
     const { container } = render(

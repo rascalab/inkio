@@ -35,4 +35,18 @@ describe('extension serialization helpers', () => {
       }),
     ).toEqual(['inkio', 'editor']);
   });
+
+  it('strips every leading hash, not just one', () => {
+    expect(
+      extractHashtags({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'hashTag', attrs: { id: 't1', label: '##inkio' } }],
+          },
+        ],
+      }),
+    ).toEqual(['inkio']);
+  });
 });

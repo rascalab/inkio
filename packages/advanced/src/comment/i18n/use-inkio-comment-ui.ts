@@ -15,6 +15,11 @@ import {
 export interface InkioCommentUiOverrides {
   locale?: InkioLocaleInput;
   messages?: InkioCommentMessageOverrides | InkioMessageOverrides;
+  /**
+   * Optional action icons, rendered before the button label when provided:
+   * `resolve`, `delete`, `reply`, `submit`. Absent keys keep the default
+   * text/glyph buttons.
+   */
   icons?: Partial<InkioIconRegistry>;
 }
 

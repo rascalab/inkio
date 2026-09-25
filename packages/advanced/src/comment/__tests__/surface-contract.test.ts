@@ -1,10 +1,12 @@
 /// <reference types="node" />
 
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-const commentCss = readFileSync(resolve(process.cwd(), '../editor/src/style.css'), 'utf8');
+const testDir = dirname(fileURLToPath(import.meta.url));
+const commentCss = readFileSync(resolve(testDir, '../../../../editor/src/style.css'), 'utf8');
 
 describe('comment surface contract', () => {
   it('uses the shared shell, panel, and field tokens for comment chrome', () => {

@@ -71,7 +71,7 @@ export function extractHashtags(content: JSONContent): string[] {
       return;
     }
 
-    hashtags.add(label.replace(/^#/, ''));
+    hashtags.add(label.replace(/^#+/, ''));
   });
 
   return Array.from(hashtags);

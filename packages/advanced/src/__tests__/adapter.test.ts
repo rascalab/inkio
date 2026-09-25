@@ -59,12 +59,10 @@ describe('isExtensionsAdapter', () => {
     expect(isExtensionsAdapter({ file: 'not-an-object' })).toBe(false);
   });
 
-  it('returns true when adapter key value is null (allowed - null is typeof object)', () => {
-    // null passes typeof !== 'object' check since null passes the outer null check
-    // The code checks: candidate[key] !== undefined && typeof candidate[key] !== 'object'
-    // null: typeof null === 'object' so it passes
-    // Actually let's verify: null is not undefined and typeof null === 'object', so it should pass
-    expect(isExtensionsAdapter({ file: null })).toBe(true);
+  it('returns false when an adapter section is null (no usable adapter)', () => {
+    // typeof null === 'object' must not admit a null section: mapping it
+    // would silently produce an all-undefined options object.
+    expect(isExtensionsAdapter({ file: null })).toBe(false);
   });
 });
 
@@ -146,6 +144,21 @@ describe('mapExtensionsAdapterToOptions', () => {
 
     const options = mapExtensionsAdapterToOptions(adapter);
     expect(options.allowedMimeTypes).toEqual(['image/png', 'image/jpeg']);
+  });
+
+  it('forwards the upload context to uploadFile', async () => {
+    const uploadFile = vi.fn(async () => 'https://example.com/image.png');
+    const adapter: ExtensionsAdapter = { file: { uploadFile } };
+
+    const options = mapExtensionsAdapterToOptions(adapter);
+    await options.onUpload!(new File([], 'test.png'), { blockId: 'b1' });
+    expect(uploadFile).toHaveBeenCalledWith(expect.any(File), { blockId: 'b1' });
+  });
+
+  it('rejects option objects carrying non-adapter keys', () => {
+    expect(isExtensionsAdapter({ comment: {}, onError: () => {} })).toBe(false);
+    expect(isExtensionsAdapter({ wikiLink: true, bookmark: true })).toBe(false);
+    expect(isExtensionsAdapter({ file: { uploadFile: async () => 'u' }, onError: () => {} })).toBe(true);
   });
 
   it('maps file maxFileSize', () => {

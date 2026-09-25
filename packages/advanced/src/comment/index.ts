@@ -22,6 +22,7 @@ export {
   resolveCommentMessages,
   toCommentMessageOverrides,
   formatRelativeTime,
+  formatTimeAgo,
 } from './i18n';
 export type {
   InkioCommentLocaleId,

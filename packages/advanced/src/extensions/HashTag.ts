@@ -2,6 +2,7 @@ import { mergeAttributes, type Editor, type Range } from '@tiptap/core';
 import { Mention as TiptapMention } from '@tiptap/extension-mention';
 import { PluginKey as PMPluginKey } from '@tiptap/pm/state';
 import { createSuggestionRenderer, toError, type InkioErrorHandler } from '@inkio/core';
+import { createInlineNodeClickPlugin, hashTagClickPluginKey } from './inline-node-click';
 
 export interface HashTagItem {
   id: string;
@@ -13,6 +14,8 @@ export interface HashTagOptions {
   HTMLAttributes: Record<string, unknown>;
   /** Function to fetch hashtag items */
   items?: (props: { query: string }) => HashTagItem[] | Promise<HashTagItem[]>;
+  /** Observational click callback (selection behavior unchanged) */
+  onClick?: (id: string) => void;
   /** Suggestion options override */
   suggestion?: Record<string, unknown>;
   suggestions?: unknown[];
@@ -85,13 +88,16 @@ export const HashTag = TiptapMention.extend<HashTagOptions>({
     // `this` inside addOptions is a transient context whose `.options` is never
     // populated — resolve the live options from the editor at suggestion time.
     const extensionName = this.name;
-    let latestRequestSeq = 0;
+    // Per-editor sequences (see Mention): one configured extension object
+    // may serve several editors.
+    const latestRequestSeqByEditor = new WeakMap<object, number>();
 
     return {
       HTMLAttributes: {},
       suggestions: [],
       items: () => [],
       onError: undefined,
+      onClick: undefined,
       deleteTriggerWithBackspace: false,
       suggestion: {
         char: '#',
@@ -99,13 +105,18 @@ export const HashTag = TiptapMention.extend<HashTagOptions>({
         items: async ({ query, editor }: { query: string; editor: Editor }) => {
           const options = editor.extensionManager.extensions
             .find((ext) => ext.name === extensionName)?.options as HashTagOptions | undefined;
-          const seq = ++latestRequestSeq;
+          const seq = (latestRequestSeqByEditor.get(editor) ?? 0) + 1;
+          latestRequestSeqByEditor.set(editor, seq);
+          // Trailing debounce mirrors Mention: without it an async items()
+          // source is hammered once per keystroke.
+          await new Promise<void>((resolve) => setTimeout(resolve, 150));
+          if (seq !== latestRequestSeqByEditor.get(editor)) return [];
           try {
             const result = await options?.items?.({ query });
-            if (seq !== latestRequestSeq) return [];
+            if (seq !== latestRequestSeqByEditor.get(editor)) return [];
             return result ?? [];
           } catch (error) {
-            if (seq !== latestRequestSeq) return [];
+            if (seq !== latestRequestSeqByEditor.get(editor)) return [];
             options?.onError?.(toError(error), {
               source: 'hashTag.suggestion',
               recoverable: true,
@@ -181,6 +192,15 @@ export const HashTag = TiptapMention.extend<HashTagOptions>({
 
   renderText({ node }) {
     return `#${node.attrs.label ?? node.attrs.id}`;
+  },
+
+  addProseMirrorPlugins() {
+    // Chain the base suggestion plugins: overriding without this.parent
+    // would silently drop # autocomplete.
+    return [
+      ...(this.parent?.() ?? []),
+      createInlineNodeClickPlugin(hashTagClickPluginKey, this.name, () => this.options.onClick),
+    ];
   },
 
   addCommands() {

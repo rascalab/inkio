@@ -25,7 +25,20 @@ export function defaultGenerateId(): string {
     return globalThis.crypto.randomUUID();
   }
 
-  return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  fallbackIdCounter += 1;
+  return `id-${Date.now().toString(36)}-${fallbackIdCounter.toString(36)}`;
+}
+
+let fallbackIdCounter = 0;
+
+/**
+ * Single id boundary for every comment command: non-string or blank input
+ * normalizes to null (command returns false) instead of throwing on trim.
+ */
+export function normalizeCommentId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
 }
 
 // ─── Options ────────────────────────────────────────────────
@@ -257,7 +270,7 @@ export const Comment = Mark.create<CommentOptions>({
             if (!this.editor.isEditable) {
               return false;
             }
-            const commentId = attrs.commentId?.trim();
+            const commentId = normalizeCommentId(attrs?.commentId);
 
             if (!commentId) {
               return false;
@@ -282,7 +295,7 @@ export const Comment = Mark.create<CommentOptions>({
             if (!this.editor.isEditable) {
               return false;
             }
-            const trimmedId = commentId.trim();
+            const trimmedId = normalizeCommentId(commentId);
 
             if (!trimmedId) {
               return false;
@@ -347,7 +360,7 @@ export const Comment = Mark.create<CommentOptions>({
             if (!this.editor.isEditable) {
               return false;
             }
-            const trimmedId = commentId.trim();
+            const trimmedId = normalizeCommentId(commentId);
             if (!trimmedId) return false;
 
             const markType = state.schema.marks[this.name];

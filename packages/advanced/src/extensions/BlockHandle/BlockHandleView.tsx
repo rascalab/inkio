@@ -451,7 +451,7 @@ export const BlockHandleActionMenu = ({
       className="inkio-block-handle-action-menu"
       style={{ top: position.top, left: position.left }}
       role="menu"
-      aria-label="Block actions"
+      aria-label={ui.messages.blockHandle.menu}
       onKeyDown={handleKeyDown}
     >
       {menuItems.slice(0, 2).map((item, index) => (

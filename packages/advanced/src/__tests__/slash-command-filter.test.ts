@@ -1,6 +1,7 @@
 import type { Editor } from '@tiptap/core';
 import {
   filterSlashCommandItems,
+  resolveSlashCommandItems,
   SLASH_COMMAND_MAX_ITEMS,
   type SlashCommandItem,
 } from '../extensions/SlashCommand';
@@ -53,5 +54,65 @@ describe('filterSlashCommandItems result limit', () => {
   it('respects a custom limit', () => {
     expect(filterSlashCommandItems(makeItems(10), '', editor, 3)).toHaveLength(3);
     expect(filterSlashCommandItems(makeItems(10), '', editor, 0)).toHaveLength(0);
+  });
+});
+
+describe('resolveSlashCommandItems error contract', () => {
+  const { editor } = createMockEditor();
+  const injected = { id: 'x', label: 'Xray', command: () => {} };
+
+  it('reports a throwing items() via onError and yields []', async () => {
+    const onError = vi.fn();
+    const result = await resolveSlashCommandItems(
+      { query: '', editor },
+      {
+        items: () => Promise.reject(new Error('boom')),
+        transformItems: undefined,
+        onError,
+        latest: { value: 0 },
+      },
+    );
+
+    expect(result).toEqual([]);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0][1]).toMatchObject({
+      source: 'slashCommand.suggestion',
+      recoverable: true,
+    });
+  });
+
+  it('still applies transformItems over an empty base', async () => {
+    const result = await resolveSlashCommandItems(
+      { query: '', editor },
+      {
+        items: () => [],
+        transformItems: () => [injected],
+        onError: undefined,
+        latest: { value: 0 },
+      },
+    );
+
+    expect(result).toEqual([injected]);
+  });
+
+  it('drops a superseded sequence so slow responses never overwrite', async () => {
+    const latest = { value: 0 };
+    let release!: (value: SlashCommandItem[]) => void;
+    const gate = new Promise<SlashCommandItem[]>((resolve) => {
+      release = resolve;
+    });
+    const source = {
+      items: () => gate,
+      transformItems: undefined,
+      onError: undefined,
+      latest,
+    };
+    const first = resolveSlashCommandItems({ query: '', editor }, source);
+    const second = resolveSlashCommandItems({ query: '', editor }, source);
+    release([injected]);
+    const [stale, fresh] = await Promise.all([first, second]);
+
+    expect(stale).toEqual([]);
+    expect(fresh).toEqual([injected]);
   });
 });

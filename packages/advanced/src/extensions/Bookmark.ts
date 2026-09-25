@@ -125,26 +125,30 @@ export const Bookmark = Node.create<BookmarkOptions>({
     );
 
     if (!hasPreviewData) {
-      return [
-        'a',
-        mergeAttributes(
-          {
-            'data-bookmark-fallback': '',
-            href: safeUrlOrEmpty(HTMLAttributes['data-bookmark-url']),
-            rel: 'noopener noreferrer nofollow',
-            target: '_blank',
-          },
-          this.options.HTMLAttributes,
-          HTMLAttributes
-        ),
-        HTMLAttributes['data-bookmark-url'],
-      ];
+      const fallbackAttrs = mergeAttributes(
+        {
+          'data-bookmark-fallback': '',
+          href: safeUrlOrEmpty(HTMLAttributes['data-bookmark-url']),
+          rel: 'noopener noreferrer nofollow',
+          target: '_blank',
+        },
+        this.options.HTMLAttributes,
+        HTMLAttributes,
+      );
+      // Links point at user-supplied URLs: pin the security attributes
+      // last so neither extension config nor node attrs can downgrade
+      // rel/target (tabnabbing via window.opener).
+      fallbackAttrs.rel = 'noopener noreferrer nofollow';
+      fallbackAttrs.target = '_blank';
+      return ['a', fallbackAttrs, HTMLAttributes['data-bookmark-url']];
     }
 
     return [
       'div',
       mergeAttributes({ 'data-bookmark': '' }, this.options.HTMLAttributes, HTMLAttributes),
-      ['a', { href: safeUrlOrEmpty(HTMLAttributes['data-bookmark-url']) }, HTMLAttributes['data-bookmark-title'] || HTMLAttributes['data-bookmark-url']],
+      // Same-tab navigation needs no target, but user-supplied URLs still
+      // get rel hygiene (no opener reference, no SEO juice).
+      ['a', { href: safeUrlOrEmpty(HTMLAttributes['data-bookmark-url']), rel: 'noopener noreferrer nofollow' }, HTMLAttributes['data-bookmark-title'] || HTMLAttributes['data-bookmark-url']],
     ];
   },
 

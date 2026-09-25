@@ -2,6 +2,7 @@ import { mergeAttributes, type Editor, type Range } from '@tiptap/core';
 import { Mention as TiptapMention } from '@tiptap/extension-mention';
 import { PluginKey as PMPluginKey } from '@tiptap/pm/state';
 import { createSuggestionRenderer, toError, type InkioErrorHandler } from '@inkio/core';
+import { createInlineNodeClickPlugin, mentionClickPluginKey } from './inline-node-click';
 
 export interface MentionItem {
   id: string;
@@ -24,6 +25,8 @@ export interface MentionOptions {
   items?: (props: { query: string }) => MentionItem[] | Promise<MentionItem[]>;
   /** Generic extension-level error callback */
   onError?: InkioErrorHandler;
+  /** Observational click callback (selection behavior unchanged) */
+  onClick?: (id: string) => void;
 }
 
 export const MentionPluginKey = new PMPluginKey('mention');
@@ -88,8 +91,9 @@ export const Mention = TiptapMention.extend<MentionOptions>({
     // populated — resolve the live options from the editor at suggestion time.
     const extensionName = this.name;
     // Drop stale async responses: a slow earlier keystroke must not overwrite
-    // a newer query's list.
-    let latestRequestSeq = 0;
+    // a newer query's list. Keyed per editor: one configured extension object
+    // may serve several editors, and their queries must not cancel each other.
+    const latestRequestSeqByEditor = new WeakMap<object, number>();
     // Trailing debounce: rapid keystrokes resolve only the latest query, so
     // an async items() source is not hammered once per keystroke. Superseded
     // sequences return before ever invoking items().
@@ -99,6 +103,7 @@ export const Mention = TiptapMention.extend<MentionOptions>({
       suggestions: [],
       items: () => [],
       onError: undefined,
+      onClick: undefined,
       deleteTriggerWithBackspace: false,
       suggestion: {
         char: '@',
@@ -106,16 +111,17 @@ export const Mention = TiptapMention.extend<MentionOptions>({
         items: async ({ query, editor }: { query: string; editor: Editor }) => {
           const options = editor.extensionManager.extensions
             .find((ext) => ext.name === extensionName)?.options as MentionOptions | undefined;
-          const seq = ++latestRequestSeq;
+          const seq = (latestRequestSeqByEditor.get(editor) ?? 0) + 1;
+          latestRequestSeqByEditor.set(editor, seq);
           const debounceMs = 150;
           await new Promise<void>((resolve) => setTimeout(resolve, debounceMs));
-          if (seq !== latestRequestSeq) return [];
+          if (seq !== latestRequestSeqByEditor.get(editor)) return [];
           try {
             const result = await options?.items?.({ query });
-            if (seq !== latestRequestSeq) return [];
+            if (seq !== latestRequestSeqByEditor.get(editor)) return [];
             return result ?? [];
           } catch (error) {
-            if (seq !== latestRequestSeq) return [];
+            if (seq !== latestRequestSeqByEditor.get(editor)) return [];
             options?.onError?.(toError(error), {
               source: 'mention.suggestion',
               recoverable: true,
@@ -191,6 +197,15 @@ export const Mention = TiptapMention.extend<MentionOptions>({
 
   renderText({ node }) {
     return `@${node.attrs.label ?? node.attrs.id}`;
+  },
+
+  addProseMirrorPlugins() {
+    // Chain the base suggestion plugins: overriding without this.parent
+    // would silently drop @ autocomplete.
+    return [
+      ...(this.parent?.() ?? []),
+      createInlineNodeClickPlugin(mentionClickPluginKey, this.name, () => this.options.onClick),
+    ];
   },
 
   addCommands() {

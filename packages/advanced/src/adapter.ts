@@ -42,7 +42,7 @@ export interface ExtensionsAdapter extends InkioAdapter {
 }
 
 export interface ExtensionsAdapterOptionsLike {
-  onUpload?: (file: File) => Promise<string>;
+  onUpload?: (file: File, context?: ExtensionsUploadContext) => Promise<string>;
   resolveFileUrl?: (url: string) => Promise<string>;
   allowedMimeTypes?: string[];
   maxFileSize?: number;
@@ -89,10 +89,20 @@ export function isExtensionsAdapter(value: unknown): value is ExtensionsAdapter 
 
   const candidate = value as Record<string, unknown>;
 
-  // DefaultInkioExtensionsOptions has these keys that ExtensionsAdapter does NOT have.
-  // If any are present, this is an options object, not an adapter.
-  const optionsOnlyKeys = ['blockHandle', 'placeholder', 'locale', 'onUpload', 'mentionItems', 'hashtagItems', 'slashCommands', 'transformSlashCommands', 'onWikiLinkClick'];
-  if (optionsOnlyKeys.some((key) => key in candidate)) {
+  // Closed key set: an adapter carries section keys plus the shared
+  // InkioAdapter base keys and nothing else, so option objects (which always
+  // carry item-source keys like mentionItems) can never classify as one.
+  const allowedKeys = [
+    'file',
+    'suggestion',
+    'navigation',
+    'onUpdate',
+    'onCreate',
+    'onError',
+    'locale',
+  ];
+  const ownKeys = Object.keys(candidate);
+  if (ownKeys.some((key) => !allowedKeys.includes(key))) {
     return false;
   }
 
@@ -103,7 +113,9 @@ export function isExtensionsAdapter(value: unknown): value is ExtensionsAdapter 
   }
 
   for (const key of adapterKeys) {
-    if (key in candidate && candidate[key] !== undefined && typeof candidate[key] !== 'object') {
+    // A null section is not a usable adapter (typeof null === 'object'
+    // would otherwise admit it); only real section objects qualify.
+    if (key in candidate && candidate[key] !== undefined && (candidate[key] === null || typeof candidate[key] !== 'object')) {
       return false;
     }
   }
@@ -123,8 +135,8 @@ export function mapExtensionsAdapterToOptions(
 
   return {
     onUpload: fileAdapter?.uploadFile
-      ? async (file: File) => {
-        const uploadResult = await fileAdapter.uploadFile(file);
+      ? async (file: File, context?: ExtensionsUploadContext) => {
+        const uploadResult = await fileAdapter.uploadFile(file, context);
         return toUploadSrc(uploadResult);
       }
       : undefined,
@@ -177,11 +189,13 @@ export function applyExtensionsAdapter(
         return extension.configure?.({
           items: mappedOptions.mentionItems,
           onError,
+          onClick: adapter.navigation?.onMentionClick,
         }) as Extensions[number];
       case 'hashTag':
         return extension.configure?.({
           items: mappedOptions.hashtagItems,
           onError,
+          onClick: adapter.navigation?.onHashtagClick,
         }) as Extensions[number];
       case 'slashCommand':
         return extension.configure?.({

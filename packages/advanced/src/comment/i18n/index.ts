@@ -4,6 +4,7 @@ export {
   resolveCommentMessages,
   toCommentMessageOverrides,
   formatRelativeTime,
+  formatTimeAgo,
 } from './messages';
 export type {
   InkioCommentLocaleId,

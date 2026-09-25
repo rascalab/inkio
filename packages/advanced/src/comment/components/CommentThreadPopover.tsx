@@ -5,12 +5,13 @@ import type {
 } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import {
-  formatRelativeTime,
+  formatTimeAgo,
   useInkioCommentUi,
   type InkioCommentMessageOverrides,
 } from '../i18n';
 import type { CommentThreadData } from './CommentPanel';
 import { getInitials } from '../utils';
+import { CommentActionIcon } from './CommentActionIcon';
 
 export interface CommentThreadPopoverProps {
   threadId: string;
@@ -55,31 +56,10 @@ export function CommentThreadPopover({
 
   const ui = useInkioCommentUi({ locale, messages, icons });
 
-  const formatTimeAgo = useCallback(
-    (value: Date): string => {
-      const diff = Date.now() - value.getTime();
-      const seconds = Math.floor(diff / 1000);
-      if (seconds < 60) return ui.messages.commentPanel.time.justNow;
-
-      const minutes = Math.floor(seconds / 60);
-      if (minutes < 60) {
-        return formatRelativeTime(ui.messages.commentPanel.time.minutesAgo, minutes);
-      }
-
-      const hours = Math.floor(minutes / 60);
-      if (hours < 24) {
-        return formatRelativeTime(ui.messages.commentPanel.time.hoursAgo, hours);
-      }
-
-      const days = Math.floor(hours / 24);
-      return formatRelativeTime(ui.messages.commentPanel.time.daysAgo, days);
-    },
-    [
-      ui.messages.commentPanel.time.justNow,
-      ui.messages.commentPanel.time.minutesAgo,
-      ui.messages.commentPanel.time.hoursAgo,
-      ui.messages.commentPanel.time.daysAgo,
-    ],
+  const formatThreadTimeAgo = useCallback(
+    (value: Date | string | number): string =>
+      formatTimeAgo(ui.messages.commentPanel.time, value),
+    [ui.messages.commentPanel.time],
   );
 
   // Focus the reply field only on an explicit opt-in (e.g. keyboard-open).
@@ -161,7 +141,7 @@ export function CommentThreadPopover({
                     {msg.author || currentUser}
                   </span>
                   <span className="inkio-thread-popover-msg-time">
-                    {formatTimeAgo(msg.createdAt)}
+                    {formatThreadTimeAgo(msg.createdAt)}
                   </span>
                 </div>
                 <div className="inkio-thread-popover-msg-text">{msg.text}</div>
@@ -205,6 +185,7 @@ export function CommentThreadPopover({
               className="inkio-thread-popover-action-btn resolve"
               onClick={() => onResolve(threadId)}
             >
+              <CommentActionIcon icon={ui.icons.resolve} />
               {'\u2713'} {ui.messages.commentPanel.resolve}
             </button>
           )}
@@ -214,6 +195,7 @@ export function CommentThreadPopover({
               className="inkio-thread-popover-action-btn delete"
               onClick={() => onDelete(threadId)}
             >
+              <CommentActionIcon icon={ui.icons.delete} />
               {'\u2715'} {ui.messages.commentPanel.delete}
             </button>
           )}

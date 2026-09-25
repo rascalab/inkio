@@ -154,5 +154,25 @@ export function mergeCommentMessages(
 }
 
 export function formatRelativeTime(template: string, count: number): string {
-  return template.replace('{count}', String(count));
+  return template.replace(/\{count\}/g, String(count));
+}
+
+/**
+ * Single shared relative-time formatter for every comment surface.
+ * Accepts Date|string|number because persisted thread messages deserialize
+ * from JSON with string dates; unparseable input falls back to justNow.
+ */
+export function formatTimeAgo(
+  time: InkioCommentMessages['commentPanel']['time'],
+  value: Date | string | number,
+): string {
+  const epoch = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  if (Number.isNaN(epoch)) return time.justNow;
+  const seconds = Math.floor((Date.now() - epoch) / 1000);
+  if (seconds < 60) return time.justNow;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return formatRelativeTime(time.minutesAgo, minutes);
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return formatRelativeTime(time.hoursAgo, hours);
+  return formatRelativeTime(time.daysAgo, Math.floor(hours / 24));
 }

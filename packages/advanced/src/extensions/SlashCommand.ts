@@ -38,6 +38,52 @@ export interface SlashCommandOptions {
 
 export const SlashCommandPluginKey = new PluginKey('slashCommand');
 
+export interface SlashCommandItemSource {
+  items: SlashCommandOptions['items'];
+  transformItems: SlashCommandOptions['transformItems'];
+  onError: SlashCommandOptions['onError'];
+  /** Shared sequence cell; callers supersede each other across keystrokes. */
+  latest: { value: number };
+}
+
+/**
+ * Resolve slash suggestions with the same contract as Mention/HashTag: a
+ * throwing custom source reports via onError and yields [] instead of an
+ * unhandled rejection, and stale sequences yield [] so slow responses never
+ * overwrite newer ones. Exported beside filterSlashCommandItems so the
+ * contract is unit-testable without driving the suggestion plugin.
+ */
+export async function resolveSlashCommandItems(
+  context: SlashCommandContext,
+  source: SlashCommandItemSource,
+): Promise<SlashCommandItem[]> {
+  const { query, editor } = context;
+  const { items, transformItems, onError, latest } = source;
+  const seq = (latest.value += 1);
+  try {
+    const base = items
+      ? await items({ query, editor })
+      : defaultSlashCommands.map((item) => ({ ...item }));
+    if (seq !== latest.value) return [];
+    // transformItems always applies — even on top of custom `items` and
+    // even over an empty base (a transform may inject contextual items) —
+    // so combining `slashCommands` + `transformSlashCommands` is never
+    // silently dead.
+    const transformed = transformItems
+      ? await transformItems(base, { query, editor })
+      : base;
+    if (seq !== latest.value) return [];
+
+    // Custom items() callers may skip filtering; enforce it here for
+    // consistent prefix/inclusion behavior and schema availability guards.
+    return filterSlashCommandItems(transformed, query, editor);
+  } catch (error) {
+    if (seq !== latest.value) return [];
+    onError?.(toError(error), { source: 'slashCommand.suggestion', recoverable: true });
+    return [];
+  }
+}
+
 function hasSchemaNode(editor: Editor, name: string): boolean {
   return name in editor.state.schema.nodes;
 }
@@ -244,28 +290,13 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
 
   addProseMirrorPlugins() {
     const { items, transformItems, onError } = this.options;
-    let latestRequestSeq = 0;
+    // One sequence cell per plugin instance so interleaved editors never
+    // drop each other's results (Mention shares one per configured
+    // extension instead — see its latestRequestSeq).
+    const latest = { value: 0 };
 
-    const resolvedItems = async ({ query, editor }: SlashCommandContext) => {
-      const seq = ++latestRequestSeq;
-      // Cheap early-exit: an empty base list cannot produce suggestions, so
-      // skip transform + filter entirely.
-      const base = items
-        ? await items({ query, editor })
-        : defaultSlashCommands.map((item) => ({ ...item }));
-      if (seq !== latestRequestSeq) return [];
-      if (base.length === 0) return base;
-      // transformItems always applies — even on top of custom `items` — so
-      // combining `slashCommands` + `transformSlashCommands` is not silently dead.
-      const transformed = transformItems
-        ? await transformItems(base, { query, editor })
-        : base;
-      if (seq !== latestRequestSeq) return [];
-
-      // Custom items() callers may skip filtering; enforce it here for
-      // consistent prefix/inclusion behavior and schema availability guards.
-      return filterSlashCommandItems(transformed, query, editor);
-    };
+    const resolvedItems = async ({ query, editor }: SlashCommandContext) =>
+      resolveSlashCommandItems({ query, editor }, { items, transformItems, onError, latest });
 
     return [
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Extension.create erases items' return type to unknown[]; Suggestion expects SlashCommandItem[]
