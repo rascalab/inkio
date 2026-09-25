@@ -21,9 +21,11 @@ export default function Playground({ initialContent }: { initialContent?: string
       <header className="playground-header">
         <div className="playground-header-left">
           <h1 className="playground-title">Inkio Playground</h1>
-          <div className="playground-mode-switch">
+          <div className="playground-mode-switch" role="tablist" aria-label="Playground mode">
             <button
               type="button"
+              role="tab"
+              aria-selected={mode === 'simple'}
               className={`playground-mode-btn${mode === 'simple' ? ' is-active' : ''}`}
               onClick={() => handleModeChange('simple')}
             >
@@ -31,6 +33,8 @@ export default function Playground({ initialContent }: { initialContent?: string
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={mode === 'editor'}
               className={`playground-mode-btn${mode === 'editor' ? ' is-active' : ''}`}
               onClick={() => handleModeChange('editor')}
             >

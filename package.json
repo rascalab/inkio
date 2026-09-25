@@ -11,9 +11,8 @@
     "verify": "pnpm typecheck:packages && pnpm test && pnpm build:packages:smoke && pnpm examples:build:smoke",
     "verify:full": "pnpm typecheck && pnpm test && pnpm build && pnpm package:gates && pnpm examples:build && pnpm e2e && pnpm exec playwright test --project=firefox && INKIO_RELEASE_SMOKE_SKIP_PACKAGE_BUILDS=1 pnpm release:smoke",
     "build": "pnpm build:packages && pnpm docs:build",
-    "build:verify": "pnpm build:packages:smoke",
     "build:packages": "pnpm --filter @inkio/core build && pnpm --filter @inkio/advanced build && pnpm --filter @inkio/simple build && pnpm --filter @inkio/editor build && pnpm --filter @inkio/image-editor build && pnpm --filter @inkio/collab build",
-    "build:packages:verify": "pnpm --filter @inkio/core bundle && pnpm --filter @inkio/advanced bundle && pnpm --filter @inkio/simple bundle && pnpm --filter @inkio/editor bundle && pnpm --filter @inkio/image-editor bundle && pnpm --filter @inkio/collab bundle",
+    "build:packages:full": "pnpm --filter @inkio/core bundle && pnpm --filter @inkio/advanced bundle && pnpm --filter @inkio/simple bundle && pnpm --filter @inkio/editor bundle && pnpm --filter @inkio/image-editor bundle && pnpm --filter @inkio/collab bundle",
     "build:packages:smoke": "pnpm -r --parallel --filter @inkio/core --filter @inkio/advanced --filter @inkio/simple --filter @inkio/editor --filter @inkio/image-editor --filter @inkio/collab bundle:smoke",
     "examples:build": "pnpm -r --filter './examples/*' build",
     "examples:build:smoke": "pnpm -r --filter './examples/*' build:smoke",
@@ -40,8 +39,7 @@
     "publish:editor": "pnpm --filter @inkio/editor publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
     "publish:image-editor": "pnpm --filter @inkio/image-editor publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
     "publish:collab": "pnpm --filter @inkio/collab publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
-    "publish:packages": "pnpm publish:core && pnpm publish:advanced && pnpm publish:simple && pnpm publish:editor && pnpm publish:image-editor && pnpm publish:collab",
-    "publish:r1": "pnpm publish:packages"
+    "publish:packages": "pnpm publish:core && pnpm publish:advanced && pnpm publish:simple && pnpm publish:editor && pnpm publish:image-editor && pnpm publish:collab"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",

@@ -18,17 +18,21 @@ describe('@inkio/editor instance stability', () => {
         initialContent="<p>hi</p>"
         onCreate={onCreate}
         imageBlock={{}}
+        mentionItems={() => []}
       />,
     );
     await waitFor(() => {
       expect(instances).toHaveLength(1);
     });
 
+    // Inline closures must not rebuild the extension set either: the
+    // wrapper forwards to the newest implementation under one identity.
     rerender(
       <Editor
         initialContent="<p>hi</p>"
         onCreate={onCreate}
         imageBlock={{}}
+        mentionItems={() => []}
       />,
     );
     rerender(
@@ -36,6 +40,7 @@ describe('@inkio/editor instance stability', () => {
         initialContent="<p>hi</p>"
         onCreate={onCreate}
         imageBlock={{}}
+        mentionItems={() => []}
       />,
     );
 

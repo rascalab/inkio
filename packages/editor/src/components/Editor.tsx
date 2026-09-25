@@ -18,7 +18,7 @@ import type { HashTagItem, MentionItem, SlashCommandItem, SlashCommandTransform,
 import { getDefaultExtensions, type DefaultExtensionsOptions } from '@inkio/advanced';
 import type { ExtensionsInput } from '../types';
 import { resolveExtensionsInput } from '../utils/resolve-extensions-input';
-import { useStableOptions } from '@inkio/core';
+import { useStableCallback, useStableOptions } from '@inkio/core';
 import type { InkioJSONContent as JSONContent } from '@inkio/core';
 
 interface EditorUiOptions {
@@ -119,6 +119,12 @@ export function Editor({
   const stableComment = useStableOptions(comment);
   const stableImageBlock = useStableOptions(imageBlock);
   const stableBookmark = useStableOptions(bookmark);
+  const stableMentionItems = useStableCallback(mentionItems);
+  const stableHashtagItems = useStableCallback(hashtagItems);
+  const stableSlashCommands = useStableCallback(slashCommands);
+  const stableTransformSlashCommands = useStableCallback(transformSlashCommands);
+  const stableOnError = useStableCallback(onError);
+  const stableOnWikiLinkClick = useStableCallback(onWikiLinkClick);
 
   const defaultExtensionsOptions = useMemo<DefaultExtensionsOptions>(() => {
     const opts: DefaultExtensionsOptions = {
@@ -127,12 +133,12 @@ export function Editor({
       messages: stableMessages,
       icons: stableIcons,
       tabBehavior,
-      onError,
-      mentionItems,
-      hashtagItems,
-      slashCommands,
-      transformSlashCommands,
-      onWikiLinkClick,
+      onError: stableOnError,
+      mentionItems: stableMentionItems,
+      hashtagItems: stableHashtagItems,
+      slashCommands: stableSlashCommands,
+      transformSlashCommands: stableTransformSlashCommands,
+      onWikiLinkClick: stableOnWikiLinkClick,
       blockHandle,
       wikiLink,
       comment: stableComment,
@@ -167,12 +173,12 @@ export function Editor({
     stableMessages,
     stableIcons,
     tabBehavior,
-    onError,
-    mentionItems,
-    hashtagItems,
-    slashCommands,
-    transformSlashCommands,
-    onWikiLinkClick,
+    stableOnError,
+    stableMentionItems,
+    stableHashtagItems,
+    stableSlashCommands,
+    stableTransformSlashCommands,
+    stableOnWikiLinkClick,
     blockHandle,
     wikiLink,
     stableComment,

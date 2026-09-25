@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Editor } from '@inkio/simple';
 
 const initialContent = `<h2>Hello Inkio</h2>
@@ -11,6 +11,27 @@ const initialContent = `<h2>Hello Inkio</h2>
 
 export default function App() {
   const [json, setJson] = useState<unknown>(null);
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (previewTimer.current) {
+        clearTimeout(previewTimer.current);
+      }
+    };
+  }, []);
+
+  // Debounce the JSON preview: without this the whole example re-renders
+  // (plus a JSON.stringify) on every keystroke.
+  const handleUpdate = (next: unknown) => {
+    if (previewTimer.current) {
+      clearTimeout(previewTimer.current);
+    }
+    previewTimer.current = setTimeout(() => {
+      previewTimer.current = null;
+      setJson(next);
+    }, 150);
+  };
 
   return (
     <main className="app-shell">
@@ -26,7 +47,7 @@ export default function App() {
         <Editor
           placeholder="Write something..."
           initialContent={initialContent}
-          onUpdate={(next: unknown) => setJson(next)}
+          onUpdate={handleUpdate}
         />
       </section>
 

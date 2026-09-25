@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Editor,
   type InkioMessageOverrides,
@@ -36,12 +36,15 @@ const initialContent = `<h2>Inkio in Next.js</h2>
   <li>Drop an image to open the image editor flow</li>
 </ul>`;
 
+let fallbackIdCounter = 0;
+
 function createId(): string {
   if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
   }
 
-  return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  fallbackIdCounter += 1;
+  return `id-${Date.now().toString(36)}-${fallbackIdCounter.toString(36)}`;
 }
 
 function createDemoImageDataUrl(): string {
@@ -87,6 +90,32 @@ export function EditorDemo() {
     }),
     [],
   );
+
+  const objectUrlsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const urls = objectUrlsRef.current;
+    return () => {
+      urls.forEach((url) => URL.revokeObjectURL(url));
+      urls.clear();
+    };
+  }, []);
+  const handleImageUpload = useCallback(async (file: File) => {
+    const url = URL.createObjectURL(file);
+    objectUrlsRef.current.add(url);
+    return url;
+  }, []);
+  const hashtagItems = useCallback(({ query }: { query: string }) => {
+    const tags = ['inkio', 'nextjs', 'tiptap', 'editor', 'ai'];
+    return tags
+      .filter((tag) => tag.toLowerCase().includes(query.toLowerCase()))
+      .map((tag) => ({ id: tag, label: `#${tag}` }));
+  }, []);
+  const mentionItems = useCallback(({ query }: { query: string }) => {
+    const people = ['ada', 'grace', 'linus', 'margaret'];
+    return people
+      .filter((name) => name.toLowerCase().includes(query.toLowerCase()))
+      .map((name) => ({ id: name, label: name }));
+  }, []);
 
   const handleReply = useCallback((commentId: string, text: string) => {
     const message: CommentMessage = { id: createId(), author: 'You', text, createdAt: new Date() };
@@ -170,22 +199,14 @@ export function EditorDemo() {
           initialContent={initialContent}
           placeholder="Type /, #, [[page]] and select text for comments..."
           locale={locale}
-          hashtagItems={({ query }: { query: string }) => {
-            const tags = ['inkio', 'nextjs', 'tiptap', 'editor', 'ai'];
-            return tags
-              .filter((tag) => tag.toLowerCase().includes(query.toLowerCase()))
-              .map((tag) => ({ id: tag, label: `#${tag}` }));
-          }}
-          mentionItems={({ query }: { query: string }) => {
-            const people = ['ada', 'grace', 'linus', 'margaret'];
-            return people
-              .filter((name) => name.toLowerCase().includes(query.toLowerCase()))
-              .map((name) => ({ id: name, label: name }));
-          }}
-          onImageUpload={async (file: File) => URL.createObjectURL(file)}
+          hashtagItems={hashtagItems}
+          mentionItems={mentionItems}
+          onImageUpload={handleImageUpload}
           imageBlock={{ imageEditor: LazyImageEditorModal }}
           comment={comment}
           bookmark={{
+            // Demo stub: returns the same preview for every URL so the
+            // bookmark flow is exercisable without network access.
             onResolveBookmark: async () => ({
               title: 'Example Domain',
               description: 'Illustrative example bookmark preview.',

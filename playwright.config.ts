@@ -4,9 +4,17 @@ const reuseExistingServer = !process.env.CI;
 
 export default defineConfig({
   testDir: './e2e',
+  outputDir: 'test-results',
   fullyParallel: true,
   retries: process.env.CI ? 2 : 0,
   reporter: 'line',
+  // Pinned explicitly (equal to Playwright defaults): timeouts must be a
+  // deliberate choice, and traces stay failure-only so passing runs leave
+  // no artifacts behind. CI artifact retention bounds the failure traces.
+  timeout: 30_000,
+  expect: {
+    timeout: 5_000,
+  },
   use: {
     headless: true,
     trace: 'retain-on-failure',

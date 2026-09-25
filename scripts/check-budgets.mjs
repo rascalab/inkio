@@ -1,6 +1,6 @@
 // Bundle budget gate: total dist JS bytes per package must stay under limit.
 // Bump a limit deliberately (in this file) when a size increase is justified.
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -14,17 +14,28 @@ const BUDGETS = {
   // 225k -> 234k: viewport culling, export guards/retry, rAF-throttled
   // filters/redact/thumbnails, append-only freedraw buffer, versioned dirty
   // tracking (perf batch). Deliberate increase for shipped features.
-  'image-editor': 234_000,
+  // 234k -> 240k: audit round 2 (taint tracking, crop normalize, bounds
+  // mirror, dirty/save race, text measure, input guards). Deliberate.
+  'image-editor': 240_000,
   // collab ships provider + hooks only; yjs/socket.io stay external (measured ~16k).
   'collab': 30_000,
 };
 
-function jsBytes(dir) {
+function jsBytes(dir, seen = new Set()) {
+  let realDir;
+  try {
+    realDir = realpathSync(dir);
+  } catch {
+    throw new Error(`[budgets] unreadable directory: ${dir}`);
+  }
+  // Symlinked dist trees would recurse forever; each real directory counts once.
+  if (seen.has(realDir)) return 0;
+  seen.add(realDir);
   let total = 0;
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      total += jsBytes(full);
+      total += jsBytes(full, seen);
     } else if (entry.name.endsWith('.js') || entry.name.endsWith('.cjs')) {
       total += statSync(full).size;
     }

@@ -89,8 +89,10 @@ function writeJson(filePath, value) {
 
 function pickTarball(tarballs, name) {
   // Exact package-name match so inkio-editor-* never collides with inkio-image-editor-*.
+  // Newest first: the pack dir is fresh per run, but stale-date sorting
+  // must never select an older tarball when several match.
   const pattern = new RegExp(`^${name}-\\d.*\\.tgz$`);
-  return [...tarballs].sort().find((file) => pattern.test(file));
+  return [...tarballs].sort().reverse().find((file) => pattern.test(file));
 }
 
 const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'inkio-release-smoke-'));

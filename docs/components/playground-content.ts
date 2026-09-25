@@ -100,7 +100,7 @@ export const PLAYGROUND_INITIAL_CONTENT = {
       content: [
         {
           type: 'text',
-          text: `import { useState } from 'react';\nimport { Editor, ToC } from '@inkio/editor';\nimport '@inkio/editor/style.css';\n\nexport default function App() {\n  const [editor, setEditor] = useState(null);\n\n  return (\n    <div style={{ position: 'relative' }}>\n      <Editor\n        placeholder="Start writing..."\n        locale="ko"\n        onCreate={setEditor}\n        onImageUpload={async (file) => {\n          const url = URL.createObjectURL(file);\n          return url;\n        }}\n      />\n      <ToC source={editor} maxLevel={3} />\n    </div>\n  );\n}`,
+          text: `import { useState } from 'react';\nimport { Editor, ToC } from '@inkio/editor';\nimport '@inkio/editor/style.css';\n\nexport default function App() {\n  const [editor, setEditor] = useState(null);\n\n  return (\n    <div style={{ position: 'relative' }}>\n      <Editor\n        placeholder="Start writing..."\n        locale="ko"\n        onCreate={setEditor}\n        onImageUpload={async (file) => {\n          const url = URL.createObjectURL(file);\n          // Revoke with URL.revokeObjectURL(url) once the image leaves the doc.\n          return url;\n        }}\n      />\n      <ToC source={editor} maxLevel={3} />\n    </div>\n  );\n}`,
         },
       ],
     },

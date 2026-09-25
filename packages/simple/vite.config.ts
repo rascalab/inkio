@@ -9,14 +9,26 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const enableDts = process.env.INKIO_VITE_SKIP_DTS !== '1';
 
-function inlineCssImports(filePath: string, visited = new Set<string>()): string {
+function inlineCssImports(filePath: string, stack: string[] = []): string {
   const resolved = resolve(filePath);
-  if (visited.has(resolved)) throw new Error(`CSS import cycle detected: ${resolved}`);
-  visited.add(resolved);
-  const content = readFileSync(resolved, 'utf-8');
+  // Cycle detection follows the current DFS path only: a shared visited set
+  // mistakes diamond imports (A->B,A->C,B->D,C->D) for a cycle.
+  if (stack.includes(resolved)) {
+    throw new Error(`CSS import cycle detected: ${[...stack, resolved].join(' -> ')}`);
+  }
+  let content: string;
+  try {
+    content = readFileSync(resolved, 'utf-8');
+  } catch (error) {
+    const importer = stack.length > 0 ? stack[stack.length - 1] : '(entry)';
+    throw new Error(
+      `CSS import failed: cannot read ${resolved} (imported from ${importer}): ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
   const dir = dirname(resolved);
+  const next = [...stack, resolved];
   return content.replace(/@import\s+["'](\.[^"']+)["']\s*;/g, (_match, rel) => {
-    return inlineCssImports(resolve(dir, rel), visited);
+    return inlineCssImports(resolve(dir, rel), next);
   });
 }
 

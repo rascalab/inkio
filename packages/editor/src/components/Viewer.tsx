@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import type { InkioJSONContent as JSONContent, InkioLocaleInput, InkioMessageOverrides } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import type { CommentConfig, CommentData } from '@inkio/advanced';
@@ -31,13 +32,20 @@ export type ViewerProps = {
 };
 
 export function Viewer({ content, locale, theme, ui, comment, extensions, onCreate }: ViewerProps) {
-  const commentConfig: CommentConfig | undefined = comment
-    ? {
-        getComments: comment.getComments,
-        onReply: comment.onReply,
-        onResolve: comment.onResolve,
-      }
-    : undefined;
+  // Memoized: a fresh literal per render would rebuild the comment
+  // extensions on each parent re-render (same stabilization as Editor).
+  const commentConfig: CommentConfig | undefined = useMemo(
+    () =>
+      comment
+        ? {
+            getComments: comment.getComments,
+            onReply: comment.onReply,
+            onResolve: comment.onResolve,
+          }
+        : undefined,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [comment?.getComments, comment?.onReply, comment?.onResolve],
+  );
 
   return (
     <Editor

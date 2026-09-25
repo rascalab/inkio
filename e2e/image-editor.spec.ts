@@ -39,117 +39,41 @@ async function getSelectedAnnotation(page: Page) {
   return raw ? JSON.parse(raw) : null;
 }
 
+async function stageClientPoint(page: Page, point: { x: number; y: number }) {
+  return page.evaluate((targetPoint) => {
+    const stage = document.querySelector<HTMLElement>('[data-testid="inkio-ie-stage-frame"] .konvajs-content');
+    if (!stage) {
+      throw new Error('Konva stage container was not found.');
+    }
+
+    const rect = stage.getBoundingClientRect();
+    return { x: rect.left + targetPoint.x, y: rect.top + targetPoint.y };
+  }, point);
+}
+
+// Trusted pointer input (not synthetic MouseEvents): exercises Konva's real
+// pointer/touch path including pressure-agnostic hit testing.
 async function dragWithinStage(
   page: Page,
   start: { x: number; y: number },
   end: { x: number; y: number },
 ) {
-  await page.evaluate(({ startPoint, endPoint }) => {
-    const stage = document.querySelector<HTMLElement>('[data-testid="inkio-ie-stage-frame"] .konvajs-content');
-    if (!stage) {
-      throw new Error('Konva stage container was not found.');
-    }
-
-    const rect = stage.getBoundingClientRect();
-    const toClientPoint = (point: { x: number; y: number }) => ({
-      clientX: rect.left + point.x,
-      clientY: rect.top + point.y,
-    });
-    const from = toClientPoint(startPoint);
-    const to = toClientPoint(endPoint);
-
-    stage.dispatchEvent(
-      new MouseEvent('mousedown', {
-        bubbles: true,
-        cancelable: true,
-        buttons: 1,
-        ...from,
-      }),
-    );
-
-    for (let step = 1; step <= 8; step += 1) {
-      const progress = step / 8;
-      const clientX = from.clientX + (to.clientX - from.clientX) * progress;
-      const clientY = from.clientY + (to.clientY - from.clientY) * progress;
-      document.dispatchEvent(
-        new MouseEvent('mousemove', {
-          bubbles: true,
-          cancelable: true,
-          buttons: 1,
-          clientX,
-          clientY,
-        }),
-      );
-    }
-
-    document.dispatchEvent(
-      new MouseEvent('mouseup', {
-        bubbles: true,
-        cancelable: true,
-        buttons: 0,
-        ...to,
-      }),
-    );
-  }, { startPoint: start, endPoint: end });
+  const from = await stageClientPoint(page, start);
+  const to = await stageClientPoint(page, end);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 8 });
+  await page.mouse.up();
 }
 
 async function clickStage(page: Page, point: { x: number; y: number }, clickCount = 1) {
-  await page.evaluate(({ targetPoint, clickCount: count }) => {
-    const stage = document.querySelector<HTMLElement>('[data-testid="inkio-ie-stage-frame"] .konvajs-content');
-    if (!stage) {
-      throw new Error('Konva stage container was not found.');
-    }
-
-    const rect = stage.getBoundingClientRect();
-    const clientX = rect.left + targetPoint.x;
-    const clientY = rect.top + targetPoint.y;
-
-    const fireClick = (detail: number) => {
-      stage.dispatchEvent(
-        new MouseEvent('mousedown', {
-          bubbles: true,
-          cancelable: true,
-          buttons: 1,
-          clientX,
-          clientY,
-          detail,
-        }),
-      );
-      stage.dispatchEvent(
-        new MouseEvent('mouseup', {
-          bubbles: true,
-          cancelable: true,
-          buttons: 0,
-          clientX,
-          clientY,
-          detail,
-        }),
-      );
-      stage.dispatchEvent(
-        new MouseEvent('click', {
-          bubbles: true,
-          cancelable: true,
-          clientX,
-          clientY,
-          detail,
-        }),
-      );
-    };
-
-    fireClick(1);
-    if (count > 1) {
-      fireClick(2);
-      stage.dispatchEvent(
-        new MouseEvent('dblclick', {
-          bubbles: true,
-          cancelable: true,
-          clientX,
-          clientY,
-          detail: 2,
-        }),
-      );
-    }
-  }, { targetPoint: point, clickCount });
+  const at = await stageClientPoint(page, point);
+  await page.mouse.move(at.x, at.y);
+  if (clickCount > 1) {
+    await page.mouse.dblclick(at.x, at.y);
+  } else {
+    await page.mouse.click(at.x, at.y);
+  }
 }
 
 async function setRangeValue(locator: Locator, value: number) {
@@ -362,8 +286,11 @@ test('finetune brightness brightens the saved image', async ({ page }) => {
   });
   await expect(page.getByTestId('inkio-ie-finetune-brightness-number')).toHaveValue('0.5');
   await triggerButton(page, 'inkio-ie-save');
-  await page.waitForTimeout(1000);
-  const brightSrc = await page.locator('.image-editor-e2e-saved-image').last().getAttribute('src');
+  const savedImage = page.locator('.image-editor-e2e-saved-image').last();
+  await expect
+    .poll(async () => savedImage.getAttribute('src'), { timeout: 10000 })
+    .not.toBe(plainSrc);
+  const brightSrc = await savedImage.getAttribute('src');
   const brightLuminance = await luminance(brightSrc);
 
   expect(plainLuminance).toBeGreaterThan(0);
@@ -392,8 +319,11 @@ test('redact tool pixelates a region in the saved image', async ({ page }) => {
   await expect(page.getByTestId('inkio-ie-root')).toHaveAttribute('data-debug-annotation-count', '1');
 
   await triggerButton(page, 'inkio-ie-save');
-  await page.waitForTimeout(1000);
-  const redactedSrc = await page.locator('.image-editor-e2e-saved-image').last().getAttribute('src');
+  const redactedImage = page.locator('.image-editor-e2e-saved-image').last();
+  await expect
+    .poll(async () => redactedImage.getAttribute('src'), { timeout: 10000 })
+    .not.toBe(plainSrc);
+  const redactedSrc = await redactedImage.getAttribute('src');
   expect(redactedSrc).toMatch(/^data:image\/png;base64,/);
   expect(redactedSrc).not.toBe(plainSrc);
   expect(pageErrors).toEqual([]);
@@ -420,8 +350,11 @@ test('sticker tool places an emoji in the saved image', async ({ page }) => {
   await expect(page.getByTestId('inkio-ie-root')).toHaveAttribute('data-debug-annotation-count', '1');
 
   await triggerButton(page, 'inkio-ie-save');
-  await page.waitForTimeout(1000);
-  const stickerSrc = await page.locator('.image-editor-e2e-saved-image').last().getAttribute('src');
+  const stickerImage = page.locator('.image-editor-e2e-saved-image').last();
+  await expect
+    .poll(async () => stickerImage.getAttribute('src'), { timeout: 10000 })
+    .not.toBe(plainSrc);
+  const stickerSrc = await stickerImage.getAttribute('src');
   expect(stickerSrc).toMatch(/^data:image\/png;base64,/);
   expect(stickerSrc).not.toBe(plainSrc);
   expect(pageErrors).toEqual([]);

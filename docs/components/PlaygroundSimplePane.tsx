@@ -10,6 +10,7 @@ import type { InkioJSONContent } from '@inkio/core';
 import type { ImageEditorModalProps } from '@inkio/image-editor';
 import { PLAYGROUND_INITIAL_CONTENT } from './playground-content';
 import { useDebouncedState } from './use-debounced-state';
+import { useObjectUrlRegistry } from './use-object-urls';
 
 const LazyImageEditorModal = dynamic<ImageEditorModalProps>(
   () => import('@inkio/image-editor').then((mod) => mod.ImageEditorModal),
@@ -30,7 +31,11 @@ export default function PlaygroundSimplePane({
   const [content, handleUpdate] = useDebouncedState<unknown>(
     initialContent ?? PLAYGROUND_INITIAL_CONTENT,
   );
-  const handleImageUpload = useCallback(async (file: File) => URL.createObjectURL(file), []);
+  const createObjectUrl = useObjectUrlRegistry();
+  const handleImageUpload = useCallback(
+    async (file: File) => createObjectUrl(file),
+    [createObjectUrl],
+  );
   const imageBlock = useMemo(() => ({ imageEditor: LazyImageEditorModal }), []);
 
   return (

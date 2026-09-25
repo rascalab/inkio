@@ -19,7 +19,7 @@ import type { InkioJSONContent as JSONContent } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import type { ExtensionsInput } from '../types';
 import { resolveExtensionsInput } from '../utils/resolve-extensions-input';
-import { useStableOptions } from '@inkio/core';
+import { useStableCallback, useStableOptions } from '@inkio/core';
 
 type EditorContentMode =
   | { content: string | JSONContent; initialContent?: never }
@@ -81,6 +81,8 @@ export function Editor({
   // per keystroke). Structural inputs are stabilized; callbacks still compare
   // by reference so updates are never swallowed.
   const stableImageBlock = useStableOptions(imageBlock);
+  const stableOnImageUpload = useStableCallback(onImageUpload);
+  const stableOnError = useStableCallback(onError);
   const stableMessages = useStableOptions(ui?.messages);
   const stableIcons = useStableOptions(ui?.icons);
   const stableToolbar = useStableOptions(ui?.toolbar);
@@ -94,12 +96,12 @@ export function Editor({
       tabBehavior,
     };
 
-    if (onImageUpload !== undefined || stableImageBlock !== undefined || onError !== undefined) {
-      opts.imageBlock = { ...stableImageBlock, ...(onImageUpload ? { onUpload: onImageUpload } : {}), ...(onError ? { onError } : {}) };
+    if (stableOnImageUpload !== undefined || stableImageBlock !== undefined || stableOnError !== undefined) {
+      opts.imageBlock = { ...stableImageBlock, ...(stableOnImageUpload ? { onUpload: stableOnImageUpload } : {}), ...(stableOnError ? { onError: stableOnError } : {}) };
     }
 
     return opts;
-  }, [placeholder, tabBehavior, onImageUpload, stableImageBlock, onError]);
+  }, [placeholder, tabBehavior, stableOnImageUpload, stableImageBlock, stableOnError]);
 
   const resolvedExtensions = useMemo(() => {
     const defaults = getExtensions(coreExtensionOptions);

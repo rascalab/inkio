@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ImageEditorModal } from '@inkio/image-editor';
 
 interface ImageEditorDebugState {
@@ -144,10 +144,23 @@ export function ImageEditorE2EHarness() {
     setDebugState(readDebugState());
   }, []);
 
+  // Coalesce mutation bursts: the debug attrs change on every canvas tick,
+  // and a setState per mutation would perturb the perf-sensitive zoom/crop
+  // flows under test. The first mutation syncs immediately (preserving
+  // assertion timing); further mutations within the same frame collapse
+  // into one trailing sync. The modal portals to body, so the observation
+  // root stays document-wide.
+  const syncQueuedRef = useRef(false);
   useEffect(() => {
     syncDebugState();
     const observer = new MutationObserver(() => {
+      if (syncQueuedRef.current) return;
+      syncQueuedRef.current = true;
       syncDebugState();
+      requestAnimationFrame(() => {
+        syncQueuedRef.current = false;
+        syncDebugState();
+      });
     });
 
     observer.observe(document.body, {
@@ -176,10 +189,11 @@ export function ImageEditorE2EHarness() {
       document.querySelector<HTMLElement>('[data-testid="inkio-ie-tool-resize"]')?.click();
 
       requestAnimationFrame(() => {
-        const presetButtons = Array.from(
-          document.querySelectorAll<HTMLButtonElement>('[data-testid="inkio-ie-options-panel"] .inkio-ie-preset-btn'),
-        );
-        presetButtons[1]?.click();
+        // Select by stable testid, never by position: panel order is free
+        // to change without breaking the harness.
+        document
+          .querySelector<HTMLElement>('[data-testid="inkio-ie-crop-preset-1-1"]')
+          ?.click();
       });
     });
   }, []);

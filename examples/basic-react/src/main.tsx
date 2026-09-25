@@ -4,7 +4,12 @@ import '@inkio/simple/minimal.css';
 import './app.css';
 import App from './App';
 
-createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error('Basic React example: missing #root mount node.');
+}
+
+createRoot(rootElement).render(
   <StrictMode>
     <App />
   </StrictMode>,

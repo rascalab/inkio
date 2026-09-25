@@ -28,14 +28,23 @@ for (const pkg of PACKAGES) {
   const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'inkio-attw-'));
   const outFile = path.join(tmpDir, 'attw.json');
   let data;
+  const errFile = path.join(tmpDir, 'attw.stderr.log');
   try {
-    execFileSync(`pnpm exec attw --pack ${packageDir} -f json > ${outFile} 2>/dev/null || true`, {
+    // stdout carries the JSON (buffered via file); stderr is kept aside so
+    // a missing binary or pack failure is diagnosable instead of silent.
+    execFileSync(`pnpm exec attw --pack ${packageDir} -f json > ${outFile} 2>${errFile} || true`, {
       cwd: repoRoot,
       shell: true,
     });
     data = JSON.parse(readFileSync(outFile, 'utf-8'));
   } catch {
-    console.error(`[attw] unparseable JSON output for @inkio/${pkg}`);
+    let detail = '';
+    try {
+      detail = readFileSync(errFile, 'utf-8').trim().split('\n').slice(-5).join('\n');
+    } catch {
+      // No stderr captured; report the parse failure alone.
+    }
+    console.error(`[attw] unparseable JSON output for @inkio/${pkg}${detail ? ` (stderr tail):\n${detail}` : ''}`);
     failed = true;
     continue;
   } finally {

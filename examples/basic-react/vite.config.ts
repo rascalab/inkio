@@ -29,8 +29,17 @@ export default defineConfig({
             return undefined;
           }
 
-          const isPackage = (name: string) =>
-            id.includes(`/node_modules/${name}/`) || id.includes(`/node_modules/.pnpm/${name.replace('/', '+')}@`);
+          // Anchor pnpm matches on `<name>@` (name + version separator) so
+          // short names like 'lucide' cannot over-match unrelated paths.
+          const isPackage = (name: string) => {
+            if (id.includes(`/node_modules/${name}/`)) {
+              return true;
+            }
+            const escaped = name
+              .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+              .replace('/', '\\+');
+            return new RegExp(`/node_modules/\\.pnpm/${escaped}@`).test(id);
+          };
 
           if (
             isPackage('react') ||

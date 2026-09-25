@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from 'next-themes';
 import {
   Editor as InkioEditor,
@@ -20,6 +20,7 @@ import {
 import type { ImageEditorModalProps } from '@inkio/image-editor';
 import { PLAYGROUND_INITIAL_CONTENT } from './playground-content';
 import { useDebouncedState } from './use-debounced-state';
+import { useObjectUrlRegistry } from './use-object-urls';
 
 const LazyImageEditorModal = dynamic<ImageEditorModalProps>(
   () => import('@inkio/image-editor').then((mod) => mod.ImageEditorModal),
@@ -31,12 +32,17 @@ const LazyCommentPanel = dynamic<CommentPanelProps>(
   { loading: () => <div className="playground-loading">Loading comments...</div> },
 );
 
+let fallbackIdCounter = 0;
+
 function createId(): string {
   if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
   }
 
-  return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  // Monotonic counter suffix: Date.now() alone collides under rapid
+  // comment creation and Math.random() is not unique.
+  fallbackIdCounter += 1;
+  return `id-${Date.now().toString(36)}-${fallbackIdCounter.toString(36)}`;
 }
 
 type PlaygroundEditorPaneProps = {
@@ -51,11 +57,25 @@ export default function PlaygroundEditorPane({
   showJSON,
 }: PlaygroundEditorPaneProps) {
   const { resolvedTheme } = useTheme();
+  // resolvedTheme is undefined pre-hydration: defaulting to light flashes
+  // the editor theme, so hold the pane until the theme resolves.
+  const [themeReady, setThemeReady] = useState(false);
+  useEffect(() => {
+    if (resolvedTheme) setThemeReady(true);
+  }, [resolvedTheme]);
   const inkioTheme = resolvedTheme === 'dark' ? 'dark' : 'light' as const;
+
+  if (!themeReady) {
+    return <div className="playground-loading">Loading playground...</div>;
+  }
   const [content, handleUpdate] = useDebouncedState<unknown>(
     initialContent ?? PLAYGROUND_INITIAL_CONTENT,
   );
-  const handleImageUpload = useCallback(async (file: File) => URL.createObjectURL(file), []);
+  const createObjectUrl = useObjectUrlRegistry();
+  const handleImageUpload = useCallback(
+    async (file: File) => createObjectUrl(file),
+    [createObjectUrl],
+  );
   const hashtagItems = useCallback(({ query }: { query: string }) => {
     const tags = ['inkio', 'tiptap', 'editor', 'react', 'markdown', 'playground'];
     return tags

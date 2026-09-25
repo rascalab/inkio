@@ -31,10 +31,7 @@ export default withNextra({
   serverExternalPackages: [
     '@nextra/components',
   ],
-  experimental: {
-    optimizePackageImports: false,
-    optimizeCss: false,
-  },
+
   // Fix for Nextra v4 - disable server-side file system access during build.
   webpack: (config, { isServer }) => {
     if (useSourcePackages) {

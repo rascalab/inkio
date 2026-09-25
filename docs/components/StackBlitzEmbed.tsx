@@ -12,12 +12,16 @@ export type StackBlitzProject = {
 function StackBlitzEmbedInner({ title, files, openFile }: StackBlitzProject) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { resolvedTheme } = useTheme();
-  const [loaded, setLoaded] = useState(false);
+  // Depend on serialized content, not object identity: callers may pass
+  // inline literals, and identity deps would re-embed every render.
+  const filesKey = JSON.stringify(files);
 
   useEffect(() => {
-    if (!containerRef.current || loaded) return;
+    const container = containerRef.current;
+    if (!container) return;
+    let cancelled = false;
 
-    const projectFiles = { ...files };
+    const projectFiles: Record<string, string> = JSON.parse(filesKey);
     if (!projectFiles['package.json']) {
       projectFiles['package.json'] = JSON.stringify(
         { name: title, private: true, dependencies: {} },
@@ -27,9 +31,12 @@ function StackBlitzEmbedInner({ title, files, openFile }: StackBlitzProject) {
     }
 
     import('@stackblitz/sdk').then(({ default: sdk }) => {
-      if (!containerRef.current) return;
+      if (cancelled || containerRef.current !== container) return;
+      // Clear any previous embed first: the SDK exposes no destroy, so
+      // removing the iframe DOM is the teardown.
+      container.replaceChildren();
       sdk.embedProject(
-        containerRef.current,
+        container,
         {
           title,
           description: `Inkio ${title} example`,
@@ -44,10 +51,12 @@ function StackBlitzEmbedInner({ title, files, openFile }: StackBlitzProject) {
           view: 'editor',
         },
       );
-      setLoaded(true);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return () => {
+      cancelled = true;
+      container.replaceChildren();
+    };
+  }, [title, filesKey, openFile, resolvedTheme]);
 
   return (
     <div
