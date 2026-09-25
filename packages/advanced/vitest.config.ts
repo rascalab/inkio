@@ -18,6 +18,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: [resolve(__dirname, '../core/src/test-setup.ts')],
-    include: [resolve(__dirname, 'src/__tests__/**/*.test.{ts,tsx}')],
+    // Co-located suites (extensions/comment) must run too: restricting to
+    // src/__tests__ silently skipped them while they read as coverage.
+    include: [resolve(__dirname, 'src/**/*.test.{ts,tsx}')],
   },
 });

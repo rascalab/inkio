@@ -1,5 +1,5 @@
 import { type NodeViewProps, NodeViewContent, NodeViewWrapper } from '@tiptap/react';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { CopyIcon, CheckIcon } from '../../icons';
 
 const POPULAR_LANGUAGES = [
@@ -53,16 +53,29 @@ function CodeBlockViewInner({ node, updateAttributes, editor }: NodeViewProps) {
   const [copyFailed, setCopyFailed] = useState(false);
   const language = (node.attrs.language as string) || '';
   const isEditable = editor.isEditable;
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Timers must not fire setState after unmount.
+  useEffect(() => {
+    return () => {
+      if (copyTimer.current) {
+        clearTimeout(copyTimer.current);
+        copyTimer.current = null;
+      }
+    };
+  }, []);
 
   const showCopied = useCallback(() => {
     setCopied(true);
     setCopyFailed(false);
-    setTimeout(() => setCopied(false), 1500);
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    copyTimer.current = setTimeout(() => setCopied(false), 1500);
   }, []);
 
   const showCopyError = useCallback(() => {
     setCopyFailed(true);
-    setTimeout(() => setCopyFailed(false), 2000);
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    copyTimer.current = setTimeout(() => setCopyFailed(false), 2000);
   }, []);
 
   const handleCopy = useCallback(() => {
@@ -93,20 +106,33 @@ function CodeBlockViewInner({ node, updateAttributes, editor }: NodeViewProps) {
       <div className="inkio-codeblock-content">
         <div className="inkio-codeblock-overlay" contentEditable={false}>
           {isEditable ? (
-            <select
-              className="inkio-codeblock-lang"
-              value={language}
-              onChange={handleLanguageChange}
-            >
-              {POPULAR_LANGUAGES.map((lang) => (
-                <option key={lang.value} value={lang.value}>
-                  {lang.label}
-                </option>
-              ))}
-              {language && !POPULAR_LANGUAGES.some((l) => l.value === language) && (
-                <option value={language}>{language}</option>
-              )}
-            </select>
+            <>
+              <select
+                className="inkio-codeblock-lang"
+                value={language}
+                onChange={handleLanguageChange}
+                aria-label="Code block language"
+              >
+                {POPULAR_LANGUAGES.map((lang) => (
+                  <option key={lang.value} value={lang.value}>
+                    {lang.label}
+                  </option>
+                ))}
+                {language && !POPULAR_LANGUAGES.some((l) => l.value === language) && (
+                  <option value={language}>{language}</option>
+                )}
+              </select>
+              <button
+                type="button"
+                className={`inkio-codeblock-copy${copied ? ' is-copied' : ''}${copyFailed ? ' is-error' : ''}`}
+                onClick={handleCopy}
+                disabled={copied}
+                aria-label={copied ? 'Copied' : copyFailed ? 'Copy failed — try again' : 'Copy code'}
+                title={copyFailed ? 'Copy failed — browser blocked clipboard access' : undefined}
+              >
+                {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
+              </button>
+            </>
           ) : (
             <>
               {language && (

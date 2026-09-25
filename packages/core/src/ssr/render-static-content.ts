@@ -49,7 +49,9 @@ export function normalizeInkioContent(
     return EMPTY_DOC;
   }
 
-  return createParagraphDoc(trimmed.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+  // Tag-shaped sequences only: a bare `<` followed by a non-letter (a<3,
+  // 1<2) is comparison text, not markup, and must survive.
+  return createParagraphDoc(trimmed.replace(/<!--[\s\S]*?-->|<\/?[a-zA-Z!][^>]*>/g, ' ').replace(/\s+/g, ' ').trim());
 }
 
 function decodeHtmlEntities(value: string): string {
@@ -63,7 +65,7 @@ function decodeHtmlEntities(value: string): string {
 }
 
 function stripHtml(value: string): string {
-  return decodeHtmlEntities(value.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+  return decodeHtmlEntities(value.replace(/<!--[\s\S]*?-->|<\/?[a-zA-Z!][^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
 }
 
 function extractHeadingsFromHtml(html: string): HeadingItem[] {
@@ -94,20 +96,21 @@ function injectHeadingIds(html: string, headings: HeadingItem[]): string {
     return html;
   }
 
+  // Pair by document order with the same full-element pattern the extractor
+  // uses: the i-th match is the same element on both sides, so one stray
+  // tag can no longer misalign every later id. Tags that already carry an
+  // id keep it (still consuming their slot).
   let index = 0;
-  return html.replace(/<h([1-6])(\b[^>]*)>/gi, (match, level, attrs) => {
-    const heading = headings[index];
-    if (!heading || String(heading.level) !== String(level)) {
-      return match;
-    }
-
-    index += 1;
-    if (/\sid=/.test(attrs)) {
-      return match;
-    }
-
-    return `<h${level}${attrs} id="${heading.id}" data-inkio-heading-index="${heading.index}">`;
-  });
+  return html.replace(
+    /<h([1-6])(\b[^>]*)>([\s\S]*?)<\/h\1>/gi,
+    (element, level: string, attrs: string, inner: string) => {
+      const heading = headings[index++];
+      if (!heading || /\sid=/.test(attrs)) {
+        return element;
+      }
+      return `<h${level}${attrs} id="${heading.id}" data-inkio-heading-index="${heading.index}">${inner}</h${level}>`;
+    },
+  );
 }
 
 const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
