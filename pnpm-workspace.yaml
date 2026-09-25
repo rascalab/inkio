@@ -4,6 +4,7 @@ packages:
   - 'packages/simple'
   - 'packages/editor'
   - 'packages/image-editor'
+  - 'packages/collab'
   - 'docs'
   - 'examples/*'
 overrides:
@@ -15,3 +16,6 @@ allowBuilds:
 autoInstallPeers: false
 preferWorkspacePackages: true
 linkWorkspacePackages: true
+minimumReleaseAgeExclude:
+  - socket.io-client@4.8.4
+  - socket.io@4.8.4

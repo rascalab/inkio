@@ -15,6 +15,8 @@ const BUDGETS = {
   // filters/redact/thumbnails, append-only freedraw buffer, versioned dirty
   // tracking (perf batch). Deliberate increase for shipped features.
   'image-editor': 234_000,
+  // collab ships provider + hooks only; yjs/socket.io stay external (measured ~16k).
+  'collab': 30_000,
 };
 
 function jsBytes(dir) {

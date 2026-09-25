@@ -14,6 +14,7 @@ const PACKAGE_FILTERS = [
   '@inkio/simple',
   '@inkio/editor',
   '@inkio/image-editor',
+  '@inkio/collab',
 ];
 const skipPackageBuilds = process.env.INKIO_RELEASE_SMOKE_SKIP_PACKAGE_BUILDS === '1';
 
@@ -115,8 +116,9 @@ try {
   const simpleTarball = pickTarball(tarballs, 'inkio-simple');
   const editorTarball = pickTarball(tarballs, 'inkio-editor');
   const imageEditorTarball = pickTarball(tarballs, 'inkio-image-editor');
+  const collabTarball = pickTarball(tarballs, 'inkio-collab');
 
-  if (!coreTarball || !advancedTarball || !simpleTarball || !editorTarball || !imageEditorTarball) {
+  if (!coreTarball || !advancedTarball || !simpleTarball || !editorTarball || !imageEditorTarball || !collabTarball) {
     throw new Error(
       `Failed to create release tarballs for the layered Inkio packages. Found: ${tarballs.join(', ') || '(none)'}`,
     );
@@ -135,6 +137,7 @@ try {
       '@inkio/simple': `file:../tarballs/${simpleTarball}`,
       '@inkio/editor': `file:../tarballs/${editorTarball}`,
       '@inkio/image-editor': `file:../tarballs/${imageEditorTarball}`,
+      '@inkio/collab': `file:../tarballs/${collabTarball}`,
       react: '^19.2.4',
       'react-dom': '^19.2.4',
     },
@@ -157,6 +160,7 @@ try {
   '@inkio/simple': 'file:../tarballs/${simpleTarball}'
   '@inkio/editor': 'file:../tarballs/${editorTarball}'
   '@inkio/image-editor': 'file:../tarballs/${imageEditorTarball}'
+  '@inkio/collab': 'file:../tarballs/${collabTarball}'
 `,
   );
 
@@ -281,6 +285,7 @@ import {
   type CommentMessage,
 } from '@inkio/advanced';
 import { ImageEditorModal } from '@inkio/image-editor';
+import { createYDoc, isYDocEmpty } from '@inkio/collab';
 import '@inkio/editor/style.css';
 import '@inkio/simple/minimal.css';
 import '@inkio/image-editor/style.css';
@@ -302,6 +307,7 @@ function App() {
   const [editorContent, setEditorContent] = useState(parseEditorMarkdown(editorMarkdown));
   const [simpleContent, setSimpleContent] = useState(parseSimpleMarkdown(simpleMarkdown));
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
+  const [collabEmpty] = useState(() => isYDocEmpty(createYDoc()));
   const [comments, setComments] = useState<CommentData[]>([]);
   const commentsRef = useRef<CommentData[]>([]);
   commentsRef.current = comments;
@@ -369,6 +375,7 @@ function App() {
         <p>{stringifyCoreMarkdown(coreContent)}</p>
         <p>{stringifyEditorMarkdown(editorContent)}</p>
         <p>{stringifySimpleMarkdown(simpleContent)}</p>
+        <p>collab doc empty: {String(collabEmpty)}</p>
       </section>
 
       <section>

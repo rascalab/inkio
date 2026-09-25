@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 
-const PACKAGES = ['core', 'advanced', 'simple', 'editor', 'image-editor'];
+const PACKAGES = ['core', 'advanced', 'simple', 'editor', 'image-editor', 'collab'];
 
 let failed = false;
 
