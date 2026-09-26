@@ -65,9 +65,6 @@ export default function PlaygroundEditorPane({
   }, [resolvedTheme]);
   const inkioTheme = resolvedTheme === 'dark' ? 'dark' : 'light' as const;
 
-  if (!themeReady) {
-    return <div className="playground-loading">Loading playground...</div>;
-  }
   const [content, handleUpdate] = useDebouncedState<unknown>(
     initialContent ?? PLAYGROUND_INITIAL_CONTENT,
   );
@@ -139,6 +136,12 @@ export default function PlaygroundEditorPane({
     }),
     [handleDelete, handleReply, handleResolve],
   );
+
+  // Below every Hook call by design: returning earlier would change the
+  // hook count once themeReady flips and crash with a hook-order error.
+  if (!themeReady) {
+    return <div className="playground-loading">Loading playground...</div>;
+  }
 
   return (
     <>
