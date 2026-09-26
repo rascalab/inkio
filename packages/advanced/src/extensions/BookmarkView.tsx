@@ -113,7 +113,11 @@ const BookmarkViewInner = ({ node, updateAttributes, extension }: NodeViewProps)
         </div>
 
         {description ? <p className="inkio-bookmark-description">{description}</p> : null}
-        {resolving ? <p className="inkio-bookmark-description">Loading preview...</p> : null}
+        {resolving ? (
+          <p className="inkio-bookmark-description">
+            {extension.options.loadingPreviewText ?? 'Loading preview...'}
+          </p>
+        ) : null}
       </a>
     </NodeViewWrapper>
   );

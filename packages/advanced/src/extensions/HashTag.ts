@@ -207,7 +207,11 @@ export const HashTag = TiptapMention.extend<HashTagOptions>({
     return {
       insertHashTag:
         (attributes) =>
-          ({ commands }) => {
+          ({ commands, editor }) => {
+            // Same contract as the suggestion path: reject empty ids and
+            // never mutate a read-only document from a programmatic call.
+            if (!attributes.id || !attributes.label) return false;
+            if (editor && !editor.isEditable) return false;
             return commands.insertContent({
               type: this.name,
               attrs: {

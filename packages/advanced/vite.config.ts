@@ -20,7 +20,7 @@ const entries = {
   comment: resolve(__dirname, 'src/entries/comment.ts'),
 };
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [
     react(),
     ...(enableDts
@@ -46,6 +46,15 @@ export default defineConfig({
   ],
   resolve: {
     alias: [
+      // Same as collab: resolve @inkio/core to source for vitest (which
+      // uses this config and runs without a build step). The production
+      // `vite build` keeps @inkio/core external so declaration generation
+      // never pulls core's source into the output.
+      ...(command === 'build'
+        ? []
+        : [
+            { find: /^@inkio\/core$/, replacement: resolve(__dirname, '../core/src/index.ts') },
+          ]),
       { find: '@', replacement: resolve(__dirname, 'src') },
     ],
   },
@@ -81,4 +90,4 @@ export default defineConfig({
     },
     copyPublicDir: false,
   },
-});
+}));

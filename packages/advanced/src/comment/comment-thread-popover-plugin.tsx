@@ -156,12 +156,18 @@ export function createCommentThreadPopoverPlugin(
         icons={options.icons}
         onReply={
           canMutate && options.onCommentReply
-            ? (id: string, text: string) => options.onCommentReply?.(id, text)
+            ? (id: string, text: string) => {
+              // canMutate was captured at render time: re-check at action
+              // time in case the editor flipped read-only while open.
+              if (!editor.isEditable) return;
+              options.onCommentReply?.(id, text);
+            }
             : undefined
         }
         onResolve={
           canMutate
             ? (id: string) => {
+                if (!editor.isEditable) return;
                 // resolveComment() already invokes onCommentResolve internally.
                 (
                   editor.commands as unknown as {
@@ -175,6 +181,7 @@ export function createCommentThreadPopoverPlugin(
         onDelete={
           canMutate
             ? (id: string) => {
+                if (!editor.isEditable) return;
                 // Remove comment marks from the document
                 const markType = editor.state.schema.marks.comment;
                 if (markType) {

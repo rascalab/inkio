@@ -22,6 +22,8 @@ export interface BookmarkAttributes extends BookmarkPreview {
 export interface BookmarkOptions {
   HTMLAttributes: Record<string, any>;
   onResolveBookmark?: (url: string) => Promise<BookmarkPreview>;
+  /** Loading placeholder text while the preview resolves. */
+  loadingPreviewText?: string;
 }
 
 declare module '@tiptap/core' {
