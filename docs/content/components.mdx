@@ -13,8 +13,7 @@ import '@inkio/editor/style.css';
 
 | Prop | 타입 | 설명 |
 |------|------|------|
-| `content` | `string \| JSONContent` | 제어 모드 콘텐츠 (controlled) |
-| `initialContent` | `string \| JSONContent` | 비제어 모드 초기 콘텐츠 |
+| `content` | `string \| JSONContent` | 초기 문서 (마운트 후 에디터가 상태 소유) |
 | `editable` | `boolean` | 편집 가능 여부 (기본값: `true`) |
 | `placeholder` | `string` | 빈 에디터 placeholder 텍스트 |
 | `locale` | `InkioLocaleInput` | 로케일 |
@@ -62,7 +61,7 @@ import '@inkio/editor/style.css';
 export function EditorPage() {
   return (
     <Editor
-      initialContent="<p>Hello Inkio</p>"
+      content="<p>Hello Inkio</p>"
       hashtagItems={({ query }) => [
         { id: query || 'inkio', label: `#${query || 'inkio'}` },
       ]}
@@ -87,8 +86,7 @@ import '@inkio/simple/style.css';
 
 | Prop | 타입 | 설명 |
 |------|------|------|
-| `content` | `string \| JSONContent` | 제어 모드 콘텐츠 |
-| `initialContent` | `string \| JSONContent` | 비제어 모드 초기 콘텐츠 |
+| `content` | `string \| JSONContent` | 초기 문서 (마운트 후 에디터가 상태 소유) |
 | `editable` | `boolean` | 편집 가능 여부 |
 | `placeholder` | `string` | placeholder 텍스트 |
 | `locale` | `InkioLocaleInput` | 로케일 |
@@ -112,7 +110,7 @@ import '@inkio/simple/style.css';
 
 | Prop | @inkio/editor | @inkio/simple |
 |------|:---:|:---:|
-| `content` / `initialContent` | O | O |
+| `content` | O | O |
 | `onUpdate`, `onCreate`, `onError` | O | O |
 | `ui.showToolbar` | - (항상 off) | O |
 | `ui.showBubbleMenu` | O (기본 on) | O (기본 off) |
@@ -324,8 +322,10 @@ import '@inkio/editor/minimal.css';
 | 메뉴 구성 | `ui.show*` + `toolbar`/`bubbleMenu` 세부 옵션 | preset별 기본값 상이 (위 비교표) |
 | 에디터 동작 | `extensions` 추가/교체 | `ExtensionsInput` 규칙 준수 |
 
-바꿀 수 없는 것: `content`/`initialContent` 동시 사용 (상호배타),
-`StaticViewer`의 인터랙션 (정적 렌더 전용).
+외부에서 값을 바꾸려면: `onCreate`로 받은 인스턴스의
+`editor.commands.setContent()`를 쓰세요 (`content` prop은 초기값 전용).
+
+바꿀 수 없는 것: `StaticViewer`의 인터랙션 (정적 렌더 전용).
 
 ## 공통 UI override
 

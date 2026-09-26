@@ -7,17 +7,17 @@
 **증상**: `Hydration failed because the server rendered HTML didn't match the client` + 에디터가 깜빡이며 다시 렌더링됨.
 
 **원인**: 서버 셸 HTML과 클라이언트 첫 렌더 HTML이 다릅니다. 흔한 원인은
-`content`/`initialContent`를 인라인 객체로 넘겨서 렌더마다 새로 계산되는 경우입니다.
+`content`를 인라인 객체로 넘겨서 렌더마다 새로 계산되는 경우입니다.
 
 **해결**: 콘텐츠 참조를 고정하세요.
 
 ```tsx
 // Before: 렌더마다 새 객체 → 셸과 불일치 가능
-<Editor initialContent={{ type: 'doc', content: [...] }} />
+<Editor content={{ type: 'doc', content: [...] }} />
 
 // After: 안정 참조
-const initialContent = useMemo(() => ({ type: 'doc', content: [...] }), []);
-<Editor initialContent={initialContent} />
+const content = useMemo(() => ({ type: 'doc', content: [...] }), []);
+<Editor content={content} />
 ```
 
 서버·클라이언트 양쪽에서 동일한 `extensions`를 넘기는지도 확인하세요.
@@ -38,7 +38,7 @@ const initialContent = useMemo(() => ({ type: 'doc', content: [...] }), []);
 import { Editor } from '@inkio/editor';
 
 export function Page() {
-  return <Editor initialContent="<p>Hello</p>" />;
+  return <Editor content="<p>Hello</p>" />;
 }
 ```
 

@@ -31,7 +31,7 @@ export function Room({ docId, token }: { docId: string; token: string }) {
     url: 'http://localhost:3123/inkio-collab',
     token,
     user: { name: 'Ada', color: '#ff0077' },
-    initialContent: '<p>Start here</p>',
+    content: '<p>Start here</p>',
   });
   if (!editor) return null;
   return (
@@ -48,8 +48,7 @@ export function Room({ docId, token }: { docId: string; token: string }) {
 
 - 협업 모드에서는 `history`/`undoRedo` 확장을 제거합니다 (Yjs undo와 충돌).
   다른 기본 확장을 넘기거나, 생략하면 core 기본값을 사용합니다.
-- `initialContent`는 첫 동기화 이후 문서가 비어 있을 때 단 한 번만 심습니다.
-  공유 문서와 `content`를 함께 쓰지 마세요.
+- `content`는 첫 동기화 이후 문서가 비어 있을 때 단 한 번만 심는 시드입니다 (동기화 후에는 Yjs 문서가 진실의 원천).
 - transport 옵션(`socket`, `url`, `token`)은 `docId` 마운트 시 1회만 읽습니다.
   토큰 로테이션은 매 join마다 재평가되는 함수로 전달하세요.
 

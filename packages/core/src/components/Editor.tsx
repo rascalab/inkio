@@ -19,17 +19,9 @@ import {
   renderInkioStaticContent,
 } from '../ssr/render-static-content';
 
-type EditorContentMode =
-  | {
-    content: string | JSONContent;
-    initialContent?: never;
-  }
-  | {
-    content?: never;
-    initialContent?: string | JSONContent;
-  };
-
-export type EditorProps = EditorContentMode & {
+export interface EditorProps {
+  /** Initial document only (uncontrolled). See `useInkioEditor`. */
+  content?: string | JSONContent;
   extensions?: Extensions;
   placeholder?: string;
   editable?: boolean;
@@ -90,7 +82,6 @@ export function isEqualStaticContent(a: string | JSONContent | undefined, b: str
 
 export const Editor = ({
   content,
-  initialContent,
   extensions,
   placeholder,
   editable = true,
@@ -114,10 +105,6 @@ export const Editor = ({
   messages,
   icons,
 }: EditorProps) => {
-  if (content !== undefined && initialContent !== undefined) {
-    throw new Error('Inkio Editor: `content` and `initialContent` cannot be used together.');
-  }
-
   const resolvedExtensions = useMemo(
     () => resolveInkioExtensions(extensions, placeholder),
     [extensions, placeholder],
@@ -139,7 +126,7 @@ export const Editor = ({
   }, [fill, autoresize]);
 
   const editor = useInkioEditor({
-    ...(content !== undefined ? { content } : { initialContent }),
+    content,
     // Reuse the already-resolved extensions so static SSR HTML and the live
     // editor share a single schema instance.
     extensions: resolvedExtensions,
@@ -151,7 +138,7 @@ export const Editor = ({
       onCreate?.(instance);
     },
   });
-  const initialContentValue = content ?? initialContent;
+  const contentValue = content;
   // Static SSR shell: never recompute generateHTML + sanitize when content is
   // unchanged. useMemo alone keys on object identity, so an inline JSON
   // literal from a re-rendering parent would redo the expensive render every
@@ -166,13 +153,13 @@ export const Editor = ({
   if (
     cached
     && cached.extensions === resolvedExtensions
-    && isEqualStaticContent(cached.content, initialContentValue)
+    && isEqualStaticContent(cached.content, contentValue)
   ) {
     staticRender = cached.result;
   } else {
-    staticRender = renderInkioStaticContent(initialContentValue, resolvedExtensions);
+    staticRender = renderInkioStaticContent(contentValue, resolvedExtensions);
     staticCacheRef.current = {
-      content: initialContentValue,
+      content: contentValue,
       extensions: resolvedExtensions,
       result: staticRender,
     };

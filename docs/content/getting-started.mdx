@@ -61,7 +61,7 @@ Simple:
 import { Editor } from '@inkio/simple';
 
 export function Page() {
-  return <Editor initialContent="<p>Hello Inkio</p>" />;
+  return <Editor content="<p>Hello Inkio</p>" />;
 }
 ```
 
@@ -73,7 +73,7 @@ import { Editor } from '@inkio/editor';
 export function Page() {
   return (
     <Editor
-      initialContent="<p>Hello Inkio</p>"
+      content="<p>Hello Inkio</p>"
       hashtagItems={({ query }) => [
         { id: query || 'inkio', label: `#${query || 'inkio'}` },
       ]}
@@ -85,7 +85,7 @@ export function Page() {
 
 ## 기억할 규칙
 
-- `content`와 `initialContent`는 동시에 넘기지 않습니다.
+- `content`는 초기 문서입니다. 마운트 후 상태는 에디터가 소유하며, 외부에서 값을 바꾸려면 `onCreate` 인스턴스의 `editor.commands.setContent()`를 쓰세요.
 - `@inkio/editor`는 notion-like surface 기본값을 가집니다.
 - `@inkio/simple`은 classic toolbar surface 기본값을 가집니다.
 - shell / panel / field 같은 chrome surface는 패키지 간에 공통 Inkio token을 공유합니다.

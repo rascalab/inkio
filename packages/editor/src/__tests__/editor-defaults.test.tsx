@@ -3,7 +3,7 @@ import { Editor } from '../components/Editor';
 
 describe('@inkio/editor defaults', () => {
   it('does not show the persistent toolbar by default', () => {
-    const { container } = render(<Editor initialContent="<p>Hello</p>" />);
+    const { container } = render(<Editor content="<p>Hello</p>" />);
 
     expect(container.querySelector('.inkio-toolbar')).not.toBeInTheDocument();
   });

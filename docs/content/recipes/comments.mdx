@@ -60,7 +60,7 @@ export function DocumentPage({ documentId }: { documentId: string }) {
 
   return (
     <Editor
-      initialContent="<p>...</p>"
+      content="<p>...</p>"
       comment={{
         getComments: (commentId) => threads.get(commentId) ?? null,
         onSubmit: async (commentId, text) => {

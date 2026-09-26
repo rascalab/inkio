@@ -3,7 +3,7 @@ import { Editor } from '../components/Editor';
 
 describe('@inkio/simple defaults', () => {
   it('shows the persistent toolbar by default', async () => {
-    const { container } = render(<Editor initialContent="<p>Hello</p>" />);
+    const { container } = render(<Editor content="<p>Hello</p>" />);
 
     await waitFor(() => {
       expect(container.querySelector('.inkio-toolbar')).toBeInTheDocument();

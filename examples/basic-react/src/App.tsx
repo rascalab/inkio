@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Editor } from '@inkio/simple';
 
-const initialContent = `<h2>Hello Inkio</h2>
+const content = `<h2>Hello Inkio</h2>
 <p>This example starts with <code>@inkio/simple</code>.</p>
 <ul>
   <li>Use the persistent toolbar for common document formatting</li>
@@ -46,7 +46,7 @@ export default function App() {
       <section className="editor-card">
         <Editor
           placeholder="Write something..."
-          initialContent={initialContent}
+          content={content}
           onUpdate={handleUpdate}
         />
       </section>

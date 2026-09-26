@@ -37,11 +37,9 @@ interface EditorUiOptions {
   icons?: Partial<InkioIconRegistry>;
 }
 
-type EditorContentMode =
-  | { content: string | JSONContent; initialContent?: never }
-  | { content?: never; initialContent?: string | JSONContent };
-
-export type EditorProps = EditorContentMode & {
+export interface EditorProps {
+  /** Initial document only (uncontrolled). */
+  content?: string | JSONContent;
   editable?: boolean;
   placeholder?: string;
   locale?: InkioLocaleInput;
@@ -81,7 +79,6 @@ export type EditorProps = EditorContentMode & {
 
 export function Editor({
   content,
-  initialContent,
   editable,
   placeholder,
   locale,
@@ -196,7 +193,7 @@ export function Editor({
   }, [defaultExtensionsOptions, extensions]);
 
   const coreProps: CoreEditorProps = useMemo(() => ({
-    ...(content !== undefined ? { content } : { initialContent }),
+    content,
     extensions: resolvedExtensions,
     editable,
     placeholder,
@@ -220,7 +217,6 @@ export function Editor({
     tableMenu: stableTableMenu,
   }), [
     content,
-    initialContent,
     resolvedExtensions,
     editable,
     placeholder,

@@ -121,7 +121,8 @@ export function useCollabPeers(provider: CollabProvider | null): CollabPeer[] {
 
 export interface UseInkioCollaborativeEditorOptions extends UseCollabProviderOptions {
   extensions?: Extensions;
-  initialContent?: string | JSONContent;
+  /** Seed content for an empty shared doc (set once, never synced back). */
+  content?: string | JSONContent;
   editable?: boolean;
   onUpdate?: (content: JSONContent) => void;
   onCreate?: (editor: TiptapEditor) => void;
@@ -143,7 +144,7 @@ export function useInkioCollaborativeEditor({
   token,
   user,
   extensions,
-  initialContent,
+  content: seedContent,
   editable = true,
   onUpdate,
   onCreate,
@@ -196,10 +197,10 @@ export function useInkioCollaborativeEditor({
     if (!provider || !editor || editor.isDestroyed) return;
     if (status !== 'synced' || seededDocIdRef.current === docId) return;
     seededDocIdRef.current = docId;
-    if (wasEmptyAtConnect && isYDocEmpty(ydoc) && initialContent !== undefined) {
-      editor.commands.setContent(initialContent);
+    if (wasEmptyAtConnect && isYDocEmpty(ydoc) && seedContent !== undefined) {
+      editor.commands.setContent(seedContent);
     }
-  }, [provider, editor, status, wasEmptyAtConnect, ydoc, initialContent, docId]);
+  }, [provider, editor, status, wasEmptyAtConnect, ydoc, seedContent, docId]);
 
   return { editor, provider, doc: ydoc, status };
 }

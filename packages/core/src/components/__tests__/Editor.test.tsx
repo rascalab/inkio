@@ -58,17 +58,6 @@ describe('Editor component', () => {
     expect(container.querySelector('.inkio-editor--fill')).toBeInTheDocument();
   });
 
-  it('should throw if content and initialContent are both provided', () => {
-    expect(() =>
-      render(
-        <Editor
-          content={{ type: 'doc', content: [] } as any}
-          initialContent={{ type: 'doc', content: [] } as any}
-        />
-      )
-    ).toThrow('content');
-  });
-
   it('renders static document HTML during server render', () => {
     const html = renderToString(<Editor content="<h2>SSR Heading</h2><p>Hello SSR</p>" showToolbar />);
 

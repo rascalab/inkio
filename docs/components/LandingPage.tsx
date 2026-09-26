@@ -50,7 +50,7 @@ const DEMO_DOC = {
     {
       type: 'codeBlock',
       attrs: { language: 'tsx' },
-      content: [{ type: 'text', text: "<Editor initialContent=\"<p>Hello</p>\" />" }],
+      content: [{ type: 'text', text: "<Editor content=\"<p>Hello</p>\" />" }],
     },
   ],
 };
@@ -129,7 +129,7 @@ export default function LandingPage() {
                   <span /><span /><span />
                   <em>demo.tsx — live</em>
                 </div>
-                <Editor initialContent={DEMO_DOC} theme="dark" />
+                <Editor content={DEMO_DOC} theme="dark" />
               </div>
             </div>
           </div>

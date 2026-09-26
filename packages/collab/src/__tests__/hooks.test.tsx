@@ -55,7 +55,7 @@ async function startRelay() {
 }
 
 describe('useInkioCollaborativeEditor', () => {
-  it('seeds initialContent exactly once for a shared doc', async () => {
+  it('seeds content exactly once for a shared doc', async () => {
     const port = await startRelay();
     const doc = new Y.Doc();
     const url = `http://127.0.0.1:${port}`;
@@ -63,7 +63,7 @@ describe('useInkioCollaborativeEditor', () => {
       docId: 'hook-doc',
       doc,
       extensions: BASE,
-      initialContent: '<p>seed</p>',
+      content: '<p>seed</p>',
     };
     const first = renderHook(() =>
       useInkioCollaborativeEditor({ ...options, socket: io(url, { autoConnect: false }) }),

@@ -154,7 +154,7 @@ export default function PlaygroundEditorPane({
         </div>
         <div style={{ position: 'relative' }}>
           <InkioEditor
-            initialContent={initialContent ?? PLAYGROUND_INITIAL_CONTENT}
+            content={content ?? PLAYGROUND_INITIAL_CONTENT}
             placeholder="Try /, #, [[page]], comments, and image editing..."
             theme={inkioTheme}
             locale={locale}

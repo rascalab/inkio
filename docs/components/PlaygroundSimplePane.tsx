@@ -46,7 +46,7 @@ export default function PlaygroundSimplePane({
           <span className="playground-mode-badge">@inkio/simple + lazy @inkio/image-editor</span>
         </div>
         <SimpleEditor
-          initialContent={initialContent ?? PLAYGROUND_INITIAL_CONTENT}
+          content={content ?? PLAYGROUND_INITIAL_CONTENT}
           placeholder="Write a document..."
           locale="en-US,en;q=0.9"
           onImageUpload={handleImageUpload}

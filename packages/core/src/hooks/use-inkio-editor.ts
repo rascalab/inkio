@@ -2,23 +2,19 @@ import { useEditor, type Editor as TiptapEditor, type Extensions, type JSONConte
 import { useEffect, useMemo, useRef } from 'react';
 import { resolveInkioExtensions } from '../extensions/resolve-extensions';
 
-type InkioContentMode =
-  | {
-      content: string | JSONContent;
-      initialContent?: never;
-    }
-  | {
-      content?: never;
-      initialContent?: string | JSONContent;
-    };
-
-export type UseInkioEditorOptions = InkioContentMode & {
+export interface UseInkioEditorOptions {
+  /**
+   * Initial document only (uncontrolled). The editor owns state after
+   * mount; push external values imperatively via the `onCreate` instance
+   * (`editor.commands.setContent(...)`).
+   */
+  content?: string | JSONContent;
   extensions?: Extensions;
   placeholder?: string;
   editable?: boolean;
   onUpdate?: (content: JSONContent) => void;
   onCreate?: (editor: TiptapEditor) => void;
-};
+}
 
 let didWarnExtensionsChurn = false;
 
@@ -41,19 +37,8 @@ function warnExtensionsChurn() {
   );
 }
 
-function isSameJson(a: JSONContent | undefined, b: JSONContent | undefined) {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  try {
-    return JSON.stringify(a) === JSON.stringify(b);
-  } catch {
-    return false;
-  }
-}
-
 export function useInkioEditor({
-  content,
-  initialContent,
+  content = '',
   // No default: undefined means "default extensions" downstream while an
   // explicit [] means a bare document (see resolveInkioExtensions).
   extensions,
@@ -62,19 +47,10 @@ export function useInkioEditor({
   onUpdate,
   onCreate,
 }: UseInkioEditorOptions = {}) {
-  if (content !== undefined && initialContent !== undefined) {
-    throw new Error('Inkio Editor: `content` and `initialContent` cannot be used together.');
-  }
-
-  const isControlled = content !== undefined;
-  const startContent = isControlled ? content : (initialContent ?? '');
-
   const finalExtensions = useMemo(() => {
     return resolveInkioExtensions(extensions, placeholder);
   }, [extensions, placeholder]);
 
-  const lastReportedJsonRef = useRef<JSONContent | null>(null);
-  const lastReportedHtmlRef = useRef<string | null>(null);
   const prevExtensionsRef = useRef<Extensions | null>(null);
   const onCreateRef = useRef(onCreate);
   const onUpdateRef = useRef(onUpdate);
@@ -99,7 +75,7 @@ export function useInkioEditor({
   const editor = useEditor({
     immediatelyRender: false,
     extensions: finalExtensions,
-    content: startContent,
+    content,
     editable,
     editorProps: {
       attributes: {
@@ -118,61 +94,11 @@ export function useInkioEditor({
       queueMicrotask(() => {
         if (token !== syncTokenRef.current) return;
         if (isMountedRef.current && !editorInstance.isDestroyed) {
-          const updatedContent = editorInstance.getJSON();
-          lastReportedJsonRef.current = updatedContent;
-          lastReportedHtmlRef.current = null;
-          onUpdateRef.current?.(updatedContent);
+          onUpdateRef.current?.(editorInstance.getJSON());
         }
       });
     },
   });
-
-  useEffect(() => {
-    if (!isControlled || !editor) {
-      return;
-    }
-
-    // String content (HTML) must be compared against HTML, not JSON.
-    // Comparing string to getJSON() always mismatches and causes a setContent loop.
-    if (typeof content === 'string') {
-      if (content === lastReportedHtmlRef.current) return;
-      let currentHtml: string;
-      try {
-        currentHtml = editor.getHTML();
-      } catch {
-        return;
-      }
-      if (content === currentHtml) {
-        lastReportedHtmlRef.current = content;
-        return;
-      }
-      const token = ++syncTokenRef.current;
-      const next = content;
-      queueMicrotask(() => {
-        if (token !== syncTokenRef.current) return;
-        if (isMountedRef.current && !editor.isDestroyed) {
-          lastReportedHtmlRef.current = next;
-          lastReportedJsonRef.current = null;
-          editor.commands.setContent(next, { emitUpdate: false });
-        }
-      });
-      return;
-    }
-
-    const editorJson = editor.getJSON();
-    if (isSameJson(content, lastReportedJsonRef.current ?? undefined) || isSameJson(content, editorJson)) {
-      return;
-    }
-
-    const token = ++syncTokenRef.current;
-    const next = content;
-    queueMicrotask(() => {
-      if (token !== syncTokenRef.current) return;
-      if (isMountedRef.current && !editor.isDestroyed && next !== undefined) {
-        editor.commands.setContent(next, { emitUpdate: false });
-      }
-    });
-  }, [content, editor, isControlled]);
 
   useEffect(() => {
     if (editor) {

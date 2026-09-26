@@ -5,7 +5,7 @@ import { useInkioEditor } from '../use-inkio-editor';
 describe('useInkioEditor default extensions', () => {
   it('falls back to the default schema when extensions are omitted', async () => {
     const { result, unmount } = renderHook(() =>
-      useInkioEditor({ initialContent: '<p>hi</p>' }),
+      useInkioEditor({ content: '<p>hi</p>' }),
     );
     try {
       await waitFor(() => {

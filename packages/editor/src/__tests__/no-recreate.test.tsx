@@ -15,7 +15,7 @@ describe('@inkio/editor instance stability', () => {
     };
     const { rerender } = render(
       <Editor
-        initialContent="<p>hi</p>"
+        content="<p>hi</p>"
         onCreate={onCreate}
         imageBlock={{}}
         mentionItems={() => []}
@@ -29,7 +29,7 @@ describe('@inkio/editor instance stability', () => {
     // wrapper forwards to the newest implementation under one identity.
     rerender(
       <Editor
-        initialContent="<p>hi</p>"
+        content="<p>hi</p>"
         onCreate={onCreate}
         imageBlock={{}}
         mentionItems={() => []}
@@ -37,7 +37,7 @@ describe('@inkio/editor instance stability', () => {
     );
     rerender(
       <Editor
-        initialContent="<p>hi</p>"
+        content="<p>hi</p>"
         onCreate={onCreate}
         imageBlock={{}}
         mentionItems={() => []}
