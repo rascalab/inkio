@@ -114,9 +114,10 @@ export default function LandingPage() {
               <div className="lp-hero-actions">
                 <Link className="lp-btn-primary" href="./getting-started">5분 안에 붙이기</Link>
                 <Link className="lp-btn-ghost" href="./playground">직접 만져보기</Link>
+                <Link className="lp-btn-ghost" href="./troubleshooting">에러 났어요?</Link>
               </div>
               <dl className="lp-stats">
-                <div><dt>패키지</dt><dd>5</dd></div>
+                <div><dt>패키지</dt><dd>6</dd></div>
                 <div><dt>타입</dt><dd>TS 우선</dd></div>
                 <div><dt>렌더링</dt><dd>SSR 대응</dd></div>
                 <div><dt>라이선스</dt><dd>MIT</dd></div>
@@ -165,6 +166,12 @@ export default function LandingPage() {
               <span className="lp-card-ic"><Icon d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" /></span>
               <h3>가벼운 읽기 전용</h3>
               <p>엔진 없는 <kbd>StaticViewer</kbd>. 목록·SEO용.</p>
+              <span className="lp-card-go">문서 보기 →</span>
+            </Link>
+            <Link className="lp-card" href="./collaboration">
+              <span className="lp-card-ic"><Icon d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></span>
+              <h3>실시간 협업</h3>
+              <p>Yjs 기반 동기화·presence. 서버는 직접 구현.</p>
               <span className="lp-card-go">문서 보기 →</span>
             </Link>
           </div>
