@@ -245,8 +245,26 @@ export class SocketIOCollabProvider implements CollabProvider {
     if (!payload || payload.docId !== this.docId) return;
     if (!this.applyWireUpdate(payload.update)) return;
     this.joined = true;
+    this.resyncLocalState();
     this.setStatus('synced');
   };
+
+  /**
+   * Push pre-connect local state after (re)join: edits made while offline
+   * and local presence never emit (both handlers require `joined`). The
+   * server snapshot flows server→client in Init; nothing carries
+   * client→server, so without this the rejoin silently drops them.
+   */
+  private resyncLocalState(): void {
+    this.socket.emit(CollabClientEvents.Update, {
+      docId: this.docId,
+      update: Y.encodeStateAsUpdate(this.doc),
+    });
+    this.socket.emit(CollabClientEvents.Awareness, {
+      docId: this.docId,
+      update: encodeAwarenessUpdate(this.awareness, [this.awareness.clientID]),
+    });
+  }
 
   private handleUpdate = (payload: CollabUpdatePayload): void => {
     if (!payload || payload.docId !== this.docId || !this.joined) return;

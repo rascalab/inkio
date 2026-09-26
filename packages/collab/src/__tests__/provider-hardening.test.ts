@@ -103,4 +103,24 @@ describe('provider wire hardening', () => {
     });
     provider.destroy();
   });
+
+  it('resyncs offline doc updates and local awareness on init', () => {
+    const { provider, fake, emitted } = providerWithFakeSocket();
+    try {
+      // Offline local edit + presence before the server snapshot arrives.
+      provider.doc.getText('t').insert(0, 'offline');
+      provider.awareness.setLocalStateField('user', { name: 'B', color: '#000' });
+      const init = fake.handlers.get(CollabServerEvents.Init)!;
+      init({ docId: 'room-1', update: Y.encodeStateAsUpdate(new Y.Doc()) } as never);
+      const updates = emitted.filter((e) => e.event === CollabClientEvents.Update);
+      const presence = emitted.filter((e) => e.event === CollabClientEvents.Awareness);
+      expect(updates).toHaveLength(1);
+      expect(presence).toHaveLength(1);
+      const merged = new Y.Doc();
+      Y.applyUpdate(merged, (updates[0].payload as { update: Uint8Array }).update);
+      expect(merged.getText('t').toString()).toBe('offline');
+    } finally {
+      provider.destroy();
+    }
+  });
 });
