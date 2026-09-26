@@ -77,7 +77,7 @@ export { toPlainText, toSummary, getContentStats } from './serialization';
 
 // i18n
 export { resolveLocaleInput, pickMessageLocale } from './i18n';
-export { enCoreMessages, mergeCoreMessages, toCoreMessageOverrides } from './i18n';
+export { enCoreMessages, koCoreMessages, mergeCoreMessages, toCoreMessageOverrides } from './i18n';
 export type {
   DeepPartial,
   InkioCoreLocaleId,

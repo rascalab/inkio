@@ -31,6 +31,7 @@ export {
   commentComposerPluginKey,
   commentThreadPopoverPluginKey,
   enCommentMessages,
+  koCommentMessages,
   mergeCommentMessages,
   resolveCommentMessages,
   toCommentMessageOverrides,

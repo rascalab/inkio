@@ -18,6 +18,7 @@ export type {
 } from './components';
 export {
   enCommentMessages,
+  koCommentMessages,
   mergeCommentMessages,
   resolveCommentMessages,
   toCommentMessageOverrides,

@@ -35,6 +35,34 @@ export interface InkioCommentMessages {
 
 export type InkioCommentMessageOverrides = DeepPartial<InkioCommentMessages>;
 
+export const koCommentMessages: InkioCommentMessages = {
+  commentPanel: {
+    title: '댓글',
+    all: '전체',
+    open: '미해결',
+    resolved: '해결됨',
+    emptyNoComments: '아직 댓글이 없습니다. 텍스트를 선택하고 댓글 달기를 사용하세요.',
+    emptyNoMatch: '일치하는 댓글이 없습니다.',
+    noMessages: '아직 메시지가 없습니다.',
+    replyPlaceholder: '답글…',
+    resolve: '해결',
+    delete: '삭제',
+    quoteHint: '스레드를 선택하면 강조 표시된 텍스트로 이동합니다.',
+    you: '나',
+    time: {
+      justNow: '방금',
+      minutesAgo: '{count}분 전',
+      hoursAgo: '{count}시간 전',
+      daysAgo: '{count}일 전',
+    },
+  },
+  commentComposer: {
+    placeholder: '댓글 달기…',
+    cancel: '취소',
+    submit: '댓글',
+  },
+};
+
 export const enCommentMessages: InkioCommentMessages = {
   commentPanel: {
     title: 'Comments',
@@ -122,6 +150,7 @@ export function toCommentMessageOverrides(
 
 const COMMENT_MESSAGESETS = {
   en: enCommentMessages,
+  ko: koCommentMessages,
 } as const satisfies Record<string, InkioCommentMessages>;
 
 export type InkioCommentLocaleId = keyof typeof COMMENT_MESSAGESETS;

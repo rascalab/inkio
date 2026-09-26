@@ -13,6 +13,7 @@ export {
   defaultFloatingMenuActions,
   defaultToolbarActions,
   enCoreMessages,
+  koCoreMessages,
   ImageBlock,
   InkioProvider,
   pickMessageLocale,

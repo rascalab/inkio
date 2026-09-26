@@ -1,6 +1,7 @@
 export { resolveLocaleInput, pickMessageLocale } from './locale';
 export {
   enCoreMessages,
+  koCoreMessages,
   mergeCoreMessages,
   resolveCoreMessages,
   toCoreMessageOverrides,

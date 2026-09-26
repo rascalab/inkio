@@ -25,3 +25,23 @@ describe('i18n deepMerge prototype guard', () => {
     expect(resolved.actions.undo).toBe('Undo');
   });
 });
+
+describe('i18n Korean messageset', () => {
+  it('resolves ko to Korean strings', () => {
+    const resolved = resolveCoreMessages('ko');
+    expect(resolved.actions.undo).toBe('실행 취소');
+    expect(resolved.tableMenu.deleteTable).toBe('표 삭제');
+    expect(resolved.blockHandle.delete).toBe('삭제');
+  });
+
+  it('falls back to en for unknown locales', () => {
+    const resolved = resolveCoreMessages('xx-YY');
+    expect(resolved.actions.undo).toBe('Undo');
+  });
+
+  it('ko accepts overrides on top', () => {
+    const resolved = resolveCoreMessages('ko', { actions: { undo: '되돌리기' } });
+    expect(resolved.actions.undo).toBe('되돌리기');
+    expect(resolved.actions.redo).toBe('다시 실행');
+  });
+});

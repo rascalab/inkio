@@ -3,6 +3,7 @@ import {
   enCommentMessages,
   formatRelativeTime,
   formatTimeAgo,
+  resolveCommentMessages,
 } from '../messages';
 
 const time = enCommentMessages.commentPanel.time;
@@ -28,5 +29,14 @@ describe('formatTimeAgo', () => {
 describe('formatRelativeTime', () => {
   it('replaces every placeholder, not just the first', () => {
     expect(formatRelativeTime('{count} of {count}', 3)).toBe('3 of 3');
+  });
+});
+
+describe('Korean comment messageset', () => {
+  it('resolves ko to Korean strings', () => {
+    const resolved = resolveCommentMessages('ko');
+    expect(resolved.commentPanel.title).toBe('댓글');
+    expect(resolved.commentComposer.submit).toBe('댓글');
+    expect(resolved.commentPanel.time.minutesAgo).toBe('{count}분 전');
   });
 });

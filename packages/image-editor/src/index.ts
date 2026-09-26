@@ -21,6 +21,7 @@ export type {
 } from './types';
 export {
   enImageEditorMessages,
+  koImageEditorMessages,
   mergeImageEditorMessages,
   resolveImageEditorMessages,
   toImageEditorMessageOverrides,
