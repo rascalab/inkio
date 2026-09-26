@@ -340,7 +340,7 @@ function directiveToJson(node: MdastNode): JSONContent[] {
   }
 
   const attrs = Object.entries(node.attributes ?? {})
-    .map(([key, value]) => value ? `${key}="${value}"` : key)
+    .map(([key, value]) => (value ? `${key}="${value}"` : key))
     .join(' ');
   const open = attrs ? `:::${node.name}{${attrs}}` : `:::${node.name}`;
   const body = (node.children ?? []).map((child) => child.value ?? '').join('\n').trim();
@@ -512,9 +512,13 @@ function jsonInlineToMdast(nodes: JSONContent[] = []): MdastNode[] {
         break;
       case 'wikiLink': {
         const name = String(node.attrs?.label ?? node.attrs?.href ?? '').trim();
-        if (name) {
-          content.push({ type: 'text', value: `[[${name}]]` });
+        if (!name) {
+          break;
         }
+        // A name containing ']]' would split the syntax on re-import (the
+        // splitter cannot represent it): fall back to plain text so no
+        // phantom link boundary is produced.
+        content.push({ type: 'text', value: name.includes(']]') ? name : `[[${name}]]` });
         break;
       }
       default:

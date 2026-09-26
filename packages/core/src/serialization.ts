@@ -1,5 +1,10 @@
 import type { JSONContent } from '@tiptap/core';
 
+// Crafted inputs (remote docs, adapter payloads) can nest arbitrarily deep:
+// plain recursion would overflow the call stack, so traversal stops past
+// this depth and treats deeper nodes as leaves.
+const MAX_VISIT_DEPTH = 128;
+
 const BLOCK_NODE_TYPES = new Set([
   'paragraph',
   'heading',
@@ -11,10 +16,20 @@ const BLOCK_NODE_TYPES = new Set([
   'taskItem',
   'codeBlock',
   'horizontalRule',
+  'table',
+  'tableRow',
+  'tableCell',
+  'tableHeader',
+  'callout',
+  'details',
 ]);
 
-function visitNodes(node: JSONContent | undefined, visitor: (current: JSONContent) => void): void {
-  if (!node) {
+function visitNodes(
+  node: JSONContent | undefined,
+  visitor: (current: JSONContent) => void,
+  depth = 0,
+): void {
+  if (!node || depth > MAX_VISIT_DEPTH) {
     return;
   }
 
@@ -25,11 +40,15 @@ function visitNodes(node: JSONContent | undefined, visitor: (current: JSONConten
   }
 
   for (const child of node.content) {
-    visitNodes(child, visitor);
+    visitNodes(child, visitor, depth + 1);
   }
 }
 
-function appendNodeText(node: JSONContent, chunks: string[]): void {
+function appendNodeText(node: JSONContent, chunks: string[], depth = 0): void {
+  if (depth > MAX_VISIT_DEPTH) {
+    return;
+  }
+
   if (typeof node.text === 'string') {
     chunks.push(node.text);
     return;
@@ -48,7 +67,7 @@ function appendNodeText(node: JSONContent, chunks: string[]): void {
 
   if (Array.isArray(node.content)) {
     for (const child of node.content) {
-      appendNodeText(child, chunks);
+      appendNodeText(child, chunks, depth + 1);
     }
   }
 

@@ -223,6 +223,10 @@ export function SuggestionList({
               ref={(el) => {
                 if (el) {
                   itemRefs.current[index] = el;
+                } else {
+                  // Clear on unmount so scroll-into-view never targets a
+                  // detached node (the items-length slice below only bounds).
+                  delete itemRefs.current[index];
                 }
               }}
               className="inkio-suggestion-item"

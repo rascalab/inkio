@@ -50,6 +50,23 @@ describe('advanced inline nodes', () => {
     expect(md).toContain('hi');
     expect(md).not.toContain('comment');
   });
+
+  it('exports wiki names containing brackets as plain text, not links', () => {
+    const content = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'wikiLink', attrs: { href: 'https://x.test/a]]b' } }],
+        },
+      ],
+    } as unknown as JSONContent;
+    const printed = stringifyMarkdown(content);
+    expect(printed).not.toContain('[[');
+    // The mdast printer escapes the colon; what matters is no link
+    // syntax is produced and the full href survives.
+    expect(printed).toContain('https\\://x.test/a]]b');
+  });
 });
 
 describe('@inkio/core/markdown', () => {
@@ -241,4 +258,5 @@ describe('@inkio/core/markdown', () => {
       ],
     });
   });
+
 });
