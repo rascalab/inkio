@@ -27,8 +27,7 @@ Inkio 확장은 두 층으로 나뉩니다.
 ```tsx
 import { Editor } from '@inkio/core';
 import { getDefaultExtensions } from '@inkio/advanced';
-import '@inkio/core/minimal.css';
-import '@inkio/advanced/style.css';
+import '@inkio/core/style.css';
 
 const extensions = getDefaultExtensions({
   hashtagItems: ({ query }) => [{ id: query || 'inkio', label: `#${query || 'inkio'}` }],
@@ -275,6 +274,10 @@ import CharacterCount from '@tiptap/extension-character-count';
 />
 ```
 
+> `@tiptap/*` 패키지를 직접 설치하면 Inkio가 번들로 들고 있는 Tiptap
+> 런타임과 별개 복사본이 생깁니다. 직접 조합하는 확장의 버전은 Inkio가
+> 의존하는 Tiptap 버전과 맞추세요 (불일치 시 미묘한 오동작이 발생합니다).
+
 ### 예시: 기본 확장 전체 교체
 
 ```tsx
@@ -309,5 +312,9 @@ import { Document, Paragraph, Text } from '@tiptap/starter-kit';
 
 - `@inkio/simple/minimal.css`
 - `@inkio/editor/minimal.css`
-- `@inkio/advanced/style.css` — `@inkio/core` + `@inkio/advanced` 직접 조합 시
+- `@inkio/core/style.css` — `@inkio/core` + `@inkio/advanced` 직접 조합 시
 - `@inkio/image-editor/style.css`
+
+> advanced 노드 장식(멘션 pill, 슬래시 메뉴 등)은 `@inkio/editor/style.css`에만
+> 들어 있습니다. 직접 조합에서 해당 비주얼까지 필요하면 editor 스타일시트를
+> 함께 import하세요.

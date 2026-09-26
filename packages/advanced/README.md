@@ -21,7 +21,6 @@ Notion-like and integration-heavy extensions for Inkio.
 - `CommentThreadPopover`
 - `extractMentions`
 - `extractHashtags`
-- `@inkio/advanced/style.css`
 
 ## Install
 

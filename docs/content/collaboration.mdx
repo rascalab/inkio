@@ -21,6 +21,8 @@ Next.js App Router에서는 에디터가 클라이언트 컴포넌트 안에 있
 'use client';
 
 import { useInkioCollaborativeEditor, CollabPresence } from '@inkio/collab';
+// `@tiptap/react`는 직접 설치해야 하며, 버전은 Inkio가 의존하는 Tiptap
+// 버전과 맞추세요 (불일치 시 에디터 인스턴스 호환이 깨집니다).
 import { EditorContent } from '@tiptap/react';
 
 export function Room({ docId, token }: { docId: string; token: string }) {
@@ -87,8 +89,13 @@ pnpm --filter example-collab-server smoke
 
 ```ts
 import { persistDocToIndexedDB } from '@inkio/collab';
-persistDocToIndexedDB(docId, doc);
+const persistence = persistDocToIndexedDB(docId, doc);
+// ...
+persistence.destroy(); // 언마운트 시 반드시 호출 (IDB 연결 누수 방지)
 ```
+
+> 하나의 `docId`에 live persistence를 둘 이상 열지 마세요. 스냅샷을 한 번만
+> 읽고 끝내려면 타임아웃 내장된 `loadIndexedDBState(docId, doc)`를 쓰세요.
 
 awareness 상태는 `{ user: { name, color } }`를 싣습니다. `CollabPresence`가 접속자 목록을
 그리고, `useCollabPeers(provider)`로 직접 받을 수도 있습니다. 에디터 내 원격 캐럿은

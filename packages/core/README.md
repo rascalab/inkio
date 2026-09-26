@@ -16,6 +16,7 @@ Most app developers should start with `@inkio/simple` or `@inkio/editor` instead
 - `ImageBlock`
 - `@inkio/core/icons`
 - `@inkio/core/markdown`
+- `@inkio/core/static`
 
 ## Install
 
