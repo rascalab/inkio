@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Editor,
   type InkioMessageOverrides,
@@ -69,11 +69,6 @@ function createDemoImageDataUrl(): string {
 
 export function EditorDemo() {
   const [json, setJson] = useState<unknown>(null);
-  // Controlled content echo: the wrapper exposes no initialContent prop,
-  // so the fixed `content` prop must follow edits or typing would reset.
-  const [content, setContent] = useState<ComponentProps<typeof Editor>['content']>(
-    initialContent,
-  );
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
   const [comments, setComments] = useState<CommentData[]>([]);
   const commentsRef = useRef<CommentData[]>([]);
@@ -201,7 +196,7 @@ export function EditorDemo() {
           </button>
         </div>
         <Editor
-          content={content}
+          content={initialContent}
           placeholder="Type /, #, [[page]] and select text for comments..."
           locale={locale}
           hashtagItems={hashtagItems}
@@ -224,10 +219,7 @@ export function EditorDemo() {
             icons: iconOverrides,
           }}
           onCreate={setEditorInstance}
-          onUpdate={(next: unknown) => {
-            setJson(next);
-            setContent(next as ComponentProps<typeof Editor>['content']);
-          }}
+          onUpdate={(next: unknown) => setJson(next)}
         />
       </section>
 
