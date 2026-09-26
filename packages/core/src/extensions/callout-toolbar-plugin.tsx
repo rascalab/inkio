@@ -2,7 +2,7 @@ import type { Root } from 'react-dom/client';
 import type { Editor } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { getCreateRoot } from '../utils/create-root';
 
 export const calloutToolbarPluginKey = new PluginKey('calloutToolbar');
@@ -22,8 +22,13 @@ interface CalloutToolbarProps {
   currentIcon: string | null;
 }
 
-function CalloutToolbar({ editor, currentColor, currentIcon }: CalloutToolbarProps) {
+export function CalloutToolbar({ editor, currentColor, currentIcon }: CalloutToolbarProps) {
   const [iconValue, setIconValue] = useState(currentIcon || '');
+  // The toolbar instance outlives the selected callout: follow prop changes
+  // or the input keeps showing the previous block's icon.
+  useEffect(() => {
+    setIconValue(currentIcon || '');
+  }, [currentIcon]);
 
   const setColor = useCallback(
     (color: string | null) => {
