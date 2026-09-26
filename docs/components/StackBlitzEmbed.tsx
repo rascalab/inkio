@@ -11,6 +11,7 @@ export type StackBlitzProject = {
 
 function StackBlitzEmbedInner({ title, files, openFile }: StackBlitzProject) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [failed, setFailed] = useState(false);
   const { resolvedTheme } = useTheme();
   // Depend on serialized content, not object identity: callers may pass
   // inline literals, and identity deps would re-embed every render.
@@ -51,12 +52,36 @@ function StackBlitzEmbedInner({ title, files, openFile }: StackBlitzProject) {
           view: 'editor',
         },
       );
+    }).catch(() => {
+      // Chunk/SDK load failure must not end as an unhandled rejection with
+      // an empty frame: show the failure in place of the embed.
+      if (!cancelled) setFailed(true);
     });
     return () => {
       cancelled = true;
       container.replaceChildren();
     };
   }, [title, filesKey, openFile, resolvedTheme]);
+
+  if (failed) {
+    return (
+      <div
+        style={{
+          width: '100%',
+          minHeight: 500,
+          borderRadius: '0.5rem',
+          border: '1px solid var(--inkio-border, #e5e7eb)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#9ca3af',
+          fontSize: 14,
+        }}
+      >
+        Failed to load StackBlitz. Check your connection and try again.
+      </div>
+    );
+  }
 
   return (
     <div

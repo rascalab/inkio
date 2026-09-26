@@ -62,10 +62,17 @@ export function createCommentComposerPlugin(
 
     document.body.appendChild(popup);
 
+    // Capture the mount generation: a newer mountAndRender replaces `popup`,
+    // so a stale promise must not create a second root on the new element.
+    const current = popup;
     getCreateRoot().then((createRootFn) => {
-      if (!popup) return;
+      if (!popup || popup !== current) return;
       root = createRootFn(popup);
       renderComposer(view, pluginState);
+    }).catch((error: unknown) => {
+      console.error('[inkio] comment composer failed to initialize:', error);
+      current.remove();
+      if (popup === current) popup = null;
     });
   }
 

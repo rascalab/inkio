@@ -121,10 +121,17 @@ export function createCommentThreadPopoverPlugin(
       elements: [editor.view.dom, popup],
     });
 
+    // Capture the mount generation: a newer mountAndRender replaces `popup`,
+    // so a stale promise must not create a second root on the new element.
+    const current = popup;
     getCreateRoot().then((createRootFn) => {
-      if (!popup) return;
+      if (!popup || popup !== current) return;
       root = createRootFn(popup);
       renderPopover();
+    }).catch((error: unknown) => {
+      console.error('[inkio] comment popover failed to initialize:', error);
+      current.remove();
+      if (popup === current) popup = null;
     });
   }
 
