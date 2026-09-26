@@ -121,6 +121,7 @@ export function Editor({
   const stableSlashCommands = useStableCallback(slashCommands);
   const stableTransformSlashCommands = useStableCallback(transformSlashCommands);
   const stableOnError = useStableCallback(onError);
+  const stableOnImageUpload = useStableCallback(onImageUpload);
   const stableOnWikiLinkClick = useStableCallback(onWikiLinkClick);
 
   const defaultExtensionsOptions = useMemo<DefaultExtensionsOptions>(() => {
@@ -145,11 +146,11 @@ export function Editor({
     };
 
     // imageBlock: merge onImageUpload into imageBlock options
-    if (stableImageBlock !== undefined || onImageUpload !== undefined) {
+    if (stableImageBlock !== undefined || stableOnImageUpload !== undefined) {
       opts.imageBlock = stableImageBlock
-        ? { ...stableImageBlock, ...(onImageUpload ? { onUpload: onImageUpload } : {}) }
-        : onImageUpload
-          ? { onUpload: onImageUpload }
+        ? { ...stableImageBlock, ...(stableOnImageUpload ? { onUpload: stableOnImageUpload } : {}) }
+        : stableOnImageUpload
+          ? { onUpload: stableOnImageUpload }
           : undefined;
     }
 
@@ -183,7 +184,7 @@ export function Editor({
     toggleList,
     table,
     stableImageBlock,
-    onImageUpload,
+    stableOnImageUpload,
     stableBookmark,
   ]);
 
