@@ -302,6 +302,20 @@ import '@inkio/editor/minimal.css';
 
 ---
 
+## 커스텀 범위 지도
+
+| 대상 | 방법 | 비고 |
+|------|------|------|
+| 문구 | `ui.messages` | 타입별 override, `en*Messages`에서 출발 |
+| 아이콘 | `ui.icons` | `Partial<InkioIconRegistry>`, 일부만 교체 가능 |
+| 색상·폰트·간격 | CSS 변수 (`--inkio-*`) | `minimal.css` + 토큰 재정의 |
+| 전체 테마 | `theme` prop 또는 CSS | `'light'`/`'dark'`, 미지정 시 부모 추종 |
+| 메뉴 구성 | `ui.show*` + `toolbar`/`bubbleMenu` 세부 옵션 | preset별 기본값 상이 (위 비교표) |
+| 에디터 동작 | `extensions` 추가/교체 | `ExtensionsInput` 규칙 준수 |
+
+바꿀 수 없는 것: `content`/`initialContent` 동시 사용 (상호배타),
+`StaticViewer`의 인터랙션 (정적 렌더 전용).
+
 ## 공통 UI override
 
 `ui` prop으로 UI 관련 옵션을 묶어 전달합니다.

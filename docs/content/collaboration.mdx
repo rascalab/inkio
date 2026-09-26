@@ -85,6 +85,35 @@ pnpm --filter example-collab-server start
 pnpm --filter example-collab-server smoke
 ```
 
+### 인증 걸기
+
+`verify`는 매 join마다 (같은 방 재입장 포함) 호출됩니다. 토큰 로테이션을
+쓰려면 클라이언트에서 함수형 토큰을 넘기세요.
+
+```ts
+InkioCollabModule.forRoot({
+  verify: async (token, docId) => checkAccess(token, docId),
+  maxRooms: 1000, // 미지정 시 무제한 (개발용 기본값)
+});
+```
+
+### 에러 코드
+
+서버가 보내는 `inkio:collab:error` 코드와 의미입니다.
+
+| 코드 | 의미 | 클라이언트 상태 |
+|------|------|------|
+| `unauthorized` | `verify`가 거부 | `unauthorized` |
+| `forbidden` | `maxRooms` 초과 | `unauthorized` (입장 실패) |
+| `internal` | `verify`가 throw | 그대로 |
+| `invalid-message` | 깨진 프레임 (무시됨) | 그대로 |
+| `rate-limited` | 초당 릴레이 예산 초과 (버려짐) | 그대로 |
+
+### 멀티룸과 재접속
+
+소켓 하나가 여러 방에 들어갈 수 있습니다. 재접속 후 같은 방에 다시
+join해도 `verify`가 다시 실행되므로, 회수된 토큰은 그 시점부터 차단됩니다.
+
 ## 오프라인과 presence
 
 ```ts

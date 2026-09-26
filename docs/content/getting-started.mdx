@@ -2,10 +2,14 @@
 
 ## 어떤 패키지를 설치할지
 
-- 일반적인 문서 편집기: `@inkio/simple`
-- notion-like 에디터: `@inkio/editor`
-- comments, mention, wiki link 같은 고급 기능: `@inkio/advanced`
-- 이미지 편집: `@inkio/image-editor`
+- 댓글·멘션·슬래시 메뉴가 필요하면 → `@inkio/editor`
+- 툴바 위주 classic 편집기로 충분하면 → `@inkio/simple`
+- 실시간 협업이 필요하면 → 위 선택 + `@inkio/collab`
+- 이미지 자르기·모자이크가 필요하면 → 위 선택 + `@inkio/image-editor`
+- 직접 조합(스키마·확장 단위 제어)이 필요하면 → `@inkio/core` (+ `@inkio/advanced`)
+
+`@inkio/advanced`는 단독 설치하지 마세요. `editor`에 포함되어 있고,
+직접 import하는 export를 쓸 때만 추가합니다.
 
 ## 설치
 
