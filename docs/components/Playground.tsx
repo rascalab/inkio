@@ -7,7 +7,7 @@ import './Playground.css';
 
 type PlaygroundMode = 'editor' | 'simple';
 
-export default function Playground({ initialContent }: { initialContent?: string } = {}) {
+export default function Playground({ content }: { content?: string } = {}) {
   const [mode, setMode] = useState<PlaygroundMode>('editor');
   const [showViewer, setShowViewer] = useState(true);
   const [showJSON, setShowJSON] = useState(true);
@@ -68,14 +68,14 @@ export default function Playground({ initialContent }: { initialContent?: string
         {mode === 'simple' ? (
           <SimplePane
             key="simple"
-            initialContent={initialContent}
+            content={content}
             showViewer={showViewer}
             showJSON={showJSON}
           />
         ) : (
           <EditorPane
             key="editor"
-            initialContent={initialContent}
+            content={content}
             showViewer={showViewer}
             showJSON={showJSON}
           />

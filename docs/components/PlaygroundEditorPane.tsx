@@ -46,13 +46,13 @@ function createId(): string {
 }
 
 type PlaygroundEditorPaneProps = {
-  initialContent?: string;
+  content?: string;
   showViewer: boolean;
   showJSON: boolean;
 };
 
 export default function PlaygroundEditorPane({
-  initialContent,
+  content: initialDoc,
   showViewer,
   showJSON,
 }: PlaygroundEditorPaneProps) {
@@ -65,8 +65,8 @@ export default function PlaygroundEditorPane({
   }, [resolvedTheme]);
   const inkioTheme = resolvedTheme === 'dark' ? 'dark' : 'light' as const;
 
-  const [content, handleUpdate] = useDebouncedState<unknown>(
-    initialContent ?? PLAYGROUND_INITIAL_CONTENT,
+  const [doc, handleUpdate] = useDebouncedState<unknown>(
+    initialDoc ?? PLAYGROUND_INITIAL_CONTENT,
   );
   const createObjectUrl = useObjectUrlRegistry();
   const handleImageUpload = useCallback(
@@ -154,7 +154,7 @@ export default function PlaygroundEditorPane({
         </div>
         <div style={{ position: 'relative' }}>
           <InkioEditor
-            content={content ?? PLAYGROUND_INITIAL_CONTENT}
+            content={doc ?? PLAYGROUND_INITIAL_CONTENT}
             placeholder="Try /, #, [[page]], comments, and image editing..."
             theme={inkioTheme}
             locale={locale}
@@ -176,20 +176,20 @@ export default function PlaygroundEditorPane({
         </div>
       </section>
 
-      {showViewer && content && (
+      {showViewer && doc && (
         <section className="playground-section">
           <div className="playground-section-label">Viewer</div>
           <div style={{ position: 'relative' }}>
-            <InkioViewer content={content} theme={inkioTheme} onCreate={setViewerInstance} />
+            <InkioViewer content={doc} theme={inkioTheme} onCreate={setViewerInstance} />
             <ToC source={viewerInstance} />
           </div>
         </section>
       )}
 
-      {showJSON && content && (
+      {showJSON && doc && (
         <section className="playground-section">
           <div className="playground-section-label">JSON Output</div>
-          <pre className="playground-json">{JSON.stringify(content, null, 2)}</pre>
+          <pre className="playground-json">{JSON.stringify(doc, null, 2)}</pre>
         </section>
       )}
 

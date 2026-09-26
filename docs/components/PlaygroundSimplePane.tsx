@@ -18,18 +18,18 @@ const LazyImageEditorModal = dynamic<ImageEditorModalProps>(
 );
 
 type PlaygroundSimplePaneProps = {
-  initialContent?: string;
+  content?: string;
   showViewer: boolean;
   showJSON: boolean;
 };
 
 export default function PlaygroundSimplePane({
-  initialContent,
+  content: initialDoc,
   showViewer,
   showJSON,
 }: PlaygroundSimplePaneProps) {
-  const [content, handleUpdate] = useDebouncedState<unknown>(
-    initialContent ?? PLAYGROUND_INITIAL_CONTENT,
+  const [doc, handleUpdate] = useDebouncedState<unknown>(
+    initialDoc ?? PLAYGROUND_INITIAL_CONTENT,
   );
   const createObjectUrl = useObjectUrlRegistry();
   const handleImageUpload = useCallback(
@@ -46,7 +46,7 @@ export default function PlaygroundSimplePane({
           <span className="playground-mode-badge">@inkio/simple + lazy @inkio/image-editor</span>
         </div>
         <SimpleEditor
-          content={content ?? PLAYGROUND_INITIAL_CONTENT}
+          content={doc ?? PLAYGROUND_INITIAL_CONTENT}
           placeholder="Write a document..."
           locale="en-US,en;q=0.9"
           onImageUpload={handleImageUpload}
@@ -56,17 +56,17 @@ export default function PlaygroundSimplePane({
         />
       </section>
 
-      {showViewer && content && (
+      {showViewer && doc && (
         <section className="playground-section">
           <div className="playground-section-label">Viewer</div>
-          <SimpleViewer content={content as InkioJSONContent} />
+          <SimpleViewer content={doc as InkioJSONContent} />
         </section>
       )}
 
-      {showJSON && content && (
+      {showJSON && doc && (
         <section className="playground-section">
           <div className="playground-section-label">JSON Output</div>
-          <pre className="playground-json">{JSON.stringify(content, null, 2)}</pre>
+          <pre className="playground-json">{JSON.stringify(doc, null, 2)}</pre>
         </section>
       )}
     </>
