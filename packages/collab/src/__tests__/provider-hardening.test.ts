@@ -81,6 +81,19 @@ describe('provider wire hardening', () => {
     provider.destroy();
   });
 
+  it('maps forbidden errors to a distinct status', () => {
+    const { provider, fake } = providerWithFakeSocket();
+    const error = fake.handlers.get(CollabServerEvents.Error)!;
+    error({ docId: 'room-1', code: 'forbidden' } as never);
+    expect(provider.getStatus()).toBe('forbidden');
+    // Rejection survives a socket drop instead of flapping.
+    fake.handlers.get('disconnect')!({} as never);
+    expect(provider.getStatus()).toBe('forbidden');
+    error({ docId: 'room-1', code: 'unauthorized' } as never);
+    expect(provider.getStatus()).toBe('unauthorized');
+    provider.destroy();
+  });
+
   it('emits join with a static token', async () => {
     const { provider, emitted } = providerWithFakeSocket({ token: 'abc' });
     await provider.connect();

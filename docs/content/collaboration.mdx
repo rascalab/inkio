@@ -104,7 +104,7 @@ InkioCollabModule.forRoot({
 | 코드 | 의미 | 클라이언트 상태 |
 |------|------|------|
 | `unauthorized` | `verify`가 거부 | `unauthorized` |
-| `forbidden` | `maxRooms` 초과 | `unauthorized` (입장 실패) |
+| `forbidden` | `maxRooms` 초과 | `forbidden` (입장 실패, 소켓이 끊겨도 유지) |
 | `internal` | `verify`가 throw | 그대로 |
 | `invalid-message` | 깨진 프레임 (무시됨) | 그대로 |
 | `rate-limited` | 초당 릴레이 예산 초과 (버려짐) | 그대로 |

@@ -20,7 +20,12 @@ export interface CollabUser {
   color: string;
 }
 
-export type CollabStatus = 'connecting' | 'synced' | 'disconnected' | 'unauthorized';
+export type CollabStatus =
+  | 'connecting'
+  | 'synced'
+  | 'disconnected'
+  | 'unauthorized'
+  | 'forbidden';
 
 export type CollabStatusListener = (status: CollabStatus) => void;
 
@@ -200,7 +205,9 @@ export class SocketIOCollabProvider implements CollabProvider {
 
   private handleDisconnect = (): void => {
     this.joined = false;
-    if (this.status !== 'unauthorized') {
+    // Rejection states survive socket drops: a rejected client must not
+    // flap back to disconnected when the socket closes underneath it.
+    if (this.status !== 'unauthorized' && this.status !== 'forbidden') {
       this.setStatus('disconnected');
     }
   };
@@ -259,9 +266,12 @@ export class SocketIOCollabProvider implements CollabProvider {
 
   private handleError = (payload: CollabErrorPayload): void => {
     if (!payload || payload.docId !== this.docId) return;
-    if (payload.code === 'unauthorized' || payload.code === 'forbidden') {
+    if (payload.code === 'unauthorized') {
       this.joined = false;
       this.setStatus('unauthorized');
+    } else if (payload.code === 'forbidden') {
+      this.joined = false;
+      this.setStatus('forbidden');
     }
   };
 
