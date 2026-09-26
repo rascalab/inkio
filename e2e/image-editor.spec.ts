@@ -612,6 +612,7 @@ test('viewport resizing preserves editor state and short mobile heights use the 
   await waitForHarness(page);
 
   await triggerButton(page, 'inkio-ie-tool-draw');
+  await waitForLayoutSettle(page);
   await dragWithinStage(page, { x: 80, y: 90 }, { x: 220, y: 130 });
   await expect(page.getByTestId('image-editor-e2e-dirty')).toHaveText('true');
   await expect(page.getByTestId('image-editor-e2e-annotation-count')).toHaveText('1');
