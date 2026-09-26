@@ -185,10 +185,18 @@ export function createCalloutToolbarPlugin(editor: Editor): Plugin {
 
     positionContainer(view, calloutPos);
 
+    // Capture the mount generation: a newer mountAndRender replaces
+    // `container`, so a stale promise must not create a second root that
+    // leaks alongside the current toolbar.
+    const current = container;
     getCreateRoot().then((createRootFn) => {
-      if (!container) return;
+      if (!container || container !== current) return;
       root = createRootFn(container);
       renderToolbar(calloutColor, calloutIcon);
+    }).catch((error: unknown) => {
+      console.error('[inkio] callout toolbar failed to initialize:', error);
+      current?.remove();
+      if (container === current) container = null;
     });
   }
 

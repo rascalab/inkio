@@ -20,8 +20,6 @@ export type UseInkioEditorOptions = InkioContentMode & {
   onCreate?: (editor: TiptapEditor) => void;
 };
 
-const EMPTY_EXTENSIONS: Extensions = [];
-
 let didWarnExtensionsChurn = false;
 
 /**
@@ -56,7 +54,9 @@ function isSameJson(a: JSONContent | undefined, b: JSONContent | undefined) {
 export function useInkioEditor({
   content,
   initialContent,
-  extensions = EMPTY_EXTENSIONS,
+  // No default: undefined means "default extensions" downstream while an
+  // explicit [] means a bare document (see resolveInkioExtensions).
+  extensions,
   placeholder,
   editable = true,
   onUpdate,
