@@ -48,9 +48,14 @@ const BookmarkViewInner = ({ node, updateAttributes, extension }: NodeViewProps)
   const resolverRef = useRef(resolver);
   resolverRef.current = resolver;
 
+  // URLs that already completed one resolution round (data, empty, or
+  // denied). tiptap rebinds node-view callbacks on every update, so without
+  // this an empty preview — hasPreviewData stuck false — refetches forever.
+  const resolvedUrlsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     const currentResolver = resolverRef.current;
-    if (!currentResolver || !url || hasPreviewData) {
+    if (!currentResolver || !url || hasPreviewData || resolvedUrlsRef.current.has(url)) {
       return;
     }
 
@@ -59,6 +64,9 @@ const BookmarkViewInner = ({ node, updateAttributes, extension }: NodeViewProps)
 
     currentResolver(url)
       .then((preview) => {
+        // Empty or denied responses resolve the URL anyway: refetching them
+        // rewrites the same empty attrs and refires this effect endlessly.
+        resolvedUrlsRef.current.add(url);
         if (cancelled || !preview) {
           return;
         }
@@ -70,6 +78,7 @@ const BookmarkViewInner = ({ node, updateAttributes, extension }: NodeViewProps)
         }
       })
       .catch(() => {
+        resolvedUrlsRef.current.add(url);
         // Fallback rendering is handled below.
       })
       .finally(() => {
