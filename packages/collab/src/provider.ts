@@ -105,6 +105,13 @@ export class SocketIOCollabProvider implements CollabProvider {
   private listeners = new Set<CollabStatusListener>();
   private joined = false;
   private wired = false;
+  /** Wire frames arriving between our Join and our Init. The server
+   * snapshot is encoded when it handles our Join, so anything broadcast
+   * after that would be dropped (we ignore while !joined) — buffer and
+   * replay in order right after Init instead. Bounded: the window is
+   * milliseconds, but an unbounded buffer would be a memory hole. */
+  private readonly preInitQueue: Array<{ event: (typeof CollabClientEvents)[keyof typeof CollabClientEvents]; payload: CollabUpdatePayload | CollabAwarenessPayload }> = [];
+  private static readonly MAX_PRE_INIT_QUEUE = 1024;
 
   constructor(options: SocketIOCollabProviderOptions) {
     if (!options.socket && !options.url) {
@@ -226,7 +233,7 @@ export class SocketIOCollabProvider implements CollabProvider {
     }
     this.socket.emit(CollabClientEvents.Join, {
       docId: this.docId,
-      ...(token ? { token } : {}),
+      ...(token !== undefined ? { token } : {}),
     });
   }
 
@@ -245,9 +252,36 @@ export class SocketIOCollabProvider implements CollabProvider {
     if (!payload || payload.docId !== this.docId) return;
     if (!this.applyWireUpdate(payload.update)) return;
     this.joined = true;
+    // Replay anything broadcast while we were joining (newer than Init),
+    // then push our own pre-connect state (newest of all).
+    for (const queued of this.preInitQueue.splice(0)) {
+      if (queued.event === CollabClientEvents.Update) {
+        this.applyQueuedUpdate(queued.payload as CollabUpdatePayload);
+      } else {
+        this.applyQueuedAwareness(queued.payload as CollabAwarenessPayload);
+      }
+    }
     this.resyncLocalState();
     this.setStatus('synced');
   };
+
+  private applyQueuedAwareness(payload: CollabAwarenessPayload): void {
+    // Same validation as the live path, minus the joined flag (we just set it).
+    if (!payload || payload.docId !== this.docId) return;
+    const bytes = toUint8Array(payload.update);
+    if (!bytes) return;
+    try {
+      applyAwarenessUpdate(this.awareness, bytes, this);
+    } catch {
+      // Drop malformed presence frames; the next update resyncs.
+    }
+  }
+
+  private applyQueuedUpdate(payload: CollabUpdatePayload): void {
+    // Same validation as the live path, minus the joined flag (we just set it).
+    if (!payload || payload.docId !== this.docId) return;
+    this.applyWireUpdate(payload.update);
+  }
 
   /**
    * Push pre-connect local state after (re)join: edits made while offline
@@ -267,12 +301,27 @@ export class SocketIOCollabProvider implements CollabProvider {
   }
 
   private handleUpdate = (payload: CollabUpdatePayload): void => {
-    if (!payload || payload.docId !== this.docId || !this.joined) return;
+    if (!payload || payload.docId !== this.docId) return;
+    if (!this.joined) {
+      this.enqueuePreInit(CollabClientEvents.Update, payload);
+      return;
+    }
     this.applyWireUpdate(payload.update);
   };
 
+  private enqueuePreInit(event: (typeof CollabClientEvents)[keyof typeof CollabClientEvents], payload: CollabUpdatePayload | CollabAwarenessPayload): void {
+    if (this.preInitQueue.length >= SocketIOCollabProvider.MAX_PRE_INIT_QUEUE) {
+      this.preInitQueue.shift();
+    }
+    this.preInitQueue.push({ event, payload });
+  }
+
   private handleAwareness = (payload: CollabAwarenessPayload): void => {
-    if (!payload || payload.docId !== this.docId || !this.joined) return;
+    if (!payload || payload.docId !== this.docId) return;
+    if (!this.joined) {
+      this.enqueuePreInit(CollabClientEvents.Awareness, payload);
+      return;
+    }
     const bytes = toUint8Array(payload.update);
     if (!bytes) return;
     try {

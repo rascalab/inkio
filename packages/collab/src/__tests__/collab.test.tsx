@@ -91,6 +91,7 @@ async function startRelay(options: RelayOptions = {}) {
   });
   await new Promise<void>((resolve) => httpServer.listen(0, resolve));
   const port = (httpServer.address() as AddressInfo).port;
+  httpServers.push(httpServer);
   return { server, port };
 }
 
@@ -108,11 +109,15 @@ function connectProvider(docId: string, port: number, extra: { token?: string } 
 const editors: Editor[] = [];
 const providers: SocketIOCollabProvider[] = [];
 const servers: Server[] = [];
+const httpServers: Array<import('node:http').Server> = [];
 
 afterEach(async () => {
   for (const editor of editors.splice(0)) editor.destroy();
   for (const provider of providers.splice(0)) provider.destroy();
   for (const server of servers.splice(0)) await server.close();
+  for (const httpServer of httpServers.splice(0)) {
+    await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+  }
   vi.restoreAllMocks();
 });
 

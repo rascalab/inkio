@@ -104,6 +104,35 @@ describe('provider wire hardening', () => {
     provider.destroy();
   });
 
+  it('sends an explicitly empty token instead of eliding it', async () => {
+    const { provider, emitted } = providerWithFakeSocket({ token: '' });
+    await provider.connect();
+    expect(emitted).toContainEqual({
+      event: CollabClientEvents.Join,
+      payload: { docId: 'room-1', token: '' },
+    });
+    provider.destroy();
+  });
+
+  it('replays pre-init updates after init instead of dropping them', () => {
+    const { provider, fake, emitted } = providerWithFakeSocket();
+    try {
+      // A peer broadcast arriving between our Join and our Init: drive the
+      // server-to-client handler directly (fake.emit records client sends).
+      const peerDoc = new Y.Doc();
+      peerDoc.getText('t').insert(0, 'peer');
+      const onUpdate = fake.handlers.get(CollabServerEvents.Update)!;
+      onUpdate({ docId: 'room-1', update: Y.encodeStateAsUpdate(peerDoc) } as never);
+      expect(provider.doc.getText('t').toString()).toBe('');
+      const init = fake.handlers.get(CollabServerEvents.Init)!;
+      init({ docId: 'room-1', update: Y.encodeStateAsUpdate(new Y.Doc()) } as never);
+      expect(provider.doc.getText('t').toString()).toBe('peer');
+      expect(emitted.filter((e) => e.event === CollabClientEvents.Update).length).toBe(1);
+    } finally {
+      provider.destroy();
+    }
+  });
+
   it('resyncs offline doc updates and local awareness on init', () => {
     const { provider, fake, emitted } = providerWithFakeSocket();
     try {
