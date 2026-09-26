@@ -45,3 +45,13 @@ import { parseMarkdown, stringifyMarkdown } from '@inkio/editor/markdown';
 
 Markdown round-trip은 `core` 범위까지만 보장합니다.
 구현은 `remark/unified` 기반이며 HTML bridge를 사용하지 않습니다.
+
+### Advanced 노드 처리
+
+| 노드 | 내보내기 | 다시 읽기 |
+|------|----------|----------|
+| 멘션 | `@라벨` 텍스트 | 텍스트 유지 (이메일 오인식 방지) |
+| 해시태그 | `#라벨` 텍스트 | 텍스트 유지 |
+| 위키링크 | `[[이름]]` | 위키링크 노드 복원 (완전 왕복) |
+| 북마크 | `[제목](URL)` 링크 | 링크 (카드 복원 안 됨) |
+| 댓글 | 버려짐 (마크 제거, 텍스트 유지) | — (스레드는 서버에 별도 저장) |

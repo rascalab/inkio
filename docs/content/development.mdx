@@ -50,6 +50,13 @@ focus ring, border, blur, shadow, field styling은 가능한 한 이 공용 cont
 - Inkio가 직접 쓰는 Tiptap runtime은 각 패키지 `dependencies`
 - `@inkio/core`는 published package지만 일반 사용자에게 직접 시작점으로 안내하지 않습니다
 
+## 향후 과제: 확장 어댑터 (TODO — 완료 시 이 섹션 삭제)
+
+현재 서드파티 `@tiptap/*` 확장은 날것 그대로 `extensions`에 넘기며,
+버전 충돌은 사용자 책임입니다 (BlockNote는 `createExtension` 어댑터로
+감싸서 받음). 별도 목표로 `defineExtension` 스타일 어댑터 설계를
+트래킹합니다. 어댑터가 나오면 이 섹션과 확장 호환 표를 지우세요.
+
 ## 검증
 
 ```bash

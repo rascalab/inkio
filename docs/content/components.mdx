@@ -290,6 +290,17 @@ function MyEditor() {
 | `@inkio/editor/minimal.css` | 구조만 (색상·폰트 없음) | 커스텀 테마 |
 | `@inkio/simple/minimal.css` | 구조만 | 커스텀 테마 |
 
+### 조합별 import 매트릭스
+
+| 조합 | import | 비고 |
+|------|--------|------|
+| `@inkio/simple` 단독 | `simple/style.css` | — |
+| `@inkio/editor` 단독 | `editor/style.css` | advanced 장식 포함 |
+| `core` + `advanced` 직접 조합 | `core/style.css` | 멘션 pill 등 advanced 장식은 `editor/style.css`에만 있음 |
+| `image-editor` (단독·연결 공통) | `image-editor/style.css` | 자체 스타일시트 필수 |
+| `collab` (`CollabPresence`) | 불필요 | 인라인 스타일만 사용 |
+| 커스텀 테마 | 각 패키지의 `minimal.css` + `--inkio-*` 토큰 재정의 | 색상·폰트는 직접 정의 |
+
 `minimal.css`는 레이아웃과 구조적 스타일만 포함합니다. 색상, 폰트, 배경 등은 직접 정의해야 합니다.
 
 ```tsx

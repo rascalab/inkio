@@ -2,6 +2,56 @@ import { describe, expect, it } from 'vitest';
 import type { JSONContent } from '@tiptap/core';
 import { parseMarkdown, stringifyMarkdown } from '../index';
 
+describe('advanced inline nodes', () => {
+  it('round-trips wiki links through [[name]] syntax', () => {
+    const json = parseMarkdown('See [[Guide]] for details.');
+    const para = json.content?.[0];
+    expect(para?.content).toContainEqual({ type: 'wikiLink', attrs: { href: 'Guide' } });
+    // remark escapes the brackets on export; re-parsing must restore the node.
+    const md2 = stringifyMarkdown(json);
+    const json2 = parseMarkdown(md2);
+    expect(json2.content?.[0]?.content).toContainEqual({ type: 'wikiLink', attrs: { href: 'Guide' } });
+    expect(stringifyMarkdown(json2)).toBe(md2);
+  });
+
+  it('keeps unsafe wiki targets as plain text', () => {
+    const json = parseMarkdown('See [[javascript:alert(1)]] now.');
+    const inlines = json.content?.[0]?.content ?? [];
+    expect(inlines.some((node) => node.type === 'wikiLink')).toBe(false);
+    expect(stringifyMarkdown(json)).not.toContain('wikiLink');
+  });
+
+  it('exports mentions as @text and does not reparse emails', () => {
+    const md = stringifyMarkdown({
+      type: 'doc',
+      content: [{
+        type: 'paragraph',
+        content: [
+          { type: 'mention', attrs: { id: 'u1', label: 'Alice' } },
+          { type: 'text', text: ' mail me at a@b.com' },
+        ],
+      }],
+    });
+    expect(md).toContain('@Alice');
+    const back = parseMarkdown(md);
+    const inlines = back.content?.[0]?.content ?? [];
+    expect(inlines.some((node) => node.type === 'mention')).toBe(false);
+  });
+
+  it('exports bookmarks as links and drops comments', () => {
+    const md = stringifyMarkdown({
+      type: 'doc',
+      content: [
+        { type: 'bookmark', attrs: { url: 'https://example.com', title: 'Example' } },
+        { type: 'paragraph', content: [{ type: 'text', text: 'hi', marks: [{ type: 'comment', attrs: { commentId: 'c1' } }] }] },
+      ],
+    });
+    expect(md).toContain('[Example](https://example.com)');
+    expect(md).toContain('hi');
+    expect(md).not.toContain('comment');
+  });
+});
+
 describe('@inkio/core/markdown', () => {
   it('parses and stringifies core markdown features', () => {
     const markdown = [

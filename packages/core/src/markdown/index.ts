@@ -146,13 +146,47 @@ function withMark(marks: JsonMark[], mark: JsonMark): JsonMark[] {
   return [...marks, mark];
 }
 
+const WIKI_LINK_RE = /\[\[([^\]]+)\]\]/g;
+
+/**
+ * Split `[[name]]` segments into wikiLink atoms. `@user` / `#tag` are
+ * deliberately NOT parsed: they are ambiguous in plain prose (emails),
+ * so mention/hashtag degrade to text on import by design.
+ */
+function textWithWikiLinks(value: string, marks: JsonMark[]): JSONContent[] {
+  const out: JSONContent[] = [];
+  let last = 0;
+  WIKI_LINK_RE.lastIndex = 0;
+  for (let match = WIKI_LINK_RE.exec(value); match; match = WIKI_LINK_RE.exec(value)) {
+    if (match.index > last) {
+      const text = createTextNode(value.slice(last, match.index), marks);
+      if (text) out.push(text);
+    }
+    const href = match[1].trim();
+    if (href && isSafeUrl(href)) {
+      out.push({ type: 'wikiLink', attrs: { href } });
+    } else {
+      const text = createTextNode(match[0], marks);
+      if (text) out.push(text);
+    }
+    last = match.index + match[0].length;
+  }
+  if (last < value.length) {
+    const text = createTextNode(value.slice(last), marks);
+    if (text) out.push(text);
+  }
+  return out;
+}
+
 function mdastInlineToJson(nodes: MdastNode[] = [], marks: JsonMark[] = []): JSONContent[] {
   const content: JSONContent[] = [];
 
   for (const node of nodes) {
     switch (node.type) {
       case 'text':
-        pushInlineNode(content, createTextNode(node.value ?? '', marks));
+        textWithWikiLinks(node.value ?? '', marks).forEach((child) =>
+          pushInlineNode(content, child),
+        );
         break;
       case 'break':
         content.push({ type: 'hardBreak' });
@@ -476,9 +510,13 @@ function jsonInlineToMdast(nodes: JSONContent[] = []): MdastNode[] {
       case 'hashTag':
         content.push({ type: 'text', value: `#${node.attrs?.label ?? node.attrs?.id ?? ''}` });
         break;
-      case 'wikiLink':
-        content.push({ type: 'text', value: String(node.attrs?.label ?? node.attrs?.href ?? '') });
+      case 'wikiLink': {
+        const name = String(node.attrs?.label ?? node.attrs?.href ?? '').trim();
+        if (name) {
+          content.push({ type: 'text', value: `[[${name}]]` });
+        }
         break;
+      }
       default:
         if (node.text) {
           content.push({ type: 'text', value: node.text });
