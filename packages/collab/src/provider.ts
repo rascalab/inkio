@@ -258,7 +258,7 @@ export class SocketIOCollabProvider implements CollabProvider {
   };
 
   private handleError = (payload: CollabErrorPayload): void => {
-    if (payload.docId !== this.docId) return;
+    if (!payload || payload.docId !== this.docId) return;
     if (payload.code === 'unauthorized' || payload.code === 'forbidden') {
       this.joined = false;
       this.setStatus('unauthorized');

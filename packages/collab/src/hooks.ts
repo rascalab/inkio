@@ -38,23 +38,31 @@ export interface UseCollabProviderOptions {
 }
 
 export function useCollabProvider(options: UseCollabProviderOptions): CollabProvider | null {
-  const { docId, doc, user } = options;
+  const { docId, doc, socket, url, socketOptions, token, user } = options;
   const ydoc = useYDoc(docId, doc);
-  const initial = useRef(options);
+  // Transport identity drives (re)creation: a doc-or-tenant switch carrying
+  // a new relay URL or string credential must dial the new target. Only URL
+  // and string tokens participate: socket objects are frequently created
+  // inline per render (hooks.test.tsx passes io() in the render path), so
+  // socket identity churn must not recycle the connection — to switch
+  // sockets, change `url` (or remount). Function tokens are resolved fresh
+  // on every join by the provider, so their identity is intentionally
+  // ignored. socketOptions stays construction-time for the same inline-
+  // literal reason.
+  const stringToken = typeof token === 'string' ? token : null;
 
   const provider = useMemo(() => {
     if (!isBrowser()) return null;
-    const first = initial.current;
     return new SocketIOCollabProvider({
       docId,
       doc: ydoc,
-      ...(first.socket ? { socket: first.socket } : {}),
-      ...(first.url ? { url: first.url } : {}),
-      ...(first.socketOptions ? { socketOptions: first.socketOptions } : {}),
-      ...(first.token !== undefined ? { token: first.token } : {}),
-      ...(first.user ? { user: first.user } : {}),
+      ...(socket ? { socket } : {}),
+      ...(url ? { url } : {}),
+      ...(socketOptions ? { socketOptions } : {}),
+      ...(token !== undefined ? { token } : {}),
+      ...(user ? { user } : {}),
     });
-  }, [docId, ydoc]);
+  }, [docId, ydoc, url, stringToken]);
 
   useEffect(() => {
     if (!provider) return;
