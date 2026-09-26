@@ -16,7 +16,10 @@ const BUDGETS = {
   // tracking (perf batch). Deliberate increase for shipped features.
   // 234k -> 240k: audit round 2 (taint tracking, crop normalize, bounds
   // mirror, dirty/save race, text measure, input guards). Deliberate.
-  'image-editor': 240_000,
+  // 240k -> 244k: audit rounds 3-4 fixes (filter/finetune visual tracking,
+  // NaN-guard branches, crop full-session bounds, mount guards). Measured
+  // +6.1k over the pre-fix tree (236091 -> 242235). Deliberate.
+  'image-editor': 244_000,
   // collab ships provider + hooks only; yjs/socket.io stay external (measured ~16k).
   'collab': 30_000,
 };
