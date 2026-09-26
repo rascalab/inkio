@@ -29,6 +29,9 @@ export function FilterThumbnails() {
   useEffect(() => {
     const source = state.originalImage;
     if (!source || source.naturalWidth === 0) {
+      // Reset on empty source: without this a previous image's thumbnails
+      // stay mounted after the source is cleared.
+      setThumbnails({});
       return;
     }
 

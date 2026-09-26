@@ -214,32 +214,33 @@ export function ColorPickerButton({
   }) => {
     event.preventDefault();
     const handleMove = (moveEvent: PointerEvent) => handleBoardPointer(moveEvent.clientX, moveEvent.clientY);
-    const handleUp = () => {
+    // One teardown identity for every path: the registered pointerup
+    // listener must remove itself, otherwise it stays attached after
+    // every drag (previously `handleUp` removed the wrong identity).
+    const endBoardDrag = () => {
       document.removeEventListener('pointermove', handleMove);
-      document.removeEventListener('pointerup', handleUp);
+      document.removeEventListener('pointerup', endBoardDrag);
+      document.removeEventListener('pointercancel', handleCancel);
     };
 
     // pointercancel (interrupted drag) tears down the same way: without it
     // the listeners stay attached until the next pointerup somewhere.
     const handleCancel = () => {
-      document.removeEventListener('pointermove', handleMove);
-      document.removeEventListener('pointerup', handleUp);
-      document.removeEventListener('pointercancel', handleCancel);
-    };
-    const wrappedUp = () => {
-      handleUp();
-      document.removeEventListener('pointercancel', handleCancel);
+      endBoardDrag();
     };
 
     handleBoardPointer(event.clientX, event.clientY);
     document.addEventListener('pointermove', handleMove);
-    document.addEventListener('pointerup', wrappedUp);
+    document.addEventListener('pointerup', endBoardDrag);
     document.addEventListener('pointercancel', handleCancel);
   };
 
+  // Empty presets must fall through to the default swatch instead of
+  // throwing inside parseColor (presets[0] would be undefined).
+  const fallbackSwatch = presets.length > 0 ? parseColor(presets[0]) : undefined;
   const currentColor = allowTransparent && normalizedValue === 'transparent'
     ? 'transparent'
-    : rgbaToCss(parseColor(value) ?? parseColor(presets[0]) ?? { r: 17, g: 24, b: 39, a: 1 });
+    : rgbaToCss(parseColor(value) ?? fallbackSwatch ?? { r: 17, g: 24, b: 39, a: 1 });
   const currentLabel = currentColor === 'transparent'
     ? transparentLabel ?? 'Transparent'
     : currentColor.toUpperCase();

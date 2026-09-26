@@ -33,9 +33,17 @@ export function ImageEditorProvider({
   maxUndoSteps = MAX_UNDO_STEPS,
   locale,
 }: ImageEditorProviderProps) {
+  // Mirror into a ref: the inline reducer closure below captures the first
+  // value, so without this later prop changes would never affect history
+  // capping.
+  const maxUndoStepsRef = React.useRef(maxUndoSteps);
+  React.useEffect(() => {
+    maxUndoStepsRef.current = maxUndoSteps;
+  }, [maxUndoSteps]);
+
   const [undoableState, rawDispatch] = useReducer(
     (s: ReturnType<typeof makeInitialUndoableState>, a: UndoableAction) =>
-      undoableReducer(s, a, maxUndoSteps),
+      undoableReducer(s, a, maxUndoStepsRef.current),
     undefined,
     makeInitialUndoableState,
   );

@@ -73,7 +73,7 @@ export function ShapeOptionsPanel() {
             presets={COLOR_PRESETS}
             pickerTestId="inkio-ie-shape-fill-picker"
             allowTransparent
-            transparentLabel="Color: transparent"
+            transparentLabel={`Color: ${locale.transparent}`}
             enableAlpha
             hexLabel={locale.colorHex}
             alphaLabel={locale.colorAlpha}

@@ -1,5 +1,23 @@
 const imageCache = new Map<string, HTMLImageElement>();
 const MAX_CACHE_SIZE = 10;
+/** In-flight loads keyed by src so concurrent requests share one fetch. */
+const pendingLoads = new Map<string, Promise<HTMLImageElement>>();
+
+const ALLOWED_SRC_SCHEMES = ['http:', 'https:', 'blob:', 'data:'];
+const IMAGE_LOAD_TIMEOUT_MS = 30000;
+
+function validateImageSrc(src: string): void {
+  let protocol: string;
+  try {
+    // Relative URLs resolve against the page; only the scheme matters here.
+    protocol = new URL(src, 'http://localhost').protocol;
+  } catch {
+    throw new Error(`Cannot load image: invalid URL ${describeSrc(src)}`);
+  }
+  if (!ALLOWED_SRC_SCHEMES.includes(protocol)) {
+    throw new Error(`Cannot load image: blocked URL scheme ${protocol}`);
+  }
+}
 
 /**
  * Images that fell back to a non-CORS load taint every canvas they touch,
@@ -48,6 +66,13 @@ function loadImageRaw(src: string): Promise<HTMLImageElement> {
 }
 
 export function loadImage(src: string): Promise<HTMLImageElement> {
+  try {
+    validateImageSrc(src);
+  } catch (error) {
+    // Invalid schemes stay async rejections: loadImage never threw
+    // synchronously before, and callers rely on promise semantics.
+    return Promise.reject(error);
+  }
   const cached = imageCache.get(src);
   if (cached) {
     // Move to end to maintain LRU order
@@ -55,7 +80,38 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
     imageCache.set(src, cached);
     return Promise.resolve(cached);
   }
+  const pending = pendingLoads.get(src);
+  if (pending) {
+    return pending;
+  }
 
+  // <img> loads cannot abort: on timeout the promise rejects and the late
+  // completion becomes a no-op instead of hanging forever.
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const task = new Promise<HTMLImageElement>((resolveTask, rejectTask) => {
+    const settle = (fn: () => void) => {
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId);
+      }
+      if (pendingLoads.get(src) === task) {
+        pendingLoads.delete(src);
+      }
+      fn();
+    };
+    timeoutId = setTimeout(() => {
+      settle(() => rejectTask(new Error(`Timed out loading image ${describeSrc(src)}`)));
+    }, IMAGE_LOAD_TIMEOUT_MS);
+    const load = cacheableLoad(src);
+    load.then(
+      (img) => settle(() => resolveTask(img)),
+      (error: unknown) => settle(() => rejectTask(error)),
+    );
+  });
+  pendingLoads.set(src, task);
+  return task;
+}
+
+function cacheableLoad(src: string): Promise<HTMLImageElement> {
   // Data URLs never taint and the caller already holds the bytes: caching
   // them only pins decoded bitmaps with no byte-size eviction.
   const cacheable = !src.startsWith('data:');

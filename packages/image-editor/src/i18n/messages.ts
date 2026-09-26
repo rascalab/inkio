@@ -253,6 +253,12 @@ export function toImageEditorMessageOverrides(
     return undefined;
   }
 
+  // typeof null is 'object': a truthy primitive would throw on the `in`
+  // check below, so only real objects continue.
+  if (typeof input !== 'object') {
+    return undefined;
+  }
+
   if ('core' in input || 'extensions' in input) {
     const root = input as InkioMessageOverrides;
     if (!root.extensions || typeof root.extensions !== 'object') {
