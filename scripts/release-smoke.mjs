@@ -383,7 +383,7 @@ function App() {
       <section>
         <h2>@inkio/editor</h2>
         <Editor
-          initialContent={editorContent}
+          content={editorContent}
           placeholder="Editor smoke"
           locale={locale}
           hashtagItems={({ query }: { query: string }) => [
@@ -413,7 +413,7 @@ function App() {
       <section>
         <h2>@inkio/simple</h2>
         <SimpleEditor
-          initialContent={simpleContent}
+          content={simpleContent}
           placeholder="Simple smoke"
           onImageUpload={async (file: File) => URL.createObjectURL(file)}
           imageBlock={{ imageEditor: ImageEditorModal }}
