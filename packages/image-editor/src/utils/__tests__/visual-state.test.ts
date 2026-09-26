@@ -3,6 +3,7 @@ import { imageEditorReducer, initialState } from '../../reducer';
 import {
   areVisualRefsEqual,
   getVisualRefs,
+  getVisualStateSnapshot,
   nextVisualVersion,
 } from '../visual-state';
 import type { ImageEditorState } from '../../types';
@@ -65,5 +66,20 @@ describe('visual version counter', () => {
     expect(areVisualRefsEqual(refs, getVisualRefs(initialState))).toBe(true);
     const changed = imageEditorReducer(initialState, { type: 'ROTATE_CW' });
     expect(areVisualRefsEqual(refs, getVisualRefs(changed))).toBe(false);
+  });
+
+  it('bumps the version when the filter or finetune changes', () => {
+    const filtered = imageEditorReducer(initialState, { type: 'SET_FILTER', filter: 'grayscale' });
+    expect(nextVisualVersion(initialState, 0, filtered)).toBe(1);
+    const tuned = imageEditorReducer(filtered, {
+      type: 'SET_FINETUNE',
+      finetune: { brightness: 0.2 },
+    });
+    expect(nextVisualVersion(filtered, 1, tuned)).toBe(2);
+  });
+
+  it('includes filter and finetune in the snapshot', () => {
+    const filtered = imageEditorReducer(initialState, { type: 'SET_FILTER', filter: 'sepia' });
+    expect(getVisualStateSnapshot(filtered)).not.toBe(getVisualStateSnapshot(initialState));
   });
 });

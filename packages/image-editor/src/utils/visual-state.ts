@@ -6,6 +6,8 @@ export function getVisualStateSnapshot(state: ImageEditorState): string {
     pendingCrop: state.pendingCrop,
     outputSize: state.outputSize,
     annotations: state.annotations,
+    filter: state.filter,
+    finetune: state.finetune,
   });
 }
 
@@ -14,6 +16,8 @@ export interface VisualRefs {
   pendingCrop: ImageEditorState['pendingCrop'];
   outputSize: ImageEditorState['outputSize'];
   annotations: ImageEditorState['annotations'];
+  filter: ImageEditorState['filter'];
+  finetune: ImageEditorState['finetune'];
 }
 
 export function getVisualRefs(state: ImageEditorState): VisualRefs {
@@ -22,6 +26,8 @@ export function getVisualRefs(state: ImageEditorState): VisualRefs {
     pendingCrop: state.pendingCrop,
     outputSize: state.outputSize,
     annotations: state.annotations,
+    filter: state.filter,
+    finetune: state.finetune,
   };
 }
 
@@ -31,6 +37,8 @@ export function areVisualRefsEqual(a: VisualRefs, b: VisualRefs): boolean {
     && a.pendingCrop === b.pendingCrop
     && a.outputSize === b.outputSize
     && a.annotations === b.annotations
+    && a.filter === b.filter
+    && a.finetune === b.finetune
   );
 }
 

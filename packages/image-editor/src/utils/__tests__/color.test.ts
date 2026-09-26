@@ -12,6 +12,12 @@ describe('parseColor validation', () => {
     expect(parseColor('#zzz')).toBeNull();
   });
 
+  it('rejects malformed rgb numbers instead of yielding NaN channels', () => {
+    expect(parseColor('rgb(1..2, 0, 0)')).toBeNull();
+    expect(parseColor('rgb(., 0, 0)')).toBeNull();
+    expect(parseColor('rgba(0, 0, 0, ..5)')).toBeNull();
+  });
+
   it('keeps the placeholder-alpha pipeline in valid CSS', () => {
     const parsed = parseColor('transparent');
     expect(parsed).not.toBeNull();

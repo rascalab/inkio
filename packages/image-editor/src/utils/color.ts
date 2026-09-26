@@ -83,11 +83,20 @@ export function parseColor(value: string): RgbaColor | null {
     return null;
   }
 
+  const r = Number(match[1]);
+  const g = Number(match[2]);
+  const b = Number(match[3]);
+  const a = match[4] ? Number(match[4]) : 1;
+  // "1..2" matches the numeric pattern but converts to NaN: reject like
+  // the hex branch instead of emitting NaN channels into canvas fills.
+  if (![r, g, b, a].every(Number.isFinite)) {
+    return null;
+  }
   return {
-    r: clampChannel(Number(match[1])),
-    g: clampChannel(Number(match[2])),
-    b: clampChannel(Number(match[3])),
-    a: clamp(match[4] ? Number(match[4]) : 1, 0, 1),
+    r: clampChannel(r),
+    g: clampChannel(g),
+    b: clampChannel(b),
+    a: clamp(a, 0, 1),
   };
 }
 
