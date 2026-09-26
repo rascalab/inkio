@@ -1,5 +1,6 @@
 export {
   enCommentMessages,
+  koCommentMessages,
   mergeCommentMessages,
   resolveCommentMessages,
   toCommentMessageOverrides,
