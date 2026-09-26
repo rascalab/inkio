@@ -70,6 +70,8 @@ export class CollabSyncEngine {
   private readonly docs = new Map<string, Y.Doc>();
   private readonly persistTimers = new Map<string, NodeJS.Timeout>();
   private readonly budgets = new Map<string, SocketBudget>();
+  /** Sockets currently joined per room; drives the maxRooms live count. */
+  private readonly roomMembers = new Map<string, Set<string>>();
   private connectionHandler: ((socket: Socket) => void) | null = null;
   private attachedNamespace: Namespace | null = null;
 
@@ -97,6 +99,7 @@ export class CollabSyncEngine {
       });
       socket.on('disconnect', () => {
         joined.clear();
+        this.removeFromRooms(socket.id);
         this.budgets.delete(socket.id);
       });
     };
@@ -114,7 +117,25 @@ export class CollabSyncEngine {
       clearTimeout(timer);
     }
     this.persistTimers.clear();
+    this.roomMembers.clear();
     this.budgets.clear();
+  }
+
+  private addToRoom(docId: string, socketId: string): void {
+    let members = this.roomMembers.get(docId);
+    if (!members) {
+      members = new Set();
+      this.roomMembers.set(docId, members);
+    }
+    members.add(socketId);
+  }
+
+  /** Drop a socket from every room roster, pruning rooms left empty. */
+  private removeFromRooms(socketId: string): void {
+    for (const [docId, members] of this.roomMembers) {
+      members.delete(socketId);
+      if (members.size === 0) this.roomMembers.delete(docId);
+    }
   }
 
   getDoc(docId: string): Y.Doc {
@@ -136,6 +157,15 @@ export class CollabSyncEngine {
     code: 'unauthorized' | 'forbidden' | 'internal' | 'invalid-message' | 'rate-limited',
   ): void {
     socket.emit(CollabServerEvents.Error, { docId, code });
+  }
+
+  /** Rooms with at least one joined socket. Never counts doc history. */
+  private activeRoomCount(): number {
+    let count = 0;
+    for (const members of this.roomMembers.values()) {
+      if (members.size > 0) count += 1;
+    }
+    return count;
   }
 
   private checkBudget(socket: Socket, bytes: number): boolean {
@@ -169,11 +199,16 @@ export class CollabSyncEngine {
       return;
     }
     if (!joined.has(docId)) {
-      if (this.options.maxRooms !== undefined && this.docs.size >= this.options.maxRooms && !this.docs.has(docId)) {
+      if (
+        this.options.maxRooms !== undefined &&
+        !this.docs.has(docId) &&
+        this.activeRoomCount() >= this.options.maxRooms
+      ) {
         this.reject(socket, docId, 'forbidden');
         return;
       }
       joined.add(docId);
+      this.addToRoom(docId, socket.id);
       socket.join(docId);
     }
     socket.emit(CollabServerEvents.Init, {
@@ -209,11 +244,19 @@ export class CollabSyncEngine {
   private handleAwareness(socket: Socket, joined: Set<string>, msg: CollabAwarenessPayload) {
     if (!msg || !validDocId(msg.docId) || !joined.has(msg.docId)) return;
     const bytes = toUint8Array(msg.update);
-    if (!bytes) return;
+    const maxUpdate = this.options.maxUpdateBytes ?? DEFAULT_MAX_UPDATE_BYTES;
+    if (!bytes || bytes.length > maxUpdate) {
+      this.reject(socket, msg.docId, 'invalid-message');
+      return;
+    }
+    if (!this.checkBudget(socket, bytes.length)) {
+      this.reject(socket, msg.docId, 'rate-limited');
+      return;
+    }
     socket.to(msg.docId).emit(CollabServerEvents.Awareness, msg);
   }
 
-  private schedulePersist(docId: string): void {
+  private schedulePersist(docId: string, isRetry = false): void {
     if (!this.options.onPersist) return;
     const existing = this.persistTimers.get(docId);
     if (existing) clearTimeout(existing);
@@ -228,15 +271,24 @@ export class CollabSyncEngine {
         const result = this.options.onPersist?.(docId, Y.encodeStateAsUpdate(this.getDoc(docId)));
         if (result && typeof (result as Promise<void>).catch === 'function') {
           (result as Promise<void>).catch((error: unknown) => {
-            console.error(`[collab] persist failed for doc=${docId}:`, error);
+            this.handlePersistFailure(docId, error, isRetry);
           });
         }
       } catch (error) {
-        console.error(`[collab] persist failed for doc=${docId}:`, error);
+        this.handlePersistFailure(docId, error, isRetry);
       }
     }, delay);
     // Never hold the process open for a background persist.
     (timer as unknown as { unref?: () => void }).unref?.();
     this.persistTimers.set(docId, timer);
+  }
+
+  /**
+   * One bounded retry per failed persist: a transient store error must not
+   * silently drop the snapshot when no further edits re-arm the throttle.
+   */
+  private handlePersistFailure(docId: string, error: unknown, isRetry: boolean): void {
+    console.error(`[collab] persist failed for doc=${docId}:`, error);
+    if (!isRetry) this.schedulePersist(docId, true);
   }
 }
