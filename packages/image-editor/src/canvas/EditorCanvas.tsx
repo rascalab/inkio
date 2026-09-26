@@ -118,15 +118,33 @@ export function EditorCanvas({
     state.outputSize,
   );
 
+  // Session bounds always span the full original: constraining them to a
+  // previous crop would lock re-edits inside it (no zoom-out past the old
+  // crop, no expansion). The pending selection still seeds from the applied
+  // crop below, so re-entry starts on the current selection with the whole
+  // image reachable.
   const cropSessionBounds = useMemo(
     () =>
-      state.transform.crop ?? {
-        x: 0,
-        y: 0,
-        width: workingDimensions.width,
-        height: workingDimensions.height,
-      },
-    [state.transform.crop, workingDimensions.height, workingDimensions.width],
+      state.transform.crop
+        ? {
+          x: 0,
+          y: 0,
+          width: state.originalWidth,
+          height: state.originalHeight,
+        }
+        : {
+          x: 0,
+          y: 0,
+          width: workingDimensions.width,
+          height: workingDimensions.height,
+        },
+    [
+      state.transform.crop,
+      state.originalWidth,
+      state.originalHeight,
+      workingDimensions.height,
+      workingDimensions.width,
+    ],
   );
 
   const cropAspectRatio =
@@ -161,8 +179,10 @@ export function EditorCanvas({
 
   const cropMinZoom = cropFrame
     ? Math.max(
-      cropFrame.width / Math.max(1, cropSessionBounds.width * cropFitScale),
-      cropFrame.height / Math.max(1, cropSessionBounds.height * cropFitScale),
+      Math.min(
+        cropFrame.width / Math.max(1, cropSessionBounds.width * cropFitScale),
+        cropFrame.height / Math.max(1, cropSessionBounds.height * cropFitScale),
+      ),
       0.35,
     )
     : 1;
@@ -212,11 +232,13 @@ export function EditorCanvas({
       return;
     }
 
-    const targetCrop = state.pendingCrop ?? getDefaultCropRect(
-      cropSessionBounds.width,
-      cropSessionBounds.height,
-      state.cropOptions.aspectRatio,
-    );
+    const targetCrop = state.pendingCrop
+      ?? state.transform.crop
+      ?? getDefaultCropRect(
+        cropSessionBounds.width,
+        cropSessionBounds.height,
+        state.cropOptions.aspectRatio,
+      );
     const targetSignature = serializeCrop(targetCrop);
     if (cropPendingSignatureRef.current === targetSignature) {
       return;
@@ -250,6 +272,7 @@ export function EditorCanvas({
     stageSize.width,
     state.cropOptions.aspectRatio,
     state.pendingCrop,
+    state.transform.crop,
   ]);
 
   const updateCropViewport = useCallback((recipe: (previous: CropViewportState) => CropViewportState) => {
@@ -900,6 +923,7 @@ export function EditorCanvas({
           >
             <DesignLayer
               state={state}
+              transform={isCropMode ? renderedTransform : state.transform}
               displayWidth={displayWidth}
               displayHeight={displayHeight}
               onSelectAnnotation={handleSelectAnnotation}

@@ -28,6 +28,7 @@ describe('DesignLayer', () => {
   it('renders annotations in array order so later items stay visually on top', () => {
     render(
       <DesignLayer
+        transform={initialState.transform}
         state={{
           ...initialState,
           originalImage: {} as HTMLImageElement,
