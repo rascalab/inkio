@@ -32,6 +32,12 @@ export function isInkioAdapter(value: unknown): value is InkioAdapter {
     return false;
   }
 
+  // typeof null is 'object': reject it explicitly, the declared locale
+  // contract ('ko' | 'en' | Record<string, string>) never includes null.
+  if (candidate.locale === null) {
+    return false;
+  }
+
   if (
     candidate.locale !== undefined &&
     (typeof candidate.locale !== 'string' && typeof candidate.locale !== 'object')
