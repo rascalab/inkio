@@ -82,4 +82,36 @@ describe('overlay positioning', () => {
     expect(['left', 'right']).toContain(result.placement);
     expect(result.top).toBeGreaterThanOrEqual(8);
   });
+
+  it('pins to the exposed edge when the floating rect exceeds the boundary', () => {
+    const emptyBoundary = {
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      width: 0,
+      height: 0,
+    };
+    const result = computeOverlayPosition({
+      anchorRect: {
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: 0,
+        height: 0,
+      },
+      floatingRect: { width: 200, height: 200 },
+      placement: 'bottom',
+      align: 'start',
+      boundaryRect: emptyBoundary,
+      flip: false,
+      shift: true,
+      padding: 8,
+      offset: 8,
+    });
+
+    expect(result.top).toBeGreaterThanOrEqual(8);
+    expect(result.left).toBeGreaterThanOrEqual(8);
+  });
 });

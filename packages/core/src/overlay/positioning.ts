@@ -56,6 +56,13 @@ function defaultBoundaryRect(): RectLike {
 }
 
 function clamp(value: number, min: number, max: number): number {
+  // Inverted range (floating larger than the boundary): pin to the exposed
+  // edge instead of leaking the negative max, matching the documented
+  // min-wins behavior.
+  if (max < min) {
+    return min;
+  }
+
   if (value < min) {
     return min;
   }

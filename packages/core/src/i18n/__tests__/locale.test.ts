@@ -52,6 +52,16 @@ describe('locale parser adversarial input', () => {
     expect(() => resolveLocaleInput(cyclic)).not.toThrow();
     expect(resolveLocaleInput(cyclic)).toContain('en');
   });
+
+  it('skips locale-like objects whose toString throws', () => {
+    const throwing = {
+      toString: () => {
+        throw new Error('boom');
+      },
+    };
+    expect(resolveLocaleInput([throwing, 'en'])).toEqual(['en']);
+    expect(resolveLocaleInput(throwing)).toEqual([]);
+  });
 });
 
 describe('pickMessageLocale', () => {

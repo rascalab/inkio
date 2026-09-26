@@ -139,7 +139,15 @@ function readLocaleLikeObject(input: Record<string, unknown>): unknown[] {
   });
 
   if (candidates.length === 0 && typeof input.toString === 'function') {
-    const asString = input.toString();
+    // A throwing toString (hostile or broken locale-like object) must not
+    // abort resolution: skip the candidate and fall through to the empty
+    // fallback below.
+    let asString: string | null = null;
+    try {
+      asString = input.toString();
+    } catch {
+      asString = null;
+    }
     if (asString && asString !== '[object Object]') {
       candidates.push(asString);
     }
