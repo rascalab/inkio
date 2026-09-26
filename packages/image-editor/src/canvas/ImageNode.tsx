@@ -53,7 +53,7 @@ export function ImageNode({
       const current = imageRef.current;
       if (current) cancelScheduledFilterPreview(current);
     };
-  }, [filter, finetune, image, baseW, baseH]);
+  }, [filter, finetune, image, baseW, baseH, cropRect?.x, cropRect?.y, cropRect?.width, cropRect?.height]);
 
   if (cropRect) {
     return (
