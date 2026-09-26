@@ -63,6 +63,11 @@ export function parseColor(value: string): RgbaColor | null {
     }
 
     if (hex.length === 6 || hex.length === 8) {
+      // parseInt stops at the first non-hex char ("fZ" → 15): validate the
+      // whole string so "#fZ0000" is rejected instead of normalizing.
+      if (!/^[0-9a-f]+$/.test(hex)) {
+        return null;
+      }
       const channels = {
         r: parseInt(hex.slice(0, 2), 16),
         g: parseInt(hex.slice(2, 4), 16),

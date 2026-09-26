@@ -18,6 +18,12 @@ describe('parseColor validation', () => {
     expect(parseColor('rgba(0, 0, 0, ..5)')).toBeNull();
   });
 
+  it('rejects truncated hex digits instead of normalizing them', () => {
+    expect(parseColor('#fZ0000')).toBeNull();
+    expect(parseColor('#00fZ00')).toBeNull();
+    expect(parseColor('#00000g')).toBeNull();
+  });
+
   it('keeps the placeholder-alpha pipeline in valid CSS', () => {
     const parsed = parseColor('transparent');
     expect(parsed).not.toBeNull();
