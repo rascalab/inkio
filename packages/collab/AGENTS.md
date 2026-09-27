@@ -21,6 +21,7 @@ src/
 | Task | Location | Notes |
 |------|----------|-------|
 | Server integration | examples/collab-server/ | Nest/Hocuspocus host; client points at its `ws://` URL |
+| Split hosting | examples/collab-server/src/sync-main.ts + api-main.ts | sync owns docs/WS, Nest owns verify via `createHttpVerify`; compose file included |
 | Doc seed / sync | src/seed.ts + src/ydoc.ts | seed applies to an empty doc; later seed changes ignored |
 | Conflicting extensions | src/extensions.ts | strip before collab wiring |
 
