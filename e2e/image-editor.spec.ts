@@ -315,6 +315,7 @@ test('redact tool pixelates a region in the saved image', async ({ page }) => {
 
   await triggerButton(page, 'inkio-ie-tool-redact');
   await expect(page.getByTestId('inkio-ie-util-panel-controls')).toHaveAttribute('data-panel', 'redact');
+  await waitForLayoutSettle(page);
   await dragWithinStage(page, { x: 120, y: 90 }, { x: 300, y: 200 });
   await expect(page.getByTestId('inkio-ie-root')).toHaveAttribute('data-debug-annotation-count', '1');
 
@@ -346,6 +347,7 @@ test('sticker tool places an emoji in the saved image', async ({ page }) => {
 
   await triggerButton(page, 'inkio-ie-tool-sticker');
   await expect(page.getByTestId('inkio-ie-util-panel-controls')).toHaveAttribute('data-panel', 'sticker');
+  await waitForLayoutSettle(page);
   await clickStage(page, { x: 200, y: 140 });
   await expect(page.getByTestId('inkio-ie-root')).toHaveAttribute('data-debug-annotation-count', '1');
 
@@ -386,6 +388,7 @@ test('text selection shows floating actions and deselect falls back to the parke
   await waitForHarness(page);
 
   await triggerButton(page, 'inkio-ie-tool-text');
+  await waitForLayoutSettle(page);
   await dragWithinStage(page, { x: 110, y: 110 }, { x: 250, y: 152 });
   const textContentInput = page.getByTestId('inkio-ie-text-content-input');
   await expect(textContentInput).toBeVisible();
@@ -407,6 +410,7 @@ test('draw, shape, resize, and rotate controls work from the new desktop dock', 
   await waitForHarness(page);
 
   await triggerButton(page, 'inkio-ie-tool-draw');
+  await waitForLayoutSettle(page);
   await dragWithinStage(page, { x: 96, y: 180 }, { x: 240, y: 216 });
   await expect(page.getByTestId('image-editor-e2e-selected-type')).toHaveText('freedraw');
   await setRangeValue(page.getByTestId('inkio-ie-draw-brush-size-range'), 18);
@@ -430,6 +434,7 @@ test('draw, shape, resize, and rotate controls work from the new desktop dock', 
   await page.getByTestId('inkio-ie-color-picker').getByTestId('inkio-ie-color-swatch-3b82f6').evaluate((element) => {
     (element as HTMLButtonElement).click();
   });
+  await waitForLayoutSettle(page);
   const box = await getStageFrameBox(page);
   await dragWithinStage(page, { x: 420, y: 220 }, { x: box.width + 120, y: box.height + 120 });
   await expect(page.getByTestId('inkio-ie-util-panel-controls')).toHaveAttribute('data-panel', 'shape');
@@ -519,6 +524,7 @@ test('text controls use font family, size px, and the shared color picker', asyn
   await expect(page.getByTestId('inkio-ie-modal-content')).toHaveClass(/\bdark\b/);
 
   await triggerButton(page, 'inkio-ie-tool-text');
+  await waitForLayoutSettle(page);
   await dragWithinStage(page, { x: 110, y: 110 }, { x: 260, y: 172 });
 
   const textContentInput = page.getByTestId('inkio-ie-text-content-input');
