@@ -1,11 +1,12 @@
 
 import type { Annotation } from '../types';
-import { RectAnnotationShape } from './RectAnnotationShape';
-import { EllipseAnnotationShape } from './EllipseAnnotationShape';
-import { ArrowAnnotationShape } from './ArrowAnnotationShape';
-import { LineAnnotationShape } from './LineAnnotationShape';
+import { RectAnnotationShape, EllipseAnnotationShape } from './BoxAnnotationShapes';
+import {
+  ArrowAnnotationShape,
+  LineAnnotationShape,
+  FreeDrawAnnotationShape,
+} from './PointAnnotationShapes';
 import { TextAnnotationShape } from './TextAnnotationShape';
-import { FreeDrawAnnotationShape } from './FreeDrawAnnotationShape';
 import { RedactAnnotationShape } from './RedactAnnotationShape';
 import { StickerAnnotationShape } from './StickerAnnotationShape';
 

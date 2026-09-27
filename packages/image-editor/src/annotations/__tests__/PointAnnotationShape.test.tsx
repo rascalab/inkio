@@ -2,8 +2,7 @@
 
 import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ArrowAnnotationShape } from '../ArrowAnnotationShape';
-import { FreeDrawAnnotationShape } from '../FreeDrawAnnotationShape';
+import { ArrowAnnotationShape, FreeDrawAnnotationShape } from '../PointAnnotationShapes';
 
 interface MutableNodeState {
   x: number;

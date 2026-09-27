@@ -1,29 +1,33 @@
 import { useEffect, useRef } from 'react';
 import { Image as KonvaImage } from 'react-konva';
 import Konva from 'konva';
-import type { Annotation, RedactAnnotation } from '../types';
-import { handleCursorPointer, handleCursorDefault } from '../theme';
+import type { RedactAnnotation } from '../types';
+import { useAnnotationShapeHandlers, type AnnotationShapeProps } from './use-annotation-shape-handlers';
 
-interface Props {
-  annotation: RedactAnnotation;
+interface Props extends AnnotationShapeProps<RedactAnnotation> {
   image: HTMLImageElement | null;
-  onSelect: (id: string) => void;
-  onChange: (id: string, updates: Partial<Annotation>) => void;
-  scale: number;
 }
 
 function redactFilters(mode: RedactAnnotation['mode']) {
   return mode === 'blur' ? [Konva.Filters.Blur] : [Konva.Filters.Pixelate];
 }
 
-export function RedactAnnotationShape({
-  annotation,
-  image,
-  onSelect,
-  onChange,
-  scale,
-}: Props) {
-  const shapeRef = useRef<Konva.Image>(null);
+export function RedactAnnotationShape({ image, ...props }: Props) {
+  const { annotation, scale } = props;
+  const handlers = useAnnotationShapeHandlers<Konva.Image>(props, (node) => {
+    const scaleXNode = node.scaleX();
+    const scaleYNode = node.scaleY();
+    node.scaleX(1);
+    node.scaleY(1);
+    return {
+      x: node.x() / scale,
+      y: node.y() / scale,
+      width: Math.max(1, (node.width() * scaleXNode) / scale),
+      height: Math.max(1, (node.height() * scaleYNode) / scale),
+      rotation: node.rotation(),
+    };
+  });
+  const shapeRef = handlers.ref;
   const recacheFrame = useRef(0);
 
   // The cropped source region is re-cached whenever geometry or mode changes.
@@ -62,8 +66,7 @@ export function RedactAnnotationShape({
 
   return (
     <KonvaImage
-      ref={shapeRef}
-      id={annotation.id}
+      {...handlers}
       image={image}
       x={annotation.x * scale}
       y={annotation.y * scale}
@@ -75,32 +78,6 @@ export function RedactAnnotationShape({
         y: annotation.y,
         width: Math.max(1, annotation.width),
         height: Math.max(1, annotation.height),
-      }}
-      draggable
-      onClick={() => onSelect(annotation.id)}
-      onTap={() => onSelect(annotation.id)}
-      onMouseEnter={handleCursorPointer}
-      onMouseLeave={handleCursorDefault}
-      onDragEnd={(e) => {
-        onChange(annotation.id, {
-          x: e.target.x() / scale,
-          y: e.target.y() / scale,
-        });
-      }}
-      onTransformEnd={() => {
-        const node = shapeRef.current;
-        if (!node) return;
-        const scaleXNode = node.scaleX();
-        const scaleYNode = node.scaleY();
-        node.scaleX(1);
-        node.scaleY(1);
-        onChange(annotation.id, {
-          x: node.x() / scale,
-          y: node.y() / scale,
-          width: Math.max(1, (node.width() * scaleXNode) / scale),
-          height: Math.max(1, (node.height() * scaleYNode) / scale),
-          rotation: node.rotation(),
-        });
       }}
     />
   );
