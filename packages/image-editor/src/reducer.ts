@@ -263,9 +263,9 @@ export function imageEditorReducer(
       };
     }
 
-    // Batched freedraw path: appends point deltas without the caller
-    // copying the full point array (the single spread below is the only
-    // copy per commit instead of one per mousemove event).
+    // Freedraw commit path: EditorCanvas previews a stroke imperatively and
+    // appends all of its points here once on stroke end, so the spread below
+    // runs once per stroke rather than once per frame.
     case 'APPEND_ANNOTATION_POINTS': {
       if (action.points.length === 0) return state;
       let changed = false;

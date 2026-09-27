@@ -54,6 +54,30 @@ export function getBaseDisplayDimensions(
     : { width: displayWidth, height: displayHeight };
 }
 
+/**
+ * Display pixels per image-space unit used to render annotations. Shared by
+ * DesignLayer and the imperative live-stroke preview in EditorCanvas so both
+ * draw at exactly the same scale.
+ */
+export function getAnnotationScale(
+  transform: Transform,
+  originalWidth: number,
+  originalHeight: number,
+  displayWidth: number,
+  displayHeight: number,
+): number {
+  const srcW = transform.crop?.width ?? originalWidth;
+  const srcH = transform.crop?.height ?? originalHeight;
+  const { width: baseDisplayWidth, height: baseDisplayHeight } = getBaseDisplayDimensions(
+    displayWidth, displayHeight, transform.rotation ?? 0,
+  );
+  const raw = Math.min(
+    srcW > 0 ? baseDisplayWidth / srcW : Number.POSITIVE_INFINITY,
+    srcH > 0 ? baseDisplayHeight / srcH : Number.POSITIVE_INFINITY,
+  );
+  return Number.isFinite(raw) && raw > 0 ? raw : 1;
+}
+
 /** Map a point from canvas display space to original image space */
 export function canvasSpaceToImageSpace(
   cx: number,

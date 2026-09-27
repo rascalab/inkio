@@ -28,6 +28,7 @@ import type {
 import { DEFAULT_STICKER_SIZE } from '../constants';
 import {
   normalizeRect,
+  getAnnotationScale,
   getTransformedDimensions,
   canvasSpaceToImageSpace,
   clampToRect,
@@ -82,7 +83,16 @@ export function EditorCanvas({
   const isDrawing = useRef(false);
   const currentAnnotationId = useRef<string | null>(null);
   const drawStartPos = useRef<{ x: number; y: number } | null>(null);
+  // Freedraw: points (image space) captured since the stroke started. They
+  // are drawn imperatively on the live Konva Line and committed to the
+  // reducer once on stroke end, so a stroke costs one annotation update
+  // instead of an O(n) array copy + full canvas re-render per frame.
   const freedrawPoints = useRef<number[]>([]);
+  const liveStrokeDisplayPoints = useRef<number[]>([]);
+  const liveStrokeScale = useRef(1);
+  const liveStrokeNode = useRef<Konva.Line | null>(null);
+  // Shape/redact drags: latest geometry wins, flushed at most once per frame.
+  const pendingShapeUpdate = useRef<{ id: string; updates: Partial<Annotation> } | null>(null);
   const rafId = useRef<number>(0);
   const cropPanStartRef = useRef<{
     clientX: number;
@@ -97,7 +107,7 @@ export function EditorCanvas({
   const [stageSize, setStageSize] = useState({ width: containerWidth, height: containerHeight });
   const [cropViewport, setCropViewport] = useState<CropViewportState>({ zoom: 1, panX: 0, panY: 0 });
 
-  // Drop a pending freedraw batch on unmount so the rAF callback never
+  // Drop pending drawing batches on unmount so the rAF callback never
   // dispatches into a torn-down editor session.
   useEffect(() => {
     return () => {
@@ -106,6 +116,9 @@ export function EditorCanvas({
         rafId.current = 0;
       }
       freedrawPoints.current = [];
+      liveStrokeDisplayPoints.current = [];
+      liveStrokeNode.current = null;
+      pendingShapeUpdate.current = null;
       isDrawing.current = false;
     };
   }, []);
@@ -213,6 +226,15 @@ export function EditorCanvas({
   const offsetX = centeredOffsetX + (isCropMode ? resolvedCropViewport.panX : 0);
   const offsetY = centeredOffsetY + (isCropMode ? resolvedCropViewport.panY : 0);
 
+  // Same scale DesignLayer renders annotations with (used by the live
+  // freedraw preview, which bypasses React while a stroke is in progress).
+  const liveAnnotationScale = getAnnotationScale(
+    renderedTransform,
+    state.originalWidth,
+    state.originalHeight,
+    displayWidth,
+    displayHeight,
+  );
   const cropX = isCropMode ? cropSessionBounds.x : (state.transform.crop?.x ?? 0);
   const cropY = isCropMode ? cropSessionBounds.y : (state.transform.crop?.y ?? 0);
   const visibleSelectedAnnotationId = isCropMode ? null : state.selectedAnnotationId;
@@ -428,6 +450,27 @@ export function EditorCanvas({
     drawStartPos.current = null;
   }, []);
 
+  const flushShapeUpdate = useCallback(() => {
+    const pending = pendingShapeUpdate.current;
+    if (!pending) return null;
+    pendingShapeUpdate.current = null;
+    dispatch({ type: 'UPDATE_ANNOTATION', id: pending.id, updates: pending.updates });
+    return pending;
+  }, [dispatch]);
+
+  // Latest-value batching: mousemove fires far more often than frames, and
+  // every geometry is absolute (derived from the drag start), so only the
+  // most recent one per frame needs to reach the reducer.
+  const scheduleShapeUpdate = useCallback((id: string, updates: Partial<Annotation>) => {
+    pendingShapeUpdate.current = { id, updates };
+    if (!rafId.current) {
+      rafId.current = requestAnimationFrame(() => {
+        rafId.current = 0;
+        flushShapeUpdate();
+      });
+    }
+  }, [flushShapeUpdate]);
+
   const updateDrawingPoint = useCallback((pos: { x: number; y: number }) => {
     if (!isDrawing.current || !currentAnnotationId.current || !drawStartPos.current) return;
     const id = currentAnnotationId.current;
@@ -435,27 +478,27 @@ export function EditorCanvas({
 
     if (activeTool === 'draw') {
       freedrawPoints.current.push(pos.x, pos.y);
-      if (!rafId.current) {
-        rafId.current = requestAnimationFrame(() => {
-          rafId.current = 0;
-          const currentId = currentAnnotationId.current;
-          // Swap the mutable buffer instead of copying: the chunk below is
-          // the only array handed to the reducer per frame, and points keep
-          // accumulating without a full copy per mousemove event.
-          const chunk = freedrawPoints.current;
-          if (currentId && chunk.length > 0) {
-            freedrawPoints.current = [];
-            dispatch({ type: 'APPEND_ANNOTATION_POINTS', id: currentId, points: chunk });
-          }
-        });
+      const scale = liveStrokeScale.current;
+      liveStrokeDisplayPoints.current.push(pos.x * scale, pos.y * scale);
+
+      // Draw the stroke imperatively on the mounted Konva Line (same array,
+      // mutated in place; Konva re-reads it on each batched draw). The
+      // reducer only sees the finished stroke (see finishDrawing).
+      let node = liveStrokeNode.current;
+      if (!node || node.id() !== id) {
+        node = stageRef.current?.findOne<Konva.Line>((candidate: Konva.Node) => candidate.id() === id) ?? null;
+        liveStrokeNode.current = node;
+      }
+      if (node) {
+        node.points(liveStrokeDisplayPoints.current);
+        node.getLayer()?.batchDraw();
       }
       return;
     }
 
     if (activeTool === 'redact') {
       const start = drawStartPos.current;
-      const normalized = normalizeRect(start.x, start.y, pos.x - start.x, pos.y - start.y);
-      dispatch({ type: 'UPDATE_ANNOTATION', id, updates: normalized });
+      scheduleShapeUpdate(id, normalizeRect(start.x, start.y, pos.x - start.x, pos.y - start.y));
       return;
     }
 
@@ -463,28 +506,19 @@ export function EditorCanvas({
       const start = drawStartPos.current;
       const { shapeType } = shapeOptions;
       if (shapeType === 'rect') {
-        const normalized = normalizeRect(start.x, start.y, pos.x - start.x, pos.y - start.y);
-        dispatch({ type: 'UPDATE_ANNOTATION', id, updates: normalized });
+        scheduleShapeUpdate(id, normalizeRect(start.x, start.y, pos.x - start.x, pos.y - start.y));
       } else if (shapeType === 'ellipse') {
-        dispatch({
-          type: 'UPDATE_ANNOTATION',
-          id,
-          updates: {
-            x: (start.x + pos.x) / 2,
-            y: (start.y + pos.y) / 2,
-            radiusX: Math.abs(pos.x - start.x) / 2,
-            radiusY: Math.abs(pos.y - start.y) / 2,
-          },
+        scheduleShapeUpdate(id, {
+          x: (start.x + pos.x) / 2,
+          y: (start.y + pos.y) / 2,
+          radiusX: Math.abs(pos.x - start.x) / 2,
+          radiusY: Math.abs(pos.y - start.y) / 2,
         });
       } else if (shapeType === 'arrow' || shapeType === 'line') {
-        dispatch({
-          type: 'UPDATE_ANNOTATION',
-          id,
-          updates: { points: [start.x, start.y, pos.x, pos.y] },
-        });
+        scheduleShapeUpdate(id, { points: [start.x, start.y, pos.x, pos.y] });
       }
     }
-  }, [dispatch, state.activeTool, state.shapeOptions]);
+  }, [scheduleShapeUpdate, state.activeTool, state.shapeOptions]);
 
   const finishDrawing = useCallback((pos: { x: number; y: number } | null) => {
     if (state.activeTool === 'text' && drawStartPos.current && pos) {
@@ -526,16 +560,27 @@ export function EditorCanvas({
       cancelAnimationFrame(rafId.current);
       rafId.current = 0;
     }
+    // Commit the whole freedraw stroke in one reducer update (a single
+    // array spread), leaving the ADD_ANNOTATION as the only undo step.
     if (freedrawPoints.current.length > 0 && currentAnnotationId.current) {
       const flushId = currentAnnotationId.current;
-      const chunk = freedrawPoints.current;
+      const stroke = freedrawPoints.current;
       freedrawPoints.current = [];
-      dispatch({ type: 'APPEND_ANNOTATION_POINTS', id: flushId, points: chunk });
+      dispatch({ type: 'APPEND_ANNOTATION_POINTS', id: flushId, points: stroke });
     }
+    liveStrokeDisplayPoints.current = [];
+    liveStrokeNode.current = null;
+    // Flush the last batched shape geometry so the final size is exact.
+    const flushedShape = flushShapeUpdate();
 
     const id = currentAnnotationId.current;
     if (id) {
-      const annotation = annotationsRef.current.find((item) => item.id === id);
+      const committed = annotationsRef.current.find((item) => item.id === id);
+      // annotationsRef lags the flush above by one render: merge the
+      // flushed geometry so the too-small check sees the final size.
+      const annotation = committed && flushedShape?.id === id
+        ? ({ ...committed, ...flushedShape.updates } as Annotation)
+        : committed;
       let tooSmall = false;
       if (annotation) {
         if (annotation.type === 'rect' && annotation.width < 3 && annotation.height < 3) tooSmall = true;
@@ -551,7 +596,7 @@ export function EditorCanvas({
     }
 
     resetDrawing();
-  }, [dispatch, resetDrawing, state.activeTool, state.textOptions]);
+  }, [dispatch, flushShapeUpdate, resetDrawing, state.activeTool, state.textOptions]);
 
   const handleMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     if (isCropMode) {
@@ -639,6 +684,10 @@ export function EditorCanvas({
         strokeWidth: drawOptions.strokeWidth,
         opacity: drawOptions.opacity,
       };
+      freedrawPoints.current = [];
+      liveStrokeScale.current = liveAnnotationScale;
+      liveStrokeDisplayPoints.current = [pos.x * liveAnnotationScale, pos.y * liveAnnotationScale];
+      liveStrokeNode.current = null;
       dispatch({ type: 'ADD_ANNOTATION', annotation });
     } else if (activeTool === 'shape') {
       const { shapeType } = shapeOptions;
@@ -694,6 +743,7 @@ export function EditorCanvas({
     dispatch,
     getRelativePos,
     isCropMode,
+    liveAnnotationScale,
     resetDrawing,
     resolvedCropViewport.panX,
     resolvedCropViewport.panY,

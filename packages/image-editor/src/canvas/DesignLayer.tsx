@@ -4,7 +4,7 @@ import { Layer, Group } from 'react-konva';
 import { ImageNode } from './ImageNode';
 import { AnnotationRenderer } from '../annotations/AnnotationRenderer';
 import type { ImageEditorState, Annotation, Transform } from '../types';
-import { getBaseDisplayDimensions } from '../utils/geometry';
+import { getAnnotationScale, getBaseDisplayDimensions } from '../utils/geometry';
 import { getAnnotationDisplayBounds, isDisplayBoundsOutsideViewport } from '../utils/annotation-bounds';
 
 interface DesignLayerProps {
@@ -33,18 +33,17 @@ function DesignLayerInner({
 }: DesignLayerProps) {
   const cropX = transform.crop?.x ?? 0;
   const cropY = transform.crop?.y ?? 0;
-  const srcW = transform.crop?.width ?? state.originalWidth;
-  const srcH = transform.crop?.height ?? state.originalHeight;
-
   const rotation = transform.rotation ?? 0;
   const { width: baseDisplayWidth, height: baseDisplayHeight } = getBaseDisplayDimensions(
     displayWidth, displayHeight, rotation,
   );
-  const rawAnnScale = Math.min(
-    srcW > 0 ? baseDisplayWidth / srcW : Number.POSITIVE_INFINITY,
-    srcH > 0 ? baseDisplayHeight / srcH : Number.POSITIVE_INFINITY,
+  const annScale = getAnnotationScale(
+    transform,
+    state.originalWidth,
+    state.originalHeight,
+    displayWidth,
+    displayHeight,
   );
-  const annScale = Number.isFinite(rawAnnScale) && rawAnnScale > 0 ? rawAnnScale : 1;
 
   const flipX = transform.flipX ? -1 : 1;
   const flipY = transform.flipY ? -1 : 1;
