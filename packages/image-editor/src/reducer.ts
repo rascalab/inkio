@@ -139,19 +139,8 @@ export function imageEditorReducer(
     case 'START_RESIZE_SESSION': {
       const appliedCrop = state.transform.crop;
       const appliedSize = getAppliedResizeSize(state);
-      const cropBounds = appliedCrop ?? {
-        x: 0,
-        y: 0,
-        width: appliedSize.width,
-        height: appliedSize.height,
-      };
       const seededCrop = appliedCrop
-        ? appliedCrop
-        : offsetCropRect(
-          cropBounds.x,
-          cropBounds.y,
-          getDefaultCropRect(cropBounds.width, cropBounds.height, state.cropOptions.aspectRatio),
-        );
+        ?? getDefaultCropRect(appliedSize.width, appliedSize.height, state.cropOptions.aspectRatio);
 
       return {
         ...state,
@@ -340,39 +329,27 @@ export function imageEditorReducer(
     case 'SET_ERROR':
       return { ...state, error: action.error };
 
-    case 'BRING_ANNOTATION_TO_FRONT': {
-      const annotations = moveAnnotation(state.annotations, action.id, state.annotations.length - 1);
+    case 'BRING_ANNOTATION_TO_FRONT':
+    case 'BRING_ANNOTATION_FORWARD':
+    case 'SEND_ANNOTATION_BACKWARD':
+    case 'SEND_ANNOTATION_TO_BACK': {
+      const lastIndex = state.annotations.length - 1;
+      let targetIndex: number;
+      if (action.type === 'BRING_ANNOTATION_TO_FRONT') {
+        targetIndex = lastIndex;
+      } else if (action.type === 'SEND_ANNOTATION_TO_BACK') {
+        targetIndex = 0;
+      } else {
+        const index = state.annotations.findIndex((annotation) => annotation.id === action.id);
+        // Clamp at the ends so a no-op move keeps the target equal to the
+        // current index (moveAnnotation then returns the identical array).
+        targetIndex = action.type === 'BRING_ANNOTATION_FORWARD'
+          ? Math.min(index + 1, lastIndex)
+          : Math.max(index - 1, 0);
+      }
+      const annotations = moveAnnotation(state.annotations, action.id, targetIndex);
       // moveAnnotation returns the identical array when nothing moves;
       // keep state referentially stable so history + memo layers skip it.
-      return annotations === state.annotations ? state : { ...state, annotations };
-    }
-
-    case 'BRING_ANNOTATION_FORWARD': {
-      const index = state.annotations.findIndex((annotation) => annotation.id === action.id);
-      if (index < 0 || index === state.annotations.length - 1) {
-        return state;
-      }
-
-      return {
-        ...state,
-        annotations: moveAnnotation(state.annotations, action.id, index + 1),
-      };
-    }
-
-    case 'SEND_ANNOTATION_BACKWARD': {
-      const index = state.annotations.findIndex((annotation) => annotation.id === action.id);
-      if (index <= 0) {
-        return state;
-      }
-
-      return {
-        ...state,
-        annotations: moveAnnotation(state.annotations, action.id, index - 1),
-      };
-    }
-
-    case 'SEND_ANNOTATION_TO_BACK': {
-      const annotations = moveAnnotation(state.annotations, action.id, 0);
       return annotations === state.annotations ? state : { ...state, annotations };
     }
 
@@ -420,8 +397,7 @@ export interface UndoableEditorState {
 }
 
 export type UndoableAction =
-  | ({ undoable: true } & ImageEditorAction)
-  | ({ undoable: false } & ImageEditorAction)
+  | ImageEditorAction
   | { type: 'UNDO' }
   | { type: 'REDO' };
 
@@ -461,10 +437,9 @@ export function undoableReducer(
     };
   }
 
-  const { undoable: _undoable, ...baseAction } = action as { undoable?: boolean } & ImageEditorAction;
-  const nextPresent = imageEditorReducer(state.present, baseAction as ImageEditorAction);
+  const nextPresent = imageEditorReducer(state.present, action);
 
-  if (_undoable) {
+  if (UNDOABLE_ACTIONS.has(action.type)) {
     // Skip no-op undoable actions (e.g. BRING_FORWARD on the top item
     // returns the identical state): pushing them wastes a history slot
     // and breaks redo expectations.
@@ -502,13 +477,4 @@ function getAppliedResizeSize(state: ImageEditorState): OutputSize {
     state.transform,
     state.outputSize,
   );
-}
-
-function offsetCropRect(x: number, y: number, crop: CropRect): CropRect {
-  return {
-    x: x + crop.x,
-    y: y + crop.y,
-    width: crop.width,
-    height: crop.height,
-  };
 }

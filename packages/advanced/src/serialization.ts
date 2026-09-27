@@ -1,25 +1,10 @@
 import type { JSONContent } from '@tiptap/core';
+import { visitJSONNodes as visitNodes } from '@inkio/core';
 
 type MentionRef = { id: string; label: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object';
-}
-
-function visitNodes(node: JSONContent | undefined, visitor: (current: JSONContent) => void): void {
-  if (!node) {
-    return;
-  }
-
-  visitor(node);
-
-  if (!Array.isArray(node.content)) {
-    return;
-  }
-
-  for (const child of node.content) {
-    visitNodes(child, visitor);
-  }
 }
 
 function getStringAttr(node: JSONContent, key: string): string | undefined {

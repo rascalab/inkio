@@ -69,15 +69,17 @@ export { isEqualOptionsValue, useStableCallback, useStableOptions } from './util
 export { getCreateRoot } from './utils/create-root';
 export type { CreateRootFn } from './utils/create-root';
 export { resolveInkioExtensions } from './extensions/resolve-extensions';
+export { runOptionalChainCommand } from './extensions/optional-commands';
+export type { InkioOptionalChainCommand } from './extensions/optional-commands';
 export type { ExtensionsInput, CoreExtensions } from './utils/extensions-input';
 export type { JSONContent as InkioJSONContent } from '@tiptap/core';
 
 // Serialization
-export { toPlainText, toSummary, getContentStats } from './serialization';
+export { toPlainText, toSummary, getContentStats, visitNodes as visitJSONNodes } from './serialization';
 
 // i18n
 export { resolveLocaleInput, pickMessageLocale } from './i18n';
-export { enCoreMessages, koCoreMessages, mergeCoreMessages, toCoreMessageOverrides } from './i18n';
+export { deepMerge, enCoreMessages, koCoreMessages, mergeCoreMessages, toCoreMessageOverrides } from './i18n';
 export type {
   DeepPartial,
   InkioCoreLocaleId,

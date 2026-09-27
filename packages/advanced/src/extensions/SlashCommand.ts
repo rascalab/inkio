@@ -2,8 +2,7 @@ import { Extension, type Editor, type Range } from '@tiptap/core';
 import Suggestion from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
 import type { ReactNode } from 'react';
-import { createSuggestionRenderer, toError, type InkioErrorHandler } from '@inkio/core';
-import { runOptionalChainCommand } from './optional-commands';
+import { createSuggestionRenderer, runOptionalChainCommand, toError, type InkioErrorHandler } from '@inkio/core';
 
 export interface SlashCommandItem {
   id: string;

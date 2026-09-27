@@ -14,10 +14,9 @@ import {
 } from '@inkio/core/icons';
 import type { Root } from 'react-dom/client';
 import type { Editor } from '@tiptap/core';
-import { mergeCoreMessages, toCoreMessageOverrides } from '@inkio/core';
+import { getCreateRoot, mergeCoreMessages, toCoreMessageOverrides, toRectLike, type RectLike } from '@inkio/core';
 import { BlockHandleActionMenu, fingerprintBlockAt, type BlockFingerprint } from './BlockHandleView';
 import type { BlockMenuIcons } from './icons';
-import { getCreateRoot } from '@inkio/core';
 
 export interface BlockHandlePluginState {
   activeBlockPos: number | null;
@@ -36,15 +35,6 @@ interface BlockHandlePluginOptions {
 interface HoveredBlock {
   blockPos: number;
   blockElement: HTMLElement;
-}
-
-interface AnchorRect {
-  top: number;
-  right: number;
-  bottom: number;
-  left: number;
-  width: number;
-  height: number;
 }
 
 const HANDLE_CLASS_NAME = 'inkio-block-handle';
@@ -239,17 +229,6 @@ const positionHandle = (handle: HTMLElement, blockElement: HTMLElement, handleWi
   handle.style.height = `${HANDLE_SIZE}px`;
 };
 
-function toAnchorRect(rect: DOMRect): AnchorRect {
-  return {
-    top: rect.top,
-    left: rect.left,
-    right: rect.right,
-    bottom: rect.bottom,
-    width: rect.width,
-    height: rect.height,
-  };
-}
-
 export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
   let handleElement: HTMLDivElement | null = null;
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
@@ -277,12 +256,12 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
     }
   };
 
-  const getHandleAnchorRect = (): AnchorRect | null => {
+  const getHandleAnchorRect = (): RectLike | null => {
     if (!handleElement) {
       return null;
     }
 
-    return toAnchorRect(handleElement.getBoundingClientRect());
+    return toRectLike(handleElement.getBoundingClientRect());
   };
 
   const closeMenu = () => {

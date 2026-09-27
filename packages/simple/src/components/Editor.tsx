@@ -105,7 +105,7 @@ export function Editor({
     return resolveExtensionsInput(extensions, defaults);
   }, [coreExtensionOptions, extensions]);
 
-  const coreProps: CoreEditorProps = useMemo(() => ({
+  const coreProps: CoreEditorProps = {
     content,
     extensions: resolvedExtensions,
     editable,
@@ -129,31 +129,7 @@ export function Editor({
     bubbleMenu: stableBubbleMenu,
     floatingMenu: stableFloatingMenu,
     tableMenu: stableTableMenu,
-  }), [
-    content,
-    resolvedExtensions,
-    editable,
-    placeholder,
-    theme,
-    onUpdate,
-    onCreate,
-    locale,
-    stableMessages,
-    stableIcons,
-    ui?.className,
-    ui?.style,
-    ui?.fill,
-    ui?.autoresize,
-    ui?.bordered,
-    ui?.showToolbar,
-    ui?.showBubbleMenu,
-    ui?.showFloatingMenu,
-    ui?.showTableMenu,
-    stableToolbar,
-    stableBubbleMenu,
-    stableFloatingMenu,
-    stableTableMenu,
-  ]);
+  };
 
   return <CoreEditor {...coreProps} />;
 }

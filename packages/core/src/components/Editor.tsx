@@ -138,34 +138,38 @@ export const Editor = ({
       onCreate?.(instance);
     },
   });
-  const contentValue = content;
+  const showInteractiveRuntime = isHydrated && !!editor;
   // Static SSR shell: never recompute generateHTML + sanitize when content is
   // unchanged. useMemo alone keys on object identity, so an inline JSON
   // literal from a re-rendering parent would redo the expensive render every
-  // time — the ref cache below skips it on identity OR deep equality.
+  // time — the ref cache below skips it on identity OR deep equality. Once
+  // the live editor is mounted the shell is not rendered, so skip it
+  // entirely (controlled `content` would otherwise pay this per keystroke).
   const staticCacheRef = useRef<{
     content: string | JSONContent | undefined;
     extensions: Extensions;
     result: ReturnType<typeof renderInkioStaticContent>;
   } | null>(null);
-  const cached = staticCacheRef.current;
-  let staticRender: ReturnType<typeof renderInkioStaticContent>;
-  if (
-    cached
-    && cached.extensions === resolvedExtensions
-    && isEqualStaticContent(cached.content, contentValue)
-  ) {
-    staticRender = cached.result;
-  } else {
-    staticRender = renderInkioStaticContent(contentValue, resolvedExtensions);
-    staticCacheRef.current = {
-      content: contentValue,
-      extensions: resolvedExtensions,
-      result: staticRender,
-    };
+  let staticHtml = '';
+  if (!showInteractiveRuntime) {
+    const cached = staticCacheRef.current;
+    let staticRender: ReturnType<typeof renderInkioStaticContent>;
+    if (
+      cached
+      && cached.extensions === resolvedExtensions
+      && isEqualStaticContent(cached.content, content)
+    ) {
+      staticRender = cached.result;
+    } else {
+      staticRender = renderInkioStaticContent(content, resolvedExtensions);
+      staticCacheRef.current = {
+        content,
+        extensions: resolvedExtensions,
+        result: staticRender,
+      };
+    }
+    staticHtml = staticRender.html || (editable ? createEditorPlaceholderHtml(placeholder) : '<p></p>');
   }
-  const staticHtml = staticRender.html || (editable ? createEditorPlaceholderHtml(placeholder) : '<p></p>');
-  const showInteractiveRuntime = isHydrated && !!editor;
 
   return (
     <div

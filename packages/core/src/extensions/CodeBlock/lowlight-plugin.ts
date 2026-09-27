@@ -59,10 +59,10 @@ function getDecorations({
   defaultLanguage: string | null | undefined;
 }): DecorationSet {
   const decorations: Decoration[] = [];
+  const languages = lowlight.listLanguages();
   findChildren(doc, (node) => node.type.name === name).forEach((block) => {
     let from = block.pos + 1;
     const language = block.node.attrs.language || defaultLanguage;
-    const languages = lowlight.listLanguages();
     const nodes =
       language &&
       (languages.includes(language) ||
@@ -82,6 +82,39 @@ function getDecorations({
     });
   });
   return DecorationSet.create(doc, decorations);
+}
+
+/**
+ * Rehighlight when the selection is in a code block, a code block was added
+ * or removed, or a step fully covers one (e.g. whole-doc replaces during
+ * collab sync).
+ */
+function needsRehighlight(
+  transaction: Transaction,
+  oldState: EditorState,
+  newState: EditorState,
+  name: string,
+): boolean {
+  if (
+    oldState.selection.$head.parent.type.name === name ||
+    newState.selection.$head.parent.type.name === name
+  ) {
+    return true;
+  }
+  const isBlock = (node: ProseMirrorNode) => node.type.name === name;
+  const oldNodes = findChildren(oldState.doc, isBlock);
+  if (findChildren(newState.doc, isBlock).length !== oldNodes.length) {
+    return true;
+  }
+  return transaction.steps.some((step: Step) => {
+    const from = (step as unknown as { from?: number }).from;
+    const to = (step as unknown as { to?: number }).to;
+    return (
+      from !== undefined &&
+      to !== undefined &&
+      oldNodes.some((node) => node.pos >= from && node.pos + node.node.nodeSize <= to)
+    );
+  });
 }
 
 function isFunction(param: unknown): param is (...args: never[]) => unknown {
@@ -125,27 +158,9 @@ export function InkioLowlightPlugin({
         oldState: EditorState,
         newState: EditorState,
       ) => {
-        const oldNodeName = oldState.selection.$head.parent.type.name;
-        const newNodeName = newState.selection.$head.parent.type.name;
-        const oldNodes = findChildren(oldState.doc, (node) => node.type.name === name);
-        const newNodes = findChildren(newState.doc, (node) => node.type.name === name);
-        if (
-          transaction.docChanged && // Apply decorations if:
-          // selection includes named node,
-          ([oldNodeName, newNodeName].includes(name) || // OR transaction adds/removes named node,
-            newNodes.length !== oldNodes.length || // OR transaction has changes that completely encapsulte a node
-            // (for example, a transaction that affects the entire document).
-            // Such transactions can happen during collab syncing via y-prosemirror, for example.
-            transaction.steps.some((step: Step) => {
-              const from = (step as unknown as { from?: number }).from;
-              const to = (step as unknown as { to?: number }).to;
-              return (
-                from !== undefined &&
-                to !== undefined &&
-                oldNodes.some((node) => node.pos >= from && node.pos + node.node.nodeSize <= to)
-              );
-            })))
-          {
+        // Walks below are O(doc): skip them entirely for selection-only
+        // transactions, which are the common case (cursor moves).
+        if (transaction.docChanged && needsRehighlight(transaction, oldState, newState, name)) {
           return getDecorations({
             doc: transaction.doc,
             name,

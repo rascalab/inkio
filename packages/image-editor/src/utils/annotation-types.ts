@@ -8,7 +8,6 @@ import type {
   RedactAnnotation,
   StickerAnnotation,
   TextAnnotationData,
-  ToolType,
 } from '../types';
 
 export type ShapeAnnotation =
@@ -51,32 +50,4 @@ export function isRedactAnnotation(annotation: Annotation | null): annotation is
 
 export function isStickerAnnotation(annotation: Annotation | null): annotation is StickerAnnotation {
   return annotation?.type === 'sticker';
-}
-
-export function getToolForAnnotation(annotation: Annotation | null): ToolType | null {
-  if (!annotation) {
-    return null;
-  }
-
-  if (isDrawAnnotation(annotation)) {
-    return 'draw';
-  }
-
-  if (isShapeAnnotation(annotation)) {
-    return 'shape';
-  }
-
-  if (isTextAnnotation(annotation)) {
-    return 'text';
-  }
-
-  if (isRedactAnnotation(annotation)) {
-    return 'redact';
-  }
-
-  if (isStickerAnnotation(annotation)) {
-    return 'sticker';
-  }
-
-  return null;
 }

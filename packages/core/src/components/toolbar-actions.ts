@@ -1,6 +1,12 @@
 import type { Editor } from '@tiptap/react';
 import type { InkioIconId } from '../icons/registry';
 import { canInsertTable, insertDefaultTable } from '../table/actions';
+import {
+  canRunOptionalCommand,
+  hasEditorExtension,
+  runOptionalChainCommand,
+  runOptionalCommand,
+} from '../extensions/optional-commands';
 
 export type InkioMenuSurface = 'bubble' | 'floating' | 'toolbar';
 
@@ -58,55 +64,6 @@ export type InkioToolbarActionTransform = (
   defaults: InkioToolbarAction[],
   context: InkioToolbarActionContext,
 ) => InkioToolbarAction[];
-
-function canRunOptionalCommand(
-  editor: Editor,
-  command: string,
-  ...args: unknown[]
-): boolean {
-  const canCommands = editor.can() as Record<string, unknown>;
-  const fn = canCommands[command];
-
-  if (typeof fn !== 'function') {
-    return false;
-  }
-
-  return Boolean((fn as (...innerArgs: unknown[]) => unknown)(...args));
-}
-
-function runOptionalCommand(
-  editor: Editor,
-  command: string,
-  ...args: unknown[]
-): void {
-  const commands = editor.commands as Record<string, unknown>;
-  const fn = commands[command];
-
-  if (typeof fn === 'function') {
-    (fn as (...innerArgs: unknown[]) => unknown)(...args);
-  }
-}
-
-function runOptionalDetailsCommand(editor: Editor, command: 'setDetails' | 'unsetDetails'): void {
-  const chain = editor.chain().focus();
-  const chainRecord = chain as Record<string, unknown>;
-  const fn = chainRecord[command];
-
-  if (typeof fn !== 'function') {
-    return;
-  }
-
-  const result = (fn as () => unknown).call(chainRecord);
-
-  if (result && typeof (result as { run?: unknown }).run === 'function') {
-    (result as { run: () => boolean }).run();
-    return;
-  }
-
-  if (typeof (chain as { run?: unknown }).run === 'function') {
-    (chain as { run: () => boolean }).run();
-  }
-}
 
 const inkioToolbarSchema: InkioToolbarAction[] = [
   {
@@ -343,7 +300,7 @@ const inkioToolbarSchema: InkioToolbarAction[] = [
     surfaces: ['floating', 'toolbar'],
     group: 'blocks',
     extensionNames: ['details'],
-    run: (editor) => runOptionalDetailsCommand(editor, editor.isActive('details') ? 'unsetDetails' : 'setDetails'),
+    run: (editor) => runOptionalChainCommand(editor, editor.isActive('details') ? 'unsetDetails' : 'setDetails'),
     isActive: (editor) => editor.isActive('details'),
   },
   {
@@ -413,11 +370,6 @@ const defaultActionsFor = (surface: InkioMenuSurface) => {
 export const defaultBubbleMenuActions = defaultActionsFor('bubble');
 export const defaultFloatingMenuActions = defaultActionsFor('floating');
 export const defaultToolbarActions = defaultActionsFor('toolbar');
-
-function hasEditorExtension(editor: Editor, name: string): boolean {
-  const extensions = editor.extensionManager?.extensions ?? [];
-  return extensions.some((extension) => extension.name === name);
-}
 
 function isToolbarActionAvailable(editor: Editor, action: InkioToolbarAction): boolean {
   if (!action.extensionNames || action.extensionNames.length === 0) {

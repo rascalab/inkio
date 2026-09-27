@@ -1,5 +1,3 @@
-import { MinusIcon as CoreMinusIcon } from '@inkio/core/icons';
-
 export {
   ArrowIcon,
   BoldIcon,
@@ -28,10 +26,6 @@ interface IconProps {
   size?: number;
   className?: string;
   strokeWidth?: number;
-}
-
-export function LineIcon(props: IconProps) {
-  return <CoreMinusIcon {...props} />;
 }
 
 export function PlusIcon({ size = 18, className, strokeWidth = 2 }: IconProps) {

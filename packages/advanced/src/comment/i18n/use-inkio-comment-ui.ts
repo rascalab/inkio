@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import {
   useInkioContext,
+  useStableOptions,
   type InkioLocaleInput,
   type InkioMessageOverrides,
 } from '@inkio/core';
@@ -33,19 +34,23 @@ export function useInkioCommentUi(
   overrides: InkioCommentUiOverrides = {},
 ): ResolvedInkioCommentUi {
   const context = useInkioContext();
+  // Inline `messages`/`icons` literals are new objects every render; compare
+  // structurally so the merge below only reruns on real changes.
+  const stableMessages = useStableOptions(overrides.messages);
+  const stableIcons = useStableOptions(overrides.icons);
 
   return useMemo(() => {
     const locale = overrides.locale ?? context.locale;
     const providerMessages = toCommentMessageOverrides(context.messages);
-    const localMessages = toCommentMessageOverrides(overrides.messages);
+    const localMessages = toCommentMessageOverrides(stableMessages);
 
     return {
       locale,
       messages: mergeCommentMessages(locale, providerMessages, localMessages),
       icons: {
         ...(context.icons ?? {}),
-        ...(overrides.icons ?? {}),
+        ...(stableIcons ?? {}),
       },
     };
-  }, [context.icons, context.locale, context.messages, overrides.icons, overrides.locale, overrides.messages]);
+  }, [context.icons, context.locale, context.messages, stableIcons, overrides.locale, stableMessages]);
 }

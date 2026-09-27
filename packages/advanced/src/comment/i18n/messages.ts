@@ -1,4 +1,5 @@
 import {
+  deepMerge,
   pickMessageLocale,
   type DeepPartial,
   type InkioCoreMessageOverrides,
@@ -90,41 +91,6 @@ export const enCommentMessages: InkioCommentMessages = {
     submit: 'Comment',
   },
 };
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function deepMerge<T>(base: T, override?: DeepPartial<T>): T {
-  if (!override) {
-    return base;
-  }
-
-  const result: Record<string, unknown> = { ...(base as Record<string, unknown>) };
-
-  for (const [key, value] of Object.entries(override as Record<string, unknown>)) {
-    if (value === undefined) {
-      continue;
-    }
-
-    // Prototype-pollution guard: never merge magic keys, even from
-    // consumer-supplied message overrides (e.g. JSON parsed payloads).
-    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
-      continue;
-    }
-
-    const existing = result[key];
-
-    if (isPlainObject(existing) && isPlainObject(value)) {
-      result[key] = deepMerge(existing, value as DeepPartial<typeof existing>);
-      continue;
-    }
-
-    result[key] = value;
-  }
-
-  return result as T;
-}
 
 function fromRootMessageOverrides(input?: InkioMessageOverrides): InkioCommentMessageOverrides | undefined {
   if (!input?.extensions || typeof input.extensions !== 'object') {

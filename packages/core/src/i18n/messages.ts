@@ -163,7 +163,8 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 // adversarial or cyclic, and recursing would overflow the stack.
 const MAX_MERGE_DEPTH = 8;
 
-function deepMerge<T>(base: T, override?: DeepPartial<T>, depth = 0): T {
+/** Depth-capped, prototype-safe merge of message override trees. */
+export function deepMerge<T>(base: T, override?: DeepPartial<T>, depth = 0): T {
   if (!override) {
     return base;
   }

@@ -147,11 +147,9 @@ export function Editor({
 
     // imageBlock: merge onImageUpload into imageBlock options
     if (stableImageBlock !== undefined || stableOnImageUpload !== undefined) {
-      opts.imageBlock = stableImageBlock
-        ? { ...stableImageBlock, ...(stableOnImageUpload ? { onUpload: stableOnImageUpload } : {}) }
-        : stableOnImageUpload
-          ? { onUpload: stableOnImageUpload }
-          : undefined;
+      opts.imageBlock = stableOnImageUpload
+        ? { ...stableImageBlock, onUpload: stableOnImageUpload }
+        : stableImageBlock;
     }
 
     // bookmark
@@ -193,7 +191,7 @@ export function Editor({
     return resolveExtensionsInput(extensions, defaults);
   }, [defaultExtensionsOptions, extensions]);
 
-  const coreProps: CoreEditorProps = useMemo(() => ({
+  const coreProps: CoreEditorProps = {
     content,
     extensions: resolvedExtensions,
     editable,
@@ -216,29 +214,7 @@ export function Editor({
     bubbleMenu: stableBubbleMenu,
     floatingMenu: stableFloatingMenu,
     tableMenu: stableTableMenu,
-  }), [
-    content,
-    resolvedExtensions,
-    editable,
-    placeholder,
-    theme,
-    onUpdate,
-    onCreate,
-    locale,
-    stableMessages,
-    stableIcons,
-    ui?.className,
-    ui?.style,
-    ui?.fill,
-    ui?.autoresize,
-    ui?.bordered,
-    ui?.showBubbleMenu,
-    ui?.showFloatingMenu,
-    ui?.showTableMenu,
-    stableBubbleMenu,
-    stableFloatingMenu,
-    stableTableMenu,
-  ]);
+  };
 
   return <CoreEditor {...coreProps} />;
 }

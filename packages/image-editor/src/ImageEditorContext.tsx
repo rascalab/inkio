@@ -2,7 +2,6 @@ import React, { createContext, useReducer, useCallback, useMemo } from 'react';
 import {
   undoableReducer,
   makeInitialUndoableState,
-  UNDOABLE_ACTIONS,
   type ImageEditorAction,
   type UndoableAction,
 } from './reducer';
@@ -33,28 +32,15 @@ export function ImageEditorProvider({
   maxUndoSteps = MAX_UNDO_STEPS,
   locale,
 }: ImageEditorProviderProps) {
-  // Mirror into a ref: the inline reducer closure below captures the first
-  // value, so without this later prop changes would never affect history
-  // capping.
-  const maxUndoStepsRef = React.useRef(maxUndoSteps);
-  React.useEffect(() => {
-    maxUndoStepsRef.current = maxUndoSteps;
-  }, [maxUndoSteps]);
-
   const [undoableState, rawDispatch] = useReducer(
     (s: ReturnType<typeof makeInitialUndoableState>, a: UndoableAction) =>
-      undoableReducer(s, a, maxUndoStepsRef.current),
+      undoableReducer(s, a, maxUndoSteps),
     undefined,
     makeInitialUndoableState,
   );
 
-  const dispatch = useCallback(
-    (action: ImageEditorAction) => {
-      const isUndoable = UNDOABLE_ACTIONS.has(action.type);
-      rawDispatch({ ...action, undoable: isUndoable } as UndoableAction);
-    },
-    [],
-  );
+  // rawDispatch is stable; narrowing its type keeps UNDO/REDO off the public dispatch.
+  const dispatch: (action: ImageEditorAction) => void = rawDispatch;
 
   const undo = useCallback(() => {
     rawDispatch({ type: 'UNDO' });

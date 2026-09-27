@@ -2,7 +2,8 @@ import Konva from 'konva';
 import type { ImageEditorState, Annotation } from '../types';
 import { getTransformedDimensions, getBaseDisplayDimensions } from './geometry';
 import { getTextAnnotationHeight, resolveTextFontSizePx, TEXT_DEFAULT_FONT_FAMILY } from './text-metrics';
-import { applyImageFilter } from './filters';
+import { applyImageFilter, resolveEffectiveFilter } from './filters';
+import { clampNumber } from './math';
 import { isImageTainted } from './image-loader';
 import type { CropRect } from '../types';
 import { STICKER_FONT_FAMILY } from '../annotations/StickerAnnotationShape';
@@ -58,10 +59,10 @@ export function normalizeExportCrop(
   if (!coords.every(Number.isFinite)) {
     throw new Error(`Invalid crop rect ${JSON.stringify(crop)}`);
   }
-  const x = Math.min(Math.max(0, crop.x), imageWidth);
-  const y = Math.min(Math.max(0, crop.y), imageHeight);
-  const width = Math.min(Math.max(0, crop.width), imageWidth - x);
-  const height = Math.min(Math.max(0, crop.height), imageHeight - y);
+  const x = clampNumber(crop.x, 0, imageWidth);
+  const y = clampNumber(crop.y, 0, imageHeight);
+  const width = clampNumber(crop.width, 0, imageWidth - x);
+  const height = clampNumber(crop.height, 0, imageHeight - y);
   if (width <= 0 || height <= 0) {
     throw new Error(`Invalid crop rect ${JSON.stringify(crop)}`);
   }
@@ -297,8 +298,11 @@ export async function exportCanvas(
     }
 
     // Same filter pipeline as the live preview (ImageNode) so the saved
-    // image matches what the user sees.
-    applyImageFilter(imageNode, state.filter, state.finetune);
+    // image matches what the user sees. Like ImageNode's neutral branch,
+    // skip it when nothing would filter: cache() allocates a full-res canvas.
+    if (resolveEffectiveFilter(state.filter, state.finetune).filters.length > 0) {
+      applyImageFilter(imageNode, state.filter, state.finetune);
+    }
 
     layer.add(imageNode);
 
@@ -342,8 +346,7 @@ export async function exportCanvas(
       applyAnnotationToGroup(annotationGroup, ann, annScale, state.originalImage);
     }
 
-    layer.batchDraw();
-
+    // No layer.batchDraw() needed: stage.toDataURL re-renders every layer.
     const mimeType =
       safeFormat === 'jpeg' ? 'image/jpeg' : safeFormat === 'webp' ? 'image/webp' : 'image/png';
 

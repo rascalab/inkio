@@ -24,7 +24,8 @@ const BLOCK_NODE_TYPES = new Set([
   'details',
 ]);
 
-function visitNodes(
+/** Depth-capped pre-order walk over a JSON document. */
+export function visitNodes(
   node: JSONContent | undefined,
   visitor: (current: JSONContent) => void,
   depth = 0,

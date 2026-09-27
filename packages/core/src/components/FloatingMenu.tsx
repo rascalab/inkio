@@ -103,15 +103,7 @@ export const FloatingMenu = ({
     };
 
     // Use the editor DOM rect as boundary so the menu stays within the editor area
-    const editorDomRect = editor.view.dom.getBoundingClientRect();
-    const boundaryRect = {
-      top: editorDomRect.top,
-      left: editorDomRect.left,
-      right: editorDomRect.right,
-      bottom: editorDomRect.bottom,
-      width: editorDomRect.width,
-      height: editorDomRect.height,
-    };
+    const boundaryRect = editor.view.dom.getBoundingClientRect();
 
     const nextPosition = computeOverlayPosition({
       anchorRect: {

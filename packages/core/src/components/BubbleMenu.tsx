@@ -123,15 +123,7 @@ export const BubbleMenu = ({
       height: menuRef.current?.offsetHeight ?? 40,
     };
 
-    const editorDomRect = editor.view.dom.getBoundingClientRect();
-    const boundaryRect = {
-      top: editorDomRect.top,
-      left: editorDomRect.left,
-      right: editorDomRect.right,
-      bottom: editorDomRect.bottom,
-      width: editorDomRect.width,
-      height: editorDomRect.height,
-    };
+    const boundaryRect = editor.view.dom.getBoundingClientRect();
 
     const nextPosition = computeOverlayPosition({
       anchorRect: {
@@ -267,12 +259,7 @@ export const BubbleMenu = ({
   const allActions = useMemo(() => actionGroups.flat(), [actionGroups]);
 
   const [focusedIndex, setFocusedIndex] = useState(-1);
-  const focusedIndexRef = useRef(-1);
   const buttonRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
-
-  useEffect(() => {
-    focusedIndexRef.current = focusedIndex;
-  }, [focusedIndex]);
 
   useEffect(() => {
     if (!isVisible) setFocusedIndex(-1);

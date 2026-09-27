@@ -26,7 +26,12 @@ import type {
   TextAnnotationData,
 } from '../types';
 import { DEFAULT_STICKER_SIZE } from '../constants';
-import { normalizeRect, getTransformedDimensions, canvasSpaceToImageSpace } from '../utils/geometry';
+import {
+  normalizeRect,
+  getTransformedDimensions,
+  canvasSpaceToImageSpace,
+  clampToRect,
+} from '../utils/geometry';
 import { getDefaultCropRect } from '../utils/crop';
 import { isTransformerInteraction } from '../utils/konva-targets';
 import { TEXT_MIN_WIDTH } from '../utils/text-metrics';
@@ -208,7 +213,6 @@ export function EditorCanvas({
   const offsetX = centeredOffsetX + (isCropMode ? resolvedCropViewport.panX : 0);
   const offsetY = centeredOffsetY + (isCropMode ? resolvedCropViewport.panY : 0);
 
-  const annotationScale = scaleToFit;
   const cropX = isCropMode ? cropSessionBounds.x : (state.transform.crop?.x ?? 0);
   const cropY = isCropMode ? cropSessionBounds.y : (state.transform.crop?.y ?? 0);
   const visibleSelectedAnnotationId = isCropMode ? null : state.selectedAnnotationId;
@@ -218,14 +222,6 @@ export function EditorCanvas({
       setStageSize({ width: containerWidth, height: containerHeight });
     }
   }, [containerHeight, containerWidth]);
-
-  useEffect(() => {
-    return () => {
-      if (rafId.current) {
-        cancelAnimationFrame(rafId.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (!isCropMode || !cropFrame || cropSessionBounds.width <= 0 || cropSessionBounds.height <= 0) {
@@ -387,10 +383,8 @@ export function EditorCanvas({
   ]);
 
   const clampStagePoint = useCallback(
-    (pos: { x: number; y: number }) => ({
-      x: Math.max(0, Math.min(pos.x, displayWidth)),
-      y: Math.max(0, Math.min(pos.y, displayHeight)),
-    }),
+    (pos: { x: number; y: number }) =>
+      clampToRect(pos.x, pos.y, { x: 0, y: 0, width: displayWidth, height: displayHeight }),
     [displayHeight, displayWidth],
   );
 
@@ -405,14 +399,12 @@ export function EditorCanvas({
     [displayWidth, displayHeight, state.originalWidth, state.originalHeight, state.transform],
   );
 
-  const getRelativePos = useCallback((_e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
-    const stage = stageRef.current;
-    if (!stage) return { x: 0, y: 0 };
-    const pos = stage.getPointerPosition();
+  // Konva-event path: reads the stage's tracked pointer (which also covers
+  // touchend via changedTouches), unlike the document-listener path below.
+  const getRelativePos = useCallback(() => {
+    const pos = stageRef.current?.getPointerPosition();
     if (!pos) return { x: 0, y: 0 };
-    return {
-      ...toAnnotationPoint(clampStagePoint(pos)),
-    };
+    return toAnnotationPoint(clampStagePoint(pos));
   }, [clampStagePoint, toAnnotationPoint]);
 
   const getRelativePosFromClient = useCallback((clientX: number, clientY: number) => {
@@ -429,6 +421,12 @@ export function EditorCanvas({
       }),
     );
   }, [clampStagePoint, toAnnotationPoint]);
+
+  const resetDrawing = useCallback(() => {
+    isDrawing.current = false;
+    currentAnnotationId.current = null;
+    drawStartPos.current = null;
+  }, []);
 
   const updateDrawingPoint = useCallback((pos: { x: number; y: number }) => {
     if (!isDrawing.current || !currentAnnotationId.current || !drawStartPos.current) return;
@@ -517,9 +515,7 @@ export function EditorCanvas({
       dispatch({ type: 'SELECT_ANNOTATION', id });
       dispatch({ type: 'SET_TOOL', tool: 'text', preserveSelection: true });
 
-      isDrawing.current = false;
-      currentAnnotationId.current = null;
-      drawStartPos.current = null;
+      resetDrawing();
       return;
     }
 
@@ -554,9 +550,8 @@ export function EditorCanvas({
       }
     }
 
-    currentAnnotationId.current = null;
-    drawStartPos.current = null;
-  }, [dispatch, state.activeTool, state.textOptions]);
+    resetDrawing();
+  }, [dispatch, resetDrawing, state.activeTool, state.textOptions]);
 
   const handleMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     if (isCropMode) {
@@ -596,7 +591,7 @@ export function EditorCanvas({
       return;
     }
 
-    const pos = getRelativePos(e);
+    const pos = getRelativePos();
     isDrawing.current = true;
     drawStartPos.current = pos;
     const id = generateId();
@@ -618,9 +613,7 @@ export function EditorCanvas({
       };
       dispatch({ type: 'ADD_ANNOTATION', annotation });
       dispatch({ type: 'SELECT_ANNOTATION', id });
-      isDrawing.current = false;
-      currentAnnotationId.current = null;
-      drawStartPos.current = null;
+      resetDrawing();
       return;
     }
 
@@ -701,26 +694,27 @@ export function EditorCanvas({
     dispatch,
     getRelativePos,
     isCropMode,
+    resetDrawing,
     resolvedCropViewport.panX,
     resolvedCropViewport.panY,
     state,
   ]);
 
-  const handleMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+  const handleMouseMove = useCallback(() => {
     if (isCropMode) {
       return;
     }
 
-    updateDrawingPoint(getRelativePos(e));
+    updateDrawingPoint(getRelativePos());
   }, [getRelativePos, isCropMode, updateDrawingPoint]);
 
-  const handleMouseUp = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+  const handleMouseUp = useCallback(() => {
     if (isCropMode) {
       cropPanStartRef.current = null;
       return;
     }
 
-    finishDrawing(getRelativePos(e));
+    finishDrawing(getRelativePos());
   }, [finishDrawing, getRelativePos, isCropMode]);
 
   useEffect(() => {
@@ -941,7 +935,7 @@ export function EditorCanvas({
           containerHeight={stageSize.height}
           displayWidth={displayWidth}
           displayHeight={displayHeight}
-          annotationScale={annotationScale}
+          annotationScale={scaleToFit}
           cropX={cropX}
           cropY={cropY}
           offsetX={offsetX}

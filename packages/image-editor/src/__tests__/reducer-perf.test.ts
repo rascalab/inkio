@@ -4,7 +4,6 @@ import {
   makeInitialUndoableState,
   undoableReducer,
   initialState,
-  type UndoableAction,
   type UndoableEditorState,
 } from '../reducer';
 import type { FreeDrawAnnotation, RectAnnotation } from '../types';
@@ -24,15 +23,11 @@ function makeRect(id: string): RectAnnotation {
   };
 }
 
-function undoable(type: Parameters<typeof imageEditorReducer>[1]): UndoableAction {
-  return { ...type, undoable: true } as UndoableAction;
-}
-
 describe('undoableReducer memory behavior', () => {
   it('keeps undo semantics: undo/redo round-trips visual state', () => {
     let state = makeInitialUndoableState();
-    state = undoableReducer(state, undoable({ type: 'ADD_ANNOTATION', annotation: makeRect('a') }), 30);
-    state = undoableReducer(state, undoable({ type: 'SET_FILTER', filter: 'grayscale' }), 30);
+    state = undoableReducer(state, { type: 'ADD_ANNOTATION', annotation: makeRect('a') }, 30);
+    state = undoableReducer(state, { type: 'SET_FILTER', filter: 'grayscale' }, 30);
     expect(state.present.annotations).toHaveLength(1);
     expect(state.present.filter).toBe('grayscale');
 
@@ -62,7 +57,7 @@ describe('undoableReducer memory behavior', () => {
     const withAnn = imageEditorReducer(withImage, { type: 'ADD_ANNOTATION', annotation: a });
 
     let state: UndoableEditorState = { present: withAnn, past: [], future: [] };
-    state = undoableReducer(state, undoable({ type: 'SET_FILTER', filter: 'sepia' }), 30);
+    state = undoableReducer(state, { type: 'SET_FILTER', filter: 'sepia' }, 30);
 
     expect(state.past).toHaveLength(1);
     expect(state.past[0].originalImage).toBe(img);
@@ -76,7 +71,7 @@ describe('undoableReducer memory behavior', () => {
     for (let i = 0; i < 40; i += 1) {
       state = undoableReducer(
         state,
-        undoable({ type: 'ADD_ANNOTATION', annotation: makeRect(`r${i}`) }),
+        { type: 'ADD_ANNOTATION', annotation: makeRect(`r${i}`) },
         10,
       );
     }
@@ -89,7 +84,7 @@ describe('undoableReducer memory behavior', () => {
     for (let i = 0; i < 5; i += 1) {
       state = undoableReducer(
         state,
-        undoable({ type: 'ADD_ANNOTATION', annotation: makeRect(`r${i}`) }),
+        { type: 'ADD_ANNOTATION', annotation: makeRect(`r${i}`) },
         Number.POSITIVE_INFINITY,
       );
     }
@@ -98,20 +93,20 @@ describe('undoableReducer memory behavior', () => {
 
   it('does not push history for no-op undoable actions', () => {
     let state = makeInitialUndoableState();
-    state = undoableReducer(state, undoable({ type: 'ADD_ANNOTATION', annotation: makeRect('a') }), 30);
+    state = undoableReducer(state, { type: 'ADD_ANNOTATION', annotation: makeRect('a') }, 30);
     const before = state;
     // Already at the back: reducer returns the identical state.
-    const after = undoableReducer(state, undoable({ type: 'SEND_ANNOTATION_TO_BACK', id: 'a' }), 30);
+    const after = undoableReducer(state, { type: 'SEND_ANNOTATION_TO_BACK', id: 'a' }, 30);
     expect(after).toBe(before);
     expect(after.past).toHaveLength(1);
   });
 
   it('clears redo stack on new undoable action', () => {
     let state = makeInitialUndoableState();
-    state = undoableReducer(state, undoable({ type: 'ADD_ANNOTATION', annotation: makeRect('a') }), 30);
+    state = undoableReducer(state, { type: 'ADD_ANNOTATION', annotation: makeRect('a') }, 30);
     state = undoableReducer(state, { type: 'UNDO' }, 30);
     expect(state.future).toHaveLength(1);
-    state = undoableReducer(state, undoable({ type: 'ADD_ANNOTATION', annotation: makeRect('b') }), 30);
+    state = undoableReducer(state, { type: 'ADD_ANNOTATION', annotation: makeRect('b') }, 30);
     expect(state.future).toHaveLength(0);
     expect(state.present.annotations.map((a) => a.id)).toEqual(['b']);
   });

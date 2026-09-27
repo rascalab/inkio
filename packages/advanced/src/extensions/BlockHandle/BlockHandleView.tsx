@@ -9,11 +9,12 @@ import type { InkioIconRegistry } from '@inkio/core/icons';
 import {
   autoUpdateOverlayPosition,
   computeOverlayPosition,
+  runOptionalChainCommand,
   useInkioCoreUi,
+  type InkioOptionalChainCommand,
 } from '@inkio/core';
 import { NodeSelection } from '@tiptap/pm/state';
 import { defaultBlockMenuIcons, type BlockMenuIcons, type BlockMenuIconId } from './icons';
-import { runOptionalChainCommand, type InkioOptionalChainCommand } from '../optional-commands';
 
 interface AnchorRect {
   top: number;

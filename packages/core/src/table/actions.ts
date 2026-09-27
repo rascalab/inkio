@@ -1,5 +1,11 @@
 import type { Editor } from '@tiptap/react';
 import type { InkioIconId } from '../icons/registry';
+import {
+  canRunOptionalCommand,
+  hasEditorExtension,
+  runOptionalChainCommand,
+  runOptionalPreparedChainCommand,
+} from '../extensions/optional-commands';
 
 const DEFAULT_TABLE_ARGS = {
   rows: 3,
@@ -40,53 +46,6 @@ export const defaultTableMenuActions: InkioTableAction[] = [
   { id: 'deleteTable', iconId: 'deleteTable', group: 'delete' },
 ];
 
-type ChainRecord = Record<string, unknown>;
-
-function invokeCommand(target: ChainRecord, command: string, args?: unknown): unknown {
-  const candidate = target[command];
-  if (typeof candidate !== 'function') {
-    return undefined;
-  }
-
-  return args === undefined
-    ? (candidate as () => unknown).call(target)
-    : (candidate as (value: unknown) => unknown).call(target, args);
-}
-
-function invokeChainCommand(editor: Editor, command: string, args?: unknown): boolean {
-  const chain = editor.chain().focus();
-  const result = invokeCommand(chain as ChainRecord, command, args);
-
-  if (result && typeof (result as { run?: unknown }).run === 'function') {
-    return Boolean((result as { run: () => boolean }).run());
-  }
-
-  if (typeof (chain as { run?: unknown }).run === 'function') {
-    return Boolean((chain as { run: () => boolean }).run());
-  }
-
-  return false;
-}
-
-function invokeCanCommand(editor: Editor, command: string, args?: unknown): boolean {
-  const can = editor.can?.();
-  if (!can) {
-    return false;
-  }
-
-  const result = invokeCommand(can as ChainRecord, command, args);
-  return typeof result === 'boolean' ? result : Boolean(result);
-}
-
-function hasEditorExtension(editor: Editor | null, name: string): boolean {
-  if (!editor) {
-    return false;
-  }
-
-  const extensions = editor.extensionManager?.extensions ?? [];
-  return extensions.some((extension) => extension.name === name);
-}
-
 function isTableExtensionAvailable(editor: Editor | null): boolean {
   return hasEditorExtension(editor, 'table');
 }
@@ -106,13 +65,13 @@ export function canInsertTable(editor: Editor | null): boolean {
   }
 
   return (
-    invokeCanCommand(editor, 'insertTable', DEFAULT_TABLE_ARGS)
-    || invokeCanCommand(editor, 'insertContent', { type: 'table' })
+    canRunOptionalCommand(editor, 'insertTable', DEFAULT_TABLE_ARGS)
+    || canRunOptionalCommand(editor, 'insertContent', { type: 'table' })
   );
 }
 
 export function insertDefaultTable(editor: Editor): boolean {
-  return invokeChainCommand(editor, 'insertTable', DEFAULT_TABLE_ARGS);
+  return runOptionalChainCommand(editor, 'insertTable', { args: DEFAULT_TABLE_ARGS });
 }
 
 export function canExecuteTableAction(editor: Editor | null, actionId: InkioTableActionId): boolean {
@@ -132,7 +91,7 @@ export function canExecuteTableAction(editor: Editor | null, actionId: InkioTabl
     case 'mergeCells':
     case 'splitCell':
     case 'deleteTable':
-      return invokeCanCommand(editor, actionId);
+      return canRunOptionalCommand(editor, actionId);
     default:
       return false;
   }
@@ -151,7 +110,7 @@ export function executeTableAction(editor: Editor, actionId: InkioTableActionId)
     case 'mergeCells':
     case 'splitCell':
     case 'deleteTable':
-      return invokeChainCommand(editor, actionId);
+      return runOptionalChainCommand(editor, actionId);
     default:
       return false;
   }
@@ -177,11 +136,5 @@ export function runTableCommandAt(editor: Editor, pos: number, command: TableIns
       ? Math.max(0, Math.min(Math.floor(pos), size))
       : pos;
   const chain = editor.chain().focus().setTextSelection(safePos);
-  const result = invokeCommand(chain as ChainRecord, command);
-
-  if (result && typeof (result as { run?: unknown }).run === 'function') {
-    return Boolean((result as { run: () => boolean }).run());
-  }
-
-  return false;
+  return runOptionalPreparedChainCommand(chain, command);
 }

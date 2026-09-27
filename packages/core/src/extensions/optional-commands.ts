@@ -1,22 +1,35 @@
 import type { Editor } from '@tiptap/core';
 
+/**
+ * Commands contributed by optional extensions. Callers may still pass any
+ * command name; the union documents the ones Inkio packages rely on.
+ */
 export type InkioOptionalChainCommand =
+  | 'insertTable'
   | 'setCallout'
   | 'setDetails'
   | 'setHeading'
+  | 'setHorizontalRule'
   | 'setParagraph'
+  | 'toggleBulletList'
   | 'toggleCode'
+  | 'toggleCodeBlock'
   | 'toggleHighlight'
-  | 'toggleStrike';
+  | 'toggleOrderedList'
+  | 'toggleStrike'
+  | 'toggleTaskList'
+  | 'unsetDetails';
 
 type EditorChain = ReturnType<Editor['chain']>;
+type CommandName = InkioOptionalChainCommand | (string & {});
 
-function callOptionalCommand(
-  target: Record<string, unknown>,
+/** Calls `target[command]` if registered; undefined when the extension is absent. */
+export function callOptionalCommand(
+  target: object,
   command: string,
   args?: unknown,
 ): unknown {
-  const fn = target[command];
+  const fn = (target as Record<string, unknown>)[command];
   if (typeof fn !== 'function') {
     return undefined;
   }
@@ -26,13 +39,13 @@ function callOptionalCommand(
     : (fn as (value: unknown) => unknown).call(target, args);
 }
 
-function hasOptionalCommand(target: Record<string, unknown>, command: string): boolean {
-  return typeof target[command] === 'function';
+export function hasOptionalCommand(target: object, command: string): boolean {
+  return typeof (target as Record<string, unknown>)[command] === 'function';
 }
 
 export function runOptionalChainCommand(
   editor: Editor,
-  command: InkioOptionalChainCommand,
+  command: CommandName,
   options: {
     args?: unknown;
     prepare?: (chain: EditorChain) => EditorChain;
@@ -45,16 +58,14 @@ export function runOptionalChainCommand(
 
 export function runOptionalPreparedChainCommand(
   preparedChain: EditorChain,
-  command: InkioOptionalChainCommand,
+  command: CommandName,
   args?: unknown,
 ): boolean {
-  const chainRecord = preparedChain as Record<string, unknown>;
-
-  if (!hasOptionalCommand(chainRecord, command)) {
+  if (!hasOptionalCommand(preparedChain, command)) {
     return false;
   }
 
-  const result = callOptionalCommand(chainRecord, command, args);
+  const result = callOptionalCommand(preparedChain, command, args);
 
   if (result && typeof (result as { run?: unknown }).run === 'function') {
     return Boolean((result as { run: () => boolean }).run());
@@ -65,4 +76,22 @@ export function runOptionalPreparedChainCommand(
   }
 
   return false;
+}
+
+/** Runs a single (non-chained) command if registered. */
+export function runOptionalCommand(editor: Editor, command: CommandName, args?: unknown): boolean {
+  return Boolean(callOptionalCommand(editor.commands, command, args));
+}
+
+export function canRunOptionalCommand(editor: Editor, command: CommandName, args?: unknown): boolean {
+  const can = editor.can?.();
+  return can ? Boolean(callOptionalCommand(can, command, args)) : false;
+}
+
+export function hasEditorExtension(editor: Editor | null, name: string): boolean {
+  if (!editor) {
+    return false;
+  }
+  const extensions = editor.extensionManager?.extensions ?? [];
+  return extensions.some((extension) => extension.name === name);
 }
