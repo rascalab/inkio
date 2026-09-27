@@ -14,6 +14,13 @@ export interface HsvaColor {
 
 import { clampNumber as clamp } from './math';
 
+const HEX_COLOR_PATTERN = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+const COLOR_NUMBER = String.raw`(\d+(?:\.\d+)?|\.\d+)`;
+const RGBA_COLOR_PATTERN = new RegExp(
+  String.raw`^rgba?\(\s*${COLOR_NUMBER}[,\s]+${COLOR_NUMBER}[,\s]+${COLOR_NUMBER}(?:\s*[,/]\s*${COLOR_NUMBER})?\s*\)$`,
+  'i',
+);
+
 function clampChannel(value: number): number {
   return Math.round(clamp(value, 0, 255));
 }
@@ -46,62 +53,30 @@ export function parseColor(value: string): RgbaColor | null {
     return { r: 255, g: 255, b: 255, a: 0 };
   }
 
-  if (normalized.startsWith('#')) {
-    const hex = normalized.slice(1);
-    if (hex.length === 3 || hex.length === 4) {
-      const alpha = hex.length === 4 ? parseInt(`${hex[3]}${hex[3]}`, 16) / 255 : 1;
-      const channels = {
-        r: parseInt(`${hex[0]}${hex[0]}`, 16),
-        g: parseInt(`${hex[1]}${hex[1]}`, 16),
-        b: parseInt(`${hex[2]}${hex[2]}`, 16),
-        a: alpha,
-      };
-      if (![channels.r, channels.g, channels.b, channels.a].every(Number.isFinite)) {
-        return null;
-      }
-      return channels;
-    }
-
-    if (hex.length === 6 || hex.length === 8) {
-      // parseInt stops at the first non-hex char ("fZ" → 15): validate the
-      // whole string so "#fZ0000" is rejected instead of normalizing.
-      if (!/^[0-9a-f]+$/.test(hex)) {
-        return null;
-      }
-      const channels = {
-        r: parseInt(hex.slice(0, 2), 16),
-        g: parseInt(hex.slice(2, 4), 16),
-        b: parseInt(hex.slice(4, 6), 16),
-        a: hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1,
-      };
-      // "#zzzzzz" parses to NaN channels: reject so callers fall back
-      // instead of emitting "#nan..." into canvas fills.
-      if (![channels.r, channels.g, channels.b, channels.a].every(Number.isFinite)) {
-        return null;
-      }
-      return channels;
-    }
+  // Strict validation up front: every accepted token parses to a finite
+  // number, so no NaN channel can reach canvas fills ("#nan...").
+  const hexMatch = HEX_COLOR_PATTERN.exec(normalized);
+  if (hexMatch) {
+    const hex = hexMatch[1];
+    const expanded = hex.length <= 4 ? hex.replace(/./g, '$&$&') : hex;
+    return {
+      r: parseInt(expanded.slice(0, 2), 16),
+      g: parseInt(expanded.slice(2, 4), 16),
+      b: parseInt(expanded.slice(4, 6), 16),
+      a: expanded.length === 8 ? parseInt(expanded.slice(6, 8), 16) / 255 : 1,
+    };
   }
 
-  const match = normalized.match(/^rgba?\(\s*([0-9.]+)[,\s]+([0-9.]+)[,\s]+([0-9.]+)(?:\s*[,/]\s*([0-9.]+))?\s*\)$/i);
+  const match = RGBA_COLOR_PATTERN.exec(normalized);
   if (!match) {
     return null;
   }
 
-  const r = Number(match[1]);
-  const g = Number(match[2]);
-  const b = Number(match[3]);
-  const a = match[4] ? Number(match[4]) : 1;
-  // "1..2" matches the numeric pattern but converts to NaN: reject like
-  // the hex branch instead of emitting NaN channels into canvas fills.
-  if (![r, g, b, a].every(Number.isFinite)) {
-    return null;
-  }
   return {
-    r: clampChannel(r),
-    g: clampChannel(g),
-    b: clampChannel(b),
-    a: clamp(a, 0, 1),
+    r: clampChannel(Number(match[1])),
+    g: clampChannel(Number(match[2])),
+    b: clampChannel(Number(match[3])),
+    a: clamp(match[4] ? Number(match[4]) : 1, 0, 1),
   };
 }
 
