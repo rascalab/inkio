@@ -57,8 +57,10 @@ export const CodeBlock = BaseCodeBlock.extend({
     this.storage.hljsObserver = observer;
   },
 
-  onUpdate() {
-    ensureHljsLanguages(lowlight, this.editor);
+  onUpdate({ transaction, appendedTransactions }) {
+    // Passing the update's transactions lets the scan inspect only the
+    // changed ranges instead of walking the whole doc on every keystroke.
+    ensureHljsLanguages(lowlight, this.editor, [transaction, ...(appendedTransactions ?? [])]);
   },
 
   onDestroy() {

@@ -1,4 +1,6 @@
 import type { Editor } from '@tiptap/core';
+import type { Node as PMNode } from '@tiptap/pm/model';
+import type { Transaction } from '@tiptap/pm/state';
 
 export type InkioLowlight = ReturnType<typeof import('lowlight').createLowlight>;
 
@@ -89,6 +91,11 @@ export function resolveHljsLanguageName(value: string | null | undefined): strin
 
 const loadedGrammars = new Set<string>();
 const pendingGrammars = new Map<string, Promise<unknown>>();
+
+/** Whether a grammar is loaded or its load is in flight (internal; tests). */
+export function isHljsGrammarRequested(name: string): boolean {
+  return loadedGrammars.has(name) || pendingGrammars.has(name);
+}
 
 /**
  * Bumped on every mutation of the grammar bookkeeping above so the
@@ -188,16 +195,84 @@ function collectMissingGrammars(editor: Editor): string[] {
   const needed: string[] = [];
   editor.state.doc.descendants((node) => {
     if (node.type.name === 'codeBlock') {
-      const resolved = resolveHljsLanguageName(node.attrs.language as string | null | undefined);
-      if (resolved && !loadedGrammars.has(resolved) && !pendingGrammars.has(resolved)) {
-        needed.push(resolved);
-      }
+      addMissingGrammar(node, needed);
       // A code block's children are plain text — never nested code blocks.
       return false;
     }
     if (node.isTextblock) return false;
     return true;
   });
+  return needed;
+}
+
+function addMissingGrammar(node: PMNode, needed: string[]): void {
+  const resolved = resolveHljsLanguageName(node.attrs.language as string | null | undefined);
+  if (
+    resolved
+    && !loadedGrammars.has(resolved)
+    && !pendingGrammars.has(resolved)
+    && !needed.includes(resolved)
+  ) {
+    needed.push(resolved);
+  }
+}
+
+/**
+ * Like `collectMissingGrammars`, but only inspects the ranges the given
+ * transactions touched (mapped into the final doc), plus their ancestors —
+ * so typing inside or around a code block checks that one block instead of
+ * walking the whole document. `AttrStep` has an empty step map, so its
+ * target position is added explicitly (language changes via
+ * `setNodeAttribute`).
+ */
+function collectMissingGrammarsInChanges(
+  transactions: readonly Transaction[],
+  doc: PMNode,
+): string[] {
+  const ranges: Array<[number, number]> = [];
+  transactions.forEach((tr, trIndex) => {
+    const later = transactions.slice(trIndex + 1);
+    tr.steps.forEach((step, stepIndex) => {
+      const rest = tr.mapping.slice(stepIndex + 1);
+      const mapRest = (pos: number, assoc: number) => {
+        let mapped = rest.map(pos, assoc);
+        for (const next of later) mapped = next.mapping.map(mapped, assoc);
+        return mapped;
+      };
+      step.getMap().forEach((_oldStart, _oldEnd, newStart, newEnd) => {
+        ranges.push([mapRest(newStart, -1), mapRest(newEnd, 1)]);
+      });
+      const attrPos = (step as { pos?: unknown }).pos;
+      if (typeof attrPos === 'number') {
+        const mapped = mapRest(attrPos, 1);
+        ranges.push([mapped, mapped + 1]);
+      }
+    });
+  });
+
+  const needed: string[] = [];
+  const size = doc.content.size;
+  for (const [rawFrom, rawTo] of ranges) {
+    const from = Math.max(0, Math.min(rawFrom, size));
+    const to = Math.max(from, Math.min(rawTo, size));
+    if (from === to) {
+      // Pure deletion: it cannot introduce a language, but the resolved
+      // position's ancestors might be a code block that just changed.
+      const $pos = doc.resolve(from);
+      for (let depth = $pos.depth; depth > 0; depth -= 1) {
+        const ancestor = $pos.node(depth);
+        if (ancestor.type.name === 'codeBlock') addMissingGrammar(ancestor, needed);
+      }
+      continue;
+    }
+    doc.nodesBetween(from, to, (node) => {
+      if (node.type.name === 'codeBlock') {
+        addMissingGrammar(node, needed);
+        return false;
+      }
+      return !node.isTextblock;
+    });
+  }
   return needed;
 }
 
@@ -209,11 +284,32 @@ function collectMissingGrammars(editor: Editor): string[] {
  * overlapping calls can never load the same grammar twice. Repeat calls with
  * an unchanged doc + unchanged grammar state skip the walk via the scan
  * cache above.
+ *
+ * When the update's transactions are passed and they continue directly from
+ * the last scanned doc with no grammar-state change in between, only the
+ * changed ranges are inspected: everything else was already scanned and its
+ * grammars are loaded, pending, or scheduled for retry.
  */
-export function ensureHljsLanguages(lowlight: InkioLowlight, editor: Editor): void {
+export function ensureHljsLanguages(
+  lowlight: InkioLowlight,
+  editor: Editor,
+  transactions?: readonly Transaction[],
+): void {
   retainEditor(editor);
   if (shouldSkipScan(editor)) return;
-  const needed = collectMissingGrammars(editor);
+  const cached = lastScanByEditor.get(editor);
+  const doc = editor.state.doc;
+  const canScanIncrementally =
+    !!transactions
+    && transactions.length > 0
+    && !!cached
+    && cached.grammarVersion === grammarStateVersion
+    && cached.doc === transactions[0].before
+    && transactions[transactions.length - 1].doc === doc
+    && transactions.every((tr, i) => i === 0 || tr.before === transactions[i - 1].doc);
+  const needed = canScanIncrementally
+    ? collectMissingGrammarsInChanges(transactions, doc)
+    : collectMissingGrammars(editor);
   recordScan(editor);
   if (needed.length === 0) return;
 

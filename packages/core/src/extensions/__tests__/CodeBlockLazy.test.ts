@@ -5,7 +5,7 @@ import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
 import { CodeBlock } from '../CodeBlock';
-import { resolveHljsLanguageName } from '../CodeBlock/hljs-lazy';
+import { isHljsGrammarRequested, resolveHljsLanguageName } from '../CodeBlock/hljs-lazy';
 
 describe('resolveHljsLanguageName', () => {
   it('maps UI language values to loadable grammars', () => {
@@ -104,6 +104,54 @@ describe('CodeBlock with lazy grammars', () => {
     await waitFor(() => {
       expect(code()?.querySelector('[class*="hljs"]')).not.toBeNull();
     });
+    editor.destroy();
+  });
+
+  it('requests grammars for code blocks inserted or re-languaged after creation (incremental scan)', async () => {
+    const editor = new Editor({
+      element: document.createElement('div'),
+      extensions: [Document, Paragraph, Text, Blockquote, CodeBlock],
+      content: '<p>Intro</p><blockquote><p>quoted</p></blockquote>',
+    });
+
+    expect(isHljsGrammarRequested('rust')).toBe(false);
+    // Typing in a paragraph touches no code block.
+    editor.commands.insertContentAt(1, 'x');
+    expect(isHljsGrammarRequested('rust')).toBe(false);
+
+    // Insert inside a container so the new block is nested in a changed range.
+    editor.commands.insertContentAt(editor.state.doc.content.size - 1, {
+      type: 'codeBlock',
+      attrs: { language: 'rust' },
+      content: [{ type: 'text', text: 'fn main() {}' }],
+    });
+    expect(isHljsGrammarRequested('rust')).toBe(true);
+
+    // Language change via a node attribute step (AttrStep has an empty map).
+    // Position of the code block after the keystroke below shifts it by one.
+    let codePos = -1;
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'codeBlock') codePos = pos + 1;
+    });
+    expect(isHljsGrammarRequested('go')).toBe(false);
+    // A plain keystroke first: the queued rust load bumped the grammar state,
+    // so this update does the one full rescan and the next is incremental.
+    editor.commands.insertContentAt(1, 'x');
+    editor.view.dispatch(editor.state.tr.setNodeAttribute(codePos, 'language', 'go'));
+    expect(isHljsGrammarRequested('go')).toBe(true);
+
+    // Language change via setNodeMarkup (ReplaceAroundStep).
+    expect(isHljsGrammarRequested('lua')).toBe(false);
+    editor.commands.insertContentAt(1, 'x');
+    codePos += 1;
+    editor.view.dispatch(
+      editor.state.tr.setNodeMarkup(codePos, undefined, { language: 'lua' }),
+    );
+    expect(isHljsGrammarRequested('lua')).toBe(true);
+
+    // Typing inside the code block after a language change still works.
+    editor.view.dispatch(editor.state.tr.insertText('y', codePos + 2));
+    expect(editor.state.doc.textContent).toContain('fyn main');
     editor.destroy();
   });
 });
