@@ -1,9 +1,13 @@
-import type { Root } from 'react-dom/client';
 import type { Editor } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
 import { useState, useCallback, useEffect } from 'react';
-import { getCreateRoot } from '../utils/create-root';
+import { createOverlayHost, type OverlayHost } from '../utils/overlay-host';
+import {
+  autoUpdateOverlayPosition,
+  computeOverlayPosition,
+  toRectLike,
+} from '../overlay/positioning';
 
 export const calloutToolbarPluginKey = new PluginKey('calloutToolbar');
 
@@ -112,30 +116,47 @@ function getCalloutNode(view: EditorView) {
   return null;
 }
 
+/** Vertical slot (toolbar height + gap) reserved above the callout. */
+const TOOLBAR_SLOT = 44;
+/** Toolbar height assumed before the first React render measures it. */
+const TOOLBAR_FALLBACK_HEIGHT = 36;
+
 export function createCalloutToolbarPlugin(editor: Editor): Plugin {
-  let root: Root | null = null;
-  let container: HTMLDivElement | null = null;
+  let host: OverlayHost | null = null;
+  let cleanupAutoUpdate: (() => void) | null = null;
+  let positionRaf = 0;
+  let positionTarget: { view: EditorView; pos: number } | null = null;
+  let renderedAttrs: { color: string | null; icon: string | null } | null = null;
 
-  function teardown() {
-    const containerToRemove = container;
-    const rootToUnmount = root;
-
-    container = null;
-    root = null;
-
-    queueMicrotask(() => {
-      rootToUnmount?.unmount();
-      containerToRemove?.remove();
-    });
+  function cancelScheduledPosition() {
+    if (positionRaf) {
+      cancelAnimationFrame(positionRaf);
+      positionRaf = 0;
+    }
   }
 
-  function renderToolbar(
-    calloutColor: string | null,
-    calloutIcon: string | null,
-  ) {
-    if (!root || !container) return;
+  function teardown() {
+    cancelScheduledPosition();
+    cleanupAutoUpdate?.();
+    cleanupAutoUpdate = null;
+    host?.destroy();
+    host = null;
+    positionTarget = null;
+    renderedAttrs = null;
+  }
 
-    root.render(
+  function renderToolbar(calloutColor: string | null, calloutIcon: string | null) {
+    if (!host) return;
+    if (
+      renderedAttrs
+      && renderedAttrs.color === calloutColor
+      && renderedAttrs.icon === calloutIcon
+    ) {
+      return;
+    }
+    renderedAttrs = { color: calloutColor, icon: calloutIcon };
+
+    host.render(
       <CalloutToolbar
         editor={editor}
         currentColor={calloutColor}
@@ -144,20 +165,43 @@ export function createCalloutToolbarPlugin(editor: Editor): Plugin {
     );
   }
 
-  function positionContainer(view: EditorView, calloutPos: number) {
-    if (!container) return;
+  function positionContainer() {
+    const container = host?.element;
+    if (!container || !positionTarget) return;
+    const { view, pos } = positionTarget;
 
-    const calloutDom = view.nodeDOM(calloutPos);
-    if (calloutDom && calloutDom instanceof HTMLElement) {
-      const rect = calloutDom.getBoundingClientRect();
-      const editorRect = view.dom.getBoundingClientRect();
+    const calloutDom = view.nodeDOM(pos);
+    if (!(calloutDom instanceof HTMLElement)) return;
 
-      container.style.display = '';
-      container.style.position = 'absolute';
-      container.style.top = `${rect.top - editorRect.top - 44}px`;
-      container.style.left = `${rect.left - editorRect.left}px`;
-      container.style.zIndex = 'var(--inkio-layer-popover, 150)';
-    }
+    const rect = calloutDom.getBoundingClientRect();
+    const editorRect = view.dom.getBoundingClientRect();
+    const height = container.offsetHeight || TOOLBAR_FALLBACK_HEIGHT;
+
+    // Default (non-overflow) placement: the callout's left edge, TOOLBAR_SLOT
+    // px above its top. Flips below / shifts into the viewport on overflow.
+    const next = computeOverlayPosition({
+      anchorRect: toRectLike(rect),
+      floatingRect: { width: container.offsetWidth, height },
+      placement: 'top',
+      align: 'start',
+      offset: Math.max(0, TOOLBAR_SLOT - height),
+      padding: 8,
+      flip: true,
+      shift: true,
+    });
+
+    // The container is absolutely positioned inside the editor wrapper;
+    // convert viewport coordinates to editor-relative ones.
+    container.style.top = `${next.top - editorRect.top}px`;
+    container.style.left = `${next.left - editorRect.left}px`;
+  }
+
+  function schedulePosition() {
+    if (positionRaf) return;
+    positionRaf = requestAnimationFrame(() => {
+      positionRaf = 0;
+      positionContainer();
+    });
   }
 
   function mountAndRender(
@@ -166,15 +210,6 @@ export function createCalloutToolbarPlugin(editor: Editor): Plugin {
     calloutColor: string | null,
     calloutIcon: string | null,
   ) {
-    container = document.createElement('div');
-    container.className = 'inkio-callout-toolbar-wrapper';
-
-    const editorEl = view.dom.closest('.inkio');
-    if (editorEl) {
-      const isDark = editorEl.classList.contains('dark');
-      container.classList.toggle('dark', isDark);
-    }
-
     // Append to the editor wrapper so it inherits tokens and is positioned relative
     const positionParent = view.dom.parentElement;
     if (positionParent) {
@@ -183,25 +218,28 @@ export function createCalloutToolbarPlugin(editor: Editor): Plugin {
       if (computedStyle.position === 'static') {
         positionParent.style.position = 'relative';
       }
-      positionParent.appendChild(container);
-    } else {
-      document.body.appendChild(container);
     }
 
-    positionContainer(view, calloutPos);
+    host = createOverlayHost({
+      editorDom: view.dom,
+      className: 'inkio-callout-toolbar-wrapper',
+      label: 'callout toolbar',
+      parent: positionParent,
+      style: {
+        position: 'absolute',
+        zIndex: 'var(--inkio-layer-popover, 150)',
+      },
+    });
 
-    // Capture the mount generation: a newer mountAndRender replaces
-    // `container`, so a stale promise must not create a second root that
-    // leaks alongside the current toolbar.
-    const current = container;
-    getCreateRoot().then((createRootFn) => {
-      if (!container || container !== current) return;
-      root = createRootFn(container);
-      renderToolbar(calloutColor, calloutIcon);
-    }).catch((error: unknown) => {
-      console.error('[inkio] callout toolbar failed to initialize:', error);
-      current?.remove();
-      if (container === current) container = null;
+    positionTarget = { view, pos: calloutPos };
+    positionContainer();
+    renderToolbar(calloutColor, calloutIcon);
+
+    // Track scroll/resize and the real toolbar size once rendered
+    // (rAF-coalesced by the overlay engine).
+    cleanupAutoUpdate = autoUpdateOverlayPosition({
+      update: positionContainer,
+      elements: [view.dom, host.element],
     });
   }
 
@@ -212,7 +250,7 @@ export function createCalloutToolbarPlugin(editor: Editor): Plugin {
       let lastCalloutPos = -1;
 
       return {
-        update(view) {
+        update(view, prevState) {
           // Read-only surfaces (Viewer) never show the editing toolbar.
           if (!view.editable) {
             if (wasVisible) {
@@ -242,13 +280,14 @@ export function createCalloutToolbarPlugin(editor: Editor): Plugin {
             wasVisible = true;
             lastCalloutPos = pos;
           } else {
-            // Re-position if callout moved or re-render if attrs changed
-            if (pos !== lastCalloutPos) {
-              positionContainer(view, pos);
-              lastCalloutPos = pos;
-            }
+            // Re-render only when attrs changed; re-measure (once per frame)
+            // only when the callout moved or the document changed.
             renderToolbar(color, icon);
-            positionContainer(view, pos);
+            if (pos !== lastCalloutPos || view.state.doc !== prevState.doc) {
+              lastCalloutPos = pos;
+              positionTarget = { view, pos };
+              schedulePosition();
+            }
           }
         },
         destroy() {
