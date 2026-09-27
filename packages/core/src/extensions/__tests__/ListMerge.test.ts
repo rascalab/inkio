@@ -207,4 +207,112 @@ describe('ListMerge extension', () => {
 
     editor.destroy();
   });
+
+  describe('incremental (changed-range) scanning after the first change', () => {
+    const item = (text: string) => ({
+      type: 'listItem',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+    });
+
+    function positionOf(editor: Editor, predicate: (node: any) => boolean): { pos: number; size: number } {
+      let found = { pos: -1, size: 0 };
+      editor.state.doc.descendants((node, pos) => {
+        if (found.pos === -1 && predicate(node)) found = { pos, size: node.nodeSize };
+      });
+      return found;
+    }
+
+    it('merges top-level lists once the separating paragraph is deleted', () => {
+      const editor = createEditor({
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'intro' }] },
+          { type: 'bulletList', content: [item('A')] },
+          { type: 'paragraph', content: [{ type: 'text', text: 'between' }] },
+          { type: 'bulletList', content: [item('B')] },
+        ],
+      });
+      // First change: the one-time full scan.
+      editor.commands.insertContentAt(1, 'x');
+
+      const sep = positionOf(editor, (n) => n.type.name === 'paragraph' && n.textContent === 'between');
+      editor.view.dispatch(editor.state.tr.delete(sep.pos, sep.pos + sep.size));
+
+      const lists = editor.getJSON().content?.filter((n: any) => n.type === 'bulletList') ?? [];
+      expect(lists.length).toBe(1);
+      expect(lists[0].content?.length).toBe(2);
+      editor.destroy();
+    });
+
+    it('merges nested lists inside a list item', () => {
+      const editor = createEditor({
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'intro' }] },
+          {
+            type: 'bulletList',
+            content: [
+              {
+                type: 'listItem',
+                content: [
+                  { type: 'paragraph', content: [{ type: 'text', text: 'parent' }] },
+                  { type: 'bulletList', content: [item('n1')] },
+                  { type: 'paragraph', content: [{ type: 'text', text: 'between' }] },
+                  { type: 'bulletList', content: [item('n2')] },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+      editor.commands.insertContentAt(1, 'x');
+
+      const sep = positionOf(editor, (n) => n.type.name === 'paragraph' && n.textContent === 'between');
+      editor.view.dispatch(editor.state.tr.delete(sep.pos, sep.pos + sep.size));
+
+      const parentItem = (editor.getJSON().content?.[1] as any).content[0];
+      const nested = parentItem.content.filter((n: any) => n.type === 'bulletList');
+      expect(nested.length).toBe(1);
+      expect(nested[0].content.length).toBe(2);
+      editor.destroy();
+    });
+
+    it('merges ordered lists once an attribute change aligns their starts', () => {
+      const editor = createEditor({
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'intro' }] },
+          { type: 'orderedList', attrs: { start: 1 }, content: [item('one')] },
+          { type: 'orderedList', attrs: { start: 5 }, content: [item('five')] },
+        ],
+      });
+      editor.commands.insertContentAt(1, 'x');
+      expect(editor.getJSON().content?.filter((n: any) => n.type === 'orderedList').length).toBe(2);
+
+      const second = positionOf(editor, (n) => n.type.name === 'orderedList' && n.attrs.start === 5);
+      editor.view.dispatch(editor.state.tr.setNodeAttribute(second.pos, 'start', 1));
+
+      expect(editor.getJSON().content?.filter((n: any) => n.type === 'orderedList').length).toBe(1);
+      editor.destroy();
+    });
+
+    it('merges a list inserted right after an existing list', () => {
+      const editor = createEditor({
+        type: 'doc',
+        content: [
+          { type: 'bulletList', content: [item('A')] },
+          { type: 'paragraph', content: [{ type: 'text', text: 'tail' }] },
+        ],
+      });
+      editor.commands.insertContentAt(editor.state.doc.content.size - 1, 'x');
+
+      const list = positionOf(editor, (n) => n.type.name === 'bulletList');
+      editor.commands.insertContentAt(list.pos + list.size, { type: 'bulletList', content: [item('B')] });
+
+      const lists = editor.getJSON().content?.filter((n: any) => n.type === 'bulletList') ?? [];
+      expect(lists.length).toBe(1);
+      expect(lists[0].content?.length).toBe(2);
+      editor.destroy();
+    });
+  });
 });

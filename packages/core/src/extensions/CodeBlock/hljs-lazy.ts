@@ -1,6 +1,7 @@
 import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import type { Transaction } from '@tiptap/pm/state';
+import { clampRange, collectChangedRanges } from '../../utils/changed-ranges';
 
 export type InkioLowlight = ReturnType<typeof import('lowlight').createLowlight>;
 
@@ -229,32 +230,9 @@ function collectMissingGrammarsInChanges(
   transactions: readonly Transaction[],
   doc: PMNode,
 ): string[] {
-  const ranges: Array<[number, number]> = [];
-  transactions.forEach((tr, trIndex) => {
-    const later = transactions.slice(trIndex + 1);
-    tr.steps.forEach((step, stepIndex) => {
-      const rest = tr.mapping.slice(stepIndex + 1);
-      const mapRest = (pos: number, assoc: number) => {
-        let mapped = rest.map(pos, assoc);
-        for (const next of later) mapped = next.mapping.map(mapped, assoc);
-        return mapped;
-      };
-      step.getMap().forEach((_oldStart, _oldEnd, newStart, newEnd) => {
-        ranges.push([mapRest(newStart, -1), mapRest(newEnd, 1)]);
-      });
-      const attrPos = (step as { pos?: unknown }).pos;
-      if (typeof attrPos === 'number') {
-        const mapped = mapRest(attrPos, 1);
-        ranges.push([mapped, mapped + 1]);
-      }
-    });
-  });
-
   const needed: string[] = [];
-  const size = doc.content.size;
-  for (const [rawFrom, rawTo] of ranges) {
-    const from = Math.max(0, Math.min(rawFrom, size));
-    const to = Math.max(from, Math.min(rawTo, size));
+  for (const range of collectChangedRanges(transactions)) {
+    const [from, to] = clampRange(doc, range);
     if (from === to) {
       // Pure deletion: it cannot introduce a language, but the resolved
       // position's ancestors might be a code block that just changed.
