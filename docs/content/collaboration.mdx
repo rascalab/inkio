@@ -78,7 +78,7 @@ useInkioCollaborativeEditor({ docId, websocketProvider: socket });
 ## 서버
 
 `examples/collab-server`는 Hocuspocus 참조 구현입니다 (배포하지 않음).
-`createInkioCollabServer({ port, dataDir, verify })` 하나로 구성됩니다.
+단독 서버(`createInkioCollabServer`)로도, NestJS 앱에 임베드(`InkioCollabModule`)해서도 띄울 수 있습니다.
 
 - 문서마다 `<dataDir>/<docId>.ydoc` 스냅샷을 디바운스 저장하고, 방에 처음 들어올 때 불러옵니다.
   아무도 없는 문서는 메모리에서 내립니다.
@@ -89,14 +89,40 @@ useInkioCollaborativeEditor({ docId, websocketProvider: socket });
 
 ```bash
 pnpm --filter example-collab-server build
-pnpm --filter example-collab-server start   # PORT, DATA_DIR 환경 변수
-pnpm --filter example-collab-server smoke   # 동기화 + 재시작 후 복원 확인
+pnpm --filter example-collab-server start   # ws://localhost:3123/collab (PORT, DATA_DIR)
+pnpm --filter example-collab-server smoke   # 단독 + Nest 모드 동기화·인증·복원 확인
 ```
+
+### NestJS에 임베드
+
+Nest 앱과 같은 HTTP 서버·포트를 쓰고, WebSocket은 `path`(기본 `/collab`)로만 받습니다.
+다른 라우트와 충돌하지 않습니다.
+
+```ts
+@Module({
+  imports: [
+    InkioCollabModule.forRoot({
+      dataDir: './data',
+      verify: (token, docId) => access.check(token, docId), // 'write' | 'read' | false
+    }),
+  ],
+})
+export class AppModule {}
+
+const app = await NestFactory.create(AppModule);
+app.enableShutdownHooks(); // 종료 시 대기 중인 저장을 flush
+await app.listen(3123);
+```
+
+클라이언트는 `url: 'ws://localhost:3123/collab'`로 접속합니다. 서비스에서 문서를 직접
+다루려면 `INKIO_HOCUSPOCUS`를 주입받아 `openDirectConnection(docId)`를 쓰세요.
+Nest 밖의 Express/Fastify 서버에는 `attachHocuspocus(httpServer, hocuspocus)`를 쓰면 됩니다.
 
 ### 인증 걸기
 
 ```ts
 createInkioCollabServer({
+  port: 3123,
   dataDir: './data',
   verify: async (token, docId) => {
     const role = await lookupRole(token, docId);

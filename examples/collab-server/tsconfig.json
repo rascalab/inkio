@@ -16,7 +16,9 @@
     "resolveJsonModule": true,
     "types": [
       "node"
-    ]
+    ],
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
   },
   "include": [
     "src"

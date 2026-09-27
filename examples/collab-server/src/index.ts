@@ -1,0 +1,8 @@
+export { createCollabConfiguration } from './config';
+export type { CollabAccess, CollabVerifyFn, InkioCollabOptions } from './config';
+export { createInkioCollabServer } from './server';
+export type { InkioCollabServerOptions } from './server';
+export { attachHocuspocus, shutdownHocuspocus } from './embed';
+export type { AttachHocuspocusOptions } from './embed';
+export { InkioCollabModule, INKIO_HOCUSPOCUS } from './nest/collab.module';
+export type { InkioCollabModuleOptions } from './nest/collab.module';
