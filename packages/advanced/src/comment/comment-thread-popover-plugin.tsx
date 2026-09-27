@@ -53,8 +53,10 @@ function collectRangesText(doc: ProseMirrorNode, ranges: MarkRange[]): string {
  * `ranges` (positions in `prev`). When the change lies entirely before the
  * ranges, they are shifted in place so they stay valid for `next`.
  * Returns true when the ranges must be recomputed.
+ *
+ * @internal Exported for unit tests only (not re-exported from the package).
  */
-function diffTouchesRanges(
+export function diffTouchesRanges(
   prev: ProseMirrorNode,
   next: ProseMirrorNode,
   ranges: MarkRange[],
