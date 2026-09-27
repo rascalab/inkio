@@ -33,7 +33,7 @@ import '@inkio/core/minimal.css';
 export function CoreEditor() {
   return (
     <Editor
-      initialContent="<p>Hello Inkio</p>"
+      content="<p>Hello Inkio</p>"
       extensions={getExtensions({ placeholder: 'Start typing...' })}
       showToolbar
     />
@@ -53,7 +53,7 @@ export function Page() {
   const [editor, setEditor] = useState<TiptapEditor | null>(null);
   return (
     <div style={{ position: 'relative' }}>
-      <Editor initialContent="<p>Hello</p>" onCreate={setEditor} />
+      <Editor content="<p>Hello</p>" onCreate={setEditor} />
       <ToC source={editor} maxLevel={3} />
     </div>
   );

@@ -45,7 +45,7 @@ export function AdvancedEditor() {
 
   return (
     <>
-      <Editor initialContent="<p>Hello Inkio</p>" extensions={extensions} />
+      <Editor content="<p>Hello Inkio</p>" extensions={extensions} />
       <CommentPanel editor={null} threads={[]} currentUser="You" onReply={() => {}} onResolve={() => {}} onDelete={() => {}} />
     </>
   );

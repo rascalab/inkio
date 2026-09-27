@@ -22,7 +22,7 @@ import { Editor, Viewer } from '@inkio/simple';
 import '@inkio/simple/minimal.css';
 
 export function SimplePage() {
-  return <Editor initialContent="<p>Hello Inkio</p>" />;
+  return <Editor content="<p>Hello Inkio</p>" />;
 }
 ```
 

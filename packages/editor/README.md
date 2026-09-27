@@ -34,7 +34,7 @@ import '@inkio/editor/minimal.css';
 export function EditorPage() {
   return (
     <Editor
-      initialContent="<p>Hello Inkio</p>"
+      content="<p>Hello Inkio</p>"
       hashtagItems={({ query }) => [
         { id: query || 'inkio', label: `#${query || 'inkio'}` },
       ]}
@@ -52,7 +52,7 @@ export function EditorPage() {
   const [editor, setEditor] = useState(null);
   return (
     <div style={{ position: 'relative' }}>
-      <Editor initialContent="<p>Hello Inkio</p>" onCreate={setEditor} />
+      <Editor content="<p>Hello Inkio</p>" onCreate={setEditor} />
       <ToC source={editor} maxLevel={4} />
     </div>
   );
