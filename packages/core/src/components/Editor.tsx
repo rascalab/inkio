@@ -1,7 +1,7 @@
 'use client';
 
 import { EditorContent, type Extensions, type JSONContent, type Editor as TiptapEditor } from '@tiptap/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useInkioEditor } from '../hooks/use-inkio-editor';
 import { BubbleMenu } from './BubbleMenu';
 import type { BubbleMenuProps } from './BubbleMenu';
@@ -110,13 +110,6 @@ export const Editor = ({
     [extensions, placeholder],
   );
 
-  const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  useEffect(() => {
-    setIsHydrated(true);
-  }, []);
-
   // Warn in an effect, not during render: parent re-renders (and
   // StrictMode double-render) would spam the console otherwise.
   useEffect(() => {
@@ -133,12 +126,12 @@ export const Editor = ({
     placeholder,
     editable,
     onUpdate,
-    onCreate: (instance) => {
-      setEditorInstance(instance);
-      onCreate?.(instance);
-    },
+    onCreate,
   });
-  const showInteractiveRuntime = isHydrated && !!editor;
+  // `immediatelyRender: false` keeps `editor` null through SSR and the
+  // hydration render (it is created in a mount effect), so a non-null editor
+  // already implies the client has hydrated.
+  const showInteractiveRuntime = !!editor;
   // Static SSR shell: never recompute generateHTML + sanitize when content is
   // unchanged. useMemo alone keys on object identity, so an inline JSON
   // literal from a re-rendering parent would redo the expensive render every
@@ -180,7 +173,7 @@ export const Editor = ({
       {showToolbar && (
         showInteractiveRuntime ? (
           <Toolbar
-            editor={editorInstance}
+            editor={editor}
             className={toolbar?.className}
             locale={toolbar?.locale ?? locale}
             messages={toolbar?.messages ?? messages}
@@ -210,7 +203,7 @@ export const Editor = ({
 
       {showInteractiveRuntime && showBubbleMenu && (
         <BubbleMenu
-          editor={editorInstance}
+          editor={editor}
           className={bubbleMenu?.className}
           locale={bubbleMenu?.locale ?? locale}
           messages={bubbleMenu?.messages ?? messages}
@@ -223,7 +216,7 @@ export const Editor = ({
 
       {showInteractiveRuntime && showFloatingMenu && (
         <FloatingMenu
-          editor={editorInstance}
+          editor={editor}
           className={floatingMenu?.className}
           locale={floatingMenu?.locale ?? locale}
           messages={floatingMenu?.messages ?? messages}
@@ -234,7 +227,7 @@ export const Editor = ({
 
       {showInteractiveRuntime && showTableMenu && (
         <TableMenu
-          editor={editorInstance}
+          editor={editor}
           className={tableMenu?.className}
           locale={tableMenu?.locale ?? locale}
           messages={tableMenu?.messages ?? messages}
