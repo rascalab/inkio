@@ -47,6 +47,7 @@ export type { CreateSuggestionRendererOptions } from './components/create-sugges
 // Hooks
 export { useInkioEditor } from './hooks/use-inkio-editor';
 export type { UseInkioEditorOptions } from './hooks/use-inkio-editor';
+export { useCoalescedDocUpdate } from './hooks/use-coalesced-doc-update';
 
 // Context (Optional convenience)
 export { InkioProvider, useInkioContext } from './context/InkioProvider';

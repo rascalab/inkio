@@ -3,7 +3,7 @@ import type { Content, Editor as TiptapEditor, Extensions, JSONContent } from '@
 import { useEditor } from '@tiptap/react';
 import type { HocuspocusProviderWebsocket } from '@hocuspocus/provider';
 import * as Y from 'yjs';
-import { resolveInkioExtensions, useStableCallback } from '@inkio/core';
+import { resolveInkioExtensions, useCoalescedDocUpdate, useStableCallback } from '@inkio/core';
 import { createCollabExtensions, removeConflictingExtensions } from './extensions';
 import { persistDocToIndexedDB } from './persistence';
 import {
@@ -156,7 +156,9 @@ export function useInkioCollaborativeEditor({
   const status = useCollabStatus(provider);
   const [readOnly, setReadOnly] = useState(false);
   const handleCreate = useStableCallback(onCreate);
-  const handleUpdate = useStableCallback(onUpdate);
+  // Remote Yjs frames fire onUpdate too: serialize the doc at most once per
+  // microtask burst, and not at all without a listener.
+  const emitUpdate = useCoalescedDocUpdate(onUpdate);
 
   useEffect(() => {
     if (!provider) return;
@@ -186,7 +188,7 @@ export function useInkioCollaborativeEditor({
       editable: editable && !readOnly,
       editorProps: { attributes: { class: 'inkio-content' } },
       onCreate: ({ editor: instance }) => handleCreate?.(instance),
-      onUpdate: ({ editor: instance }) => handleUpdate?.(instance.getJSON()),
+      onUpdate: ({ editor: instance }) => emitUpdate(instance),
     },
     [finalExtensions],
   );

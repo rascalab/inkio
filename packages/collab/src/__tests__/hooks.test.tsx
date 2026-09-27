@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { StrictMode, createElement, type ReactNode } from 'react';
 import { act, render, renderHook, waitFor } from '@testing-library/react';
 import Document from '@tiptap/extension-document';
@@ -64,6 +64,26 @@ describe('useInkioCollaborativeEditor', () => {
       const label = b.result.current.editor!.view.dom.querySelector('.collaboration-carets__label');
       expect(label?.textContent).toBe('A');
     });
+  });
+
+  it('coalesces a burst of updates into one onUpdate with the latest doc', async () => {
+    const { url } = await startServer();
+    const onUpdate = vi.fn();
+    const a = mountEditor({ docId: 'coalesce', url, extensions: BASE, onUpdate });
+    await waitFor(() => expect(a.result.current.status).toBe('synced'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    onUpdate.mockClear();
+    await act(async () => {
+      const editor = a.result.current.editor!;
+      editor.commands.setContent('<p>one</p>');
+      editor.commands.insertContentAt(editor.state.doc.content.size - 1, ' two');
+      editor.commands.insertContentAt(editor.state.doc.content.size - 1, ' three');
+      await Promise.resolve();
+    });
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(onUpdate.mock.calls[0][0])).toContain('one two three');
   });
 
   it('never duplicates a seed when clients join at the same time', async () => {

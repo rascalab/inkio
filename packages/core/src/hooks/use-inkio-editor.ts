@@ -1,6 +1,7 @@
 import { useEditor, type Editor as TiptapEditor, type Extensions, type JSONContent } from '@tiptap/react';
 import { useEffect, useMemo, useRef } from 'react';
 import { resolveInkioExtensions } from '../extensions/resolve-extensions';
+import { useCoalescedDocUpdate } from './use-coalesced-doc-update';
 
 export interface UseInkioEditorOptions {
   /**
@@ -53,24 +54,11 @@ export function useInkioEditor({
 
   const prevExtensionsRef = useRef<Extensions | null>(null);
   const onCreateRef = useRef(onCreate);
-  const onUpdateRef = useRef(onUpdate);
-  const isMountedRef = useRef(true);
-  const syncTokenRef = useRef(0);
+  const emitUpdate = useCoalescedDocUpdate(onUpdate);
 
   useEffect(() => {
     onCreateRef.current = onCreate;
   }, [onCreate]);
-
-  useEffect(() => {
-    onUpdateRef.current = onUpdate;
-  }, [onUpdate]);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -86,17 +74,7 @@ export function useInkioEditor({
       onCreateRef.current?.(editorInstance);
     },
     onUpdate: ({ editor: editorInstance }) => {
-      if (!onUpdateRef.current) {
-        return;
-      }
-
-      const token = ++syncTokenRef.current;
-      queueMicrotask(() => {
-        if (token !== syncTokenRef.current) return;
-        if (isMountedRef.current && !editorInstance.isDestroyed) {
-          onUpdateRef.current?.(editorInstance.getJSON());
-        }
-      });
+      emitUpdate(editorInstance);
     },
   });
 
