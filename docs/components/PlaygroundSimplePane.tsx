@@ -1,21 +1,15 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { useCallback, useMemo } from 'react';
 import {
   Editor as SimpleEditor,
   Viewer as SimpleViewer,
 } from '@inkio/simple';
 import type { InkioJSONContent } from '@inkio/core';
-import type { ImageEditorModalProps } from '@inkio/image-editor';
 import { PLAYGROUND_INITIAL_CONTENT } from './playground-content';
 import { useDebouncedState } from './use-debounced-state';
 import { useObjectUrlRegistry } from './use-object-urls';
-
-const LazyImageEditorModal = dynamic<ImageEditorModalProps>(
-  () => import('@inkio/image-editor').then((mod) => mod.ImageEditorModal),
-  { ssr: false, loading: () => null },
-);
+import { LazyImageEditorModal } from './lazy-image-editor-modal';
 
 type PlaygroundSimplePaneProps = {
   content?: string;

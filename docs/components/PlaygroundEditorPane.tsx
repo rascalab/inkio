@@ -18,15 +18,10 @@ import {
   type CommentMessage,
   type CommentData,
 } from '@inkio/advanced';
-import type { ImageEditorModalProps } from '@inkio/image-editor';
 import { PLAYGROUND_INITIAL_CONTENT } from './playground-content';
 import { useDebouncedState } from './use-debounced-state';
 import { useObjectUrlRegistry } from './use-object-urls';
-
-const LazyImageEditorModal = dynamic<ImageEditorModalProps>(
-  () => import('@inkio/image-editor').then((mod) => mod.ImageEditorModal),
-  { ssr: false, loading: () => null },
-);
+import { LazyImageEditorModal } from './lazy-image-editor-modal';
 
 const LazyCommentPanel = dynamic<CommentPanelProps>(
   () => import('@inkio/advanced').then((mod) => mod.CommentPanel),
