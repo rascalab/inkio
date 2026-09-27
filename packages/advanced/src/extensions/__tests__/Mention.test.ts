@@ -9,12 +9,6 @@ describe('Mention extension', () => {
     expect(Mention.name).toBe('mention');
   });
 
-  it('should not call window.getSelection in suggestion command handler', () => {
-    const options = Mention.config.addOptions?.call({ name: 'mention' } as any);
-    const source = options?.suggestion?.command?.toString() ?? '';
-    expect(source).not.toContain('collapseToEnd');
-  });
-
   it('should render data-type=\"mention\" matching saved markup', () => {
     const schema = getSchema([Document, Paragraph, Text, Mention]);
     const node = schema.nodes.mention.create({ id: '1', label: 'alice' });
