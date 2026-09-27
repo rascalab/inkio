@@ -1,11 +1,21 @@
+import { isSafeUrl } from '@inkio/core';
+
 const imageCache = new Map<string, HTMLImageElement>();
 const MAX_CACHE_SIZE = 10;
 /** In-flight loads keyed by src so concurrent requests share one fetch. */
 const pendingLoads = new Map<string, Promise<HTMLImageElement>>();
 
-const ALLOWED_SRC_SCHEMES = ['http:', 'https:', 'blob:', 'data:'];
+/** Link-only schemes core's isSafeUrl permits but that never yield an image. */
+const NON_IMAGE_SCHEMES = new Set(['mailto:', 'tel:']);
 const IMAGE_LOAD_TIMEOUT_MS = 30000;
 
+/**
+ * Same URL policy as the rest of Inkio (core `isSafeUrl`): http(s), blob:,
+ * relative URLs and raster `data:image/*` payloads load; script schemes and
+ * active-content data URLs (`image/svg+xml`, `text/html`, ...) are rejected,
+ * so the image editor never opens a source the document itself would refuse
+ * to render.
+ */
 function validateImageSrc(src: string): void {
   let protocol: string;
   try {
@@ -14,8 +24,8 @@ function validateImageSrc(src: string): void {
   } catch {
     throw new Error(`Cannot load image: invalid URL ${describeSrc(src)}`);
   }
-  if (!ALLOWED_SRC_SCHEMES.includes(protocol)) {
-    throw new Error(`Cannot load image: blocked URL scheme ${protocol}`);
+  if (NON_IMAGE_SCHEMES.has(protocol) || !isSafeUrl(src)) {
+    throw new Error(`Cannot load image: blocked URL scheme ${protocol} (${describeSrc(src)})`);
   }
 }
 
