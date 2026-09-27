@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Editor } from '@tiptap/react';
+import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Editor, useEditorState } from '@tiptap/react';
 import * as Popover from '@radix-ui/react-popover';
 import type { InkioIconRegistry } from '../icons/registry';
 import {
@@ -14,6 +14,12 @@ import type {
 } from '../i18n/messages';
 import { useInkioCoreUi } from '../context/use-inkio-ui';
 import { BubbleMenuLinkInputPopover } from './BubbleMenuLinkInputPopover';
+import {
+  renderActionIcon,
+  resolveActionLabel,
+  selectionRect,
+  snapshotActionStates,
+} from './menu-buttons';
 
 const DEFAULT_TEXT_COLORS = [
   '#111827',
@@ -70,7 +76,6 @@ export const Toolbar = ({
   const [linkPopoverOpen, setLinkPopoverOpen] = useState(false);
   const [textColorOpen, setTextColorOpen] = useState(false);
   const [currentLinkUrl, setCurrentLinkUrl] = useState('');
-  const [activeStateKey, setActiveStateKey] = useState('');
   // Radix portals render into document.body, outside `.inkio`, so design
   // tokens would not resolve (transparent popover backgrounds). Scope the
   // token root onto the popover content, mirroring the editor dark mode —
@@ -94,48 +99,22 @@ export const Toolbar = ({
     icons: iconOverrides,
   });
 
-  useEffect(() => {
-    if (!editor) {
-      return;
-    }
-
-    // A single keystroke fires both `transaction` and `selectionUpdate` —
-    // coalesce them into one recompute per microtask.
-    let scheduled = false;
-    const updateState = () => {
-      if (scheduled) {
-        return;
-      }
-      scheduled = true;
-      queueMicrotask(() => {
-        scheduled = false;
-        const actions = getToolbarActionsFor(editor, 'toolbar', items);
-        const key = actions
-          .map((action) => `${action.id}:${action.isActive?.(editor) ? '1' : '0'}:${action.isDisabled?.(editor) ? 'd' : 'e'}`)
-          .join(',');
-        setActiveStateKey(key);
-      });
-    };
-
-    updateState();
-    editor.on('selectionUpdate', updateState);
-    editor.on('transaction', updateState);
-    editor.on('focus', updateState);
-    editor.on('blur', updateState);
-
-    return () => {
-      editor.off('selectionUpdate', updateState);
-      editor.off('transaction', updateState);
-      editor.off('focus', updateState);
-      editor.off('blur', updateState);
-    };
-  }, [editor, items]);
+  // Re-render only when an action's active/disabled state changes. No
+  // builtin isActive/isDisabled reads focus, so transactions (which also
+  // carry focus/blur meta) are the only trigger needed. The selector closes
+  // over `editor` rather than reading the snapshot's: the snapshot keeps the
+  // previous (null) editor until the first transaction after it attaches.
+  const actionStates = useEditorState({
+    editor,
+    selector: () => (editor ? snapshotActionStates(editor, getToolbarActionsFor(editor, 'toolbar', items)) : null),
+  });
 
   const actionGroups = useMemo(() => {
-    if (!editor) {
+    if (!editor || !actionStates) {
       return [];
     }
 
+    const stateById = new Map(actionStates.map((entry) => [entry.id, entry]));
     const actions = getToolbarActionsFor(editor, 'toolbar', items).filter((action) => {
       if (action.id === 'unlink') {
         return editor.isActive('link');
@@ -144,8 +123,10 @@ export const Toolbar = ({
       return true;
     });
 
-    return splitToolbarActionGroups(actions);
-  }, [editor, activeStateKey, items]);
+    return splitToolbarActionGroups(actions).map((group) =>
+      group.map((action) => ({ action, state: stateById.get(action.id) })),
+    );
+  }, [editor, actionStates, items]);
 
   const requestComment = () => {
     if (!editor) {
@@ -166,27 +147,9 @@ export const Toolbar = ({
       return;
     }
 
-    const start = editor.view.coordsAtPos(from);
-    const end = editor.view.coordsAtPos(to);
-    const left = Math.min(start.left, end.left);
-    const right = Math.max(start.right, end.right);
-    const top = Math.min(start.top, end.top);
-    const bottom = Math.max(start.bottom, end.bottom);
-
     window.dispatchEvent(
       new CustomEvent('inkio:comment-request', {
-        detail: {
-          from,
-          to,
-          rect: {
-            top,
-            left,
-            right,
-            bottom,
-            width: Math.max(1, right - left),
-            height: Math.max(1, bottom - top),
-          },
-        },
+        detail: { from, to, rect: selectionRect(editor) },
       }),
     );
   };
@@ -198,19 +161,14 @@ export const Toolbar = ({
   return (
     <div className={`inkio-toolbar${className ? ` ${className}` : ''}`} role="toolbar" aria-label="Editor toolbar">
       {actionGroups.map((group, groupIndex) => (
-        <Fragment key={`${group[0]?.group ?? 'group'}-${groupIndex}`}>
+        <Fragment key={`${group[0]?.action.group ?? 'group'}-${groupIndex}`}>
           {groupIndex > 0 && <div className="inkio-toolbar-divider" />}
           <div className="inkio-toolbar-group">
-            {group.map((action) => {
-              const Icon = ui.icons[action.iconId];
-              const label =
-                action.label
-                ?? (action.labelKey ? ui.messages.actions[action.labelKey] : action.id);
-              const isDisabled = action.isDisabled?.(editor) ?? false;
-              const isActive = action.isActive?.(editor) ?? false;
-              const iconNode = Icon
-                ? <Icon size={16} strokeWidth={1.8} />
-                : <span aria-hidden>{label.slice(0, 1).toUpperCase()}</span>;
+            {group.map(({ action, state }) => {
+              const label = resolveActionLabel(action, ui.messages);
+              const isDisabled = state?.disabled ?? false;
+              const isActive = state?.active ?? false;
+              const iconNode = renderActionIcon(action, ui.icons, label);
 
               if (action.id === 'link') {
                 return (

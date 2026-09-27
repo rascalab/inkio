@@ -16,6 +16,12 @@ import type {
 } from '../i18n/messages';
 import { useInkioCoreUi } from '../context/use-inkio-ui';
 import {
+  buttonRefSetter,
+  renderActionIcon,
+  resolveActionLabel,
+  rovingTabIndex,
+} from './menu-buttons';
+import {
   autoUpdateOverlayPosition,
   computeOverlayPosition,
 } from '../overlay/positioning';
@@ -300,25 +306,17 @@ export const FloatingMenu = ({
           <Fragment key={`${group[0]?.group ?? 'group'}-${groupIndex}`}>
             {groupIndex > 0 && <div className="inkio-bubble-divider" />}
             {group.map((action) => {
-              const Icon = ui.icons[action.iconId];
-              const label =
-                action.label
-                ?? (action.labelKey ? ui.messages.actions[action.labelKey] : action.id);
+              const label = resolveActionLabel(action, ui.messages);
               const idx = allActions.indexOf(action);
               const isDisabled = action.isDisabled?.(editor) ?? false;
-              const iconNode = Icon
-                ? <Icon size={16} strokeWidth={1.8} />
-                : <span aria-hidden>{label.slice(0, 1).toUpperCase()}</span>;
+              const iconNode = renderActionIcon(action, ui.icons, label);
 
               return (
                 <button
                   key={action.id}
-                  ref={(el) => {
-                    if (el) buttonRefs.current.set(idx, el);
-                    else buttonRefs.current.delete(idx);
-                  }}
+                  ref={buttonRefSetter(buttonRefs.current, idx)}
                   type="button"
-                  tabIndex={focusedIndex === -1 ? (idx === 0 ? 0 : -1) : (focusedIndex === idx ? 0 : -1)}
+                  tabIndex={rovingTabIndex(idx, focusedIndex)}
                   onMouseDown={(event) => {
                     event.preventDefault();
                     if (isDisabled) {

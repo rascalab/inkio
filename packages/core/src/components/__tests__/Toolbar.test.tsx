@@ -95,4 +95,35 @@ describe('Toolbar', () => {
     expect(spies.unsetColor).toHaveBeenCalledTimes(1);
     expect(spies.getCurrentColor()).toBe('');
   });
+
+  it('re-renders active state on editor transactions', async () => {
+    const { editor } = createEditor(['bold']);
+    const handlers = new Map<string, Set<() => void>>();
+    editor.on = vi.fn((event: string, fn: () => void) => {
+      if (!handlers.has(event)) handlers.set(event, new Set());
+      handlers.get(event)!.add(fn);
+    });
+    editor.off = vi.fn((event: string, fn: () => void) => {
+      handlers.get(event)?.delete(fn);
+    });
+    let boldActive = false;
+    editor.isActive = vi.fn((name: string) => name === 'bold' && boldActive);
+
+    await act(async () => {
+      render(
+        <Toolbar
+          editor={editor}
+          items={(defaults) => defaults.filter((action) => action.id === 'bold')}
+        />,
+      );
+    });
+
+    expect(screen.getByRole('button', { name: 'Bold' }).className).not.toContain('is-active');
+
+    boldActive = true;
+    await act(async () => {
+      handlers.get('transaction')?.forEach((fn) => fn());
+    });
+    expect(screen.getByRole('button', { name: 'Bold' }).className).toContain('is-active');
+  });
 });

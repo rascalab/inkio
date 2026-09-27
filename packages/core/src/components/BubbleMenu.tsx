@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment, type KeyboardEvent } from 'react';
-import { Editor } from '@tiptap/react';
+import { Editor, useEditorState } from '@tiptap/react';
 import * as Popover from '@radix-ui/react-popover';
 import { BubbleMenuLinkInputPopover } from './BubbleMenuLinkInputPopover';
+import {
+  buttonRefSetter,
+  renderActionIcon,
+  resolveActionLabel,
+  rovingTabIndex,
+  selectionRect,
+  snapshotActionStates,
+} from './menu-buttons';
 import {
   getToolbarActionsFor,
   splitToolbarActionGroups,
@@ -53,7 +61,6 @@ export const BubbleMenu = ({
   // remount leaves a mount-time ref pointing at detached DOM, and the
   // portal would silently fall back to document.body without token scoping.
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
-  const [activeStateKey, setActiveStateKey] = useState('');
   const ui = useInkioCoreUi({
     locale,
     messages: messageOverrides,
@@ -69,34 +76,13 @@ export const BubbleMenu = ({
     setPortalContainer((prev) => (prev === next ? prev : next));
   });
 
-  useEffect(() => {
-    if (!editor) {
-      return;
-    }
-
-    const handler = () => {
-      queueMicrotask(() => {
-        const actions = getToolbarActionsFor(editor, 'bubble', items);
-        const key = actions
-          .map((a) => `${a.id}:${a.isActive?.(editor) ? '1' : '0'}`)
-          .join(',');
-        setActiveStateKey(key);
-      });
-    };
-    editor.on('selectionUpdate', handler);
-
-    return () => {
-      editor.off('selectionUpdate', handler);
-    };
-  }, [editor, items]);
-
   const updatePosition = useCallback(() => {
     if (!editor) {
       return;
     }
 
     const { selection } = editor.state;
-    const { from, to, empty } = selection;
+    const { empty } = selection;
 
     if (empty) {
       if (!linkPopoverOpenRef.current) {
@@ -110,14 +96,6 @@ export const BubbleMenu = ({
       return;
     }
 
-    const start = editor.view.coordsAtPos(from);
-    const end = editor.view.coordsAtPos(to);
-
-    const anchorLeft = Math.min(start.left, end.left);
-    const anchorRight = Math.max(start.right, end.right);
-    const anchorTop = Math.min(start.top, end.top);
-    const anchorBottom = Math.max(start.bottom, end.bottom);
-
     const floatingRect = {
       width: menuRef.current?.offsetWidth ?? 240,
       height: menuRef.current?.offsetHeight ?? 40,
@@ -126,14 +104,7 @@ export const BubbleMenu = ({
     const boundaryRect = editor.view.dom.getBoundingClientRect();
 
     const nextPosition = computeOverlayPosition({
-      anchorRect: {
-        top: anchorTop,
-        left: anchorLeft,
-        right: anchorRight,
-        bottom: anchorBottom,
-        width: Math.max(1, anchorRight - anchorLeft),
-        height: Math.max(1, anchorBottom - anchorTop),
-      },
+      anchorRect: selectionRect(editor),
       floatingRect,
       placement: 'top',
       align: 'center',
@@ -173,28 +144,9 @@ export const BubbleMenu = ({
     }
 
     // Legacy fallback: dispatch event for consumer-managed composer
-    const start = editor.view.coordsAtPos(from);
-    const end = editor.view.coordsAtPos(to);
-
-    const left = Math.min(start.left, end.left);
-    const right = Math.max(start.right, end.right);
-    const top = Math.min(start.top, end.top);
-    const bottom = Math.max(start.bottom, end.bottom);
-
     window.dispatchEvent(
       new CustomEvent('inkio:comment-request', {
-        detail: {
-          from,
-          to,
-          rect: {
-            top,
-            left,
-            right,
-            bottom,
-            width: Math.max(1, right - left),
-            height: Math.max(1, bottom - top),
-          },
-        },
+        detail: { from, to, rect: selectionRect(editor) },
       }),
     );
   }, [editor]);
@@ -240,8 +192,16 @@ export const BubbleMenu = ({
     }
   }, [linkPopoverOpen, updatePosition]);
 
+  // Re-render only when an action's active/disabled state changes. The
+  // selector closes over `editor`: the snapshot keeps the previous (null)
+  // editor until the first transaction after it attaches.
+  const actionStates = useEditorState({
+    editor,
+    selector: () => (editor ? snapshotActionStates(editor, getToolbarActionsFor(editor, 'bubble', items)) : null),
+  });
+
   const actionGroups = useMemo(() => {
-    if (!editor) {
+    if (!editor || !actionStates) {
       return [];
     }
 
@@ -254,7 +214,12 @@ export const BubbleMenu = ({
     });
 
     return splitToolbarActionGroups(actions);
-  }, [editor, activeStateKey, items]);
+  }, [editor, actionStates, items]);
+
+  const stateById = useMemo(
+    () => new Map((actionStates ?? []).map((entry) => [entry.id, entry])),
+    [actionStates],
+  );
 
   const allActions = useMemo(() => actionGroups.flat(), [actionGroups]);
 
@@ -311,15 +276,12 @@ export const BubbleMenu = ({
           <Fragment key={`${group[0]?.group ?? 'group'}-${groupIndex}`}>
             {groupIndex > 0 && <div className="inkio-bubble-divider" />}
             {group.map((action) => {
-              const Icon = ui.icons[action.iconId];
-              const label =
-                action.label
-                ?? (action.labelKey ? ui.messages.actions[action.labelKey] : action.id);
+              const label = resolveActionLabel(action, ui.messages);
               const idx = allActions.indexOf(action);
-              const isDisabled = action.isDisabled?.(editor) ?? false;
-              const iconNode = Icon
-                ? <Icon size={16} strokeWidth={1.8} />
-                : <span aria-hidden>{label.slice(0, 1).toUpperCase()}</span>;
+              const state = stateById.get(action.id);
+              const isDisabled = state?.disabled ?? false;
+              const isActive = state?.active ?? false;
+              const iconNode = renderActionIcon(action, ui.icons, label);
 
               if (action.id === 'link') {
                 return (
@@ -343,12 +305,9 @@ export const BubbleMenu = ({
                   >
                     <Popover.Anchor asChild>
                       <button
-                        ref={(el) => {
-                          if (el) buttonRefs.current.set(idx, el);
-                          else buttonRefs.current.delete(idx);
-                        }}
+                        ref={buttonRefSetter(buttonRefs.current, idx)}
                         type="button"
-                        tabIndex={focusedIndex === -1 ? (idx === 0 ? 0 : -1) : (focusedIndex === idx ? 0 : -1)}
+                        tabIndex={rovingTabIndex(idx, focusedIndex)}
                         onFocus={() => setFocusedIndex(idx)}
                         onMouseDown={(event) => {
                           event.preventDefault();
@@ -359,7 +318,7 @@ export const BubbleMenu = ({
                           setCurrentLinkUrl(existingUrl);
                           setLinkPopoverOpen(true);
                         }}
-                        className={`inkio-bubble-btn ${editor.isActive('link') ? 'is-active' : ''}`}
+                        className={`inkio-bubble-btn ${isActive ? 'is-active' : ''}`}
                         title={label}
                         aria-label={label}
                         disabled={isDisabled}
@@ -404,7 +363,7 @@ export const BubbleMenu = ({
               const buttonClass =
                 action.id === 'unlink'
                   ? 'inkio-bubble-btn is-danger'
-                  : `inkio-bubble-btn ${action.isActive?.(editor) ? 'is-active' : ''}`;
+                  : `inkio-bubble-btn ${isActive ? 'is-active' : ''}`;
 
               const onMouseDown: React.MouseEventHandler<HTMLButtonElement> = (event) => {
                 event.preventDefault();
@@ -423,12 +382,9 @@ export const BubbleMenu = ({
               return (
                 <button
                   key={action.id}
-                  ref={(el) => {
-                    if (el) buttonRefs.current.set(idx, el);
-                    else buttonRefs.current.delete(idx);
-                  }}
+                  ref={buttonRefSetter(buttonRefs.current, idx)}
                   type="button"
-                  tabIndex={focusedIndex === -1 ? (idx === 0 ? 0 : -1) : (focusedIndex === idx ? 0 : -1)}
+                  tabIndex={rovingTabIndex(idx, focusedIndex)}
                   onFocus={() => setFocusedIndex(idx)}
                   onMouseDown={onMouseDown}
                   className={buttonClass}
