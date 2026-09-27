@@ -1,5 +1,5 @@
-import type { Root } from 'react-dom/client';
 import type { Editor } from '@tiptap/core';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { Plugin } from '@tiptap/pm/state';
 import {
   commentThreadPopoverPluginKey,
@@ -10,7 +10,8 @@ import { CommentThreadPopover } from './components/CommentThreadPopover';
 import {
   autoUpdateOverlayPosition,
   computeOverlayPosition,
-  getCreateRoot,
+  createOverlayHost,
+  type OverlayHost,
 } from '@inkio/core';
 
 interface ThreadPopoverPluginState {
@@ -18,19 +19,11 @@ interface ThreadPopoverPluginState {
   threadId: string;
 }
 
-/** Collect the text content for all spans of a given comment mark. */
-function collectMarkText(editor: Editor, threadId: string): string {
-  const ranges = findMarkRanges(editor, threadId);
-  if (ranges.length === 0) return '';
-  return ranges.map(({ from, to }) => editor.state.doc.textBetween(from, to, ' ')).join(' ');
-}
+type MarkRange = { from: number; to: number };
 
 /** Find all ranges in the document that carry a specific comment mark. */
-function findMarkRanges(
-  editor: Editor,
-  threadId: string,
-): Array<{ from: number; to: number }> {
-  const ranges: Array<{ from: number; to: number }> = [];
+function findMarkRanges(editor: Editor, threadId: string): MarkRange[] {
+  const ranges: MarkRange[] = [];
   const markType = editor.state.schema.marks.comment;
   if (!markType) return ranges;
 
@@ -49,14 +42,66 @@ function findMarkRanges(
   return ranges;
 }
 
+/** Collect the text content for all spans of the given mark ranges. */
+function collectRangesText(doc: ProseMirrorNode, ranges: MarkRange[]): string {
+  if (ranges.length === 0) return '';
+  return ranges.map(({ from, to }) => doc.textBetween(from, to, ' ')).join(' ');
+}
+
+/**
+ * Compare two documents and report whether the changed region touches any of
+ * `ranges` (positions in `prev`). When the change lies entirely before the
+ * ranges, they are shifted in place so they stay valid for `next`.
+ * Returns true when the ranges must be recomputed.
+ */
+function diffTouchesRanges(
+  prev: ProseMirrorNode,
+  next: ProseMirrorNode,
+  ranges: MarkRange[],
+): boolean {
+  if (ranges.length === 0) return true;
+
+  const start = prev.content.findDiffStart(next.content);
+  if (start === null) return false;
+
+  const end = prev.content.findDiffEnd(next.content);
+  if (!end) return true;
+  let endA = end.a;
+  let endB = end.b;
+  const overlap = start - Math.min(endA, endB);
+  if (overlap > 0) {
+    endA += overlap;
+    endB += overlap;
+  }
+
+  const first = ranges[0].from;
+  const last = ranges[ranges.length - 1].to;
+  // Inclusive bounds: an edit adjacent to the mark can extend/split it.
+  if (start <= last && endA >= first) return true;
+
+  if (endA < first) {
+    const delta = endB - endA;
+    if (delta !== 0) {
+      for (const range of ranges) {
+        range.from += delta;
+        range.to += delta;
+      }
+    }
+  }
+  return false;
+}
+
 export function createCommentThreadPopoverPlugin(
   editor: Editor,
   options: CommentOptions,
 ): Plugin {
-  let popup: HTMLDivElement | null = null;
-  let root: Root | null = null;
+  let host: OverlayHost | null = null;
   let cleanupAutoUpdate: (() => void) | null = null;
   let currentThreadId = '';
+  let cachedRanges: MarkRange[] = [];
+  let cachedQuotedText = '';
+  let renderedThread: unknown = undefined;
+  let positionRaf = 0;
 
   function deactivate() {
     const tr = editor.view.state.tr.setMeta(commentThreadPopoverPluginKey, {
@@ -66,7 +111,13 @@ export function createCommentThreadPopoverPlugin(
     editor.view.dispatch(tr);
   }
 
+  function refreshQuotedText() {
+    cachedRanges = findMarkRanges(editor, currentThreadId);
+    cachedQuotedText = collectRangesText(editor.state.doc, cachedRanges);
+  }
+
   function updatePosition() {
+    const popup = host?.element;
     if (!popup || !currentThreadId) return;
 
     const markEl = editor.view.dom.querySelector(
@@ -100,127 +151,114 @@ export function createCommentThreadPopoverPlugin(
     popup.style.top = `${next.top}px`;
   }
 
-  function mountAndRender(threadId: string) {
-    currentThreadId = threadId;
-
-    popup = document.createElement('div');
-    popup.className = 'inkio';
-    popup.style.position = 'fixed';
-    popup.style.zIndex = 'var(--inkio-layer-popover, 150)';
-
-    const editorEl = editor.view.dom.closest('.inkio');
-    if (editorEl) {
-      const isDark = editorEl.classList.contains('dark');
-      popup.classList.toggle('dark', isDark);
-    }
-
-    document.body.appendChild(popup);
-
-    cleanupAutoUpdate = autoUpdateOverlayPosition({
-      update: updatePosition,
-      elements: [editor.view.dom, popup],
-    });
-
-    // Capture the mount generation: a newer mountAndRender replaces `popup`,
-    // so a stale promise must not create a second root on the new element.
-    const current = popup;
-    getCreateRoot().then((createRootFn) => {
-      if (!popup || popup !== current) return;
-      root = createRootFn(popup);
-      renderPopover();
-    }).catch((error: unknown) => {
-      console.error('[inkio] comment popover failed to initialize:', error);
-      current.remove();
-      if (popup === current) popup = null;
+  function schedulePosition() {
+    if (positionRaf) return;
+    positionRaf = requestAnimationFrame(() => {
+      positionRaf = 0;
+      updatePosition();
     });
   }
 
+  // Stable callbacks: re-renders don't hand React fresh closures each time.
+  // canMutate is captured at render time: each action re-checks at action
+  // time in case the editor flipped read-only while open.
+  const handleReply = (id: string, text: string) => {
+    if (!editor.isEditable) return;
+    options.onCommentReply?.(id, text);
+  };
+  const handleResolve = (id: string) => {
+    if (!editor.isEditable) return;
+    // resolveComment() already invokes onCommentResolve internally.
+    (
+      editor.commands as unknown as {
+        resolveComment?: (commentId: string) => boolean;
+      }
+    ).resolveComment?.(id);
+    deactivate();
+  };
+  const handleDelete = (id: string) => {
+    if (!editor.isEditable) return;
+    // Remove comment marks from the document
+    const markType = editor.state.schema.marks.comment;
+    if (markType) {
+      const ranges = findMarkRanges(editor, id);
+      if (ranges.length > 0) {
+        const tr = editor.view.state.tr;
+        ranges.forEach(({ from, to }) => tr.removeMark(from, to, markType));
+        editor.view.dispatch(tr);
+      }
+    }
+
+    options.onCommentDelete?.(id);
+    deactivate();
+  };
+  const handleClose = () => {
+    deactivate();
+  };
+
+  function mountAndRender(threadId: string) {
+    currentThreadId = threadId;
+    refreshQuotedText();
+
+    host = createOverlayHost({
+      editorDom: editor.view.dom,
+      label: 'comment popover',
+      style: {
+        position: 'fixed',
+        zIndex: 'var(--inkio-layer-popover, 150)',
+      },
+    });
+
+    cleanupAutoUpdate = autoUpdateOverlayPosition({
+      update: updatePosition,
+      elements: [editor.view.dom, host.element],
+    });
+
+    renderPopover();
+  }
+
   function renderPopover() {
-    if (!root || !currentThreadId) return;
+    if (!host || !currentThreadId) return;
 
     const thread = options.getThread?.(currentThreadId) ?? null;
-    const quotedText = collectMarkText(editor, currentThreadId);
+    renderedThread = thread;
     const currentUser = options.currentUser ?? 'User';
 
     // Read-only surfaces render threads but offer no actions: omitting a
     // callback hides its UI, so frozen discussion views fall out naturally.
     const canMutate = editor.isEditable;
-    root.render(
+    host.render(
       <CommentThreadPopover
         threadId={currentThreadId}
-        quotedText={quotedText}
+        quotedText={cachedQuotedText}
         thread={thread}
         currentUser={currentUser}
         locale={options.locale}
         messages={options.messages}
         icons={options.icons}
-        onReply={
-          canMutate && options.onCommentReply
-            ? (id: string, text: string) => {
-              // canMutate was captured at render time: re-check at action
-              // time in case the editor flipped read-only while open.
-              if (!editor.isEditable) return;
-              options.onCommentReply?.(id, text);
-            }
-            : undefined
-        }
-        onResolve={
-          canMutate
-            ? (id: string) => {
-                if (!editor.isEditable) return;
-                // resolveComment() already invokes onCommentResolve internally.
-                (
-                  editor.commands as unknown as {
-                    resolveComment?: (commentId: string) => boolean;
-                  }
-                ).resolveComment?.(id);
-                deactivate();
-              }
-            : undefined
-        }
-        onDelete={
-          canMutate
-            ? (id: string) => {
-                if (!editor.isEditable) return;
-                // Remove comment marks from the document
-                const markType = editor.state.schema.marks.comment;
-                if (markType) {
-                  const ranges = findMarkRanges(editor, id);
-                  if (ranges.length > 0) {
-                    const tr = editor.view.state.tr;
-                    ranges.forEach(({ from, to }) => tr.removeMark(from, to, markType));
-                    editor.view.dispatch(tr);
-                  }
-                }
-
-                options.onCommentDelete?.(id);
-                deactivate();
-              }
-            : undefined
-        }
-        onClose={() => {
-          deactivate();
-        }}
+        onReply={canMutate && options.onCommentReply ? handleReply : undefined}
+        onResolve={canMutate ? handleResolve : undefined}
+        onDelete={canMutate ? handleDelete : undefined}
+        onClose={handleClose}
       />,
     );
 
-    requestAnimationFrame(updatePosition);
+    schedulePosition();
   }
 
   function teardown() {
-    const popupToRemove = popup;
-    const rootToUnmount = root;
-
+    if (positionRaf) {
+      cancelAnimationFrame(positionRaf);
+      positionRaf = 0;
+    }
     cleanupAutoUpdate?.();
     cleanupAutoUpdate = null;
-    popup = null;
-    root = null;
+    host?.destroy();
+    host = null;
     currentThreadId = '';
-
-    queueMicrotask(() => {
-      rootToUnmount?.unmount();
-      popupToRemove?.remove();
-    });
+    cachedRanges = [];
+    cachedQuotedText = '';
+    renderedThread = undefined;
   }
 
   return new Plugin<ThreadPopoverPluginState>({
@@ -270,13 +308,14 @@ export function createCommentThreadPopoverPlugin(
     view: () => {
       let wasActive = false;
       let lastThreadId = '';
+      let lastEditable = editor.isEditable;
 
       // External thread data (the CommentPanel `threads` prop) can change
       // without any document transaction — e.g. a reply arrives while the
       // popover is open. Re-read getThread on notification so the popover
       // never shows stale messages.
       const handleThreadsChanged = () => {
-        if (wasActive && root && currentThreadId) {
+        if (wasActive && host && currentThreadId) {
           renderPopover();
         }
       };
@@ -285,7 +324,7 @@ export function createCommentThreadPopoverPlugin(
       }
 
       return {
-        update: (view) => {
+        update: (view, prevState) => {
           const state = commentThreadPopoverPluginKey.getState(
             view.state,
           ) as ThreadPopoverPluginState;
@@ -293,6 +332,7 @@ export function createCommentThreadPopoverPlugin(
           if (state.active && (!wasActive || state.threadId !== lastThreadId)) {
             // Opening a new thread (or switching threads)
             if (wasActive) teardown();
+            lastEditable = editor.isEditable;
             mountAndRender(state.threadId);
             wasActive = true;
             lastThreadId = state.threadId;
@@ -300,9 +340,27 @@ export function createCommentThreadPopoverPlugin(
             teardown();
             wasActive = false;
             lastThreadId = '';
-          } else if (state.active && root) {
-            // Re-render to pick up updated thread data (new replies, etc.)
-            renderPopover();
+          } else if (state.active && host) {
+            // Avoid per-transaction work while open: only a doc change that
+            // touches this thread's marks re-collects the quote, and only
+            // quote/thread/editability changes re-render. Thread data changes
+            // also arrive through COMMENT_THREADS_CHANGED_EVENT.
+            let needsRender =
+              (options.getThread?.(currentThreadId) ?? null) !== renderedThread;
+            if (view.state.doc !== prevState.doc) {
+              if (diffTouchesRanges(prevState.doc, view.state.doc, cachedRanges)) {
+                const previousText = cachedQuotedText;
+                refreshQuotedText();
+                needsRender = cachedQuotedText !== previousText;
+              }
+              // The mark may have moved on screen even when untouched.
+              schedulePosition();
+            }
+            if (editor.isEditable !== lastEditable) {
+              lastEditable = editor.isEditable;
+              needsRender = true;
+            }
+            if (needsRender) renderPopover();
           }
         },
         destroy: () => {
