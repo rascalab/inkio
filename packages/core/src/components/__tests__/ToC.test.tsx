@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act } from 'react';
 import { ToC, calcTocTop } from '../ToC';
 import type { JSONContent } from '@tiptap/core';
 
@@ -172,6 +173,31 @@ describe('ToC component', () => {
     rerender(<ToC source={source} />);
     expect(document.querySelectorAll('.inkio-toc-link')).toHaveLength(1);
     expect(document.querySelector('.inkio-toc-link')!.textContent).toBe('Only One');
+  });
+
+  it('does not re-observe headings when only heading text changes', async () => {
+    const source = createMockSource(DOC_WITH_HEADINGS);
+    const IO = globalThis.IntersectionObserver as unknown as ReturnType<typeof vi.fn>;
+    const addListener = vi.spyOn(window, 'addEventListener');
+    render(<ToC source={source} />);
+    const observersBefore = IO.mock.calls.length;
+    const scrollListenersBefore = addListener.mock.calls.filter(([type]) => type === 'scroll').length;
+
+    const retyped: JSONContent = {
+      ...DOC_WITH_HEADINGS,
+      content: DOC_WITH_HEADINGS.content!.map((node, i) =>
+        i === 0 ? { ...node, content: [{ type: 'text', text: 'Title edited' }] } : node,
+      ),
+    };
+    source._setDoc(retyped);
+    await act(async () => {
+      source._emit('transaction', { docChanged: true, steps: [{}], before: source.state.doc });
+    });
+
+    expect(document.querySelector('.inkio-toc-link')!.textContent).toBe('Title edited');
+    expect(IO.mock.calls.length).toBe(observersBefore);
+    expect(addListener.mock.calls.filter(([type]) => type === 'scroll').length).toBe(scrollListenersBefore);
+    addListener.mockRestore();
   });
 
   it('skips update when transaction.docChanged is false', () => {

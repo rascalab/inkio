@@ -92,7 +92,9 @@ export function getHeadingsFromDoc(
   const usedIds = new Set<string>();
   let index = 0;
 
-  const collect = (node: any) => {
+  // Returns false to prune: headings and other textblocks only hold inline
+  // content, so their text nodes are never visited.
+  const collect = (node: any): boolean => {
     if (node?.type?.name === 'heading') {
       const level = Math.min(6, Math.max(1, Number(node.attrs?.level ?? 1)));
       const text = (node.textContent ?? '').trim();
@@ -104,7 +106,9 @@ export function getHeadingsFromDoc(
         id: slugifyHeading(text || `section-${index + 1}`, usedIds),
       });
       index += 1;
+      return false;
     }
+    return !node?.isTextblock;
   };
 
   // descendants() recurses into blockquote/callout/details/table cells so live

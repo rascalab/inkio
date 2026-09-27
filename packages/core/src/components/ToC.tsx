@@ -69,10 +69,13 @@ export function ToC({
   style,
 }: ToCProps) {
   const navRef = useRef<HTMLElement>(null);
-  const { filtered, minLevel, headingElsRef, handleClick } = useHeadings(source, maxLevel);
+  const { filtered, minLevel, headingElsRef, handleClick, layoutKey } = useHeadings(source, maxLevel);
+  const hasHeadings = filtered.length > 0;
 
   // Track scroll to keep ToC within editor bounds.
   // Debounced: waits until scroll stops, then smoothly transitions via CSS.
+  // Keyed on the heading structure, not the array: typing inside a heading
+  // must not re-attach listeners and force a layout read per keystroke.
   useEffect(() => {
     const editorDom = source?.view?.dom?.parentElement;
     const nav = navRef.current;
@@ -104,12 +107,12 @@ export function ToC({
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
     };
-  }, [source, filtered]);
+  }, [source, hasHeadings, layoutKey]);
 
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
-    if (filtered.length === 0) return;
+    if (!hasHeadings) return;
     const headingEls = headingElsRef.current;
     if (headingEls.length === 0) return;
 
@@ -133,7 +136,7 @@ export function ToC({
       observer.observe(el);
     }
     return () => { observer.disconnect(); };
-  }, [filtered, headingElsRef]);
+  }, [hasHeadings, layoutKey, headingElsRef]);
 
   const onLinkClick = (e: React.MouseEvent, i: number) => {
     handleClick(e, i);

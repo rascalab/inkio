@@ -99,15 +99,35 @@ export function useHeadings(source: Editor | null | undefined, maxLevel = 3) {
 
   const filtered = useMemo(() => headings.filter((h) => h.level <= maxLevel), [headings, maxLevel]);
 
+  // Structural signature (count + levels). Typing inside a heading yields a
+  // new `filtered` array (text/id changed) but the same signature, so DOM
+  // queries, observers and layout work keyed on it do not re-run per keystroke.
+  const signature = useMemo(() => filtered.map((h) => h.level).join(','), [filtered]);
+  const [elementsGeneration, setElementsGeneration] = useState(0);
+
   const minLevel = useMemo(
     () => (filtered.length > 0 ? Math.min(...filtered.map((h) => h.level)) : 1),
     [filtered],
   );
 
-  // Cache heading DOM elements — refreshed when filtered changes
+  // Cache heading DOM elements — re-queried when the heading structure changes.
   useEffect(() => {
     headingElsRef.current = getHeadingElements(source, maxLevel);
+  }, [signature, source, maxLevel]);
+
+  // Same structure but a heading element was replaced (e.g. a paste over a
+  // whole heading): the cached elements went stale. `contains` is a cheap,
+  // layout-free check; re-query and bump the generation only when needed.
+  useEffect(() => {
+    const container = source?.view?.dom;
+    if (container && headingElsRef.current.some((el) => !container.contains(el))) {
+      headingElsRef.current = getHeadingElements(source, maxLevel);
+      setElementsGeneration((generation) => generation + 1);
+    }
   }, [filtered, source, maxLevel]);
+
+  /** Changes only when heading count/levels or the cached DOM elements change. */
+  const layoutKey = `${signature}#${elementsGeneration}`;
 
   const handleClick = useCallback(
     (e: React.MouseEvent, index: number) => {
@@ -117,5 +137,5 @@ export function useHeadings(source: Editor | null | undefined, maxLevel = 3) {
     [],
   );
 
-  return { headings, filtered, minLevel, headingElsRef, handleClick };
+  return { headings, filtered, minLevel, headingElsRef, handleClick, layoutKey };
 }
