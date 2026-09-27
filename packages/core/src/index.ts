@@ -68,6 +68,13 @@ export { mergeExtensions, resolveExtensionsInput } from './utils/extensions-inpu
 export { isEqualOptionsValue, useStableCallback, useStableOptions } from './utils/stable-options';
 export { getCreateRoot } from './utils/create-root';
 export type { CreateRootFn } from './utils/create-root';
+export { createLatestWinsItems } from './utils/latest-wins';
+export type {
+  LatestWinsCell,
+  LatestWinsGuard,
+  LatestWinsItemsOptions,
+  LatestWinsSource,
+} from './utils/latest-wins';
 export { resolveInkioExtensions } from './extensions/resolve-extensions';
 export { runOptionalChainCommand } from './extensions/optional-commands';
 export type { InkioOptionalChainCommand } from './extensions/optional-commands';
