@@ -2,7 +2,13 @@ import { Extension, type Editor, type Range } from '@tiptap/core';
 import Suggestion from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
 import type { ReactNode } from 'react';
-import { createSuggestionRenderer, runOptionalChainCommand, toError, type InkioErrorHandler } from '@inkio/core';
+import {
+  createLatestWinsItems,
+  createSuggestionRenderer,
+  runOptionalChainCommand,
+  toError,
+  type InkioErrorHandler,
+} from '@inkio/core';
 
 export interface SlashCommandItem {
   id: string;
@@ -56,31 +62,34 @@ export async function resolveSlashCommandItems(
   context: SlashCommandContext,
   source: SlashCommandItemSource,
 ): Promise<SlashCommandItem[]> {
-  const { query, editor } = context;
   const { items, transformItems, onError, latest } = source;
-  const seq = (latest.value += 1);
-  try {
-    const base = items
-      ? await items({ query, editor })
-      : defaultSlashCommands.map((item) => ({ ...item }));
-    if (seq !== latest.value) return [];
-    // transformItems always applies — even on top of custom `items` and
-    // even over an empty base (a transform may inject contextual items) —
-    // so combining `slashCommands` + `transformSlashCommands` is never
-    // silently dead.
-    const transformed = transformItems
-      ? await transformItems(base, { query, editor })
-      : base;
-    if (seq !== latest.value) return [];
+  // No debounce: the slash menu resolves synchronously-cheap defaults and
+  // must feel instant. The caller-owned `latest` cell is the scope.
+  const resolve = createLatestWinsItems<SlashCommandContext, SlashCommandItem>({
+    scope: () => latest,
+    onError: (error) => {
+      onError?.(error, { source: 'slashCommand.suggestion', recoverable: true });
+    },
+    source: async ({ query, editor }, { isCurrent }) => {
+      const base = items
+        ? await items({ query, editor })
+        : defaultSlashCommands.map((item) => ({ ...item }));
+      if (!isCurrent()) return [];
+      // transformItems always applies — even on top of custom `items` and
+      // even over an empty base (a transform may inject contextual items) —
+      // so combining `slashCommands` + `transformSlashCommands` is never
+      // silently dead.
+      const transformed = transformItems
+        ? await transformItems(base, { query, editor })
+        : base;
+      if (!isCurrent()) return [];
 
-    // Custom items() callers may skip filtering; enforce it here for
-    // consistent prefix/inclusion behavior and schema availability guards.
-    return filterSlashCommandItems(transformed, query, editor);
-  } catch (error) {
-    if (seq !== latest.value) return [];
-    onError?.(toError(error), { source: 'slashCommand.suggestion', recoverable: true });
-    return [];
-  }
+      // Custom items() callers may skip filtering; enforce it here for
+      // consistent prefix/inclusion behavior and schema availability guards.
+      return filterSlashCommandItems(transformed, query, editor);
+    },
+  });
+  return resolve(context);
 }
 
 function hasSchemaNode(editor: Editor, name: string): boolean {
@@ -289,9 +298,8 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
 
   addProseMirrorPlugins() {
     const { items, transformItems, onError } = this.options;
-    // One sequence cell per plugin instance so interleaved editors never
-    // drop each other's results (Mention shares one per configured
-    // extension instead — see its latestRequestSeq).
+    // One sequence cell per plugin instance (i.e. per editor) so
+    // interleaved editors never drop each other's results.
     const latest = { value: 0 };
 
     const resolvedItems = async ({ query, editor }: SlashCommandContext) =>
