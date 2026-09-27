@@ -79,6 +79,17 @@ function InnerEditor({
   const isZoomFit = Math.abs(previewZoom - 1) < 0.001;
   const zoomLabel = `${Math.round(previewZoom * 100)}%`;
   const isControlsVisible = controls.kind === 'surface';
+  // e2e reads these debug attributes from production builds, so they stay
+  // on; memoizing by object identity keeps JSON serialization off the
+  // per-frame render path (drags, zoom, unrelated state updates).
+  const debugSelectedAnnotation = useMemo(
+    () => (selectedAnnotation ? JSON.stringify(selectedAnnotation) : ''),
+    [selectedAnnotation],
+  );
+  const debugPendingCrop = useMemo(
+    () => (state.pendingCrop ? JSON.stringify(state.pendingCrop) : ''),
+    [state.pendingCrop],
+  );
 
   useEffect(() => {
     if (!state.originalImage) {
@@ -101,10 +112,10 @@ function InnerEditor({
       data-debug-filter={state.filter}
       data-debug-selected-id={selectedAnnotation?.id ?? ''}
       data-debug-selected-type={selectedAnnotation?.type ?? ''}
-      data-debug-selected-annotation={selectedAnnotation ? JSON.stringify(selectedAnnotation) : ''}
+      data-debug-selected-annotation={debugSelectedAnnotation}
       data-debug-annotation-count={String(state.annotations.length)}
       data-debug-output-size={state.outputSize ? `${state.outputSize.width}x${state.outputSize.height}` : ''}
-      data-debug-pending-crop={state.pendingCrop ? JSON.stringify(state.pendingCrop) : ''}
+      data-debug-pending-crop={debugPendingCrop}
       data-debug-image-width={String(state.originalWidth)}
       data-debug-image-height={String(state.originalHeight)}
       data-debug-canvas-width={String(Math.round(containerSize.width))}
