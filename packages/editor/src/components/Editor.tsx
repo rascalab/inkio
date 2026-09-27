@@ -18,7 +18,7 @@ import type { HashTagItem, MentionItem, SlashCommandItem, SlashCommandTransform,
 import { getDefaultExtensions, type DefaultExtensionsOptions } from '@inkio/advanced';
 import type { ExtensionsInput } from '../types';
 import { resolveExtensionsInput } from '../utils/resolve-extensions-input';
-import { useStableCallback, useStableOptions } from '@inkio/core';
+import { mapEditorUiToCoreProps, mergeImageBlockOptions, useStableProps } from '@inkio/core';
 import type { InkioJSONContent as JSONContent } from '@inkio/core';
 
 interface EditorUiOptions {
@@ -106,92 +106,84 @@ export function Editor({
 }: EditorProps) {
   // Parent re-renders with inline option literals must not rebuild the
   // extension set (tiptap compares extensions by identity → setOptions storm
-  // per keystroke). Stabilize structural inputs; callbacks still compare by
-  // reference so updates are never swallowed.
-  const stableMessages = useStableOptions(ui?.messages);
-  const stableIcons = useStableOptions(ui?.icons);
-  const stableBubbleMenu = useStableOptions(ui?.bubbleMenu);
-  const stableFloatingMenu = useStableOptions(ui?.floatingMenu);
-  const stableTableMenu = useStableOptions(ui?.tableMenu);
-  const stableComment = useStableOptions(comment);
-  const stableImageBlock = useStableOptions(imageBlock);
-  const stableBookmark = useStableOptions(bookmark);
-  const stableMentionItems = useStableCallback(mentionItems);
-  const stableHashtagItems = useStableCallback(hashtagItems);
-  const stableSlashCommands = useStableCallback(slashCommands);
-  const stableTransformSlashCommands = useStableCallback(transformSlashCommands);
-  const stableOnError = useStableCallback(onError);
-  const stableOnImageUpload = useStableCallback(onImageUpload);
-  const stableOnWikiLinkClick = useStableCallback(onWikiLinkClick);
-
-  const defaultExtensionsOptions = useMemo<DefaultExtensionsOptions>(() => {
-    const opts: DefaultExtensionsOptions = {
-      placeholder,
-      locale,
-      messages: stableMessages,
-      icons: stableIcons,
-      tabBehavior,
-      onError: stableOnError,
-      mentionItems: stableMentionItems,
-      hashtagItems: stableHashtagItems,
-      slashCommands: stableSlashCommands,
-      transformSlashCommands: stableTransformSlashCommands,
-      onWikiLinkClick: stableOnWikiLinkClick,
-      blockHandle,
-      wikiLink,
-      comment: stableComment,
-      callout: callout === false ? false : undefined,
-      toggleList: toggleList === false ? false : undefined,
-      table: table === false ? false : undefined,
-    };
-
-    // imageBlock: merge onImageUpload into imageBlock options
-    if (stableImageBlock !== undefined || stableOnImageUpload !== undefined) {
-      opts.imageBlock = stableOnImageUpload
-        ? { ...stableImageBlock, onUpload: stableOnImageUpload }
-        : stableImageBlock;
-    }
-
-    // bookmark
-    if (stableBookmark === false) {
-      opts.bookmark = false;
-    } else if (stableBookmark !== undefined) {
-      opts.bookmark = true;
-      if (stableBookmark.onResolveBookmark) {
-        opts.onResolveBookmark = stableBookmark.onResolveBookmark;
-      }
-    }
-
-    return opts;
-  }, [
+  // per keystroke). Structural inputs are stabilized; callbacks become
+  // stable forwarders to the latest implementation, so one call covers every
+  // field (a missed per-field wrapper was a past bug source).
+  const stableUi = useStableProps(ui ?? {});
+  const extensionInputs = useStableProps({
     placeholder,
     locale,
-    stableMessages,
-    stableIcons,
+    messages: stableUi.messages,
+    icons: stableUi.icons,
     tabBehavior,
-    stableOnError,
-    stableMentionItems,
-    stableHashtagItems,
-    stableSlashCommands,
-    stableTransformSlashCommands,
-    stableOnWikiLinkClick,
+    onError,
+    mentionItems,
+    hashtagItems,
+    slashCommands,
+    transformSlashCommands,
+    onWikiLinkClick,
     blockHandle,
     wikiLink,
-    stableComment,
+    comment,
     callout,
     toggleList,
     table,
-    stableImageBlock,
-    stableOnImageUpload,
-    stableBookmark,
-  ]);
+    imageBlock,
+    onImageUpload,
+    bookmark,
+  });
 
   const resolvedExtensions = useMemo(() => {
-    const defaults = getDefaultExtensions(defaultExtensionsOptions);
-    return resolveExtensionsInput(extensions, defaults);
-  }, [defaultExtensionsOptions, extensions]);
+    const input = extensionInputs;
+    const opts: DefaultExtensionsOptions = {
+      placeholder: input.placeholder,
+      locale: input.locale,
+      messages: input.messages,
+      icons: input.icons,
+      tabBehavior: input.tabBehavior,
+      onError: input.onError,
+      mentionItems: input.mentionItems,
+      hashtagItems: input.hashtagItems,
+      slashCommands: input.slashCommands,
+      transformSlashCommands: input.transformSlashCommands,
+      onWikiLinkClick: input.onWikiLinkClick,
+      blockHandle: input.blockHandle,
+      wikiLink: input.wikiLink,
+      comment: input.comment,
+      callout: input.callout === false ? false : undefined,
+      toggleList: input.toggleList === false ? false : undefined,
+      table: input.table === false ? false : undefined,
+    };
+
+    // imageBlock: merge onImageUpload into imageBlock options
+    const mergedImageBlock = mergeImageBlockOptions(input.imageBlock, { onUpload: input.onImageUpload });
+    if (mergedImageBlock) {
+      opts.imageBlock = mergedImageBlock;
+    }
+
+    // bookmark
+    if (input.bookmark === false) {
+      opts.bookmark = false;
+    } else if (input.bookmark !== undefined) {
+      opts.bookmark = true;
+      if (input.bookmark.onResolveBookmark) {
+        opts.onResolveBookmark = input.bookmark.onResolveBookmark;
+      }
+    }
+
+    return resolveExtensionsInput(extensions, getDefaultExtensions(opts));
+  }, [extensionInputs, extensions]);
 
   const coreProps: CoreEditorProps = {
+    ...mapEditorUiToCoreProps(stableUi, {
+      showToolbar: false,
+      showBubbleMenu: true,
+      showFloatingMenu: true,
+      showTableMenu: true,
+    }),
+    // This wrapper has no toolbar surface.
+    showToolbar: false,
+    toolbar: undefined,
     content,
     extensions: resolvedExtensions,
     editable,
@@ -200,20 +192,6 @@ export function Editor({
     onUpdate,
     onCreate,
     locale,
-    messages: stableMessages,
-    icons: stableIcons,
-    className: ui?.className,
-    style: ui?.style,
-    fill: ui?.fill,
-    autoresize: ui?.autoresize,
-    bordered: ui?.bordered,
-    showToolbar: false,
-    showBubbleMenu: ui?.showBubbleMenu ?? true,
-    showFloatingMenu: ui?.showFloatingMenu ?? true,
-    showTableMenu: ui?.showTableMenu ?? true,
-    bubbleMenu: stableBubbleMenu,
-    floatingMenu: stableFloatingMenu,
-    tableMenu: stableTableMenu,
   };
 
   return <CoreEditor {...coreProps} />;

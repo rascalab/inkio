@@ -81,3 +81,74 @@ export function useStableCallback<T extends (...args: never[]) => unknown>(
     return stable as T;
   }, [fn === undefined]);
 }
+
+type AnyFunction = (...args: never[]) => unknown;
+
+/**
+ * Stabilize a whole props bag at once, instead of one `useStableOptions` /
+ * `useStableCallback` call per field (easy to miss one when a prop is added):
+ *
+ * - function fields become identity-stable forwarders to the newest
+ *   implementation (like `useStableCallback`; a new forwarder is created
+ *   only when the field goes from undefined to defined);
+ * - every other field keeps its previous value while structurally equal
+ *   (like `useStableOptions`; nested functions compare by reference).
+ *
+ * The returned object itself keeps its identity until some field changes,
+ * so it can be used directly as a single memo dependency.
+ */
+export function useStableProps<T extends object>(props: T): T {
+  const latestRef = useRef(props);
+  // Idempotent render-phase write, same as useStableCallback.
+  latestRef.current = props;
+  const cacheRef = useRef<{ result: T; forwarders: Map<string, AnyFunction> } | null>(null);
+
+  const cache = cacheRef.current;
+  const forwarders = cache?.forwarders ?? new Map<string, AnyFunction>();
+  const previous = cache?.result as Record<string, unknown> | undefined;
+  const source = props as Record<string, unknown>;
+  const next: Record<string, unknown> = {};
+
+  for (const key of Object.keys(source)) {
+    const value = source[key];
+    if (typeof value === 'function') {
+      let forwarder = forwarders.get(key);
+      if (!forwarder) {
+        forwarder = (...args: never[]) => {
+          const latest = (latestRef.current as Record<string, unknown>)[key];
+          if (typeof latest !== 'function') {
+            throw new Error(`useStableProps: "${key}" invoked after its callback was removed`);
+          }
+          return (latest as AnyFunction)(...args);
+        };
+        forwarders.set(key, forwarder);
+      }
+      next[key] = forwarder;
+    } else {
+      forwarders.delete(key);
+      const prev = previous?.[key];
+      next[key] =
+        previous && Object.prototype.hasOwnProperty.call(previous, key)
+        && typeof prev !== 'function'
+        && isEqualOptionsValue(prev, value)
+          ? prev
+          : value;
+    }
+  }
+  for (const key of forwarders.keys()) {
+    if (!Object.prototype.hasOwnProperty.call(source, key)) forwarders.delete(key);
+  }
+
+  if (previous) {
+    const nextKeys = Object.keys(next);
+    if (
+      nextKeys.length === Object.keys(previous).length
+      && nextKeys.every((key) => Object.prototype.hasOwnProperty.call(previous, key) && Object.is(previous[key], next[key]))
+    ) {
+      return cache!.result;
+    }
+  }
+
+  cacheRef.current = { result: next as T, forwarders };
+  return next as T;
+}

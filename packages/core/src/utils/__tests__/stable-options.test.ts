@@ -1,5 +1,6 @@
 import { renderHook } from '@testing-library/react';
-import { isEqualOptionsValue, useStableCallback, useStableOptions } from '../stable-options';
+import { isEqualOptionsValue, useStableCallback, useStableOptions, useStableProps } from '../stable-options';
+import { mapEditorUiToCoreProps, mergeImageBlockOptions } from '../editor-wrapper';
 
 describe('useStableCallback', () => {
   it('keeps one identity across inline closures while forwarding to the newest', () => {
@@ -69,5 +70,73 @@ describe('useStableOptions', () => {
     expect(result.current.onUpload).toBe(fnB);
     rerender({ value: { onUpload: fnB, extra: 1 } });
     expect(result.current.onUpload).toBe(fnB);
+  });
+});
+
+describe('useStableProps', () => {
+  type Props = { label?: string; config?: { size: number }; onPick?: () => string };
+
+  it('keeps object identity across structurally equal inline props', () => {
+    const { result, rerender } = renderHook((props: Props) => useStableProps(props), {
+      initialProps: { label: 'a', config: { size: 1 }, onPick: () => 'first' } as Props,
+    });
+    const first = result.current;
+    rerender({ label: 'a', config: { size: 1 }, onPick: () => 'second' });
+    expect(result.current).toBe(first);
+    expect(result.current.config).toBe(first.config);
+    // Callbacks forward to the newest implementation.
+    expect(result.current.onPick?.()).toBe('second');
+  });
+
+  it('changes identity only for real changes, keeping unchanged fields', () => {
+    const { result, rerender } = renderHook((props: Props) => useStableProps(props), {
+      initialProps: { label: 'a', config: { size: 1 }, onPick: () => 'x' } as Props,
+    });
+    const first = result.current;
+    rerender({ label: 'b', config: { size: 1 }, onPick: () => 'x' });
+    expect(result.current).not.toBe(first);
+    expect(result.current.label).toBe('b');
+    expect(result.current.config).toBe(first.config);
+    expect(result.current.onPick).toBe(first.onPick);
+  });
+
+  it('tracks callback defined-ness like useStableCallback', () => {
+    const { result, rerender } = renderHook((props: Props) => useStableProps(props), {
+      initialProps: { onPick: undefined } as Props,
+    });
+    expect(result.current.onPick).toBeUndefined();
+    rerender({ onPick: () => 'now' });
+    const forwarder = result.current.onPick;
+    expect(forwarder?.()).toBe('now');
+    rerender({ onPick: undefined });
+    expect(result.current.onPick).toBeUndefined();
+    rerender({ onPick: () => 'again' });
+    expect(result.current.onPick).not.toBe(forwarder);
+    expect(result.current.onPick?.()).toBe('again');
+  });
+});
+
+describe('editor wrapper mappers', () => {
+  it('applies visibility defaults only when ui leaves them unset', () => {
+    const defaults = { showToolbar: true, showBubbleMenu: false, showFloatingMenu: false, showTableMenu: true };
+    expect(mapEditorUiToCoreProps(undefined, defaults)).toMatchObject(defaults);
+    expect(mapEditorUiToCoreProps({ showToolbar: false, className: 'x' }, defaults)).toMatchObject({
+      ...defaults,
+      showToolbar: false,
+      className: 'x',
+    });
+  });
+
+  it('merges upload/error handlers into image block options', () => {
+    const onUpload = async () => 'src';
+    const onError = () => {};
+    expect(mergeImageBlockOptions(undefined, {})).toBeUndefined();
+    expect(mergeImageBlockOptions({ maxFileSize: 5 }, {})).toEqual({ maxFileSize: 5 });
+    expect(mergeImageBlockOptions({ maxFileSize: 5 }, { onUpload, onError })).toEqual({
+      maxFileSize: 5,
+      onUpload,
+      onError,
+    });
+    expect(mergeImageBlockOptions(undefined, { onUpload })).toEqual({ onUpload });
   });
 });
