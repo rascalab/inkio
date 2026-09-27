@@ -261,7 +261,7 @@ export const FloatingMenu = ({
             }
           }
         }
-      } else if (e.key === 'Escape' && focusedIndexRef.current !== -1) {
+      } else if (e.key === 'Escape' && !e.isComposing && focusedIndexRef.current !== -1) {
         e.preventDefault();
         setFocusedIndex(-1);
         editor?.commands.focus();

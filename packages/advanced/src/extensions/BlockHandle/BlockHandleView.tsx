@@ -10,6 +10,7 @@ import {
   autoUpdateOverlayPosition,
   computeOverlayPosition,
   runOptionalChainCommand,
+  useDismissableLayer,
   useInkioCoreUi,
   type InkioOptionalChainCommand,
 } from '@inkio/core';
@@ -374,22 +375,13 @@ export const BlockHandleActionMenu = ({
     });
   }, [updatePosition]);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        onClose();
-      }
-    };
-
-    const timer = setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside);
-    }, 0);
-
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [onClose]);
+  // Escape is handled by the menu's own onKeyDown (focus lives inside it).
+  useDismissableLayer({
+    refs: [menuRef],
+    onDismiss: onClose,
+    armDelayMs: 0,
+    escape: false,
+  });
 
   const navigate = useCallback(
     (nextIndex: number) => {

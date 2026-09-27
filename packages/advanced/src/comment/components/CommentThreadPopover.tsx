@@ -3,6 +3,7 @@ import type {
   InkioLocaleInput,
   InkioMessageOverrides,
 } from '@inkio/core';
+import { useDismissableLayer } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import {
   formatTimeAgo,
@@ -71,41 +72,13 @@ export function CommentThreadPopover({
     return () => cancelAnimationFrame(frame);
   }, [autoFocusReply]);
 
-  // Close on Escape — only when focus is within the popover
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.isComposing) return;
-      if (event.key !== 'Escape') return;
-      const target = event.target as Node | null;
-      if (target && !containerRef.current?.contains(target)) return;
-      event.stopPropagation();
-      onClose();
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
-
-  // Close on click outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
-        onClose();
-      }
-    };
-
-    const timer = setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside);
-    }, 100);
-
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [onClose]);
+  // Close on click outside, or on Escape when focus is within the popover.
+  useDismissableLayer({
+    refs: [containerRef],
+    onDismiss: onClose,
+    armDelayMs: 100,
+    escape: { insideOnly: true, stopPropagation: true },
+  });
 
   const handleReply = () => {
     const trimmed = replyText.trim();

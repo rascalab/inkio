@@ -4,7 +4,11 @@ import type {
   InkioMessageOverrides,
 } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
-import { autoUpdateOverlayPosition, computeOverlayPosition } from '@inkio/core';
+import {
+  autoUpdateOverlayPosition,
+  computeOverlayPosition,
+  useDismissableLayer,
+} from '@inkio/core';
 import {
   useInkioCommentUi,
   type InkioCommentMessageOverrides,
@@ -138,27 +142,15 @@ export function CommentComposer({
     });
   }, [open, updatePosition]);
 
-  // Close on click outside
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        onCancel();
-      }
-    };
-
-    const timer = setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside);
-    }, 100);
-
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [open, onCancel]);
+  // Close on click outside. Escape is handled by the textarea's onKeyDown
+  // (which already ignores IME composition).
+  useDismissableLayer({
+    refs: [containerRef],
+    onDismiss: onCancel,
+    enabled: open,
+    armDelayMs: 100,
+    escape: false,
+  });
 
   const handleSubmit = () => {
     const trimmed = text.trim();

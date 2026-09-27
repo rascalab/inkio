@@ -113,6 +113,12 @@ export type {
   OverlayPositionResult,
   OverlayAutoUpdateOptions,
 } from './overlay/positioning';
+export { useDismissableLayer } from './overlay/use-dismissable-layer';
+export type {
+  DismissReason,
+  DismissableLayerEscapeOptions,
+  UseDismissableLayerOptions,
+} from './overlay/use-dismissable-layer';
 
 // Core Extensions
 export { getExtensions, getExtensions as getDefaultExtensions } from './extensions/get-extensions';
