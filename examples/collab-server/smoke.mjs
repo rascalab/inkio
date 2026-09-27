@@ -1,78 +1,66 @@
-import { io } from 'socket.io-client';
-import * as Y from 'yjs';
+// Self-contained smoke: boots the built server in-process on a free port,
+// checks two clients converge, then restarts it and checks the snapshot
+// was persisted and reloaded.
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createRequire } from 'node:module';
 
-const PORT = Number(process.env.PORT ?? 3123);
-const URL = `http://127.0.0.1:${PORT}/inkio-collab`;
-// Unique per run: re-runs against a live server must sync clean, not
-// merge into a dirty room left by the previous run.
+const require = createRequire(import.meta.url);
+// Load both sides through CJS so they share one yjs instance.
+const { createInkioCollabServer } = require('./dist/server.js');
+const { HocuspocusProvider } = require('@hocuspocus/provider');
+
 const DOC_ID = `smoke-doc-${Date.now().toString(36)}`;
 
-const EV = {
-  join: 'inkio:collab:join',
-  update: 'inkio:collab:update',
-  init: 'inkio:collab:init',
-};
-
-function waitFor(socket, event, timeoutMs = 5000) {
+function until(check, label, timeoutMs = 5000) {
+  const started = Date.now();
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      socket.off(event, done);
-      reject(new Error(`timed out waiting for ${event}`));
-    }, timeoutMs);
-    const done = (payload) => {
-      clearTimeout(timer);
-      socket.off(event, done);
-      resolve(payload);
+    const tick = () => {
+      if (check()) return resolve();
+      if (Date.now() - started > timeoutMs) return reject(new Error(`timed out: ${label}`));
+      setTimeout(tick, 20);
     };
-    socket.on(event, done);
+    tick();
   });
+}
+
+async function boot(dataDir) {
+  const server = createInkioCollabServer({ port: 0, dataDir, debounce: 0 });
+  await server.listen();
+  return { server, url: `ws://127.0.0.1:${server.address.port}` };
 }
 
 async function main() {
-  const docA = new Y.Doc();
-  const docB = new Y.Doc();
-  const socketA = io(URL, { autoConnect: false });
-  const socketB = io(URL, { autoConnect: false });
+  const dataDir = await mkdtemp(join(tmpdir(), 'inkio-collab-'));
+  try {
+    let { server, url } = await boot(dataDir);
+    const a = new HocuspocusProvider({ url, name: DOC_ID });
+    const b = new HocuspocusProvider({ url, name: DOC_ID });
+    await until(() => a.isSynced && b.isSynced, 'initial sync');
+    a.document.getText('smoke').insert(0, 'hello collab');
+    await until(() => b.document.getText('smoke').toString() === 'hello collab', 'relay');
+    console.log('smoke: PASS clients converged');
+    a.destroy();
+    b.destroy();
+    await server.destroy();
 
-  docA.on('update', (update) => {
-    socketA.emit(EV.update, { docId: DOC_ID, update });
-  });
-  socketB.on(EV.update, (msg) => {
-    if (msg.docId === DOC_ID) Y.applyUpdate(docB, msg.update);
-  });
-
-  socketA.connect();
-  socketB.connect();
-  await Promise.all([
-    waitFor(socketA, 'connect').then(() => socketA.emit(EV.join, { docId: DOC_ID })),
-    waitFor(socketB, 'connect').then(() => socketB.emit(EV.join, { docId: DOC_ID })),
-  ]);
-  // Snapshot sync is the core property: apply both init payloads to the
-  // local docs instead of discarding them.
-  const [initA, initB] = await Promise.all([waitFor(socketA, EV.init), waitFor(socketB, EV.init)]);
-  Y.applyUpdate(docA, initA.update);
-  Y.applyUpdate(docB, initB.update);
-  console.log('smoke: both clients joined and applied init snapshots');
-
-  const converged = new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('docB did not converge')), 5000);
-    docB.on('update', () => {
-      if (docB.getText('smoke').toString() === 'hello collab') {
-        clearTimeout(timer);
-        resolve();
-      }
-    });
-  });
-  docA.getText('smoke').insert(0, 'hello collab');
-  await converged;
-  console.log('smoke: PASS docB converged via gateway relay');
-
-  socketA.disconnect();
-  socketB.disconnect();
-  process.exit(0);
+    ({ server, url } = await boot(dataDir));
+    const c = new HocuspocusProvider({ url, name: DOC_ID });
+    await until(() => c.isSynced, 'resync after restart');
+    await until(() => c.document.getText('smoke').toString() === 'hello collab', 'persisted reload');
+    console.log('smoke: PASS snapshot survived restart');
+    c.destroy();
+    await server.destroy();
+  } finally {
+    await rm(dataDir, { recursive: true, force: true });
+  }
 }
 
-main().catch((error) => {
-  console.error(`smoke: FAIL ${error?.message ?? error}`);
-  process.exit(1);
-});
+main().then(
+  () => process.exit(0),
+  (error) => {
+    console.error(`smoke: FAIL ${error?.message ?? error}`);
+    process.exit(1);
+  },
+);

@@ -1,95 +1,94 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Editor as TiptapEditor, Extensions, JSONContent } from '@tiptap/react';
+import type { Content, Editor as TiptapEditor, Extensions, JSONContent } from '@tiptap/react';
 import { useEditor } from '@tiptap/react';
+import type { HocuspocusProviderWebsocket } from '@hocuspocus/provider';
 import * as Y from 'yjs';
-import type { Socket } from 'socket.io-client';
-import { getExtensions } from '@inkio/core';
+import { resolveInkioExtensions, useStableCallback } from '@inkio/core';
 import { createCollabExtensions, removeConflictingExtensions } from './extensions';
-import { isYDocEmpty } from './ydoc';
+import { persistDocToIndexedDB } from './persistence';
 import {
-  SocketIOCollabProvider,
+  createCollabProvider,
+  getCollabStatus,
+  isReadOnly,
+  onCollabStatus,
   type CollabProvider,
   type CollabStatus,
+  type CollabToken,
   type CollabUser,
 } from './provider';
+import { seedYDoc } from './seed';
 
 export function isBrowser(): boolean {
   return typeof window !== 'undefined';
 }
 
-export function useYDoc(docId: string, doc?: Y.Doc): Y.Doc {
-  const owned = useMemo(() => doc ?? new Y.Doc(), [docId, doc]);
-  useEffect(() => {
-    return () => {
-      if (!doc) owned.destroy();
-    };
-  }, [owned, doc]);
-  return owned;
-}
-
 export interface UseCollabProviderOptions {
   docId: string;
-  doc?: Y.Doc;
-  socket?: Socket;
+  /** Hocuspocus server URL (`ws://` / `wss://`). */
   url?: string;
-  socketOptions?: ConstructorParameters<typeof SocketIOCollabProvider>[0]['socketOptions'];
-  token?: string | (() => string | undefined | Promise<string | undefined>);
+  /** Share one socket across several documents. */
+  websocketProvider?: HocuspocusProviderWebsocket;
+  /** Bring your own doc; otherwise one is created (and destroyed) per docId. */
+  doc?: Y.Doc;
+  /** Read on every (re)connect: rotating it never tears down the session. */
+  token?: CollabToken;
   user?: CollabUser;
+  /** Cache the doc in IndexedDB so edits survive reloads while offline. */
+  offline?: boolean;
 }
 
+/**
+ * Creates the provider inside an effect (StrictMode-safe: the dev double
+ * mount destroys and rebuilds it cleanly). Returns null during SSR and the
+ * first client render.
+ */
 export function useCollabProvider(options: UseCollabProviderOptions): CollabProvider | null {
-  const { docId, doc, socket, url, socketOptions, token, user } = options;
-  const ydoc = useYDoc(docId, doc);
-  // Transport identity drives (re)creation: a doc-or-tenant switch carrying
-  // a new relay URL or string credential must dial the new target. Only URL
-  // and string tokens participate: socket objects are frequently created
-  // inline per render (hooks.test.tsx passes io() in the render path), so
-  // socket identity churn must not recycle the connection — to switch
-  // sockets, change `url` (or remount). Function tokens are resolved fresh
-  // on every join by the provider, so their identity is intentionally
-  // ignored. socketOptions stays construction-time for the same inline-
-  // literal reason.
-  const stringToken = typeof token === 'string' ? token : null;
+  const { docId, url, websocketProvider, doc, token, user, offline = false } = options;
+  const [provider, setProvider] = useState<CollabProvider | null>(null);
+  const tokenRef = useRef(token);
+  tokenRef.current = token;
+  const userRef = useRef(user);
+  userRef.current = user;
 
-  const provider = useMemo(() => {
-    if (!isBrowser()) return null;
-    return new SocketIOCollabProvider({
+  useEffect(() => {
+    const document = doc ?? new Y.Doc();
+    const offlineStore = offline ? persistDocToIndexedDB(docId, document) : null;
+    const next = createCollabProvider({
       docId,
-      doc: ydoc,
-      ...(socket ? { socket } : {}),
-      ...(url ? { url } : {}),
-      ...(socketOptions ? { socketOptions } : {}),
-      ...(token !== undefined ? { token } : {}),
-      ...(user ? { user } : {}),
+      url,
+      websocketProvider,
+      doc: document,
+      token: () => {
+        const current = tokenRef.current;
+        return typeof current === 'function' ? current() : current;
+      },
+      user: userRef.current,
     });
-  }, [docId, ydoc, url, stringToken]);
-
-  useEffect(() => {
-    if (!provider) return;
-    provider.connect();
+    setProvider(next);
     return () => {
-      provider.destroy();
+      next.destroy();
+      offlineStore?.destroy();
+      if (!doc) document.destroy();
+      setProvider(null);
     };
-  }, [provider]);
+  }, [docId, url, websocketProvider, doc, offline]);
 
   useEffect(() => {
-    if (provider && user) {
-      provider.setUser(user);
-    }
+    if (provider && user) provider.setAwarenessField('user', user);
   }, [provider, user?.name, user?.color]);
 
   return provider;
 }
 
 export function useCollabStatus(provider: CollabProvider | null): CollabStatus {
-  const [status, setStatus] = useState<CollabStatus>(() => provider?.getStatus() ?? 'disconnected');
+  const [status, setStatus] = useState<CollabStatus>('disconnected');
   useEffect(() => {
     if (!provider) {
       setStatus('disconnected');
       return;
     }
-    setStatus(provider.getStatus());
-    return provider.onStatus(setStatus);
+    setStatus(getCollabStatus(provider));
+    return onCollabStatus(provider, setStatus);
   }, [provider]);
   return status;
 }
@@ -100,29 +99,38 @@ export interface CollabPeer {
 }
 
 export function useCollabPeers(provider: CollabProvider | null): CollabPeer[] {
-  const [, forceRender] = useState(0);
+  const [peers, setPeers] = useState<CollabPeer[]>([]);
   useEffect(() => {
-    if (!provider) return;
-    const awareness = provider.awareness;
-    const rerender = () => forceRender((n) => n + 1);
-    awareness.on('change', rerender);
+    const awareness = provider?.awareness;
+    if (!awareness) {
+      setPeers([]);
+      return;
+    }
+    const read = () => {
+      const next: CollabPeer[] = [];
+      awareness.getStates().forEach((state, clientId) => {
+        if (clientId !== awareness.clientID) {
+          next.push({ clientId, user: (state as { user?: CollabUser }).user });
+        }
+      });
+      setPeers(next);
+    };
+    read();
+    awareness.on('change', read);
     return () => {
-      awareness.off('change', rerender);
+      awareness.off('change', read);
     };
   }, [provider]);
-  if (!provider) return [];
-  const peers: CollabPeer[] = [];
-  provider.awareness.getStates().forEach((state, clientId) => {
-    if (clientId === provider.awareness.clientID) return;
-    peers.push({ clientId, user: (state as { user?: CollabUser }).user });
-  });
   return peers;
 }
 
 export interface UseInkioCollaborativeEditorOptions extends UseCollabProviderOptions {
   extensions?: Extensions;
-  /** Seed content for an empty shared doc (set once, never synced back). */
-  content?: string | JSONContent;
+  /**
+   * Seed for an empty shared doc. Seeding is deterministic, so every client
+   * may pass the same seed: concurrent joiners converge on one copy.
+   */
+  content?: Content;
   editable?: boolean;
   onUpdate?: (content: JSONContent) => void;
   onCreate?: (editor: TiptapEditor) => void;
@@ -131,76 +139,69 @@ export interface UseInkioCollaborativeEditorOptions extends UseCollabProviderOpt
 export interface CollaborativeEditor {
   editor: TiptapEditor | null;
   provider: CollabProvider | null;
-  doc: Y.Doc;
   status: CollabStatus;
+  /** True when the server granted a read-only scope. */
+  readOnly: boolean;
 }
 
 export function useInkioCollaborativeEditor({
-  docId,
-  doc,
-  socket,
-  url,
-  socketOptions,
-  token,
-  user,
   extensions,
   content: seedContent,
   editable = true,
   onUpdate,
   onCreate,
+  ...providerOptions
 }: UseInkioCollaborativeEditorOptions): CollaborativeEditor {
-  const ydoc = useYDoc(docId, doc);
-  const provider = useCollabProvider({ docId, doc: ydoc, socket, url, socketOptions, token, user });
+  const provider = useCollabProvider(providerOptions);
   const status = useCollabStatus(provider);
-  const wasEmptyAtConnect = useMemo(() => isYDocEmpty(ydoc), [docId, ydoc]);
-  // Keyed by docId (not a plain boolean): reusing the hook across rooms
-  // must re-evaluate seeding for the new doc.
-  const seededDocIdRef = useRef<string | null>(null);
+  const [readOnly, setReadOnly] = useState(false);
+  const handleCreate = useStableCallback(onCreate);
+  const handleUpdate = useStableCallback(onUpdate);
+
+  useEffect(() => {
+    if (!provider) return;
+    const sync = () => setReadOnly(isReadOnly(provider));
+    sync();
+    provider.on('authenticated', sync);
+    return () => {
+      provider.off('authenticated', sync);
+    };
+  }, [provider]);
 
   const finalExtensions = useMemo(() => {
-    const base = extensions && extensions.length > 0 ? extensions : (getExtensions() as Extensions);
-    const withoutHistory = removeConflictingExtensions(base);
-    if (!provider) return withoutHistory;
-    return [...withoutHistory, ...createCollabExtensions({ document: ydoc })];
-  }, [extensions, provider, ydoc]);
-
-  const onCreateRef = useRef(onCreate);
-  const onUpdateRef = useRef(onUpdate);
-  useEffect(() => {
-    onCreateRef.current = onCreate;
-  }, [onCreate]);
-  useEffect(() => {
-    onUpdateRef.current = onUpdate;
-  }, [onUpdate]);
+    const base = removeConflictingExtensions(resolveInkioExtensions(extensions));
+    if (!provider) return base;
+    return [
+      ...base,
+      ...createCollabExtensions({ document: provider.document, provider, user: providerOptions.user }),
+    ];
+    // The user is applied live through awareness; only the provider rebuilds.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [extensions, provider]);
 
   const editor = useEditor(
     {
       immediatelyRender: false,
       extensions: finalExtensions,
-      editable,
-      editorProps: {
-        attributes: {
-          class: 'inkio-content',
-        },
-      },
-      onCreate: ({ editor: editorInstance }) => {
-        onCreateRef.current?.(editorInstance);
-      },
-      onUpdate: ({ editor: editorInstance }) => {
-        onUpdateRef.current?.(editorInstance.getJSON());
-      },
+      editable: editable && !readOnly,
+      editorProps: { attributes: { class: 'inkio-content' } },
+      onCreate: ({ editor: instance }) => handleCreate?.(instance),
+      onUpdate: ({ editor: instance }) => handleUpdate?.(instance.getJSON()),
     },
     [finalExtensions],
   );
 
   useEffect(() => {
-    if (!provider || !editor || editor.isDestroyed) return;
-    if (status !== 'synced' || seededDocIdRef.current === docId) return;
-    seededDocIdRef.current = docId;
-    if (wasEmptyAtConnect && isYDocEmpty(ydoc) && seedContent !== undefined) {
-      editor.commands.setContent(seedContent);
-    }
-  }, [provider, editor, status, wasEmptyAtConnect, ydoc, seedContent, docId]);
+    if (editor && !editor.isDestroyed) editor.setEditable(editable && !readOnly);
+  }, [editor, editable, readOnly]);
 
-  return { editor, provider, doc: ydoc, status };
+  useEffect(() => {
+    if (!provider || !editor || editor.isDestroyed || status !== 'synced') return;
+    if (seedContent === undefined || readOnly) return;
+    seedYDoc(provider.document, editor.schema, seedContent);
+    // Seed once per synced session; later seed prop changes are ignored.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider, editor, status, readOnly]);
+
+  return { editor, provider, status, readOnly };
 }

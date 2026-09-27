@@ -1,17 +1,17 @@
 # 실시간 협업
 
-`@inkio/collab`는 Yjs 기반 실시간 협업을 Inkio 에디터에 연결하는 독립 패키지입니다.
-서버는 포함하지 않습니다. 클라이언트(문서 동기화·presence)와 와이어 프로토콜만 제공하고,
-서버는 직접 구현하거나 `examples/collab-server` 참조 구현에서 출발하세요.
+`@inkio/collab`는 Yjs 기반 실시간 협업을 Inkio 에디터에 연결하는 패키지입니다.
+전송 계층은 [Hocuspocus](https://tiptap.dev/docs/hocuspocus/introduction)를 씁니다.
+표준 Yjs sync 프로토콜이라 재접속 때 차이만 주고받고, presence·인증·읽기 전용·저장은
+서버가 책임집니다. 서버는 `examples/collab-server` 참조 구현에서 출발하세요.
 
 ## 설치
 
 ```bash
-pnpm add @inkio/collab yjs y-protocols socket.io-client
+pnpm add @inkio/collab yjs
 ```
 
-`yjs`·`y-protocols`·`socket.io-client`는 external이라 호스트 앱과 단일 복사본을 공유합니다.
-오프라인 저장이 필요하면 `y-indexeddb`를 추가하세요.
+`yjs`·`@hocuspocus/*`·`y-indexeddb`는 external이라 호스트 앱과 단일 복사본을 공유합니다.
 
 ## 방 만들기
 
@@ -26,17 +26,18 @@ import { useInkioCollaborativeEditor, CollabPresence } from '@inkio/collab';
 import { EditorContent } from '@tiptap/react';
 
 export function Room({ docId, token }: { docId: string; token: string }) {
-  const { editor, provider, status } = useInkioCollaborativeEditor({
+  const { editor, provider, status, readOnly } = useInkioCollaborativeEditor({
     docId,
-    url: 'http://localhost:3123/inkio-collab',
+    url: 'ws://localhost:3123',
     token,
     user: { name: 'Ada', color: '#ff0077' },
     content: '<p>Start here</p>',
+    offline: true,
   });
   if (!editor) return null;
   return (
     <>
-      <span>{status}</span>
+      <span>{status}{readOnly ? ' (읽기 전용)' : ''}</span>
       <CollabPresence provider={provider} />
       <EditorContent editor={editor} />
     </>
@@ -47,73 +48,74 @@ export function Room({ docId, token }: { docId: string; token: string }) {
 훅이 대신 처리하는 규칙:
 
 - 협업 모드에서는 `history`/`undoRedo` 확장을 제거합니다 (Yjs undo와 충돌).
-  다른 기본 확장을 넘기거나, 생략하면 core 기본값을 사용합니다.
-- `content`는 첫 동기화 이후 문서가 비어 있을 때 단 한 번만 심는 시드입니다 (동기화 후에는 Yjs 문서가 진실의 원천).
-- transport 옵션(`socket`, `url`, `token`)은 `docId` 마운트 시 1회만 읽습니다.
-  토큰 로테이션은 매 join마다 재평가되는 함수로 전달하세요.
+  `extensions`를 생략하면 core 기본값을, 빈 배열이면 최소 문서 스키마를 씁니다.
+- 원격 사용자의 캐럿과 선택 영역을 에디터 안에 그립니다 (별도 CSS 불필요).
+- `content`는 동기화 후 문서가 비어 있을 때만 심는 시드입니다. 시드는 결정적(deterministic)
+  Yjs 업데이트로 만들어져서, 여러 사람이 동시에 빈 방에 들어와도 한 벌로 합쳐집니다.
+  모든 클라이언트가 같은 시드를 넘기면 됩니다.
+- `token`은 연결·재연결 때마다 다시 읽습니다. 문자열이 바뀌어도 에디터를 다시 만들지 않고,
+  함수를 넘기면 매번 새 토큰을 받아옵니다.
+- `docId`·`url`이 바뀌면 provider와 에디터를 새로 만듭니다.
+- 서버가 읽기 전용 권한을 주면 `readOnly`가 `true`가 되고 에디터가 편집 불가로 바뀝니다.
+- `offline: true`면 문서를 IndexedDB에 캐시해 오프라인 편집이 새로고침 후에도 남고,
+  재접속 때 서버와 합쳐집니다.
+- React StrictMode의 이중 마운트에서도 안전합니다 (provider는 effect 안에서 생성·정리).
 
-## 기존 소켓 재사용
+`status`는 `connecting` → `synced`, 끊기면 `disconnected`, 인증 거부 시 `unauthorized`입니다.
 
-이미 socket.io-client 소켓을 가진 앱은 새로 연결하지 않고 얹을 수 있습니다.
-남의 소켓은 끊지 않습니다.
+## 여러 문서를 한 소켓으로
+
+페이지 트리처럼 문서를 여러 개 여는 앱은 소켓 하나를 공유하세요.
 
 ```ts
-import { SocketIOCollabProvider } from '@inkio/collab';
+import { HocuspocusProviderWebsocket, useInkioCollaborativeEditor } from '@inkio/collab';
 
-// existingSocket must already be connected to the /inkio-collab namespace:
-// the engine listens nowhere else.
-const provider = new SocketIOCollabProvider({ docId, socket: existingSocket, token });
-provider.connect();
+const socket = new HocuspocusProviderWebsocket({ url: 'ws://localhost:3123' });
+// 각 문서 컴포넌트에서
+useInkioCollaborativeEditor({ docId, websocketProvider: socket });
 ```
 
 ## 서버
 
-프로토콜 단일 소스: `@inkio/collab/protocol` 서브패스
-(`inkio:collab:join/init/update/awareness/error`, 네임스페이스 `/inkio-collab`).
-의존성이 없어 Node 서버에서 React 엔트리 없이 import할 수 있습니다.
+`examples/collab-server`는 Hocuspocus 참조 구현입니다 (배포하지 않음).
+`createInkioCollabServer({ port, dataDir, verify })` 하나로 구성됩니다.
 
-`examples/collab-server`는 NestJS 참조 구현입니다 (배포하지 않음).
-
-- `CollabSyncEngine`: room = docId 릴레이, `verify` 인증 훅, 스로틀 `onPersist` 훅.
-- `InkioCollabModule.forRoot(options)`: NestJS 다이나믹 모듈.
-- `InkioCollabModule.attachToExistingServer(server, options)`: 기존 socket.io 서버에 얹기.
+- 문서마다 `<dataDir>/<docId>.ydoc` 스냅샷을 디바운스 저장하고, 방에 처음 들어올 때 불러옵니다.
+  아무도 없는 문서는 메모리에서 내립니다.
+- `verify(token, docId)`가 `'write'`면 편집, `'read'`면 서버가 쓰기를 거부하는 읽기 전용,
+  `false`면 연결을 거부합니다.
+- presence는 서버가 방 단위로 관리해서, 늦게 들어온 사람도 기존 참가자를 바로 보고
+  나간 사람은 즉시 사라집니다.
 
 ```bash
 pnpm --filter example-collab-server build
-pnpm --filter example-collab-server start
-pnpm --filter example-collab-server smoke
+pnpm --filter example-collab-server start   # PORT, DATA_DIR 환경 변수
+pnpm --filter example-collab-server smoke   # 동기화 + 재시작 후 복원 확인
 ```
 
 ### 인증 걸기
 
-`verify`는 매 join마다 (같은 방 재입장 포함) 호출됩니다. 토큰 로테이션을
-쓰려면 클라이언트에서 함수형 토큰을 넘기세요.
-
 ```ts
-InkioCollabModule.forRoot({
-  verify: async (token, docId) => checkAccess(token, docId),
-  maxRooms: 1000, // 미지정 시 무제한 (개발용 기본값)
+createInkioCollabServer({
+  dataDir: './data',
+  verify: async (token, docId) => {
+    const role = await lookupRole(token, docId);
+    return role === 'editor' ? 'write' : role === 'viewer' ? 'read' : false;
+  },
 });
 ```
 
-### 에러 코드
+저장소를 파일 대신 DB로 바꾸려면 `@hocuspocus/extension-database`의 `fetch`/`store`를
+교체하세요. 서버를 여러 대 띄우면 `@hocuspocus/extension-redis`로 묶습니다.
 
-서버가 보내는 `inkio:collab:error` 코드와 의미입니다.
+### 서버에서 시드 넣기
 
-| 코드 | 의미 | 클라이언트 상태 |
-|------|------|------|
-| `unauthorized` | `verify`가 거부 | `unauthorized` |
-| `forbidden` | `maxRooms` 초과 | `forbidden` (입장 실패, 소켓이 끊겨도 유지) |
-| `internal` | `verify`가 throw | 그대로 |
-| `invalid-message` | 깨진 프레임 (무시됨) | 그대로 |
-| `rate-limited` | 초당 릴레이 예산 초과 (버려짐) | 그대로 |
+HTML 시드는 DOM이 필요해 브라우저에서만 파싱됩니다. 서버에서 문서를 미리 채우려면
+JSON과 에디터 스키마로 `createSeedUpdate(schema, json)`를 만들어 적용하세요.
 
-### 멀티룸과 재접속
+## 오프라인 저장 직접 다루기
 
-소켓 하나가 여러 방에 들어갈 수 있습니다. 재접속 후 같은 방에 다시
-join해도 `verify`가 다시 실행되므로, 회수된 토큰은 그 시점부터 차단됩니다.
-
-## 오프라인과 presence
+훅의 `offline` 옵션 대신 직접 관리할 수도 있습니다.
 
 ```ts
 import { persistDocToIndexedDB } from '@inkio/collab';
@@ -125,7 +127,7 @@ persistence.destroy(); // 언마운트 시 반드시 호출 (IDB 연결 누수 �
 > 하나의 `docId`에 live persistence를 둘 이상 열지 마세요. 스냅샷을 한 번만
 > 읽고 끝내려면 타임아웃 내장된 `loadIndexedDBState(docId, doc)`를 쓰세요.
 
-awareness 상태는 `{ user: { name, color } }`를 싣습니다. `CollabPresence`가 접속자 목록을
-그리고, `useCollabPeers(provider)`로 직접 받을 수도 있습니다. 에디터 내 원격 캐럿은
-지원하지 않습니다. Tiptap v3의 협업 바인딩이 동기화 플러그인 키를 비공개로 들고 있어
-`y-prosemirror` 커서 플러그인을 장착할 수 없기 때문입니다.
+## Presence
+
+awareness 상태는 `{ user: { name, color } }`를 싣습니다. `CollabPresence`가 접속자 아바타를
+그리고, `useCollabPeers(provider)`로 목록을 직접 받을 수도 있습니다.

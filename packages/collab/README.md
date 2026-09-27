@@ -1,16 +1,18 @@
 # @inkio/collab
 
-Yjs real-time collaboration for Inkio editors. Ships the client side only:
-Y.Doc wiring, a socket.io provider, collaborative editor hooks, and presence.
+Yjs real-time collaboration for Inkio editors on top of
+[Hocuspocus](https://tiptap.dev/docs/hocuspocus/introduction): provider wiring,
+a collaborative editor hook with remote carets, presence, offline caching and
+race-free seeding. The server is yours — start from `examples/collab-server`.
 
 ## Install
 
 ```bash
-pnpm add @inkio/collab yjs y-protocols socket.io-client
+pnpm add @inkio/collab yjs
 ```
 
-`yjs`, `y-protocols`, and `socket.io-client` stay external so the host app shares
-a single copy. `y-indexeddb` is optional (offline persistence).
+`yjs`, `@hocuspocus/*` and `y-indexeddb` stay external so the host app shares a
+single copy.
 
 ## Use
 
@@ -19,12 +21,13 @@ import { useInkioCollaborativeEditor, CollabPresence } from '@inkio/collab';
 import { EditorContent } from '@tiptap/react';
 
 function Room({ docId, token }: { docId: string; token: string }) {
-  const { editor, provider, status } = useInkioCollaborativeEditor({
+  const { editor, provider, status, readOnly } = useInkioCollaborativeEditor({
     docId,
-    url: 'http://localhost:3123',
+    url: 'ws://localhost:3123',
     token,
     user: { name: 'Ada', color: '#ff0077' },
-    initialContent: '<p>Start here</p>',
+    content: '<p>Start here</p>',
+    offline: true,
   });
   if (!editor) return null;
   return (
@@ -37,48 +40,21 @@ function Room({ docId, token }: { docId: string; token: string }) {
 }
 ```
 
-Rules the hooks enforce for you:
+What the hook handles:
 
-- `history`/`undoRedo` extensions are stripped in collab mode (they fight the Yjs
-  undo manager). Pass any other base `extensions`, or omit for core defaults.
-- `initialContent` is seeded once, and only when the shared doc is still empty
-  after the first sync — never pass `content` alongside a shared doc.
-- Everything is created client-side (`isBrowser()` guard); importing this package
-  in Node/SSR is side-effect free.
+- Strips `history`/`undoRedo` (they fight the Yjs undo manager) and adds
+  `Collaboration` plus self-styled remote carets.
+- `content` seeds an empty doc with a deterministic update, so clients that join
+  an empty room at the same time converge on one copy.
+- `token` is read on every (re)connect; rotating it never rebuilds the editor.
+- A server-granted read-only scope sets `readOnly` and makes the editor
+  non-editable (the server rejects writes regardless).
+- `offline: true` caches the doc in IndexedDB.
+- The provider lives in an effect, so StrictMode's double mount is safe.
 
-## Bring your own socket
+Several documents can share one connection via
+`new HocuspocusProviderWebsocket({ url })` passed as `websocketProvider`.
 
-Pass an existing socket.io-client `Socket` and the provider joins on it instead of
-dialing a new connection:
-
-```ts
-const provider = new SocketIOCollabProvider({ docId, socket: existingSocket, token });
-provider.connect();
-```
-
-The provider never disconnects a socket it did not create. Transport options
-(`socket`, `url`, `token`) are read once per `docId` mount; pass a stable socket
-and rotate credentials through a `token` function, which is re-evaluated on
- every join.
-
-## Server side
-
-No server ships with this package. Speak the wire protocol exported from
-`@inkio/collab/protocol` (dependency-free, Node-safe; servers never import the
-React entry) or copy `examples/collab-server` — a NestJS `InkioCollabModule.forRoot()` reference
-with room-per-doc relay, a `verify` auth hook, and a throttled `onPersist` hook,
-plus `attachToExistingServer()` for apps that already own a socket.io server.
-
-## Offline
-
-```ts
-import { persistDocToIndexedDB } from '@inkio/collab';
-persistDocToIndexedDB(docId, doc);
-```
-
-## Presence
-
-Awareness states carry `{ user: { name, color } }`. `CollabPresence` renders online
-peers; `useCollabPeers(provider)` gives you the raw list. In-editor remote carets
-are intentionally out of scope: Tiptap v3's collaboration binding keeps its sync
-plugin key private, so `y-prosemirror`'s cursor plugin cannot attach to it.
+Lower-level building blocks: `createCollabProvider`, `getCollabStatus`,
+`onCollabStatus`, `createCollabExtensions`, `seedYDoc`/`createSeedUpdate`,
+`persistDocToIndexedDB`, `loadIndexedDBState`, `useCollabPeers`.

@@ -44,9 +44,9 @@ export default defineConfig(({ command }) => ({
     lib: {
       entry: {
         index: resolve(__dirname, 'src/index.ts'),
-        protocol: resolve(__dirname, 'src/protocol.ts'),
       },
       name: 'InkioCollab',
+      formats: ['es', 'cjs'],
     },
     rollupOptions: {
       external: (id) => {
@@ -59,7 +59,7 @@ export default defineConfig(({ command }) => ({
         if (id === 'yjs' || id.startsWith('yjs/')) return true;
         if (id === 'y-protocols' || id.startsWith('y-protocols/')) return true;
         if (id === 'y-indexeddb' || id.startsWith('y-indexeddb/')) return true;
-        if (id === 'socket.io-client' || id.startsWith('socket.io-client/')) return true;
+        if (id.startsWith('@hocuspocus/')) return true;
         return false;
       },
     },

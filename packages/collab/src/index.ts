@@ -1,31 +1,21 @@
+export { MAX_DOC_ID_LENGTH, assertValidDocId } from './doc-id';
+export { createYDoc, isYDocEmpty, encodeDocState } from './ydoc';
+export { SEED_CLIENT_ID, DEFAULT_COLLAB_FIELD, createSeedUpdate, seedYDoc } from './seed';
 export {
-  INKIO_COLLAB_NAMESPACE,
-  CollabClientEvents,
-  CollabServerEvents,
-} from './protocol';
-export type {
-  CollabJoinPayload,
-  CollabUpdatePayload,
-  CollabAwarenessPayload,
-  CollabInitPayload,
-  CollabErrorPayload,
-  CollabErrorCode,
-} from './protocol';
-export {
-  INKIO_REMOTE_ORIGIN,
-  createYDoc,
-  isYDocEmpty,
-  encodeDocState,
-  applyRemoteUpdate,
-} from './ydoc';
-export { SocketIOCollabProvider, assertValidDocId } from './provider';
+  createCollabProvider,
+  getCollabStatus,
+  onCollabStatus,
+  isReadOnly,
+} from './provider';
 export type {
   CollabProvider,
   CollabUser,
   CollabStatus,
   CollabStatusListener,
-  SocketIOCollabProviderOptions,
+  CollabToken,
+  CreateCollabProviderOptions,
 } from './provider';
+export { HocuspocusProviderWebsocket } from '@hocuspocus/provider';
 export {
   COLLAB_CONFLICTING_EXTENSIONS,
   removeConflictingExtensions,
@@ -34,7 +24,6 @@ export {
 export type { CollabExtensionsOptions } from './extensions';
 export {
   isBrowser,
-  useYDoc,
   useCollabProvider,
   useCollabStatus,
   useCollabPeers,

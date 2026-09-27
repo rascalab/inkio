@@ -20,7 +20,7 @@ const BUDGETS = {
   // NaN-guard branches, crop full-session bounds, mount guards). Measured
   // +6.1k over the pre-fix tree (236091 -> 242235). Deliberate.
   'image-editor': 244_000,
-  // collab ships provider + hooks only; yjs/socket.io stay external (measured ~16k).
+  // collab ships provider + hooks only; yjs/@hocuspocus stay external (measured ~16k).
   'collab': 30_000,
 };
 

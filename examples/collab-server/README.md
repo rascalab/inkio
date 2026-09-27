@@ -1,23 +1,19 @@
 # example-collab-server
 
-Reference NestJS + socket.io collaboration server for `@inkio/collab`. Not published.
+Reference [Hocuspocus](https://tiptap.dev/docs/hocuspocus/introduction) server for
+`@inkio/collab`. Not published. Requires Node 22+.
 
-- `src/engine.ts` — transport-agnostic `CollabSyncEngine` (room = docId, Y.Doc per room,
-  verify hook, throttled persist hook). Works with a NestJS gateway or an existing
-  socket.io server via `InkioCollabModule.attachToExistingServer(server, options)`.
-- `src/collab.module.ts` — `InkioCollabModule.forRoot(options)` NestJS dynamic module.
-- `src/main.ts` — standalone bootstrap (`PORT`, default 3123).
+- `src/server.ts` — `createInkioCollabServer({ port, dataDir, verify, debounce })`:
+  one `<docId>.ydoc` snapshot per document (loaded on first join, debounced
+  write-then-rename on change), `verify(token, docId)` returning `'write'`,
+  `'read'` (server-enforced read-only) or `false`.
+- `src/main.ts` — standalone bootstrap (`PORT` default 3123, `DATA_DIR` default `./data`).
 
-Wire protocol (single source of truth): `@inkio/collab/protocol` subpath
-(`inkio:collab:join/init/update/awareness/error` on namespace `/inkio-collab`).
-The subpath is dependency-free and Node-safe.
-
-> Development defaults only: no auth (`verify` unwired) and open CORS.
-> Never expose this example to the internet — wire `verify` and restrict
-> CORS first (see `src/main.ts`).
+> Development defaults only: `main.ts` wires no `verify`, so anyone can read
+> and write any document. Add a token check before exposing it.
 
 ```bash
 pnpm --filter example-collab-server build
-pnpm --filter example-collab-server start &  # or node examples/collab-server/dist/main.js
-pnpm --filter example-collab-server smoke  # waits for connect; ensure the server booted first
+pnpm --filter example-collab-server start
+pnpm --filter example-collab-server smoke  # self-contained: sync + restart/reload
 ```

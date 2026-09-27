@@ -1,7 +1,7 @@
 import { IndexeddbPersistence } from 'y-indexeddb';
 import type * as Y from 'yjs';
 import { isYDocEmpty } from './ydoc';
-import { assertValidDocId } from './provider';
+import { assertValidDocId } from './doc-id';
 
 /**
  * Persist a doc to IndexedDB under a validated room key. Returns the live

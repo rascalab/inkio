@@ -4,31 +4,22 @@
   "version": "0.0.0",
   "type": "commonjs",
   "scripts": {
-    "pretypecheck": "pnpm --filter @inkio/collab bundle",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "prebuild": "pnpm --filter @inkio/collab bundle",
     "build": "tsc -p tsconfig.json",
-    "build:smoke": "pnpm --filter @inkio/collab bundle && tsc -p tsconfig.json",
     "start": "node dist/main.js",
-    "smoke": "node ./smoke.mjs"
+    "smoke": "pnpm build && node ./smoke.mjs"
   },
   "dependencies": {
-    "@inkio/collab": "workspace:*",
-    "@nestjs/common": "^12.1.0",
-    "@nestjs/core": "^12.1.0",
-    "@nestjs/platform-express": "^12.1.0",
-    "@nestjs/platform-socket.io": "^12.1.0",    "@nestjs/websockets": "^12.1.0",
-    "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.0",
-    "socket.io": "^4.8.4",
+    "@hocuspocus/extension-database": "^4.7.0",
+    "@hocuspocus/server": "^4.7.0",
     "yjs": "^13.6.0"
   },
   "devDependencies": {
+    "@hocuspocus/provider": "^4.7.0",
     "@types/node": "^25.5.2",
-    "socket.io-client": "^4.8.4",
     "typescript": "^6.0.2"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   }
 }
