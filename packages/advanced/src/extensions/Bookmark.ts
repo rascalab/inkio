@@ -1,12 +1,7 @@
 import { mergeAttributes, Node } from '@tiptap/core';
 import { ReactNodeViewRenderer } from '@tiptap/react';
-import { isSafeUrl } from '@inkio/core';
+import { sanitizeUrlOrEmpty } from '@inkio/core';
 import { BookmarkView } from './BookmarkView';
-
-function safeUrlOrEmpty(value: string | null | undefined): string {
-  if (!value) return '';
-  return isSafeUrl(value) ? value : '';
-}
 
 export interface BookmarkPreview {
   title?: string;
@@ -57,9 +52,9 @@ export const Bookmark = Node.create<BookmarkOptions>({
       url: {
         default: '',
         parseHTML: (element) =>
-          safeUrlOrEmpty(element.getAttribute('data-bookmark-url') || element.getAttribute('href')),
+          sanitizeUrlOrEmpty(element.getAttribute('data-bookmark-url') || element.getAttribute('href')),
         renderHTML: (attributes) => ({
-          'data-bookmark-url': safeUrlOrEmpty(attributes.url),
+          'data-bookmark-url': sanitizeUrlOrEmpty(attributes.url),
         }),
       },
       title: {
@@ -76,15 +71,15 @@ export const Bookmark = Node.create<BookmarkOptions>({
       },
       image: {
         default: null,
-        parseHTML: (element) => safeUrlOrEmpty(element.getAttribute('data-bookmark-image')) || null,
+        parseHTML: (element) => sanitizeUrlOrEmpty(element.getAttribute('data-bookmark-image')) || null,
         renderHTML: (attributes) =>
-          attributes.image ? { 'data-bookmark-image': safeUrlOrEmpty(attributes.image) } : {},
+          attributes.image ? { 'data-bookmark-image': sanitizeUrlOrEmpty(attributes.image) } : {},
       },
       favicon: {
         default: null,
-        parseHTML: (element) => safeUrlOrEmpty(element.getAttribute('data-bookmark-favicon')) || null,
+        parseHTML: (element) => sanitizeUrlOrEmpty(element.getAttribute('data-bookmark-favicon')) || null,
         renderHTML: (attributes) =>
-          attributes.favicon ? { 'data-bookmark-favicon': safeUrlOrEmpty(attributes.favicon) } : {},
+          attributes.favicon ? { 'data-bookmark-favicon': sanitizeUrlOrEmpty(attributes.favicon) } : {},
       },
     };
   },
@@ -110,7 +105,7 @@ export const Bookmark = Node.create<BookmarkOptions>({
             return false;
           }
 
-          const safeHref = safeUrlOrEmpty(href);
+          const safeHref = sanitizeUrlOrEmpty(href);
           if (!safeHref) return false;
           return { url: safeHref };
         },
@@ -130,7 +125,7 @@ export const Bookmark = Node.create<BookmarkOptions>({
       const fallbackAttrs = mergeAttributes(
         {
           'data-bookmark-fallback': '',
-          href: safeUrlOrEmpty(HTMLAttributes['data-bookmark-url']),
+          href: sanitizeUrlOrEmpty(HTMLAttributes['data-bookmark-url']),
           rel: 'noopener noreferrer nofollow',
           target: '_blank',
         },
@@ -150,7 +145,7 @@ export const Bookmark = Node.create<BookmarkOptions>({
       mergeAttributes({ 'data-bookmark': '' }, this.options.HTMLAttributes, HTMLAttributes),
       // Same-tab navigation needs no target, but user-supplied URLs still
       // get rel hygiene (no opener reference, no SEO juice).
-      ['a', { href: safeUrlOrEmpty(HTMLAttributes['data-bookmark-url']), rel: 'noopener noreferrer nofollow' }, HTMLAttributes['data-bookmark-title'] || HTMLAttributes['data-bookmark-url']],
+      ['a', { href: sanitizeUrlOrEmpty(HTMLAttributes['data-bookmark-url']), rel: 'noopener noreferrer nofollow' }, HTMLAttributes['data-bookmark-title'] || HTMLAttributes['data-bookmark-url']],
     ];
   },
 
@@ -159,13 +154,14 @@ export const Bookmark = Node.create<BookmarkOptions>({
       setBookmark:
         (attributes) =>
         ({ commands }) => {
-          if (typeof attributes?.url !== 'string' || !isSafeUrl(attributes.url)) {
+          const url = sanitizeUrlOrEmpty(attributes?.url);
+          if (!url) {
             return false;
           }
           return commands.insertContent({
             type: this.name,
             attrs: {
-              url: attributes.url,
+              url,
             },
           });
         },

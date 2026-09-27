@@ -1,9 +1,7 @@
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { memo, useEffect, useRef, useState } from 'react';
-import { isSafeUrl } from '@inkio/core';
+import { sanitizeUrlOrEmpty } from '@inkio/core';
 import type { BookmarkOptions, BookmarkPreview } from './Bookmark';
-
-const sanitizeUrl = (url: string) => (isSafeUrl(url) ? url : '');
 
 const resolvePreviewUpdate = (preview: BookmarkPreview): Record<string, string | null> => {
   const nextAttributes: Record<string, string | null> = {};
@@ -17,15 +15,13 @@ const resolvePreviewUpdate = (preview: BookmarkPreview): Record<string, string |
   }
 
   // Sanitize at write time so unsafe image/favicon URLs never persist in JSON.
-  // Render-time sanitizeUrl() remains as a second layer.
+  // Render-time sanitizeUrlOrEmpty() remains as a second layer.
   if (preview.image !== undefined) {
-    const image = preview.image ? String(preview.image) : '';
-    nextAttributes.image = image && isSafeUrl(image) ? image : null;
+    nextAttributes.image = sanitizeUrlOrEmpty(preview.image ? String(preview.image) : '') || null;
   }
 
   if (preview.favicon !== undefined) {
-    const favicon = preview.favicon ? String(preview.favicon) : '';
-    nextAttributes.favicon = favicon && isSafeUrl(favicon) ? favicon : null;
+    nextAttributes.favicon = sanitizeUrlOrEmpty(preview.favicon ? String(preview.favicon) : '') || null;
   }
 
   return nextAttributes;
@@ -36,11 +32,11 @@ const BookmarkViewInner = ({ node, updateAttributes, extension }: NodeViewProps)
   const options = extension.options as BookmarkOptions;
   const resolver = options.onResolveBookmark;
 
-  const url = sanitizeUrl(String(node.attrs.url || ''));
+  const url = sanitizeUrlOrEmpty(String(node.attrs.url || ''));
   const title = node.attrs.title ? String(node.attrs.title) : '';
   const description = node.attrs.description ? String(node.attrs.description) : '';
-  const image = node.attrs.image ? sanitizeUrl(String(node.attrs.image)) : '';
-  const favicon = node.attrs.favicon ? sanitizeUrl(String(node.attrs.favicon)) : '';
+  const image = node.attrs.image ? sanitizeUrlOrEmpty(String(node.attrs.image)) : '';
+  const favicon = node.attrs.favicon ? sanitizeUrlOrEmpty(String(node.attrs.favicon)) : '';
 
   const hasPreviewData = Boolean(title || description || image || favicon);
   // Stabilize inline resolvers (recreated per render) so 20 same-URL bookmarks
