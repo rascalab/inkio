@@ -1,5 +1,11 @@
 import React from 'react';
-import { DOMSerializer, Fragment, Slice, type ResolvedPos } from '@tiptap/pm/model';
+import {
+  DOMSerializer,
+  Fragment,
+  Slice,
+  type Node as ProseMirrorNode,
+  type ResolvedPos,
+} from '@tiptap/pm/model';
 import { NodeSelection, Plugin, PluginKey } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
 import type {
@@ -12,9 +18,15 @@ import {
   GripVerticalIconNode,
   type InkioIconRegistry,
 } from '@inkio/core/icons';
-import type { Root } from 'react-dom/client';
 import type { Editor } from '@tiptap/core';
-import { getCreateRoot, mergeCoreMessages, toCoreMessageOverrides, toRectLike, type RectLike } from '@inkio/core';
+import {
+  createOverlayHost,
+  mergeCoreMessages,
+  toCoreMessageOverrides,
+  toRectLike,
+  type OverlayHost,
+  type RectLike,
+} from '@inkio/core';
 import { BlockHandleActionMenu, fingerprintBlockAt, type BlockFingerprint } from './BlockHandleView';
 import type { BlockMenuIcons } from './icons';
 
@@ -172,6 +184,10 @@ const getFirstLineHeight = (blockElement: HTMLElement): number => {
     if (rect.height > 0) return rect.height;
   }
 
+  return getStyleLineHeight(blockElement);
+};
+
+const getStyleLineHeight = (blockElement: HTMLElement): number => {
   // Fallback to computed line-height
   const style = window.getComputedStyle(blockElement);
   const lh = parseFloat(style.lineHeight);
@@ -207,8 +223,11 @@ const positionHandle = (handle: HTMLElement, blockElement: HTMLElement, handleWi
       alignTop = alignRect.top;
       alignHeight = getFirstLineHeight(firstTextEl as HTMLElement);
     } else {
+      // The FIRST_TEXT_SELECTOR lookup above already found no measurable
+      // text element, so skip straight to the style fallback instead of
+      // re-running the same querySelector + rect via getFirstLineHeight.
       alignTop = blockRect.top;
-      alignHeight = Math.min(blockRect.height, getFirstLineHeight(blockElement));
+      alignHeight = Math.min(blockRect.height, getStyleLineHeight(blockElement));
     }
   }
 
@@ -239,15 +258,35 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
   let blockSelected = false;
   let currentBlockCleanup: (() => void) | null = null;
 
-  let menuContainer: HTMLDivElement | null = null;
-  let menuRoot: Root | null = null;
-  let menuReadyPromise: Promise<void> | null = null;
+  let menuHost: OverlayHost | null = null;
   let openMenuBlockPos: number | null = null;
   let openMenuBlockFingerprint: BlockFingerprint | null = null;
   let abortController: AbortController | null = null;
   let pendingHover: { x: number; y: number } | null = null;
   let hoverRaf = 0;
-  let scrollRaf = 0;
+  let positionRaf = 0;
+  // What the handle was last positioned against; lets view.update skip the
+  // forced layout of positionHandle when nothing relevant changed.
+  let positionedFor: { pos: number; element: HTMLElement; doc: ProseMirrorNode } | null = null;
+
+  const markPositioned = (pos: number, element: HTMLElement, doc: ProseMirrorNode) => {
+    positionedFor = { pos, element, doc };
+  };
+
+  /** rAF-coalesced reposition of the handle against the active block. */
+  const scheduleHandlePosition = () => {
+    if (positionRaf) return;
+
+    positionRaf = requestAnimationFrame(() => {
+      positionRaf = 0;
+      if (handleElement && activeBlockElement && activeBlockPos !== null) {
+        positionHandle(handleElement, activeBlockElement, options.handleWidth);
+        if (editorView) {
+          markPositioned(activeBlockPos, activeBlockElement, editorView.state.doc);
+        }
+      }
+    });
+  };
 
   const clearHideTimer = () => {
     if (hideTimer) {
@@ -267,52 +306,34 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
   const closeMenu = () => {
     openMenuBlockPos = null;
     openMenuBlockFingerprint = null;
-    menuRoot?.render(null);
+    if (menuHost?.isMounted()) {
+      menuHost.render(null);
+    }
   };
 
-  const ensureMenuRoot = (): Promise<void> => {
-    if (menuRoot) {
-      return Promise.resolve();
-    }
-
-    if (!editorView) {
-      return Promise.resolve();
-    }
-
-    if (!menuContainer) {
-      menuContainer = document.createElement('div');
-      menuContainer.className = 'inkio inkio-block-handle-portal';
-
-      const editorElement = editorView.dom.closest('.inkio');
-      if (editorElement) {
-        const isDark = editorElement.classList.contains('dark');
-        menuContainer.classList.toggle('dark', isDark);
+  const ensureMenuRoot = (): Promise<boolean> => {
+    // A host whose root failed to load is destroyed; start over on retry.
+    if (!menuHost || menuHost.isDestroyed()) {
+      if (!editorView) {
+        return Promise.resolve(false);
       }
 
-      document.body.appendChild(menuContainer);
+      menuHost = createOverlayHost({
+        editorDom: editorView.dom,
+        className: 'inkio inkio-block-handle-portal',
+        label: 'block menu',
+      });
     }
 
-    if (menuReadyPromise) {
-      return menuReadyPromise;
-    }
-
-    menuReadyPromise = getCreateRoot().then((createRoot) => {
-      if (!menuContainer) {
-        return;
-      }
-
-      menuRoot = createRoot(menuContainer);
-    });
-
-    return menuReadyPromise;
+    return menuHost.ready();
   };
 
   const renderMenu = () => {
-    if (!menuRoot || openMenuBlockPos === null) {
+    if (!menuHost?.isMounted() || openMenuBlockPos === null) {
       return;
     }
 
-      menuRoot.render(
+    menuHost.render(
       React.createElement(BlockHandleActionMenu, {
         editor: options.editor,
         blockPos: openMenuBlockPos,
@@ -344,20 +365,19 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
     }
     clearHideTimer();
 
-    ensureMenuRoot().then(() => {
+    ensureMenuRoot().then((mounted) => {
       if (openMenuBlockPos !== blockPos) {
         return;
       }
 
-      renderMenu();
-    }).catch((error: unknown) => {
-      // Chunk load failure must not end as an unhandled rejection: reset the
-      // pending open so a later click retries cleanly instead of hanging.
-      if (openMenuBlockPos !== blockPos) {
+      if (!mounted) {
+        // Chunk load failure (logged by the overlay host): reset the pending
+        // open so a later click retries cleanly instead of hanging.
+        openMenuBlockPos = null;
         return;
       }
-      openMenuBlockPos = null;
-      console.error('[inkio] block menu failed to open:', error);
+
+      renderMenu();
     });
   };
 
@@ -407,6 +427,7 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
     }
 
     positionHandle(handleElement, hovered.blockElement, options.handleWidth);
+    markPositioned(hovered.blockPos, hovered.blockElement, view.state.doc);
     handleElement.classList.add('visible');
 
     if (
@@ -739,14 +760,7 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
 
       const handleScroll = () => {
         if (!handleElement) return;
-        if (scrollRaf) return;
-
-        scrollRaf = requestAnimationFrame(() => {
-          scrollRaf = 0;
-          if (handleElement && activeBlockElement && activeBlockPos !== null) {
-            positionHandle(handleElement, activeBlockElement, options.handleWidth);
-          }
-        });
+        scheduleHandlePosition();
       };
 
       scrollParent.addEventListener('scroll', handleScroll, { passive: true });
@@ -797,9 +811,27 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
 
           activeBlockPos = nextActivePos;
           activeBlockElement = nextBlockDOM;
-          // Don't reposition when menu is open — keep handle at original position
-          if (openMenuBlockPos === null) {
-            positionHandle(handleElement, nextBlockDOM, options.handleWidth);
+          // Don't reposition when menu is open — keep handle at original position.
+          // Skip the forced layout entirely when the active block and doc are
+          // unchanged since the last measurement (e.g. selection-only updates);
+          // otherwise coalesce to one measurement per frame.
+          if (
+            openMenuBlockPos === null
+            && !(
+              positionedFor
+              && positionedFor.pos === nextActivePos
+              && positionedFor.element === nextBlockDOM
+              && positionedFor.doc === nextView.state.doc
+            )
+          ) {
+            if (handleElement.classList.contains('visible')) {
+              scheduleHandlePosition();
+            } else {
+              // About to become visible: place it now so it never flashes
+              // at a stale position for a frame.
+              positionHandle(handleElement, nextBlockDOM, options.handleWidth);
+              markPositioned(nextActivePos, nextBlockDOM, nextView.state.doc);
+            }
           }
           handleElement.classList.add('visible');
 
@@ -816,25 +848,16 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
             cancelAnimationFrame(hoverRaf);
             hoverRaf = 0;
           }
-          if (scrollRaf) {
-            cancelAnimationFrame(scrollRaf);
-            scrollRaf = 0;
+          if (positionRaf) {
+            cancelAnimationFrame(positionRaf);
+            positionRaf = 0;
           }
+          positionedFor = null;
           pendingHover = null;
           closeMenu();
 
-          if (menuRoot) {
-            const rootToUnmount = menuRoot;
-            menuRoot = null;
-            queueMicrotask(() => rootToUnmount.unmount());
-          }
-
-          if (menuContainer) {
-            menuContainer.remove();
-            menuContainer = null;
-          }
-
-          menuReadyPromise = null;
+          menuHost?.destroy();
+          menuHost = null;
 
           if (handleElement) {
             handleElement.remove();
