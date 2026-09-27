@@ -8,7 +8,7 @@ const { join } = require('node:path');
 const { Controller, Get, Module } = require('@nestjs/common');
 const { NestFactory } = require('@nestjs/core');
 const { HocuspocusProvider } = require('@hocuspocus/provider');
-const { createInkioCollabServer, InkioCollabModule } = require('./dist/index.js');
+const { createInkioCollabServer, InkioCollabModule, VerifyController, createHttpVerify } = require('./dist/index.js');
 
 function until(check, label, timeoutMs = 5000) {
   const started = Date.now();
@@ -106,11 +106,41 @@ async function nest(dataDir) {
   console.log('smoke: PASS nest embed (http route + ws, auth, read-only, restart reload)');
 }
 
+async function split(dataDir) {
+  class ApiModule {}
+  Module({ controllers: [VerifyController] })(ApiModule);
+  const app = await NestFactory.create(ApiModule, { logger: false });
+  await app.listen(0, '127.0.0.1');
+  const apiPort = app.getHttpServer().address().port;
+
+  const server = createInkioCollabServer({
+    port: 0,
+    dataDir,
+    debounce: 0,
+    verify: createHttpVerify({ url: `http://127.0.0.1:${apiPort}/collab/verify` }),
+  });
+  await server.listen();
+  const url = `ws://127.0.0.1:${server.address.port}`;
+
+  await converge(url, 'split-doc', 'editor');
+
+  const denied = new HocuspocusProvider({ url, name: 'split-doc', token: 'nobody' });
+  let rejected = false;
+  denied.on('authenticationFailed', () => { rejected = true; });
+  await until(() => rejected, 'delegated verify rejected');
+  denied.destroy();
+
+  await server.destroy();
+  await app.close();
+  console.log('smoke: PASS split (standalone sync + delegated Nest verify)');
+}
+
 async function main() {
   const dataDir = await mkdtemp(join(tmpdir(), 'inkio-collab-'));
   try {
     await standalone(join(dataDir, 'standalone'));
     await nest(join(dataDir, 'nest'));
+    await split(join(dataDir, 'split'));
   } finally {
     await rm(dataDir, { recursive: true, force: true });
   }

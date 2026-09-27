@@ -15,6 +15,17 @@ Reference [Hocuspocus](https://tiptap.dev/docs/hocuspocus/introduction) server f
   same port as the Nest app, WebSocket on `/collab`. Inject `INKIO_HOCUSPOCUS` for
   server-side document access. Call `app.enableShutdownHooks()`.
 - `src/main.ts` — NestJS bootstrap (`PORT` default 3123, `DATA_DIR` default `./data`).
+- Split mode (two processes, one machine or two):
+  - `src/api-main.ts` — Nest API only (`PORT` default 3100): serves `POST /collab/verify`
+    via `src/nest/verify.controller.ts` (`EDITOR_TOKENS`/`VIEWER_TOKENS`, comma-separated).
+  - `src/sync-main.ts` — standalone sync (`PORT` default 3123): documents + WebSocket only,
+    access checks delegated to `VERIFY_URL` via `createHttpVerify()` (`src/split.ts`, fail-closed).
+  - `docker-compose.yml` — runs both (`pnpm build` first; set real token env vars).
+
+```bash
+pnpm --filter example-collab-server start:api    # http://localhost:3100/collab/verify
+pnpm --filter example-collab-server start:sync   # ws://localhost:3123 (verify via the API)
+```
 
 > Development defaults only: `main.ts` wires no `verify`, so anyone can read
 > and write any document. Add a token check before exposing it.

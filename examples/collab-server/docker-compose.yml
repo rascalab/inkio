@@ -1,0 +1,36 @@
+name: inkio-collab-split
+
+services:
+  api:
+    image: node:22-alpine
+    working_dir: /repo
+    volumes:
+      - ../..:/repo
+    command: ["node", "examples/collab-server/dist/api-main.js"]
+    environment:
+      PORT: "3100"
+      EDITOR_TOKENS: ${EDITOR_TOKENS:-editor}
+      VIEWER_TOKENS: ${VIEWER_TOKENS:-viewer}
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+
+  sync:
+    image: node:22-alpine
+    working_dir: /repo
+    volumes:
+      - ../..:/repo
+      - collab-data:/repo/examples/collab-server/data
+    command: ["node", "examples/collab-server/dist/sync-main.js"]
+    environment:
+      PORT: "3123"
+      DATA_DIR: /repo/examples/collab-server/data
+      VERIFY_URL: http://api:3100/collab/verify
+    ports:
+      - "3123:3123"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  collab-data:
