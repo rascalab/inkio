@@ -7,7 +7,8 @@ import type {
   InkioMessageOverrides,
 } from '../i18n/messages';
 import { useInkioCoreUi } from '../context/use-inkio-ui';
-import { autoUpdateOverlayPosition } from '../overlay/positioning';
+import { autoUpdateOverlayPosition, computeOverlayPosition } from '../overlay/positioning';
+import { useDismissableLayer } from '../overlay/use-dismissable-layer';
 import {
   canExecuteTableAction,
   executeTableAction,
@@ -53,6 +54,22 @@ const CONTEXT_MENU_ENTRIES: ContextMenuEntry[] = [
 
 const CONTEXT_MENU_WIDTH = 200;
 const CONTEXT_MENU_HEIGHT = 264;
+const CONTEXT_MENU_GUTTER = 8;
+
+/** Place the context menu at the pointer, shifted inside the viewport gutter. */
+function placeContextMenu(x: number, y: number, width: number, height: number): ContextMenuState {
+  const next = computeOverlayPosition({
+    anchorRect: { top: y, bottom: y, left: x, right: x, width: 0, height: 0 },
+    floatingRect: { width, height },
+    placement: 'bottom',
+    align: 'start',
+    offset: 0,
+    padding: CONTEXT_MENU_GUTTER,
+    flip: false,
+    shift: true,
+  });
+  return { x: next.left, y: next.top };
+}
 
 function PlusGlyph() {
   return (
@@ -253,10 +270,9 @@ export const TableMenu = ({
       event.preventDefault();
       const pos = editor.view.posAtDOM(cell, 0);
       editor.chain().focus().setTextSelection(pos).run();
-      setContextMenu({
-        x: Math.max(8, Math.min(event.clientX, window.innerWidth - CONTEXT_MENU_WIDTH - 8)),
-        y: Math.max(8, Math.min(event.clientY, window.innerHeight - CONTEXT_MENU_HEIGHT - 8)),
-      });
+      setContextMenu(
+        placeContextMenu(event.clientX, event.clientY, CONTEXT_MENU_WIDTH, CONTEXT_MENU_HEIGHT),
+      );
     };
 
     dom.addEventListener('contextmenu', handleContextMenu);
@@ -270,42 +286,34 @@ export const TableMenu = ({
       return;
     }
     const rect = menuRef.current.getBoundingClientRect();
-    const x = Math.max(8, Math.min(contextMenu.x, window.innerWidth - rect.width - 8));
-    const y = Math.max(8, Math.min(contextMenu.y, window.innerHeight - rect.height - 8));
+    const { x, y } = placeContextMenu(contextMenu.x, contextMenu.y, rect.width, rect.height);
     if (x !== contextMenu.x || y !== contextMenu.y) {
       setContextMenu({ ...contextMenu, x, y });
     }
   }, [contextMenu]);
 
   // Dismiss the context menu on any outside interaction.
+  const isContextMenuOpen = contextMenu !== null;
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+  useDismissableLayer({
+    refs: [menuRef],
+    onDismiss: closeContextMenu,
+    enabled: isContextMenuOpen,
+    capture: true,
+  });
+
   useEffect(() => {
-    if (!contextMenu) {
+    if (!isContextMenuOpen) {
       return;
     }
 
-    const close = () => setContextMenu(null);
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) {
-        close();
-      }
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        close();
-      }
-    };
-
-    document.addEventListener('mousedown', handlePointerDown, true);
-    document.addEventListener('keydown', handleKeyDown, true);
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('resize', close);
+    window.addEventListener('scroll', closeContextMenu, true);
+    window.addEventListener('resize', closeContextMenu);
     return () => {
-      document.removeEventListener('mousedown', handlePointerDown, true);
-      document.removeEventListener('keydown', handleKeyDown, true);
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', closeContextMenu, true);
+      window.removeEventListener('resize', closeContextMenu);
     };
-  }, [contextMenu]);
+  }, [isContextMenuOpen, closeContextMenu]);
 
   // Track the table currently under the mouse, so the controls reveal on
   // hover without first clicking into the table.

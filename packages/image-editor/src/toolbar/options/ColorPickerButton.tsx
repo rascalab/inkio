@@ -1,5 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import {
+  autoUpdateOverlayPosition,
+  computeOverlayPosition,
+  useDismissableLayer,
+} from '@inkio/core';
 import { PaletteIcon } from '../../icons';
 import {
   colorToHsva,
@@ -92,23 +97,16 @@ export function ColorPickerButton({
       : rgbaToCss(parseColor(value) ?? { r: 0, g: 0, b: 0, a: 1 }));
   }, [value]);
 
+  useDismissableLayer({
+    refs: [rootRef, popoverRef],
+    onDismiss: () => setIsOpen(false),
+    enabled: isOpen,
+  });
+
   useEffect(() => {
     if (!isOpen) {
       return;
     }
-
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (!rootRef.current?.contains(target) && !popoverRef.current?.contains(target)) {
-        setIsOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsOpen(false);
-      }
-    };
 
     const handleExclusiveOpen = (event: Event) => {
       const detail = (event as CustomEvent<string>).detail;
@@ -117,13 +115,9 @@ export function ColorPickerButton({
       }
     };
 
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
     window.addEventListener(EXCLUSIVE_EVENT, handleExclusiveOpen as EventListener);
 
     return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener(EXCLUSIVE_EVENT, handleExclusiveOpen as EventListener);
     };
   }, [isOpen, pickerId]);
@@ -147,32 +141,42 @@ export function ColorPickerButton({
         ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight);
       const maxWidth = Math.min(POPOVER_WIDTH, Math.max(220, boundaryRect.width - (POPOVER_GUTTER * 2)));
       const maxHeight = Math.max(240, boundaryRect.height - (POPOVER_GUTTER * 2));
-      const relativeLeft = rect.left - boundaryRect.left;
-      const relativeTop = rect.top - boundaryRect.top;
-      const relativeBottom = rect.bottom - boundaryRect.top;
-      const left = Math.min(
-        Math.max(POPOVER_GUTTER, relativeLeft),
-        Math.max(POPOVER_GUTTER, boundaryRect.width - maxWidth - POPOVER_GUTTER),
-      );
       const estimatedHeight = Math.min(POPOVER_ESTIMATED_HEIGHT, maxHeight);
-      const spaceAbove = relativeTop - POPOVER_GUTTER;
-      const spaceBelow = boundaryRect.height - relativeBottom - POPOVER_GUTTER;
-      const placement = spaceAbove >= estimatedHeight || spaceAbove >= spaceBelow
-        ? 'above'
-        : 'below';
-      const top = placement === 'above'
-        ? Math.min(
-            boundaryRect.height - POPOVER_GUTTER,
-            Math.max(estimatedHeight + POPOVER_GUTTER, relativeTop - POPOVER_OFFSET),
-          )
-        : Math.max(
-            POPOVER_GUTTER,
-            Math.min(boundaryRect.height - estimatedHeight - POPOVER_GUTTER, relativeBottom + POPOVER_OFFSET),
-          );
+
+      // The popover is absolutely positioned inside the boundary element, so
+      // compute in boundary-relative coordinates. Prefer above the trigger;
+      // flip below when that overflows less, and shift inside the gutter.
+      const next = computeOverlayPosition({
+        anchorRect: {
+          top: rect.top - boundaryRect.top,
+          bottom: rect.bottom - boundaryRect.top,
+          left: rect.left - boundaryRect.left,
+          right: rect.right - boundaryRect.left,
+          width: rect.width,
+          height: rect.height,
+        },
+        floatingRect: { width: maxWidth, height: estimatedHeight },
+        boundaryRect: {
+          top: 0,
+          left: 0,
+          right: boundaryRect.width,
+          bottom: boundaryRect.height,
+          width: boundaryRect.width,
+          height: boundaryRect.height,
+        },
+        placement: 'top',
+        align: 'start',
+        offset: POPOVER_OFFSET,
+        padding: POPOVER_GUTTER,
+        flip: true,
+        shift: true,
+      });
+      const placement = next.placement === 'top' ? 'above' : 'below';
 
       setPopoverPosition({
-        left,
-        top,
+        left: next.left,
+        // `.is-above` anchors the popover by its bottom edge (translateY(-100%)).
+        top: placement === 'above' ? next.top + estimatedHeight : next.top,
         width: maxWidth,
         maxHeight,
         placement,
@@ -180,13 +184,11 @@ export function ColorPickerButton({
     };
 
     updatePopoverPosition();
-    window.addEventListener('resize', updatePopoverPosition);
-    window.addEventListener('scroll', updatePopoverPosition, true);
 
-    return () => {
-      window.removeEventListener('resize', updatePopoverPosition);
-      window.removeEventListener('scroll', updatePopoverPosition, true);
-    };
+    return autoUpdateOverlayPosition({
+      update: updatePopoverPosition,
+      elements: [triggerRef.current],
+    });
   }, [isOpen]);
 
   const commitColor = (nextHsva: typeof hsva) => {
