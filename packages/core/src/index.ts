@@ -76,6 +76,8 @@ export type {
   LatestWinsItemsOptions,
   LatestWinsSource,
 } from './utils/latest-wins';
+export { createOverlayHost } from './utils/overlay-host';
+export type { OverlayHost, OverlayHostOptions } from './utils/overlay-host';
 export { resolveInkioExtensions } from './extensions/resolve-extensions';
 export { runOptionalChainCommand } from './extensions/optional-commands';
 export type { InkioOptionalChainCommand } from './extensions/optional-commands';

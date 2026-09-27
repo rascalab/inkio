@@ -1,5 +1,4 @@
 import React from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { SuggestionProps, SuggestionKeyDownProps, type SuggestionOptions } from '@tiptap/suggestion';
 import { SuggestionList, SuggestionItem, SuggestionListRef } from './SuggestionList';
 import {
@@ -14,6 +13,7 @@ import {
   computeOverlayPosition,
   toRectLike,
 } from '../overlay/positioning';
+import { createOverlayHost, type OverlayHost } from '../utils/overlay-host';
 
 export interface CreateSuggestionRendererOptions {
   /** Custom header text */
@@ -41,13 +41,13 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
   );
 
   return () => {
-    let popup: HTMLDivElement | null = null;
-    let root: Root | null = null;
+    let host: OverlayHost | null = null;
     let component: SuggestionListRef | null = null;
     let cleanupAutoUpdate: (() => void) | null = null;
     let latestProps: SuggestionProps<any, I> | null = null;
 
     const updatePopupPosition = () => {
+      const popup = host?.element;
       if (!popup || !latestProps) {
         return;
       }
@@ -78,11 +78,11 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
     const renderList = (props: SuggestionProps<any, I>) => {
       latestProps = props;
 
-      if (!root) {
+      if (!host) {
         return;
       }
 
-      root.render(
+      host.render(
         <SuggestionList
           ref={(ref) => {
             component = ref;
@@ -102,36 +102,29 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
       onStart: (props: SuggestionProps<any, I>) => {
         latestProps = props;
 
-        popup = document.createElement('div');
-        popup.className = 'inkio';
-        popup.style.position = 'fixed';
-        popup.style.zIndex = 'var(--inkio-layer-suggestion, 130)';
-
-        const editorEl = props.editor.view.dom.closest('.inkio');
-        if (editorEl) {
-          const isDark = editorEl.classList.contains('dark');
-          popup.classList.toggle('dark', isDark);
-        }
-
-        document.body.appendChild(popup);
+        host = createOverlayHost({
+          editorDom: props.editor.view.dom,
+          label: 'suggestion popup',
+          style: {
+            position: 'fixed',
+            zIndex: 'var(--inkio-layer-suggestion, 130)',
+          },
+        });
 
         cleanupAutoUpdate = autoUpdateOverlayPosition({
           update: updatePopupPosition,
-          elements: [props.editor.view.dom, popup],
+          elements: [props.editor.view.dom, host.element],
         });
 
-        root = createRoot(popup);
         renderList(props);
       },
 
       onUpdate: (props: SuggestionProps<any, I>) => {
         latestProps = props;
 
-        if (root) {
+        if (host) {
           renderList(props);
-          return;
         }
-
       },
 
       onKeyDown: (props: SuggestionKeyDownProps): boolean => {
@@ -143,21 +136,13 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
       },
 
       onExit: () => {
-        const popupToRemove = popup;
-        const rootToUnmount = root;
-
         cleanupAutoUpdate?.();
         cleanupAutoUpdate = null;
 
-        popup = null;
-        root = null;
+        host?.destroy();
+        host = null;
         component = null;
         latestProps = null;
-
-        queueMicrotask(() => {
-          rootToUnmount?.unmount();
-          popupToRemove?.remove();
-        });
       },
     };
   };

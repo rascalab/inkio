@@ -1,4 +1,3 @@
-import type { Root } from 'react-dom/client';
 import type { Editor } from '@tiptap/core';
 import { Plugin } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
@@ -8,7 +7,7 @@ import {
   type CommentOptions,
 } from './Comment';
 import { CommentComposer } from './components/CommentComposer';
-import { getCreateRoot } from '@inkio/core';
+import { createOverlayHost, type OverlayHost } from '@inkio/core';
 
 function getSelectionRect(view: EditorView, from: number, to: number) {
   const start = view.coordsAtPos(from);
@@ -38,8 +37,7 @@ export function createCommentComposerPlugin(
   editor: Editor,
   options: CommentOptions
 ): Plugin {
-  let popup: HTMLDivElement | null = null;
-  let root: Root | null = null;
+  let host: OverlayHost | null = null;
 
   function deactivate() {
     const tr = editor.view.state.tr.setMeta(commentComposerPluginKey, {
@@ -51,33 +49,12 @@ export function createCommentComposerPlugin(
   }
 
   function mountAndRender(view: EditorView, pluginState: ComposerPluginState) {
-    popup = document.createElement('div');
-    popup.className = 'inkio';
-
-    const editorEl = view.dom.closest('.inkio');
-    if (editorEl) {
-      const isDark = editorEl.classList.contains('dark');
-      popup.classList.toggle('dark', isDark);
-    }
-
-    document.body.appendChild(popup);
-
-    // Capture the mount generation: a newer mountAndRender replaces `popup`,
-    // so a stale promise must not create a second root on the new element.
-    const current = popup;
-    getCreateRoot().then((createRootFn) => {
-      if (!popup || popup !== current) return;
-      root = createRootFn(popup);
-      renderComposer(view, pluginState);
-    }).catch((error: unknown) => {
-      console.error('[inkio] comment composer failed to initialize:', error);
-      current.remove();
-      if (popup === current) popup = null;
-    });
+    host = createOverlayHost({ editorDom: view.dom, label: 'comment composer' });
+    renderComposer(view, pluginState);
   }
 
   function renderComposer(view: EditorView, pluginState: ComposerPluginState) {
-    if (!root) return;
+    if (!host) return;
 
     const { from, to } = pluginState;
     const anchorResolver = () => {
@@ -90,7 +67,7 @@ export function createCommentComposerPlugin(
 
     const generateId = options.generateId ?? defaultGenerateId;
 
-    root.render(
+    host.render(
       <CommentComposer
         open={true}
         anchorRect={anchorResolver()}
@@ -130,16 +107,8 @@ export function createCommentComposerPlugin(
   }
 
   function teardown() {
-    const popupToRemove = popup;
-    const rootToUnmount = root;
-
-    popup = null;
-    root = null;
-
-    queueMicrotask(() => {
-      rootToUnmount?.unmount();
-      popupToRemove?.remove();
-    });
+    host?.destroy();
+    host = null;
   }
 
   return new Plugin<ComposerPluginState>({
@@ -185,7 +154,7 @@ export function createCommentComposerPlugin(
             teardown();
             lastRenderedRange = null;
             wasActive = false;
-          } else if (state.active && root) {
+          } else if (state.active && host) {
             // While composing, every keystroke/scroll/resize fires view.update.
             // A full root re-render plus coordsAtPos (forced layout) per update
             // is wasted when the commented range did not move — scroll/resize
@@ -203,7 +172,7 @@ export function createCommentComposerPlugin(
             const snapshot = { ...state };
             positionRaf = requestAnimationFrame(() => {
               positionRaf = null;
-              if (root) renderComposer(view, snapshot);
+              renderComposer(view, snapshot);
             });
           }
         },
