@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { Editor } from '@tiptap/react';
+import type { MarkType, Node as PMNode } from '@tiptap/pm/model';
+import type { Transaction } from '@tiptap/pm/state';
+import type { Step } from '@tiptap/pm/transform';
 import type { InkioLocaleInput, InkioMessageOverrides } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import {
@@ -135,6 +138,56 @@ function collectEditorMarks(editor: Editor): EditorCommentMark[] {
   return Array.from(marks.values());
 }
 
+/**
+ * Conservative check: could this step change the comment marks (their set,
+ * text, or resolved state)? Only the step's own range and inserted slice are
+ * inspected — never the whole doc. Unknown step shapes return true.
+ * Pure position shifts do not count: positions are re-read on demand
+ * (`findEditorMark`) instead of being kept fresh on every keystroke.
+ */
+export function stepMayAffectComments(doc: PMNode, step: Step, markType: MarkType): boolean {
+  const s = step as unknown as {
+    from?: number;
+    to?: number;
+    pos?: number;
+    mark?: { type?: unknown };
+    slice?: { content?: { descendants?: (f: (node: PMNode) => boolean | void) => void } };
+  };
+
+  // Add/RemoveMarkStep (and node-mark steps): relevant only for comment marks.
+  if (s.mark) return s.mark.type === markType;
+
+  if (typeof s.from !== 'number' || typeof s.to !== 'number') {
+    // AttrStep (node attrs) cannot touch marks; anything else is unknown.
+    return typeof s.pos !== 'number';
+  }
+
+  const hasComment = (node: PMNode) => node.isText && !!markType.isInSet(node.marks);
+
+  // The replaced range touches commented text (edit inside/next to a mark,
+  // or a delete across one).
+  let hit = false;
+  doc.nodesBetween(Math.max(0, s.from - 1), Math.min(doc.content.size, s.to + 1), (node) => {
+    if (hit) return false;
+    if (hasComment(node)) hit = true;
+    return !hit;
+  });
+  if (hit) return true;
+
+  // Inserted content carries comment marks (paste, drag-move).
+  s.slice?.content?.descendants?.((node) => {
+    if (hit) return false;
+    if (hasComment(node)) hit = true;
+    return !hit;
+  });
+  return hit;
+}
+
+/** Fresh positions for one comment id, read at use time. */
+function findEditorMark(editor: Editor, commentId: string): EditorCommentMark | undefined {
+  return collectEditorMarks(editor).find((mark) => mark.commentId === commentId);
+}
+
 // ─── Component ─────────────────────────────────────────────
 
 export const CommentPanel = ({
@@ -186,9 +239,24 @@ export const CommentPanel = ({
     let lastDoc = editor.state.doc;
     setEditorMarks(collectEditorMarks(editor));
 
-    const refresh = () => {
+    const refresh = ({ transaction }: { transaction?: Transaction } = {}) => {
       if (editor.state.doc !== lastDoc) {
+        const previousDoc = lastDoc;
         lastDoc = editor.state.doc;
+        // Skip the full-doc walk when the transaction provably leaves the
+        // comment marks alone (plain typing outside any comment). Only
+        // applies when the transaction continues from the last seen doc.
+        const markType = editor.state.schema.marks.comment;
+        if (
+          markType
+          && transaction
+          && transaction.before === previousDoc
+          && transaction.doc === editor.state.doc
+          && !transaction.steps.some((step, index) =>
+            stepMayAffectComments(transaction.docs[index] ?? transaction.before, step, markType))
+        ) {
+          return;
+        }
         const next = collectEditorMarks(editor);
         // Typing elsewhere shifts positions but usually leaves the mark set
         // identical — keep the previous array identity so the panel (and its
@@ -207,9 +275,12 @@ export const CommentPanel = ({
     (mark: EditorCommentMark) => {
       if (!editor) return;
 
+      // Positions in panel state may be stale (typing elsewhere does not
+      // refresh them), so re-read the mark's current ranges.
+      const current = findEditorMark(editor, mark.commentId) ?? mark;
       // Select the first contiguous range only — never the gap between
       // non-contiguous same-id runs.
-      const target = mark.ranges[0] ?? { from: mark.from, to: mark.to };
+      const target = current.ranges[0] ?? { from: current.from, to: current.to };
       const size = editor.state.doc.content.size;
       if (
         !Number.isFinite(target.from) ||
@@ -252,7 +323,8 @@ export const CommentPanel = ({
     (commentId: string) => {
       if (!editor || !onDelete) return;
 
-      const mark = editorMarks.find((item) => item.commentId === commentId);
+      // Re-read positions: panel state may predate edits elsewhere.
+      const mark = findEditorMark(editor, commentId);
       if (mark) {
         // Remove every contiguous range, not just the first span.
         const tr = editor.state.tr;
@@ -267,7 +339,7 @@ export const CommentPanel = ({
 
       onDelete(commentId);
     },
-    [editor, editorMarks, onDelete],
+    [editor, onDelete],
   );
 
   /**
