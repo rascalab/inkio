@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EditorProps as CoreEditorProps } from '@inkio/core';
-import { resolveExtensionsInput } from '../utils/resolve-extensions-input';
+import { resolveExtensionsInput } from '@inkio/core';
 
 type Extensions = NonNullable<CoreEditorProps['extensions']>;
 type Extension = Extensions[number];

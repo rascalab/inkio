@@ -18,8 +18,7 @@ import type { TableMenuProps } from '@inkio/core';
 import type { InkioJSONContent as JSONContent } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import type { ExtensionsInput } from '../types';
-import { resolveExtensionsInput } from '../utils/resolve-extensions-input';
-import { mapEditorUiToCoreProps, mergeImageBlockOptions, useStableProps } from '@inkio/core';
+import { mapEditorUiToCoreProps, mergeImageBlockOptions, resolveExtensionsInput, useStableProps } from '@inkio/core';
 
 export interface EditorProps {
   /** Initial document only (uncontrolled). */

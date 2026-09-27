@@ -17,8 +17,7 @@ import type { ImageBlockOptions } from '@inkio/core';
 import type { HashTagItem, MentionItem, SlashCommandItem, SlashCommandTransform, BookmarkPreview, CommentConfig } from '@inkio/advanced';
 import { getDefaultExtensions, type DefaultExtensionsOptions } from '@inkio/advanced';
 import type { ExtensionsInput } from '../types';
-import { resolveExtensionsInput } from '../utils/resolve-extensions-input';
-import { mapEditorUiToCoreProps, mergeImageBlockOptions, useStableProps } from '@inkio/core';
+import { mapEditorUiToCoreProps, mergeImageBlockOptions, resolveExtensionsInput, useStableProps } from '@inkio/core';
 import type { InkioJSONContent as JSONContent } from '@inkio/core';
 
 interface EditorUiOptions {
