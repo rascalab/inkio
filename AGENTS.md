@@ -14,7 +14,7 @@ Inkio is a pnpm monorepo of layered Tiptap-based React editors: `@inkio/core` fo
 ├── packages/advanced/      # per-extension entries under src/entries/
 ├── packages/simple/        # classic WYSIWYG preset (wraps core)
 ├── packages/editor/        # notion-like preset (wraps core+advanced)
-├── packages/collab/        # Yjs/socket.io realtime layer (`@inkio/collab`, `./protocol` for servers)
+├── packages/collab/        # Hocuspocus/Yjs realtime layer (`@inkio/collab`, single `.` subpath)
 ├── packages/image-editor/  # konva canvas editor, standalone
 ├── docs/                   # Nextra app, workspace member named `docs`
 ├── examples/               # basic-react (vite) + next-app-router + collab-server (Nest/Hocuspocus)
@@ -48,7 +48,7 @@ Centrality unmeasured (typescript-language-server not installed); map is export-
 | createMarkdownAdapter | function | packages/core/src/markdown/ (`@inkio/core/markdown`) | markdown kept out of main bundle |
 | BlockHandle/Bookmark/Mention/HashTag/SlashCommand/WikiLink | extension | packages/advanced/src/ | one subpath per extension via src/entries/ |
 | Comment/CommentComposer/CommentPanel | component | packages/advanced/src/comment/ | comment bundle |
-| SocketIOCollabProvider/useInkioCollaborativeEditor | collab | packages/collab/src/ | provider + hooks; `./protocol` is the Node-safe server subset |
+| createCollabProvider/useInkioCollaborativeEditor | collab | packages/collab/src/ | Hocuspocus provider + hooks; no socket.io |
 | ImageEditor/ImageEditorModal | component | packages/image-editor/src/index.ts | canvas editor entry |
 
 ## CONVENTIONS
