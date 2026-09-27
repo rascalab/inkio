@@ -93,6 +93,15 @@ export function diffTouchesRanges(
   return false;
 }
 
+/** Threads are small (a handful of messages); JSON is a cheap content key. */
+function snapshotThread(thread: unknown): string {
+  try {
+    return JSON.stringify(thread) ?? '';
+  } catch {
+    return '';
+  }
+}
+
 export function createCommentThreadPopoverPlugin(
   editor: Editor,
   options: CommentOptions,
@@ -102,7 +111,14 @@ export function createCommentThreadPopoverPlugin(
   let currentThreadId = '';
   let cachedRanges: MarkRange[] = [];
   let cachedQuotedText = '';
-  let renderedThread: unknown = undefined;
+  // Content snapshot of the rendered thread: compared instead of identity so
+  // both fresh objects per call and in-place mutation are handled.
+  let renderedSnapshot = '';
+  const threadChanged = (): boolean => {
+    const thread = options.getThread?.(currentThreadId) ?? null;
+    // Content, not identity: getThread may build a fresh object per call.
+    return snapshotThread(thread) !== renderedSnapshot;
+  };
   let positionRaf = 0;
 
   function deactivate() {
@@ -223,7 +239,7 @@ export function createCommentThreadPopoverPlugin(
     if (!host || !currentThreadId) return;
 
     const thread = options.getThread?.(currentThreadId) ?? null;
-    renderedThread = thread;
+    renderedSnapshot = snapshotThread(thread);
     const currentUser = options.currentUser ?? 'User';
 
     // Read-only surfaces render threads but offer no actions: omitting a
@@ -260,7 +276,7 @@ export function createCommentThreadPopoverPlugin(
     currentThreadId = '';
     cachedRanges = [];
     cachedQuotedText = '';
-    renderedThread = undefined;
+    renderedSnapshot = '';
   }
 
   return new Plugin<ThreadPopoverPluginState>({
@@ -317,7 +333,7 @@ export function createCommentThreadPopoverPlugin(
       // popover is open. Re-read getThread on notification so the popover
       // never shows stale messages.
       const handleThreadsChanged = () => {
-        if (wasActive && host && currentThreadId) {
+        if (wasActive && host && currentThreadId && threadChanged()) {
           renderPopover();
         }
       };
@@ -347,8 +363,7 @@ export function createCommentThreadPopoverPlugin(
             // touches this thread's marks re-collects the quote, and only
             // quote/thread/editability changes re-render. Thread data changes
             // also arrive through COMMENT_THREADS_CHANGED_EVENT.
-            let needsRender =
-              (options.getThread?.(currentThreadId) ?? null) !== renderedThread;
+            let needsRender = threadChanged();
             if (view.state.doc !== prevState.doc) {
               if (diffTouchesRanges(prevState.doc, view.state.doc, cachedRanges)) {
                 const previousText = cachedQuotedText;

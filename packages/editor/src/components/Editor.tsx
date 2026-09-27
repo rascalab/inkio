@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   Editor as CoreEditor,
   type EditorProps as CoreEditorProps,
@@ -15,7 +15,7 @@ import type { TableMenuProps } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import type { ImageBlockOptions } from '@inkio/core';
 import type { HashTagItem, MentionItem, SlashCommandItem, SlashCommandTransform, BookmarkPreview, CommentConfig } from '@inkio/advanced';
-import { getDefaultExtensions, type DefaultExtensionsOptions } from '@inkio/advanced';
+import { getDefaultExtensions, notifyCommentThreadsChanged, type DefaultExtensionsOptions } from '@inkio/advanced';
 import type { ExtensionsInput } from '../types';
 import { mapEditorUiToCoreProps, mergeImageBlockOptions, resolveExtensionsInput, useStableProps } from '@inkio/core';
 import type { InkioJSONContent as JSONContent } from '@inkio/core';
@@ -131,6 +131,15 @@ export function Editor({
     onImageUpload,
     bookmark,
   });
+
+  // Comment data lives in the host's state (see the comments recipe), so a
+  // new `getComments` closure means the data may have changed. Tell an open
+  // thread popover to re-read it after commit; it re-renders only if the
+  // thread's content actually differs.
+  const getComments = comment?.getComments;
+  useEffect(() => {
+    if (getComments) notifyCommentThreadsChanged();
+  }, [getComments]);
 
   const resolvedExtensions = useMemo(() => {
     const input = extensionInputs;

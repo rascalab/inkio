@@ -84,15 +84,24 @@ export function useStableCallback<T extends (...args: never[]) => unknown>(
 
 type AnyFunction = (...args: never[]) => unknown;
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
 /**
  * Stabilize a whole props bag at once, instead of one `useStableOptions` /
  * `useStableCallback` call per field (easy to miss one when a prop is added):
  *
- * - function fields become identity-stable forwarders to the newest
- *   implementation (like `useStableCallback`; a new forwarder is created
- *   only when the field goes from undefined to defined);
- * - every other field keeps its previous value while structurally equal
- *   (like `useStableOptions`; nested functions compare by reference).
+ * - functions — top-level or nested inside plain-object fields such as
+ *   `comment.getComments` — become identity-stable forwarders to the newest
+ *   implementation at the same path. Tiptap never re-applies extension
+ *   options after creation, so a nested callback captured at mount would
+ *   otherwise keep reading stale parent state forever;
+ * - every other value keeps its previous identity while structurally equal
+ *   (like `useStableOptions`). Arrays are compared structurally as-is, since
+ *   positional forwarders would misroute reordered items.
  *
  * The returned object itself keeps its identity until some field changes,
  * so it can be used directly as a single memo dependency.
@@ -101,54 +110,61 @@ export function useStableProps<T extends object>(props: T): T {
   const latestRef = useRef(props);
   // Idempotent render-phase write, same as useStableCallback.
   latestRef.current = props;
-  const cacheRef = useRef<{ result: T; forwarders: Map<string, AnyFunction> } | null>(null);
+  const forwardersRef = useRef(new Map<string, AnyFunction>());
+  const resultRef = useRef<T | null>(null);
 
-  const cache = cacheRef.current;
-  const forwarders = cache?.forwarders ?? new Map<string, AnyFunction>();
-  const previous = cache?.result as Record<string, unknown> | undefined;
-  const source = props as Record<string, unknown>;
+  const forwarders = forwardersRef.current;
+  const used = new Set<string>();
+
+  const forwarderFor = (path: string[]): AnyFunction => {
+    const key = path.join('\u0000');
+    used.add(key);
+    let forwarder = forwarders.get(key);
+    if (!forwarder) {
+      forwarder = (...args: never[]) => {
+        let latest: unknown = latestRef.current;
+        for (const segment of path) {
+          latest = isPlainObject(latest) ? latest[segment] : undefined;
+        }
+        if (typeof latest !== 'function') {
+          throw new Error(`useStableProps: "${path.join('.')}" invoked after its callback was removed`);
+        }
+        return (latest as AnyFunction)(...args);
+      };
+      forwarders.set(key, forwarder);
+    }
+    return forwarder;
+  };
+
+  const stabilize = (value: unknown, path: string[]): unknown => {
+    if (typeof value === 'function') return forwarderFor(path);
+    if (!isPlainObject(value)) return value;
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(value)) {
+      out[key] = stabilize(value[key], [...path, key]);
+    }
+    return out;
+  };
+
+  const previous = resultRef.current as Record<string, unknown> | null;
   const next: Record<string, unknown> = {};
-
-  for (const key of Object.keys(source)) {
-    const value = source[key];
-    if (typeof value === 'function') {
-      let forwarder = forwarders.get(key);
-      if (!forwarder) {
-        forwarder = (...args: never[]) => {
-          const latest = (latestRef.current as Record<string, unknown>)[key];
-          if (typeof latest !== 'function') {
-            throw new Error(`useStableProps: "${key}" invoked after its callback was removed`);
-          }
-          return (latest as AnyFunction)(...args);
-        };
-        forwarders.set(key, forwarder);
-      }
-      next[key] = forwarder;
+  let changed = !previous || Object.keys(previous).length !== Object.keys(props).length;
+  for (const key of Object.keys(props)) {
+    const value = stabilize((props as Record<string, unknown>)[key], [key]);
+    // Forwarders are identity-stable per path, so structural equality holds
+    // across renders whenever only callback implementations changed.
+    if (previous && Object.prototype.hasOwnProperty.call(previous, key) && isEqualOptionsValue(previous[key], value)) {
+      next[key] = previous[key];
     } else {
-      forwarders.delete(key);
-      const prev = previous?.[key];
-      next[key] =
-        previous && Object.prototype.hasOwnProperty.call(previous, key)
-        && typeof prev !== 'function'
-        && isEqualOptionsValue(prev, value)
-          ? prev
-          : value;
+      next[key] = value;
+      changed = true;
     }
   }
   for (const key of forwarders.keys()) {
-    if (!Object.prototype.hasOwnProperty.call(source, key)) forwarders.delete(key);
+    if (!used.has(key)) forwarders.delete(key);
   }
 
-  if (previous) {
-    const nextKeys = Object.keys(next);
-    if (
-      nextKeys.length === Object.keys(previous).length
-      && nextKeys.every((key) => Object.prototype.hasOwnProperty.call(previous, key) && Object.is(previous[key], next[key]))
-    ) {
-      return cache!.result;
-    }
-  }
-
-  cacheRef.current = { result: next as T, forwarders };
+  if (!changed) return resultRef.current as T;
+  resultRef.current = next as T;
   return next as T;
 }

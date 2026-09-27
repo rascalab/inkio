@@ -116,6 +116,44 @@ describe('useStableProps', () => {
   });
 });
 
+describe('useStableProps nested callbacks', () => {
+  type Props = { comment?: { get: (id: string) => string; limit: number }; items?: Array<{ run: () => string }> };
+
+  it('forwards callbacks nested in plain objects to the newest closure under a stable identity', () => {
+    const { result, rerender } = renderHook((props: Props) => useStableProps(props), {
+      initialProps: { comment: { get: (id: string) => `v1:${id}`, limit: 1 } },
+    });
+    const first = result.current;
+    const firstGet = first.comment!.get;
+    rerender({ comment: { get: (id: string) => `v2:${id}`, limit: 1 } });
+    expect(result.current).toBe(first);
+    expect(result.current.comment!.get).toBe(firstGet);
+    expect(firstGet('t')).toBe('v2:t');
+  });
+
+  it('still reports real data changes next to nested callbacks', () => {
+    const { result, rerender } = renderHook((props: Props) => useStableProps(props), {
+      initialProps: { comment: { get: () => 'x', limit: 1 } },
+    });
+    const first = result.current;
+    rerender({ comment: { get: () => 'x', limit: 2 } });
+    expect(result.current).not.toBe(first);
+    expect(result.current.comment!.limit).toBe(2);
+  });
+
+  it('leaves arrays structural (no positional forwarders)', () => {
+    const run = () => 'a';
+    const { result, rerender } = renderHook((props: Props) => useStableProps(props), {
+      initialProps: { items: [{ run }] },
+    });
+    const first = result.current;
+    rerender({ items: [{ run }] });
+    expect(result.current).toBe(first);
+    rerender({ items: [{ run: () => 'b' }] });
+    expect(result.current).not.toBe(first);
+  });
+});
+
 describe('editor wrapper mappers', () => {
   it('applies visibility defaults only when ui leaves them unset', () => {
     const defaults = { showToolbar: true, showBubbleMenu: false, showFloatingMenu: false, showTableMenu: true };

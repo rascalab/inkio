@@ -104,6 +104,9 @@ export function DocumentPage({ documentId }: { documentId: string }) {
    문서에 마크로 저장하고 `onSubmit`을 호출합니다.
 2. 마크 클릭 시 팝오버가 `getComments(commentId)`로 캐시에서 스레드를 읽어 보여줍니다.
 3. 답글·해결·삭제는 각 콜백 → 서버 반영 → 캐시 갱신 순서로 동작합니다.
+   캐시(state)만 갱신하면 열려 있는 팝오버도 자동으로 새 데이터를 다시 읽습니다.
+   `@inkio/editor` 없이 `Comment` 확장을 직접 쓰는 경우에만, 데이터가 바뀐 뒤
+   `notifyCommentThreadsChanged()`를 호출하세요.
 4. `CommentPanel`에는 `threads={[...threads.values()]}`를 그대로 넘기면
    목록·필터·스크롤 이동이 따라옵니다.
 
