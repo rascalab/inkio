@@ -18,9 +18,19 @@ export function removeConflictingExtensions(extensions: Extensions): Extensions 
 
 const FALLBACK_USER: CollabUser = { name: 'Anonymous', color: '#888888' };
 
+/** Remote peer input must never reach CSS raw: `;` or braces break out of
+ * the declaration they are interpolated into. Everything else (including
+ * exotic-but-valid colors) passes through untouched. */
+function isSafeCssColor(value: string): boolean {
+  return !/[;{}]/.test(value);
+}
+
 /** Self-styled caret so consumers need no extra stylesheet. */
 function renderCaret(user: Record<string, unknown>): HTMLElement {
-  const color = typeof user.color === 'string' ? user.color : FALLBACK_USER.color;
+  // Remote peer input must never reach CSS raw: a crafted color string
+  // breaks out of the declaration (e.g. `red;background:url(...)`).
+  const rawColor = typeof user.color === 'string' ? user.color : FALLBACK_USER.color;
+  const color = isSafeCssColor(rawColor) ? rawColor : FALLBACK_USER.color;
   const caret = document.createElement('span');
   caret.className = 'collaboration-carets__caret';
   caret.style.cssText = `position:relative;margin:0 -1px;border-left:1px solid ${color};border-right:1px solid ${color};word-break:normal;pointer-events:none;`;

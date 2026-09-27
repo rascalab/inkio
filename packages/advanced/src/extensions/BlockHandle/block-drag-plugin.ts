@@ -378,6 +378,13 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
       }
 
       renderMenu();
+    }).catch(() => {
+      // Chunk load failure must not end as an unhandled rejection: reset
+      // the pending open so a later click retries cleanly instead of hanging.
+      if (openMenuBlockPos !== blockPos) {
+        return;
+      }
+      openMenuBlockPos = null;
     });
   };
 
