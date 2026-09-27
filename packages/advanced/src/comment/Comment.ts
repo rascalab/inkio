@@ -1,6 +1,7 @@
 import { Mark, mergeAttributes } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { CommentThreadData, CommentMessage } from './components/CommentPanel';
+import { createId } from '@inkio/core';
 import type {
   InkioLocaleInput,
   InkioMessageOverrides,
@@ -18,18 +19,8 @@ export const commentThreadPopoverPluginKey = new PluginKey('commentThreadPopover
 // ─── Helpers ────────────────────────────────────────────────
 
 export function defaultGenerateId(): string {
-  if (
-    typeof globalThis.crypto !== 'undefined' &&
-    typeof globalThis.crypto.randomUUID === 'function'
-  ) {
-    return globalThis.crypto.randomUUID();
-  }
-
-  fallbackIdCounter += 1;
-  return `id-${Date.now().toString(36)}-${fallbackIdCounter.toString(36)}`;
+  return createId();
 }
-
-let fallbackIdCounter = 0;
 
 /**
  * Single id boundary for every comment command: non-string or blank input

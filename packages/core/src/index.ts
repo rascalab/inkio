@@ -64,6 +64,7 @@ export { InkioError } from './errors';
 export { toError } from './errors';
 export type { InkioErrorHandler } from './errors';
 export { isSafeUrl, sanitizeUrlOrEmpty } from './utils/url-safety';
+export { createId } from './utils/create-id';
 export { mergeExtensions, resolveExtensionsInput } from './utils/extensions-input';
 export { isEqualOptionsValue, useStableCallback, useStableOptions } from './utils/stable-options';
 export { getCreateRoot } from './utils/create-root';

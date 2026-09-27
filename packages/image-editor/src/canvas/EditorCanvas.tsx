@@ -7,6 +7,7 @@ import {
   type CSSProperties,
 } from 'react';
 import { Stage } from 'react-konva';
+import { createId } from '@inkio/core';
 import type Konva from 'konva';
 import { useImageEditor } from '../hooks/use-image-editor';
 import { DesignLayer } from './DesignLayer';
@@ -59,16 +60,7 @@ interface CropViewportState {
   panY: number;
 }
 
-let fallbackIdCounter = 0;
-
-function generateId(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-
-  fallbackIdCounter += 1;
-  return `ann-${Date.now().toString(36)}-${fallbackIdCounter.toString(36)}`;
-}
+const generateId = () => createId('ann');
 
 export function EditorCanvas({
   containerWidth,

@@ -12,6 +12,7 @@ import {
   type CommentConfig,
 } from '@inkio/editor';
 import { inkioIconRegistry, type InkioIconRegistry } from '@inkio/editor/icons';
+import { createId } from '@inkio/core';
 import {
   type CommentPanelProps,
   type CommentMessage,
@@ -31,19 +32,6 @@ const LazyCommentPanel = dynamic<CommentPanelProps>(
   () => import('@inkio/advanced').then((mod) => mod.CommentPanel),
   { loading: () => <div className="playground-loading">Loading comments...</div> },
 );
-
-let fallbackIdCounter = 0;
-
-function createId(): string {
-  if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
-    return globalThis.crypto.randomUUID();
-  }
-
-  // Monotonic counter suffix: Date.now() alone collides under rapid
-  // comment creation and Math.random() is not unique.
-  fallbackIdCounter += 1;
-  return `id-${Date.now().toString(36)}-${fallbackIdCounter.toString(36)}`;
-}
 
 type PlaygroundEditorPaneProps = {
   content?: string;
