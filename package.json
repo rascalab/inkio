@@ -39,7 +39,8 @@
     "publish:editor": "pnpm --filter @inkio/editor publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
     "publish:image-editor": "pnpm --filter @inkio/image-editor publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
     "publish:collab": "pnpm --filter @inkio/collab publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",
-    "publish:packages": "pnpm publish:core && pnpm publish:advanced && pnpm publish:simple && pnpm publish:editor && pnpm publish:image-editor && pnpm publish:collab"
+    "publish:packages": "pnpm publish:core && pnpm publish:advanced && pnpm publish:simple && pnpm publish:editor && pnpm publish:image-editor && pnpm publish:collab",
+    "docs:drift": "node scripts/check-docs-drift.mjs"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
