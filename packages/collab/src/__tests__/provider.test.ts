@@ -87,6 +87,18 @@ describe('createCollabProvider', () => {
     await synced(good);
   });
 
+  it('stops reconnecting after the server rejects the token', async () => {
+    const { url } = await startServer({
+      async onAuthenticate({ token }) {
+        if (token !== 'good') throw new Error('nope');
+      },
+    });
+    const bad = connect(url, 'auth-stop', { token: 'bad' });
+    const disconnectSpy = vi.spyOn(bad, 'disconnect');
+    await until(() => getCollabStatus(bad) === 'unauthorized');
+    expect(disconnectSpy).toHaveBeenCalled();
+  });
+
   it('notifies status transitions', async () => {
     const { url } = await startServer();
     const provider = connect(url, 'status');

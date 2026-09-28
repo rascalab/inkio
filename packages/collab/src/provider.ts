@@ -50,7 +50,13 @@ export function createCollabProvider(options: CreateCollabProviderOptions): Coll
     token: () => resolveToken(token),
     ...(websocketProvider ? { websocketProvider } : { url: url as string }),
   });
-  provider.on('authenticationFailed', () => rejected.set(provider, true));
+  provider.on('authenticationFailed', () => {
+    rejected.set(provider, true);
+    // Never retry with rejected credentials: Hocuspocus reconnects with
+    // backoff by default, which would hammer the server with a token that
+    // can never succeed. Reconnect explicitly (remount) after fixing auth.
+    provider.disconnect();
+  });
   provider.on('authenticated', () => rejected.set(provider, false));
   // A caller-owned socket is not attached automatically.
   if (websocketProvider) provider.attach();
