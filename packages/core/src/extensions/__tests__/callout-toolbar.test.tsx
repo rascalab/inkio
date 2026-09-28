@@ -30,4 +30,23 @@ describe('CalloutToolbar icon input', () => {
       unmount();
     }
   });
+
+  it('lets the icon input take focus on mouse click', () => {
+    const { container, unmount } = render(
+      <CalloutToolbar editor={stubEditor()} currentColor={null} currentIcon="😀" />,
+    );
+    try {
+      // jsdom performs no default focus on mousedown: assert on the event
+      // itself. Old code preventDefaulted every mousedown (input unfocusable).
+      const onInput = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+      iconInput().dispatchEvent(onInput);
+      expect(onInput.defaultPrevented).toBe(false);
+      const button = container.querySelector('button');
+      const onButton = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+      button!.dispatchEvent(onButton);
+      expect(onButton.defaultPrevented).toBe(true);
+    } finally {
+      unmount();
+    }
+  });
 });

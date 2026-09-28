@@ -53,7 +53,16 @@ export function CalloutToolbar({ editor, currentColor, currentIcon }: CalloutToo
   );
 
   return (
-    <div className="inkio-callout-toolbar" onMouseDown={(e) => e.preventDefault()}>
+    <div
+      className="inkio-callout-toolbar"
+      onMouseDown={(e) => {
+        // Keep editor selection when pressing buttons, but let text inputs
+        // (icon field) take focus normally on click.
+        if ((e.target as HTMLElement | null)?.tagName !== 'INPUT') {
+          e.preventDefault();
+        }
+      }}
+    >
       <div className="inkio-callout-toolbar-colors">
         <button
           type="button"
