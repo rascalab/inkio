@@ -154,7 +154,19 @@ export const Editor = ({
     ) {
       staticRender = cached.result;
     } else {
-      staticRender = renderInkioStaticContent(content, resolvedExtensions);
+      try {
+        staticRender = renderInkioStaticContent(content, resolvedExtensions);
+      } catch (error) {
+        // Out-of-schema content must degrade to the shell, never throw out
+        // of render (SSR crash / blank client tree).
+        console.warn('[inkio] static render failed, showing shell instead:', error);
+        staticRender = {
+          json: { type: 'doc', content: [{ type: 'paragraph' }] },
+          html: '',
+          headings: [],
+          shellOnly: true,
+        };
+      }
       staticCacheRef.current = {
         content,
         extensions: resolvedExtensions,

@@ -21,6 +21,22 @@ export function isEqualOptionsValue(a: unknown, b: unknown): boolean {
     if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
     return a.every((item, index) => isEqualOptionsValue(item, b[index]));
   }
+  if (a instanceof Map || b instanceof Map) {
+    // Object.keys() sees no Map entries: without this, any two Maps
+    // compare equal and mutations are missed entirely.
+    if (!(a instanceof Map) || !(b instanceof Map) || a.size !== b.size) return false;
+    for (const [key, value] of a) {
+      if (!b.has(key) || !isEqualOptionsValue(value, b.get(key))) return false;
+    }
+    return true;
+  }
+  if (a instanceof Set || b instanceof Set) {
+    if (!(a instanceof Set) || !(b instanceof Set) || a.size !== b.size) return false;
+    for (const value of a) {
+      if (!b.has(value)) return false;
+    }
+    return true;
+  }
   const aRecord = a as Record<string, unknown>;
   const bRecord = b as Record<string, unknown>;
   const aKeys = Object.keys(aRecord);

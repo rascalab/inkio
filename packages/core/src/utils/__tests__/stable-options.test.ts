@@ -178,3 +178,17 @@ describe('editor wrapper mappers', () => {
     expect(mergeImageBlockOptions(undefined, { onUpload })).toEqual({ onUpload });
   });
 });
+
+describe('isEqualOptionsValue maps and sets', () => {
+  it('compares map contents instead of references', () => {
+    expect(isEqualOptionsValue(new Map([['a', 1]]), new Map([['a', 1]]))).toBe(true);
+    expect(isEqualOptionsValue(new Map([['a', 1]]), new Map([['a', 2]]))).toBe(false);
+    expect(isEqualOptionsValue(new Map(), new Map())).toBe(true);
+    expect(isEqualOptionsValue(new Map([['a', 1]]), {})).toBe(false);
+  });
+
+  it('compares set contents instead of references', () => {
+    expect(isEqualOptionsValue(new Set([1, 2]), new Set([2, 1]))).toBe(true);
+    expect(isEqualOptionsValue(new Set([1]), new Set([1, 2]))).toBe(false);
+  });
+});

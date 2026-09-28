@@ -125,4 +125,10 @@ describe('isEqualStaticContent', () => {
     ).toBe(false);
     expect(isEqualStaticContent(undefined, { type: 'doc', content: [] } as any)).toBe(false);
   });
+
+  it('degrades null content items to the shell instead of throwing', () => {
+    const bad = { type: 'doc', content: [null] } as any;
+    const { container } = render(<Editor content={bad} />);
+    expect(container.querySelector('.inkio-editor')).toBeInTheDocument();
+  });
 });
