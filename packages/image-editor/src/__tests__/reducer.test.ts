@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { UNDOABLE_ACTIONS, imageEditorReducer, initialState } from '../reducer';
+import { UNDOABLE_ACTIONS, imageEditorReducer, initialState, makeInitialUndoableState, undoableReducer } from '../reducer';
 import type { RectAnnotation, TextAnnotationData, ToolType } from '../types';
 import { COLOR_PRESETS } from '../color-presets';
 import { getDefaultCropRect } from '../utils/crop';
@@ -532,5 +532,29 @@ describe('imageEditorReducer', () => {
       const next = imageEditorReducer(tuned, { type: 'RESET_FINETUNE' });
       expect(next.finetune).toEqual({ brightness: 0, contrast: 0, saturation: 0, clarity: 0 });
     });
+  });
+});
+
+describe('finetune undo coalescing', () => {
+  const MAX_STEPS = 30;
+
+  it('collapses a slider drag into a single undo step', () => {
+    let state = makeInitialUndoableState();
+    state = undoableReducer(state, { type: 'SET_FINETUNE', finetune: { brightness: 0.1 } }, MAX_STEPS);
+    state = undoableReducer(state, { type: 'SET_FINETUNE', finetune: { brightness: 0.2 } }, MAX_STEPS);
+    state = undoableReducer(state, { type: 'SET_FINETUNE', finetune: { brightness: 0.3 } }, MAX_STEPS);
+    expect(state.present.finetune.brightness).toBe(0.3);
+    state = undoableReducer(state, { type: 'UNDO' }, MAX_STEPS);
+    expect(state.present.finetune).toEqual(initialState.finetune);
+  });
+
+  it('keeps an unrelated action on its own undo step', () => {
+    let state = makeInitialUndoableState();
+    state = undoableReducer(state, { type: 'SET_FINETUNE', finetune: { brightness: 0.3 } }, MAX_STEPS);
+    state = undoableReducer(state, { type: 'ROTATE_CW' }, MAX_STEPS);
+    state = undoableReducer(state, { type: 'UNDO' }, MAX_STEPS);
+    expect(state.present.finetune.brightness).toBe(0.3);
+    state = undoableReducer(state, { type: 'UNDO' }, MAX_STEPS);
+    expect(state.present.finetune).toEqual(initialState.finetune);
   });
 });

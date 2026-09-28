@@ -439,6 +439,23 @@ export function undoableReducer(
 
   const nextPresent = imageEditorReducer(state.present, action);
 
+  if (action.type === 'SET_FINETUNE' || action.type === 'RESET_FINETUNE') {
+    if (nextPresent === state.present) return state;
+    // Coalesce a finetune episode into one undo step: slider drags fire
+    // per tick, and pushing each would both spam history and evict older
+    // meaningful entries. When the only difference to the last checkpoint
+    // is finetune values, keep the earlier checkpoint.
+    const lastCheckpoint = state.past[state.past.length - 1];
+    if (lastCheckpoint && statesDifferOnlyInFinetune(lastCheckpoint, state.present)) {
+      return { present: nextPresent, past: state.past, future: [] };
+    }
+    return {
+      present: nextPresent,
+      past: [...state.past, state.present].slice(-cap),
+      future: [],
+    };
+  }
+
   if (UNDOABLE_ACTIONS.has(action.type)) {
     // Skip no-op undoable actions (e.g. BRING_FORWARD on the top item
     // returns the identical state): pushing them wastes a history slot
@@ -452,6 +469,17 @@ export function undoableReducer(
   }
 
   return nextPresent === state.present ? state : { ...state, present: nextPresent };
+}
+
+/** True when two states differ only in finetune values (same scene). */
+function statesDifferOnlyInFinetune(a: ImageEditorState, b: ImageEditorState): boolean {
+  return (
+    a.transform === b.transform
+    && a.pendingCrop === b.pendingCrop
+    && a.outputSize === b.outputSize
+    && a.annotations === b.annotations
+    && a.activeTool === b.activeTool
+  );
 }
 
 function moveAnnotation(
