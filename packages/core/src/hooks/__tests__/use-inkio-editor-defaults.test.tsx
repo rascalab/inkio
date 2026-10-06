@@ -18,6 +18,33 @@ describe('useInkioEditor default extensions', () => {
     }
   });
 
+  it('does not report an update on mount or when only editable changes', async () => {
+    const onUpdate = vi.fn();
+    const { result, rerender, unmount } = renderHook(
+      ({ editable }) => useInkioEditor({ content: '<p>hi</p>', editable, onUpdate }),
+      { initialProps: { editable: true } },
+    );
+    try {
+      await waitFor(() => {
+        expect(result.current?.getHTML()).toBe('<p>hi</p>');
+      });
+      rerender({ editable: false });
+      await waitFor(() => {
+        expect(result.current?.isEditable).toBe(false);
+      });
+      await Promise.resolve();
+      expect(onUpdate).not.toHaveBeenCalled();
+
+      // A real document change still reports.
+      result.current!.commands.insertContent('!');
+      await waitFor(() => {
+        expect(onUpdate).toHaveBeenCalledTimes(1);
+      });
+    } finally {
+      unmount();
+    }
+  });
+
   // An explicit [] is a programming error (Tiptap cannot build a schema
   // without a top node) and must stay loud: it must never be conflated
   // with omission, which means "defaults".

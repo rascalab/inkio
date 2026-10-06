@@ -73,7 +73,10 @@ export function useInkioEditor({
     onCreate: ({ editor: editorInstance }) => {
       onCreateRef.current?.(editorInstance);
     },
-    onUpdate: ({ editor: editorInstance }) => {
+    onUpdate: ({ editor: editorInstance, transaction, appendedTransactions }) => {
+      // setEditable also emits 'update' (with an empty transaction) and some
+      // internals listen for that; only document changes reach onUpdate.
+      if (!transaction.docChanged && !appendedTransactions.some((tr) => tr.docChanged)) return;
       emitUpdate(editorInstance);
     },
   });

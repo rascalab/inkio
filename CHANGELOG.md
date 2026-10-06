@@ -42,6 +42,7 @@ See [MIGRATION.md](./MIGRATION.md#006--007) for upgrade steps.
 ### Fixed
 
 - hashtag and mention suggestions no longer crash when the trigger character is typed
+- `onUpdate` no longer fires on mount or when only `editable` changes; it now reports document changes only
 - image editor: wheel zoom inside the dialog portal, rotation distortion, shape offset after rotation, crop bounds, and fine-tune undo steps now coalesce
 - image upload placeholder renders as a loading box
 - callout icon input takes focus on click and follows the current icon

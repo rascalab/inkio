@@ -86,6 +86,24 @@ describe('useInkioCollaborativeEditor', () => {
     expect(JSON.stringify(onUpdate.mock.calls[0][0])).toContain('one two three');
   });
 
+  it('does not report an update when only editability changes', async () => {
+    const { url } = await startServer();
+    const onUpdate = vi.fn();
+    const options = { docId: 'editable-toggle', url, extensions: BASE, onUpdate };
+    const hook = mountEditor(options);
+    await waitFor(() => expect(hook.result.current.status).toBe('synced'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    onUpdate.mockClear();
+    hook.rerender({ ...options, editable: false });
+    await waitFor(() => expect(hook.result.current.editor?.isEditable).toBe(false));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+
   it('never duplicates a seed when clients join at the same time', async () => {
     for (let round = 0; round < 5; round += 1) {
       const { url } = await startServer();

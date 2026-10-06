@@ -188,7 +188,12 @@ export function useInkioCollaborativeEditor({
       editable: editable && !readOnly,
       editorProps: { attributes: { class: 'inkio-content' } },
       onCreate: ({ editor: instance }) => handleCreate?.(instance),
-      onUpdate: ({ editor: instance }) => emitUpdate(instance),
+      // setEditable emits 'update' with an empty transaction: only document
+      // changes (local or remote) reach onUpdate (see core useInkioEditor).
+      onUpdate: ({ editor: instance, transaction, appendedTransactions }) => {
+        if (!transaction.docChanged && !appendedTransactions.some((tr) => tr.docChanged)) return;
+        emitUpdate(instance);
+      },
     },
     [finalExtensions],
   );
