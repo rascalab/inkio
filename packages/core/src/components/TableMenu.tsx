@@ -268,8 +268,12 @@ export const TableMenu = ({
       }
 
       event.preventDefault();
-      const pos = editor.view.posAtDOM(cell, 0);
-      editor.chain().focus().setTextSelection(pos).run();
+      // Land inside the cell's first textblock (a selection at the cell
+      // boundary is not a valid TextSelection) and don't scroll: the scroll
+      // listener below would close this menu right after it opens.
+      const textblock = cell.querySelector('p, h1, h2, h3, h4, h5, h6') ?? cell;
+      const pos = editor.view.posAtDOM(textblock, 0);
+      editor.chain().focus(undefined, { scrollIntoView: false }).setTextSelection(pos).run();
       setContextMenu(
         placeContextMenu(event.clientX, event.clientY, CONTEXT_MENU_WIDTH, CONTEXT_MENU_HEIGHT),
       );

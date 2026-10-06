@@ -32,9 +32,13 @@ function createMockEditor(
   dom.appendChild(table);
 
   const commandSpies = Object.fromEntries(TABLE_COMMANDS.map((name) => [name, vi.fn()]));
+  const focusSpy = vi.fn();
   const makeChain = () => {
     const chain: Record<string, unknown> = {
-      focus: () => chain,
+      focus: (...args: unknown[]) => {
+        focusSpy(...args);
+        return chain;
+      },
       setTextSelection: () => chain,
       run: () => true,
     };
@@ -67,7 +71,7 @@ function createMockEditor(
     off: vi.fn(),
   } as any;
 
-  return { editor, table, commandSpies };
+  return { editor, table, commandSpies, focusSpy };
 }
 
 describe('TableMenu', () => {
@@ -103,6 +107,16 @@ describe('TableMenu', () => {
 
     fireEvent.mouseDown(getByRole('menuitem', { name: 'Delete row' }));
     expect(commandSpies.deleteRow).toHaveBeenCalledTimes(1);
+  });
+
+  it('focuses the right-clicked cell without scrolling (a scroll closes the menu)', async () => {
+    const { editor, table, focusSpy } = createMockEditor();
+    const { getByRole } = render(<TableMenu editor={editor} />);
+
+    fireEvent.contextMenu(table.rows[1].cells[1], { clientX: 40, clientY: 40 });
+
+    await waitFor(() => getByRole('menu'));
+    expect(focusSpy).toHaveBeenCalledWith(undefined, { scrollIntoView: false });
   });
 
   it('reveals controls on table hover even when the selection is not inside', async () => {
