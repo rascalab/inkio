@@ -117,6 +117,12 @@ function needsRehighlight(
   });
 }
 
+/**
+ * Transaction meta that forces a full rehighlight without a doc change, e.g.
+ * after a lazy grammar registers (see `refreshCodeBlockDecorations`).
+ */
+export const LOWLIGHT_REFRESH_META = 'inkioLowlightRefresh';
+
 function isFunction(param: unknown): param is (...args: never[]) => unknown {
   return typeof param === 'function';
 }
@@ -160,7 +166,10 @@ export function InkioLowlightPlugin({
       ) => {
         // Walks below are O(doc): skip them entirely for selection-only
         // transactions, which are the common case (cursor moves).
-        if (transaction.docChanged && needsRehighlight(transaction, oldState, newState, name)) {
+        if (
+          transaction.getMeta(LOWLIGHT_REFRESH_META)
+          || (transaction.docChanged && needsRehighlight(transaction, oldState, newState, name))
+        ) {
           return getDecorations({
             doc: transaction.doc,
             name,

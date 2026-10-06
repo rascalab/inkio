@@ -2,6 +2,7 @@ import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import type { Transaction } from '@tiptap/pm/state';
 import { clampRange, collectChangedRanges } from '../../utils/changed-ranges';
+import { LOWLIGHT_REFRESH_META } from './lowlight-plugin';
 
 export type InkioLowlight = ReturnType<typeof import('lowlight').createLowlight>;
 
@@ -119,6 +120,16 @@ const liveEditors = new Set<Editor>();
 
 export function retainEditor(editor: Editor): void {
   liveEditors.add(editor);
+}
+
+/**
+ * An editor joins `liveEditors` on create, which tiptap emits after the
+ * state (and its decorations) was built. A grammar that lands in between
+ * skips this editor's repaint, so repaint once on create for grammars that
+ * are already loaded.
+ */
+export function repaintLoadedGrammars(editor: Editor): void {
+  if (loadedGrammars.size > 0) refreshCodeBlockDecorations(editor, loadedGrammars);
 }
 
 export function releaseEditor(editor: Editor): void {
@@ -350,29 +361,25 @@ function scheduleRetry(lowlight: InkioLowlight, failed: string[]): void {
 }
 
 /**
- * Tiptap's lowlight plugin only recomputes a block when a transaction step
- * with `from`/`to` spans it — an attribute-only step (`AttrStep` has only
- * `pos`) is silently ignored, so `setNodeAttribute` can never repaint.
- * Replacing each newly-loaded block with an identical copy satisfies the
- * span check with zero visible change (same content/attrs, excluded from
- * undo history). Blocks using other grammars are left untouched so
- * unrelated node views never re-render.
+ * Decorations were computed before the grammar registered, so blocks using
+ * it need a repaint. A meta-only transaction tells InkioLowlightPlugin to
+ * rehighlight without touching the document: a doc-changing repaint would
+ * fire `onUpdate` on load and broadcast a no-op edit to collaborators.
+ * Editors without a block in a newly loaded grammar are left alone.
  */
 function refreshCodeBlockDecorations(editor: Editor, loaded: Set<string>): void {
-  const { tr } = editor.state;
-  editor.state.doc.descendants((node, pos) => {
+  let affected = false;
+  editor.state.doc.descendants((node) => {
+    if (affected) return false;
     if (node.type.name === 'codeBlock') {
-      if (loaded.has(resolveHljsLanguageName(node.attrs.language as string | null | undefined) ?? '')) {
-        tr.replaceWith(pos, pos + node.nodeSize, node);
-      }
+      affected = loaded.has(resolveHljsLanguageName(node.attrs.language as string | null | undefined) ?? '');
       // Code block children are plain text — never nested code blocks.
       return false;
     }
     if (node.isTextblock) return false;
     return true;
   });
-  if (tr.docChanged) {
-    tr.setMeta('addToHistory', false);
-    editor.view.dispatch(tr);
+  if (affected) {
+    editor.view.dispatch(editor.state.tr.setMeta(LOWLIGHT_REFRESH_META, true));
   }
 }

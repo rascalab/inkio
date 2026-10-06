@@ -1,5 +1,7 @@
-import { waitFor } from '@testing-library/react';
-import { Editor } from '@tiptap/core';
+import { createElement } from 'react';
+import { render, waitFor } from '@testing-library/react';
+import { Editor, EditorContent } from '@tiptap/react';
+import type { Transaction } from '@tiptap/pm/state';
 import Blockquote from '@tiptap/extension-blockquote';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
@@ -30,8 +32,14 @@ describe('resolveHljsLanguageName', () => {
   });
 });
 
+// CodeBlockView is a React node view: since tiptap 3.31 those render only
+// through <EditorContent>, so mount the editor the way the app does.
+function mount(editor: Editor) {
+  return render(createElement(EditorContent, { editor }));
+}
+
 describe('CodeBlock with lazy grammars', () => {
-  it('mounts and renders code without eagerly registered grammars', () => {
+  it('mounts and renders code without eagerly registered grammars', async () => {
     const editor = new Editor({
       element: document.createElement('div'),
       extensions: [Document, Paragraph, Text, CodeBlock],
@@ -47,7 +55,11 @@ describe('CodeBlock with lazy grammars', () => {
       },
     });
 
-    expect(editor.view.dom.querySelector('pre code')?.textContent).toBe('const x: number = 1;');
+    const { unmount } = mount(editor);
+    await waitFor(() => {
+      expect(editor.view.dom.querySelector('pre code')?.textContent).toBe('const x: number = 1;');
+    });
+    unmount();
     editor.destroy();
   });
 
@@ -67,10 +79,49 @@ describe('CodeBlock with lazy grammars', () => {
       },
     });
 
+    const { unmount } = mount(editor);
     const code = () => editor.view.dom.querySelector('pre code');
     await waitFor(() => {
-      expect(code()?.querySelector('[class*="hljs"]')).not.toBeNull();
+      expect(code()?.querySelector('[class*="hljs"]') ?? null).not.toBeNull();
     });
+    unmount();
+    editor.destroy();
+  });
+
+  it('repaints a newly loaded grammar without changing the document', async () => {
+    const editor = new Editor({
+      element: document.createElement('div'),
+      extensions: [Document, Paragraph, Text, CodeBlock],
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'codeBlock',
+            attrs: { language: 'csharp' },
+            content: [{ type: 'text', text: 'var answer = 42;' }],
+          },
+        ],
+      },
+    });
+    const docBefore = editor.state.doc;
+    const transactions: Transaction[] = [];
+    let updates = 0;
+    editor.on('transaction', ({ transaction }) => {
+      transactions.push(transaction);
+    });
+    editor.on('update', () => {
+      updates += 1;
+    });
+
+    // The only transaction after creation is the repaint dispatched when the
+    // C# grammar lands.
+    await waitFor(() => {
+      expect(transactions.length).toBeGreaterThan(0);
+    });
+    // A repaint must not look like an edit: no doc change, no onUpdate.
+    expect(transactions.some((tr) => tr.docChanged)).toBe(false);
+    expect(updates).toBe(0);
+    expect(editor.state.doc).toBe(docBefore);
     editor.destroy();
   });
 
@@ -99,11 +150,15 @@ describe('CodeBlock with lazy grammars', () => {
       },
     });
 
+    const { unmount } = mount(editor);
     const code = () => editor.view.dom.querySelector('blockquote pre code');
-    expect(code()?.textContent).toBe('print("nested")');
     await waitFor(() => {
-      expect(code()?.querySelector('[class*="hljs"]')).not.toBeNull();
+      expect(code()?.textContent).toBe('print("nested")');
     });
+    await waitFor(() => {
+      expect(code()?.querySelector('[class*="hljs"]') ?? null).not.toBeNull();
+    });
+    unmount();
     editor.destroy();
   });
 

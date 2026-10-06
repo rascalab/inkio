@@ -3,7 +3,7 @@ import { ReactNodeViewRenderer } from '@tiptap/react';
 import { createLowlight } from 'lowlight';
 import { CodeBlockView } from './CodeBlockView';
 import { applyHljsTheme, isDarkTheme, releaseHljsTheme, retainHljsTheme } from './hljs-theme';
-import { ensureHljsLanguages, releaseEditor } from './hljs-lazy';
+import { ensureHljsLanguages, releaseEditor, repaintLoadedGrammars } from './hljs-lazy';
 import { InkioLowlightPlugin } from './lowlight-plugin';
 
 // Grammars load on demand via `ensureHljsLanguages` (see `./hljs-lazy`):
@@ -35,6 +35,7 @@ export const CodeBlock = BaseCodeBlock.extend({
   onCreate() {
     retainHljsTheme();
     ensureHljsLanguages(lowlight, this.editor);
+    repaintLoadedGrammars(this.editor);
 
     const dom = this.editor.view.dom;
     applyHljsTheme(isDarkTheme(dom));
