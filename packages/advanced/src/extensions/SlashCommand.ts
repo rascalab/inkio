@@ -1,5 +1,5 @@
 import { Extension, type Editor, type Range } from '@tiptap/core';
-import Suggestion from '@tiptap/suggestion';
+import Suggestion, { type SuggestionOptions } from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
 import type { ReactNode } from 'react';
 import {
@@ -32,7 +32,9 @@ export type SlashCommandTransform = (
 
 export interface SlashCommandOptions {
   /** Suggestion options override */
-  suggestion?: Partial<Parameters<typeof Suggestion>[0]>;
+  // Typed with the item type: `Parameters<typeof Suggestion>` erases the
+  // generics to unknown, which breaks the spread below (e.g. initialItems).
+  suggestion?: Partial<SuggestionOptions<SlashCommandItem, SlashCommandItem>>;
   /** Function to fetch command items */
   items?: (props: { query: string; editor: Editor }) => SlashCommandItem[] | Promise<SlashCommandItem[]>;
   /** Transform the default items before they are filtered by query. */

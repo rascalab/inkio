@@ -36,7 +36,7 @@ See [MIGRATION.md](./MIGRATION.md#006--007) for upgrade steps.
 
 ### Changed
 
-- upgraded all dependencies to their latest releases, including a TypeScript 6 migration
+- upgraded all dependencies to their latest releases (Tiptap 3.31, React 19.3, Vite 8.3, Vitest 5); type-checking runs on TypeScript 7, with the TypeScript 6 API kept for declaration tooling
 - performance: smaller initial editor bundle (lazy grammars, markdown split out), heading, list-merge, comment and block-handle work limited to transactions and ranges that can affect them, image editor drags and freehand strokes batched per animation frame
 
 ### Fixed
