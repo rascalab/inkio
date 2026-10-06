@@ -1,8 +1,76 @@
 # Migration
 
-This release changes the package layout.
+## 0.0.6 → 0.0.7
 
-## Removed Packages
+### `content` is initial-only
+
+`initialContent` is removed, and `content` no longer acts as a controlled value. The editor reads `content` once at mount and owns the document afterwards; `onUpdate` still reports every change.
+
+Before:
+
+```tsx
+<Editor initialContent={doc} />
+// or the controlled form
+<Editor content={doc} onUpdate={setDoc} />
+```
+
+After:
+
+```tsx
+<Editor content={doc} onUpdate={setDoc} />
+```
+
+To replace the document after mount (for example when loading another record), use the editor instance from `onCreate`:
+
+```tsx
+const editorRef = useRef<TiptapEditor | null>(null);
+
+<Editor content={doc} onCreate={(editor) => { editorRef.current = editor; }} />;
+
+editorRef.current?.commands.setContent(nextDoc);
+```
+
+### Markdown helpers come from `/markdown`
+
+`parseMarkdown`, `stringifyMarkdown` and `createMarkdownAdapter` are no longer exported from the package roots.
+
+Before:
+
+```tsx
+import { parseMarkdown, stringifyMarkdown } from '@inkio/editor';
+```
+
+After:
+
+```tsx
+import { parseMarkdown, stringifyMarkdown } from '@inkio/editor/markdown';
+```
+
+The same applies to `@inkio/simple/markdown` and `@inkio/core/markdown`.
+
+### Dark mode uses a class
+
+- `data-theme="dark"` on `.inkio` is no longer read. Pass `theme="dark"` to `Editor` / `Viewer`, or keep a `.dark` (or `.dark-theme`) class on an ancestor, such as the class strategy of next-themes or Tailwind.
+- `data-theme="auto"` is gone. To follow the OS setting, derive `theme` from `window.matchMedia('(prefers-color-scheme: dark)')`.
+
+### Smaller removals
+
+- `TableOfContentsConfig` (`@inkio/core`): type the `ToC` component with `ToCProps`.
+- `@inkio/editor` `Viewer`: replace `comment={false}` by omitting `comment`.
+
+### Stricter types
+
+0.0.6 shipped declarations in which many props resolved to `any`. 0.0.7 ships complete declarations, so TypeScript may report errors in code that compiled before; those errors point at real type mismatches.
+
+### New optional package
+
+`@inkio/collab` adds Yjs real-time collaboration over Hocuspocus. Existing apps need no change; see `packages/collab/README.md` to adopt it.
+
+## 0.0.5: package layout
+
+The 0.0.5 release changed the package layout.
+
+### Removed Packages
 
 - `@inkio/extension`
 - `@inkio/comment`
@@ -12,14 +80,14 @@ Their responsibilities moved into:
 - `@inkio/core`
 - `@inkio/advanced`
 
-## New Entry Points
+### New Entry Points
 
 - use `@inkio/simple` for a classic WYSIWYG editor
 - use `@inkio/editor` for the notion-like opinionated editor
 
 `@inkio/core` is the shared foundation package. It is published, but most app consumers should not start there.
 
-## Package Mapping
+### Package Mapping
 
 - old `@inkio/editor` low-level imports
   - move to `@inkio/core` if you were consuming primitives directly
@@ -28,7 +96,7 @@ Their responsibilities moved into:
 - old `@inkio/comment`
   - move to `@inkio/advanced`
 
-## API Naming
+### API Naming
 
 - `@inkio/core`
   - `getExtensions(options?)`
@@ -39,7 +107,7 @@ Their responsibilities moved into:
 - `@inkio/editor`
   - `getDefaultExtensions(options?)`
 
-## Import Examples
+### Import Examples
 
 Before:
 
@@ -67,7 +135,7 @@ import { Editor } from '@inkio/simple';
 import '@inkio/simple/minimal.css';
 ```
 
-## Comments
+### Comments
 
 Before:
 
@@ -81,7 +149,7 @@ After:
 import { Comment, CommentPanel } from '@inkio/advanced';
 ```
 
-## Markdown
+### Markdown
 
 Before:
 
@@ -96,7 +164,7 @@ import { parseMarkdown, stringifyMarkdown } from '@inkio/editor/markdown';
 Markdown round-trip is guaranteed only for `core` nodes.
 The current markdown implementation uses `remark/unified` and direct `JSONContent <-> mdast` mapping.
 
-## Styles
+### Styles
 
 Before:
 
@@ -120,7 +188,7 @@ For `@inkio/simple`, use:
 import '@inkio/simple/minimal.css';
 ```
 
-## Notes
+### Notes
 
 - `react` and `react-dom` remain peers.
 - Inkio owns the Tiptap runtime packages it uses.
