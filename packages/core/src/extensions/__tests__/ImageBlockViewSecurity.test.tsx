@@ -6,9 +6,11 @@ import { ImageBlockView } from '../ImageBlockView';
 import type { ImageEditorComponentProps } from '../ImageBlock';
 
 let capturedSave: ((data: string) => void) | null = null;
+let capturedTheme: ImageEditorComponentProps['theme'];
 
 function StubImageEditor(props: ImageEditorComponentProps) {
   capturedSave = props.onSave;
+  capturedTheme = props.theme;
   return null;
 }
 
@@ -36,6 +38,29 @@ function createProps(src: string): ViewProps {
  * its output must pass isSafeUrl before reaching the document, and an
  * already-persisted unsafe src must never reach the DOM.
  */
+describe('ImageBlockView image editor theme', () => {
+  it('opens the image editor with the theme of its own editor', () => {
+    const page = document.createElement('div');
+    page.className = 'inkio';
+    const editorRoot = document.createElement('div');
+    editorRoot.className = 'inkio dark';
+    const editorDom = document.createElement('div');
+    editorRoot.appendChild(editorDom);
+    document.body.append(page, editorRoot);
+    try {
+      const props = createProps('https://example.com/a.png');
+      (props.editor as unknown as { view: { dom: Element } }).view = { dom: editorDom };
+      render(<ImageBlockView {...props} />);
+      fireEvent.click(screen.getByTestId('inkio-image-block-edit'));
+      // Not the first `.inkio` on the page: the editor that opened it.
+      expect(capturedTheme).toBe('dark');
+    } finally {
+      page.remove();
+      editorRoot.remove();
+    }
+  });
+});
+
 describe('ImageBlockView src safety', () => {
   it('renders a safe src as an <img>', () => {
     const props = createProps('https://example.com/a.png');

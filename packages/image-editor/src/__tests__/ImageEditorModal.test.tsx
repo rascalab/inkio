@@ -45,6 +45,29 @@ describe('ImageEditorModal locale merging', () => {
     expect(lastProps?.locale.crop).toBe('Crop');
   });
 
+  it('pins the portal theme so a dark page cannot leak into a light editor', () => {
+    document.documentElement.classList.add('dark');
+    try {
+      render(<ImageEditorModal isOpen imageSrc="/demo.png" onSave={vi.fn()} onClose={vi.fn()} theme="light" />);
+      const portal = document.querySelector('.inkio-ie-portal-theme')!;
+      // tokens.css applies dark tokens to `.dark .inkio:not(.light)`.
+      expect(portal.classList.contains('light')).toBe(true);
+      expect(portal.classList.contains('dark')).toBe(false);
+    } finally {
+      document.documentElement.classList.remove('dark');
+    }
+  });
+
+  it('follows a dark page when no theme is passed', () => {
+    document.documentElement.classList.add('dark');
+    try {
+      render(<ImageEditorModal isOpen imageSrc="/demo.png" onSave={vi.fn()} onClose={vi.fn()} />);
+      expect(document.querySelector('.inkio-ie-portal-theme')!.classList.contains('dark')).toBe(true);
+    } finally {
+      document.documentElement.classList.remove('dark');
+    }
+  });
+
   it('closes immediately when there are no unsaved edits', () => {
     const onClose = vi.fn();
     render(

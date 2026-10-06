@@ -103,6 +103,8 @@ export interface ImageEditorComponentProps {
   imageSrc: string;
   onSave: (editedImageData: string) => void;
   onClose: () => void;
+  /** Resolved theme of the editor that opened it (`theme` prop or a `.dark` ancestor). */
+  theme?: 'light' | 'dark';
 }
 
 export interface ImageBlockOptions {

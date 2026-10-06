@@ -23,7 +23,7 @@ export type ViewerProps = {
 export function Viewer({
   content,
   extensions,
-  theme = 'light',
+  theme,
   className = '',
   style,
   bordered = true,
@@ -46,7 +46,7 @@ export function Viewer({
   return (
     <div
       style={style}
-      className={`inkio inkio-viewer${theme === 'dark' ? ' dark' : ''}${bordered ? ' inkio-container-default' : ''}${className ? ` ${className}` : ''}`}
+      className={`inkio inkio-viewer${theme ? ` ${theme}` : ''}${bordered ? ' inkio-container-default' : ''}${className ? ` ${className}` : ''}`}
     >
       <div className="tiptap ProseMirror inkio-content" dangerouslySetInnerHTML={{ __html: html }} />
     </div>

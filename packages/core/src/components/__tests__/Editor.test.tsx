@@ -30,6 +30,18 @@ describe('Editor component', () => {
     expect(container.querySelector('.inkio-editor')).toBeInTheDocument();
   });
 
+  it('marks an explicit theme and leaves an unset theme to the page', () => {
+    const unset = render(<Editor />).container.querySelector('.inkio-editor')!;
+    expect(unset.classList.contains('light')).toBe(false);
+    expect(unset.classList.contains('dark')).toBe(false);
+    // `.light` opts out of a `.dark` / `.dark-theme` ancestor (tokens.css).
+    const light = render(<Editor theme="light" />).container.querySelector('.inkio-editor')!;
+    expect(light.classList.contains('light')).toBe(true);
+    const dark = render(<Editor theme="dark" />).container.querySelector('.inkio-editor')!;
+    expect(dark.classList.contains('dark')).toBe(true);
+    expect(dark.classList.contains('light')).toBe(false);
+  });
+
   it('should accept empty string content', () => {
     const { container } = render(<Editor content="" />);
     expect(container.querySelector('.inkio-editor')).toBeInTheDocument();

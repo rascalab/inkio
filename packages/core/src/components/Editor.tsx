@@ -28,7 +28,7 @@ export interface EditorProps {
   onUpdate?: (content: JSONContent) => void;
   onCreate?: (editor: TiptapEditor) => void;
   className?: string;
-  /** Color theme */
+  /** Color theme. Unset follows a `.dark` / `.dark-theme` ancestor; set forces it. */
   theme?: 'light' | 'dark';
   /** 에디터 컨테이너 스타일 */
   style?: React.CSSProperties;
@@ -88,7 +88,7 @@ export const Editor = ({
   onUpdate,
   onCreate,
   className = '',
-  theme = 'light',
+  theme,
   style,
   fill = false,
   autoresize = false,
@@ -179,7 +179,7 @@ export const Editor = ({
   return (
     <div
       style={style}
-      className={`inkio inkio-editor${theme === 'dark' ? ' dark' : ''}${fill ? ' inkio-editor--fill' : ''}${!fill && autoresize ? ' inkio-editor--autoresize' : ''}${bordered ? ' inkio-container-default' : ''}${className ? ` ${className}` : ''}`}
+      className={`inkio inkio-editor${theme ? ` ${theme}` : ''}${fill ? ' inkio-editor--fill' : ''}${!fill && autoresize ? ' inkio-editor--autoresize' : ''}${bordered ? ' inkio-container-default' : ''}${className ? ` ${className}` : ''}`}
       suppressHydrationWarning
     >
       {showToolbar && (

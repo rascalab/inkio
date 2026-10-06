@@ -89,6 +89,8 @@ export const Toolbar = ({
     const root = typeof dom?.closest === 'function' ? dom.closest('.inkio') : null;
     if (root?.classList.contains('dark')) {
       portalContentClassName += ' dark';
+    } else if (root?.classList.contains('light')) {
+      portalContentClassName += ' light';
     }
   } catch {
     // Non-DOM runtimes keep the default class.

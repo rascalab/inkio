@@ -14,6 +14,13 @@ import {
   type ImageEditorComponentProps,
 } from './ImageBlock';
 import { isSafeUrl } from '../utils/url-safety';
+import { isDarkTheme } from './CodeBlock/hljs-theme';
+
+/** The opening editor's theme; the modal portals out of it, so it cannot inherit. */
+function editorTheme(editor: NodeViewProps['editor']): 'light' | 'dark' {
+  const dom = (editor as { view?: { dom?: Element } }).view?.dom;
+  return dom && isDarkTheme(dom) ? 'dark' : 'light';
+}
 
 function parseWidthPercent(w: unknown): number {
   return parseFloat(String(w).replace('%', '')) || 100;
@@ -271,6 +278,7 @@ function ImageBlockViewInner(props: NodeViewProps) {
               setIsEditorOpen(false);
             }}
             onClose={() => setIsEditorOpen(false)}
+            theme={editorTheme(editor)}
           />
         </Suspense>
       )}

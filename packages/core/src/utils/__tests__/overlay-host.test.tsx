@@ -97,6 +97,20 @@ describe('createOverlayHost', () => {
     host.destroy();
   });
 
+  it('mirrors an explicit light class so portals ignore a dark page', () => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'inkio light';
+    const editorDom = document.createElement('div');
+    wrapper.appendChild(editorDom);
+    document.body.appendChild(wrapper);
+
+    const host = createOverlayHost({ editorDom });
+    expect(host.element.classList.contains('light')).toBe(true);
+    expect(host.element.classList.contains('dark')).toBe(false);
+    host.destroy();
+    wrapper.remove();
+  });
+
   it('does not add dark without an .inkio ancestor', () => {
     const editorDom = document.createElement('div');
     document.body.appendChild(editorDom);

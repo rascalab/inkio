@@ -14,12 +14,15 @@ function resolvePortalTheme(): 'light' | 'dark' {
     return 'light';
   }
 
+  // Standalone fallback only: the editor passes its own resolved `theme`.
   const inkioRoot = document.querySelector('.inkio');
   if (inkioRoot?.classList.contains('dark')) {
     return 'dark';
   }
-
-  return 'light';
+  if (inkioRoot?.classList.contains('light')) {
+    return 'light';
+  }
+  return document.querySelector('html.dark, html.dark-theme, body.dark, body.dark-theme') ? 'dark' : 'light';
 }
 
 function isImageEditorLocaleOverrides(value: unknown): value is Partial<ImageEditorLocale> {
@@ -88,7 +91,8 @@ export function ImageEditorModal({
   return (
     <Dialog.Root open={isOpen} onOpenChange={(open) => { if (!open) requestClose(); }}>
       <Dialog.Portal>
-        <div className={`inkio inkio-ie-portal-theme${portalTheme === 'dark' ? ' dark' : ''}`} style={{ colorScheme: portalTheme }}>
+        {/* Always mark the theme: an unmarked `.inkio` picks up a `.dark` page (tokens.css). */}
+        <div className={`inkio inkio-ie-portal-theme ${portalTheme}`} style={{ colorScheme: portalTheme }}>
           <Dialog.Overlay className="inkio-ie-modal-overlay" data-testid="inkio-ie-modal-overlay" />
           <Dialog.Content
             className={`inkio-ie-modal-content${portalTheme === 'dark' ? ' dark' : ''}`}

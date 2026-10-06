@@ -82,6 +82,7 @@ export function createOverlayHost(options: OverlayHostOptions = {}): OverlayHost
     const editorEl = editorDom?.closest('.inkio');
     if (editorEl) {
       element.classList.toggle('dark', editorEl.classList.contains('dark'));
+      element.classList.toggle('light', editorEl.classList.contains('light'));
     }
   };
   syncTheme();
