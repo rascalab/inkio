@@ -17,8 +17,7 @@ single copy.
 ## Use
 
 ```tsx
-import { useInkioCollaborativeEditor, CollabPresence } from '@inkio/collab';
-import { EditorContent } from '@tiptap/react';
+import { useInkioCollaborativeEditor, CollabPresence, EditorContent } from '@inkio/collab';
 
 function Room({ docId, token }: { docId: string; token: string }) {
   const { editor, provider, status, readOnly } = useInkioCollaborativeEditor({

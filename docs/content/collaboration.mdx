@@ -20,10 +20,8 @@ Next.js App Router에서는 에디터가 클라이언트 컴포넌트 안에 있
 ```tsx
 'use client';
 
-import { useInkioCollaborativeEditor, CollabPresence } from '@inkio/collab';
-// `@tiptap/react`는 직접 설치해야 하며, 버전은 Inkio가 의존하는 Tiptap
-// 버전과 맞추세요 (불일치 시 에디터 인스턴스 호환이 깨집니다).
-import { EditorContent } from '@tiptap/react';
+// EditorContent는 @inkio/collab이 재노출합니다. @tiptap/react를 따로 설치하지 마세요.
+import { useInkioCollaborativeEditor, CollabPresence, EditorContent } from '@inkio/collab';
 
 export function Room({ docId, token }: { docId: string; token: string }) {
   const { editor, provider, status, readOnly } = useInkioCollaborativeEditor({

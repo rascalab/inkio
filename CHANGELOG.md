@@ -19,7 +19,7 @@ See [MIGRATION.md](./MIGRATION.md#006--007) for upgrade steps.
 
 ### Added
 
-- `@inkio/collab`: new package for Yjs real-time collaboration over Hocuspocus (`useInkioCollaborativeEditor`, `createCollabProvider`, `CollabPresence`, `useCollabPeers`), with remote carets, read-only scopes, deterministic seeding and an optional IndexedDB offline cache. A reference server lives in `examples/collab-server`.
+- `@inkio/collab`: new package for Yjs real-time collaboration over Hocuspocus (`useInkioCollaborativeEditor`, `createCollabProvider`, `CollabPresence`, `useCollabPeers`, plus a re-exported `EditorContent` so apps never install `@tiptap/react` themselves), with remote carets, read-only scopes, deterministic seeding and an optional IndexedDB offline cache. A reference server lives in `examples/collab-server`.
 - `StaticViewer` and the `@inkio/core/static` subpath: an engine-free static HTML render path for previews and lists. `Viewer` is now also exported from `@inkio/core`.
 - `TocBlock`: an inline table-of-contents block (`/toc` slash command), plus a ToC minimap overlay
 - `theme` prop (`'light' | 'dark'`) on `Editor` and `Viewer`; `onCreate` on the `@inkio/simple` `Viewer`

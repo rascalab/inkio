@@ -16,6 +16,9 @@ export type {
   CreateCollabProviderOptions,
 } from './provider';
 export { HocuspocusProviderWebsocket } from '@hocuspocus/provider';
+// Render the hook's editor without installing @tiptap/react next to Inkio
+// (a second copy can drift from the @tiptap/core Inkio resolved).
+export { EditorContent } from '@tiptap/react';
 export {
   COLLAB_CONFLICTING_EXTENSIONS,
   removeConflictingExtensions,
