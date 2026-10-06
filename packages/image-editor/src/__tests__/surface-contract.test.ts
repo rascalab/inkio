@@ -1,10 +1,15 @@
 /// <reference types="node" />
 
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-const imageEditorCss = readFileSync(resolve(process.cwd(), 'src/style.css'), 'utf8');
+// Relative to this file, not the cwd: the root vitest run starts in the repo root.
+const imageEditorCss = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), '../style.css'),
+  'utf8',
+);
 
 describe('image editor surface contract', () => {
   it('aliases private glass tokens to the shared surface tokens', () => {

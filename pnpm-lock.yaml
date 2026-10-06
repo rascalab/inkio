@@ -20,6 +20,9 @@ importers:
       publint:
         specifier: ^0.3.25
         version: 0.3.25
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@26.6.4)(happy-dom@20.14.5)(jsdom@30.1.2)(vite@8.3.2(@types/node@26.6.4)(yaml@2.8.3))
 
   docs:
     dependencies:
