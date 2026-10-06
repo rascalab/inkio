@@ -81,6 +81,16 @@ describe('stepMayAffectHeadings', () => {
     cleanup();
   });
 
+  it('handles a step that reaches the end of the document', () => {
+    const { editor, cleanup } = createEditor();
+    // setContent replaces the whole doc: the step's `to` equals doc.content.size.
+    const paragraph = editor.schema.nodes.paragraph!.create(null, editor.schema.text('Replaced'));
+    const tr = editor.state.tr.replaceWith(0, editor.state.doc.content.size, paragraph);
+    expect(() => stepMayAffectHeadings(tr.before, tr.steps[0]!)).not.toThrow();
+    expect(stepMayAffectHeadings(tr.before, tr.steps[0]!)).toBe(true);
+    cleanup();
+  });
+
   it('ignores attribute changes outside headings', () => {
     const { editor, cleanup } = createEditor();
     const tr = editor.state.tr.setNodeAttribute(firstTextPos(editor, 1) - 1, 'data-x' as never, '1');

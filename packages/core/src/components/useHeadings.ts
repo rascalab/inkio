@@ -32,7 +32,7 @@ export function stepMayAffectHeadings(doc: ProseMirrorNode, step: Step): boolean
   // The range touches an existing heading (edit inside one, or a delete
   // spanning across one).
   let hit = false;
-  doc.nodesBetween(Math.max(0, s.from - 1), s.to + 1, (node) => {
+  doc.nodesBetween(Math.max(0, s.from - 1), Math.min(doc.content.size, s.to + 1), (node) => {
     if (node.type.name === 'heading') {
       hit = true;
       return false;
