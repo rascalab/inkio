@@ -13,5 +13,100 @@ pnpm add @mantine/core @inkio/editor react react-dom
 스타일:
 
 ```tsx
+import '@mantine/core/styles.css';
 import '@inkio/editor/minimal.css';
+import './inkio-mantine.css';
+```
+
+## 디자인 토큰 연결
+
+Inkio의 UI는 모두 `--inkio-*` CSS 변수로 그려집니다. 아래 파일을 Inkio CSS **다음에** 불러오면 폰트, primary 색, radius, 그림자, 배경·글자·테두리 색이 Mantine 테마(`createTheme`)를 그대로 따릅니다. Mantine 변수는 색 스킴에 따라 값이 바뀌므로 라이트와 다크(`--inkio-dark-*`) 토큰을 같은 변수에 연결합니다.
+
+`inkio-mantine.css`:
+
+```css
+.inkio {
+  --inkio-font-family: var(--mantine-font-family);
+  --inkio-font-mono: var(--mantine-font-family-monospace);
+
+  --inkio-radius-xs: var(--mantine-radius-xs);
+  --inkio-radius-sm: var(--mantine-radius-sm);
+  --inkio-radius: var(--mantine-radius-default);
+  --inkio-radius-md: var(--mantine-radius-md);
+  --inkio-radius-lg: var(--mantine-radius-lg);
+
+  --inkio-shadow: var(--mantine-shadow-xs);
+  --inkio-shadow-lg: var(--mantine-shadow-md);
+  --inkio-shadow-xl: var(--mantine-shadow-xl);
+  --inkio-dark-shadow: var(--mantine-shadow-xs);
+  --inkio-dark-shadow-lg: var(--mantine-shadow-md);
+  --inkio-dark-shadow-xl: var(--mantine-shadow-xl);
+
+  --inkio-primary: var(--mantine-primary-color-filled);
+  --inkio-primary-hover: var(--mantine-primary-color-filled-hover);
+  --inkio-primary-bg: var(--mantine-primary-color-light);
+  --inkio-text-on-primary: var(--mantine-primary-color-contrast);
+  --inkio-border-focus: var(--mantine-primary-color-filled);
+  --inkio-dark-primary-hover: var(--mantine-primary-color-filled-hover);
+  --inkio-dark-primary-bg: var(--mantine-primary-color-light);
+  --inkio-dark-text-on-primary: var(--mantine-primary-color-contrast);
+  --inkio-dark-border-focus: var(--mantine-primary-color-filled);
+
+  --inkio-bg: var(--mantine-color-body);
+  --inkio-bg-muted: var(--mantine-color-default-hover);
+  --inkio-text: var(--mantine-color-text);
+  --inkio-text-heading: var(--mantine-color-bright);
+  --inkio-text-muted: var(--mantine-color-dimmed);
+  --inkio-border: var(--mantine-color-default-border);
+  --inkio-danger: var(--mantine-color-error);
+  --inkio-dark-bg: var(--mantine-color-body);
+  --inkio-dark-bg-muted: var(--mantine-color-default-hover);
+  --inkio-dark-text: var(--mantine-color-text);
+  --inkio-dark-text-heading: var(--mantine-color-bright);
+  --inkio-dark-text-muted: var(--mantine-color-dimmed);
+  --inkio-dark-border: var(--mantine-color-default-border);
+  --inkio-dark-danger: var(--mantine-color-error);
+
+  --inkio-layer-overlay: var(--mantine-z-index-popover);
+  --inkio-layer-suggestion: var(--mantine-z-index-popover);
+  --inkio-layer-popover: var(--mantine-z-index-popover);
+  --inkio-layer-modal: var(--mantine-z-index-overlay);
+  --inkio-layer-modal-backdrop: calc(var(--mantine-z-index-overlay) + 1);
+  --inkio-layer-modal-content: calc(var(--mantine-z-index-overlay) + 2);
+}
+```
+
+Inkio의 메뉴·팝오버는 `.inkio` 클래스를 단 포털로 열리므로 이 연결이 팝업에도 그대로 적용됩니다.
+
+## 다크 모드 동기화
+
+Mantine은 `<html data-mantine-color-scheme>` 속성으로, Inkio는 `theme` prop(또는 `.dark` 클래스)으로 다크 모드를 판단합니다. 위에서 연결한 색은 Mantine을 바로 따라가지만 콜아웃, 멘션, 코드 하이라이트처럼 Inkio 고유 색은 `theme`을 넘겨야 함께 바뀝니다.
+
+```tsx
+import { useComputedColorScheme } from '@mantine/core';
+import { Editor } from '@inkio/editor';
+
+export function MyEditor() {
+  const scheme = useComputedColorScheme('light');
+  return <Editor theme={scheme} />;
+}
+```
+
+`Viewer`도 같은 방식으로 `theme`을 받습니다.
+
+## Modal·Drawer 안에서 쓰기
+
+Mantine `Modal`은 z-index 200 위에 그려지고, Inkio 메뉴의 기본 레이어는 150입니다. 위 파일의 `--inkio-layer-*` 연결이 Inkio 팝업을 Mantine popover 레벨(300)로 올리므로 모달 안에서도 슬래시 메뉴, 버블 메뉴, 테이블 메뉴가 모달 위에 열립니다. 이미지 에디터 모달은 Mantine overlay 레벨(400) 위로 올라갑니다.
+
+## 연결하지 않는 토큰
+
+콜아웃, 멘션, 해시태그, 위키링크, 댓글 하이라이트, 코드 블록 배경은 Inkio의 라이트·다크 팔레트를 그대로 씁니다. Mantine 색으로 바꾸려면 같은 방식으로 라이트 토큰과 `--inkio-dark-*` 토큰을 함께 덮어씁니다.
+
+```css
+.inkio {
+  --inkio-mention-bg: var(--mantine-primary-color-light);
+  --inkio-mention-text: var(--mantine-primary-color-light-color);
+  --inkio-dark-mention-bg: var(--mantine-primary-color-light);
+  --inkio-dark-mention-text: var(--mantine-primary-color-light-color);
+}
 ```
