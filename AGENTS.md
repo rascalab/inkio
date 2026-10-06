@@ -55,7 +55,7 @@ Centrality unmeasured (typescript-language-server not installed); map is export-
 - Import via package subpaths (`@inkio/core/markdown`, `@inkio/advanced/comment`), never deep `src/` paths.
 - `getExtensions` (core) vs `getDefaultExtensions` (every other package) — different names, same role.
 - CSS contract: `minimal.css` vs `style.css` per package (`style` = full); editor CSS already covers advanced; image-editor needs its own `style.css`.
-- `content` and `initialContent` are mutually exclusive props.
+- `content` is the initial document only (no `initialContent`, no controlled mode); push later changes through the editor instance.
 - Build order matters: core → advanced → simple/editor/image-editor → collab (`pnpm build:packages` encodes it).
 - Env flags: `INKIO_USE_SOURCE_PACKAGES=1` (docs/examples resolve `packages/*/src`), `INKIO_VITE_SKIP_DTS=1` (fast smoke builds).
 

@@ -55,7 +55,7 @@ import { Editor } from '@inkio/simple';
 import '@inkio/simple/minimal.css';
 
 export function SimplePage() {
-  return <Editor initialContent="<p>Hello Inkio</p>" />;
+  return <Editor content="<p>Hello Inkio</p>" />;
 }
 ```
 
@@ -68,7 +68,7 @@ import '@inkio/editor/style.css';
 export function EditorPage() {
   return (
     <Editor
-      initialContent="<p>Hello Inkio</p>"
+      content="<p>Hello Inkio</p>"
       hashtagItems={({ query }) => [
         { id: query || 'inkio', label: `#${query || 'inkio'}` },
       ]}
