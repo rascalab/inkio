@@ -117,7 +117,12 @@ export function filterSlashCommandItems(
     if (item.isAvailable && !item.isAvailable(editor)) {
       continue;
     }
-    if (normalizedQuery && !item.label.toLowerCase().includes(normalizedQuery)) {
+    // The id doubles as a short alias (`toc` for "Table of Contents").
+    if (
+      normalizedQuery
+      && !item.label.toLowerCase().includes(normalizedQuery)
+      && !item.id.toLowerCase().includes(normalizedQuery)
+    ) {
       continue;
     }
     result.push(item);

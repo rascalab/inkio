@@ -51,6 +51,15 @@ describe('filterSlashCommandItems result limit', () => {
     expect(unavailable).toHaveLength(0);
   });
 
+  it('matches the item id as well as the label (/toc)', () => {
+    const items: SlashCommandItem[] = [
+      { id: 'table', label: 'Table', command: () => {} },
+      { id: 'toc', label: 'Table of Contents', command: () => {} },
+    ];
+    expect(filterSlashCommandItems(items, 'toc', editor).map((item) => item.id)).toEqual(['toc']);
+    expect(filterSlashCommandItems(items, 'contents', editor).map((item) => item.id)).toEqual(['toc']);
+  });
+
   it('respects a custom limit', () => {
     expect(filterSlashCommandItems(makeItems(10), '', editor, 3)).toHaveLength(3);
     expect(filterSlashCommandItems(makeItems(10), '', editor, 0)).toHaveLength(0);
