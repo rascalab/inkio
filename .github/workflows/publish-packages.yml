@@ -34,11 +34,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm typecheck
-        env:
-          NEXT_TELEMETRY_DISABLED: '1'
-
       - name: Test
         run: pnpm test
         env:
@@ -46,6 +41,13 @@ jobs:
 
       - name: Build workspace
         run: pnpm build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+      # Examples typecheck against the packages' built dist types, so this
+      # must run after the build (a clean runner has no dist yet).
+      - name: Typecheck
+        run: pnpm typecheck
         env:
           NEXT_TELEMETRY_DISABLED: '1'
 
