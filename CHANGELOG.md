@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 Versioning is unified across the publishable Inkio packages.
 
-## [0.0.7] - 2026-10-06
+## [0.0.7] - 2026-10-07
 
 See [MIGRATION.md](./MIGRATION.md#006--007) for upgrade steps.
 
