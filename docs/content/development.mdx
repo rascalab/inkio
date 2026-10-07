@@ -67,3 +67,21 @@ pnpm examples:build
 pnpm e2e
 pnpm release:smoke
 ```
+
+## 릴리스
+
+루트, 6개 패키지, docs는 모두 같은 버전을 씁니다.
+
+```bash
+pnpm release:version 0.0.8   # 루트·패키지·docs의 version을 한 번에 변경
+# CHANGELOG.md에 ## [0.0.8] 항목을 추가하고 main에 커밋·푸시
+git tag v0.0.8
+git push origin v0.0.8
+```
+
+태그를 푸시하면 `Publish Packages` 워크플로가 다음 순서로 실행됩니다.
+
+1. 태그 버전과 모든 `package.json`의 버전이 같은지 확인
+2. 태그 커밋이 main에 있고 그 커밋의 CI가 성공했는지 확인 (CI가 진행 중이면 대기)
+3. 패키지 빌드, publint/attw/budgets, release smoke
+4. npm trusted publishing(OIDC)으로 provenance를 붙여 배포 (npm 토큰 불필요)

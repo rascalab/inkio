@@ -81,12 +81,14 @@ pnpm build              # build:packages + docs:build
 pnpm verify             # typecheck + test + smoke builds + examples smoke
 pnpm e2e                # playwright chromium on built examples
 pnpm release:smoke      # packed-tarball install/build smoke
+pnpm release:version X  # set root + 6 pkgs + docs to version X in lockstep
 pnpm dev:packages       # vite build --watch per publishable pkg
 ```
 
 ## NOTES
 - `pnpm-workspace.yaml` lists members explicitly; adding a package means editing it.
 - `packages/collab` is covered (see packages/collab/AGENTS.md); its server counterpart is `examples/collab-server` (CommonJS, Node >= 22, Nest/Hocuspocus).
-- `docs` is version-synced (0.0.7) and deployed under `/inkio` (GitHub Pages); docs build runs `pagefind` postbuild.
+- Release: `pnpm release:version X`, add the CHANGELOG entry, push main, push tag `vX`. `publish-packages.yml` fails unless the tag matches every manifest and the commit's main CI passed, then rebuilds, gates and publishes via npm OIDC (no token).
+- `docs` is version-synced with the packages and deployed under `/inkio` (GitHub Pages); docs build runs `pagefind` postbuild.
 - `image-editor` is the inconsistent package: no `LICENSE`, no `vitest.config.ts`.
 - Zero `DO NOT/NEVER` hits in `packages/*/src`; guardrails live in `AI_CONTEXT.md` / `MIGRATION.md`.
