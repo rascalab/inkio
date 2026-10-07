@@ -89,6 +89,6 @@ pnpm dev:packages       # vite build --watch per publishable pkg
 - `pnpm-workspace.yaml` lists members explicitly; adding a package means editing it.
 - `packages/collab` is covered (see packages/collab/AGENTS.md); its server counterpart is `examples/collab-server` (CommonJS, Node >= 22, Nest/Hocuspocus).
 - Release: `pnpm release:version X`, add the CHANGELOG entry, push main, push tag `vX`. `publish-packages.yml` fails unless the tag matches every manifest and the commit's main CI passed, then rebuilds, gates and publishes via npm OIDC (no token).
-- `docs` is version-synced with the packages and deployed under `/inkio` (GitHub Pages); docs build runs `pagefind` postbuild.
+- `docs` is version-synced with the packages and deployed under `/inkio` (GitHub Pages) by `deploy-docs.yml` only after a successful publish (or manual dispatch), never on a plain main push; docs build runs `pagefind` postbuild.
 - `image-editor` is the inconsistent package: no `LICENSE`, no `vitest.config.ts`.
 - Zero `DO NOT/NEVER` hits in `packages/*/src`; guardrails live in `AI_CONTEXT.md` / `MIGRATION.md`.

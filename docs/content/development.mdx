@@ -85,3 +85,6 @@ git push origin v0.0.8
 2. 태그 커밋이 main에 있고 그 커밋의 CI가 성공했는지 확인 (CI가 진행 중이면 대기)
 3. 패키지 빌드, publint/attw/budgets, release smoke
 4. npm trusted publishing(OIDC)으로 provenance를 붙여 배포 (npm 토큰 불필요)
+5. 배포가 성공하면 `Deploy Docs`가 같은 커밋으로 문서 사이트를 배포
+
+main에 푸시하는 것만으로는 문서 사이트가 바뀌지 않습니다. 릴리스 없이 문서만 고쳐 내보내야 하면 Actions에서 `Deploy Docs`를 수동 실행합니다.
