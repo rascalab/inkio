@@ -24,6 +24,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      # pnpm skips versions already on npm, so a tag whose manifests were never
+      # bumped would pass every step and publish nothing. Stop it up front.
+      - name: Require package versions to match the tag
+        run: node scripts/release-version.mjs check "$GITHUB_REF_NAME"
+
       # The full suite (typecheck, tests, e2e on both browsers, docs) already
       # ran on this exact commit when it reached main; publishing re-checks only
       # what it ships. Waits if the tag was pushed before that CI run finished.

@@ -29,6 +29,8 @@
     "docs:typecheck": "pnpm --filter docs exec tsc --noEmit",
     "package:smoke:verify": "pnpm build:packages && INKIO_RELEASE_SMOKE_SKIP_PACKAGE_BUILDS=1 pnpm release:smoke",
     "release:smoke": "node ./scripts/release-smoke.mjs",
+    "release:version": "node ./scripts/release-version.mjs set",
+    "release:version:check": "node ./scripts/release-version.mjs check",
     "package:attw": "node ./scripts/check-attw.mjs",
     "package:budgets": "node ./scripts/check-budgets.mjs",
     "package:gates": "pnpm package:publint && pnpm package:attw && pnpm package:budgets",
