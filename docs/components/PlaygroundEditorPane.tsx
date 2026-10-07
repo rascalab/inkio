@@ -28,6 +28,17 @@ const LazyCommentPanel = dynamic<CommentPanelProps>(
   { loading: () => <div className="playground-loading">Loading comments...</div> },
 );
 
+const PLAYGROUND_PAGES = [
+  'Getting Started',
+  'Components',
+  'Extensions',
+  'Collaboration',
+  'Image Editor',
+  'Serialization',
+  'SSR',
+  'Troubleshooting',
+];
+
 type PlaygroundEditorPaneProps = {
   content?: string;
   showViewer: boolean;
@@ -62,6 +73,12 @@ export default function PlaygroundEditorPane({
       .filter((tag) => tag.toLowerCase().includes(query.toLowerCase()))
       .map((tag) => ({ id: tag, label: `#${tag}` }));
   }, []);
+  const wikiLinkItems = useCallback(({ query }: { query: string }) => {
+    return PLAYGROUND_PAGES
+      .filter((page) => page.toLowerCase().includes(query.toLowerCase()))
+      .map((page) => ({ id: page, label: page }));
+  }, []);
+  const [wikiLinkTarget, setWikiLinkTarget] = useState<string | null>(null);
   const imageBlock = useMemo(() => ({ imageEditor: LazyImageEditorModal }), []);
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
   const [viewerInstance, setViewerInstance] = useState<TiptapEditor | null>(null);
@@ -138,7 +155,7 @@ export default function PlaygroundEditorPane({
         <div style={{ position: 'relative' }}>
           <InkioEditor
             content={doc ?? PLAYGROUND_INITIAL_CONTENT}
-            placeholder="Try /, #, [[page]], comments, and image editing..."
+            placeholder="Try /, #, [[, comments, and image editing..."
             theme={inkioTheme}
             locale={locale}
             ui={{
@@ -149,6 +166,8 @@ export default function PlaygroundEditorPane({
               icons: iconOverrides,
             }}
             hashtagItems={hashtagItems}
+            wikiLinkItems={wikiLinkItems}
+            onWikiLinkClick={setWikiLinkTarget}
             onImageUpload={handleImageUpload}
             imageBlock={imageBlock}
             comment={comment}
@@ -157,6 +176,11 @@ export default function PlaygroundEditorPane({
           />
           <ToC source={editorInstance} />
         </div>
+        {wikiLinkTarget && (
+          <div className="playground-note" role="status">
+            Wiki link clicked: <strong>{wikiLinkTarget}</strong>. An app would navigate to this page.
+          </div>
+        )}
       </section>
 
       {showViewer && doc && (

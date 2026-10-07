@@ -101,6 +101,11 @@
   color: var(--inkio-text);
 }
 
+.playground-note {
+  font-size: 13px;
+  color: var(--inkio-text-muted);
+}
+
 .playground-loading {
   padding: 40px;
   text-align: center;

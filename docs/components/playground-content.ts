@@ -111,7 +111,7 @@ export const PLAYGROUND_INITIAL_CONTENT = {
       content: [
         { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Type ' }, { type: 'text', marks: [{ type: 'code' }], text: '/' }, { type: 'text', text: ' for slash commands' }] }] },
         { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Type ' }, { type: 'text', marks: [{ type: 'code' }], text: '#' }, { type: 'text', text: ' for hashtag suggestions' }] }] },
-        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Type ' }, { type: 'text', marks: [{ type: 'code' }], text: '[[page]]' }, { type: 'text', text: ' for wiki links' }] }] },
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Type ' }, { type: 'text', marks: [{ type: 'code' }], text: '[[' }, { type: 'text', text: ' to link a page (wiki link)' }] }] },
         { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Select text and press ' }, { type: 'text', marks: [{ type: 'code' }], text: 'Mod+Shift+M' }, { type: 'text', text: ' for comments' }] }] },
         { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Drag & drop images to test the image editor' }] }] },
       ],
