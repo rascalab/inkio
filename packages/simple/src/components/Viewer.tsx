@@ -1,5 +1,7 @@
 'use client';
 
+import { useCallback, useState } from 'react';
+import { useReadOnlyContentSync } from '@inkio/core';
 import type { InkioJSONContent as JSONContent, InkioLocaleInput, InkioMessageOverrides, TiptapEditor } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import type { ExtensionsInput } from '../types';
@@ -21,6 +23,16 @@ export type ViewerProps = {
 };
 
 export function Viewer({ content, locale, theme, ui, extensions, onCreate }: ViewerProps) {
+  const [editor, setEditor] = useState<TiptapEditor | null>(null);
+  const handleCreate = useCallback(
+    (instance: TiptapEditor) => {
+      setEditor(instance);
+      onCreate?.(instance);
+    },
+    [onCreate],
+  );
+  useReadOnlyContentSync(editor, content);
+
   return (
     <Editor
       content={content}
@@ -35,7 +47,7 @@ export function Viewer({ content, locale, theme, ui, extensions, onCreate }: Vie
         showTableMenu: false,
       }}
       extensions={extensions}
-      onCreate={onCreate}
+      onCreate={handleCreate}
     />
   );
 }

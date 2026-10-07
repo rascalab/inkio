@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 Versioning is unified across the publishable Inkio packages.
 
+## [Unreleased]
+
+### Added
+
+- `useReadOnlyContentSync` in `@inkio/core` keeps a read-only editor in step with its `content` prop.
+
+### Changed
+
+- `Viewer` in `@inkio/editor` and `@inkio/simple` re-renders when `content` changes, like `@inkio/core`'s `Viewer` and `StaticViewer`. In 0.0.7 it kept the first document. `Editor` still treats `content` as the initial document.
+
 ## [0.0.7] - 2026-10-07
 
 See [MIGRATION.md](./MIGRATION.md#006--007) for upgrade steps.

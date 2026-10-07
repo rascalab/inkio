@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useReadOnlyContentSync } from '@inkio/core';
 import type { InkioJSONContent as JSONContent, InkioLocaleInput, InkioMessageOverrides } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import type { CommentConfig, CommentData } from '@inkio/advanced';
@@ -47,6 +48,16 @@ export function Viewer({ content, locale, theme, ui, comment, extensions, onCrea
     [comment?.getComments, comment?.onReply, comment?.onResolve],
   );
 
+  const [editor, setEditor] = useState<TiptapEditor | null>(null);
+  const handleCreate = useCallback(
+    (instance: TiptapEditor) => {
+      setEditor(instance);
+      onCreate?.(instance);
+    },
+    [onCreate],
+  );
+  useReadOnlyContentSync(editor, content);
+
   return (
     <Editor
       content={content}
@@ -61,7 +72,7 @@ export function Viewer({ content, locale, theme, ui, comment, extensions, onCrea
       }}
       comment={commentConfig}
       extensions={extensions}
-      onCreate={onCreate}
+      onCreate={handleCreate}
     />
   );
 }

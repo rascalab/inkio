@@ -133,6 +133,9 @@ import '@inkio/simple/style.css';
 
 `@inkio/editor`의 Viewer는 댓글(comment) 기능을 지원합니다.
 
+Editor와 달리 Viewer는 `content` prop이 바뀌면 새 내용을 다시 그립니다(`@inkio/simple` Viewer도 같습니다).
+읽기 전용이라 덮어쓸 편집 내용이 없기 때문입니다.
+
 ```tsx
 import { Viewer } from '@inkio/editor';
 ```
@@ -323,7 +326,7 @@ import '@inkio/editor/minimal.css';
 | 에디터 동작 | `extensions` 추가/교체 | `ExtensionsInput` 규칙 준수 |
 
 외부에서 값을 바꾸려면: `onCreate`로 받은 인스턴스의
-`editor.commands.setContent()`를 쓰세요 (`content` prop은 초기값 전용).
+`editor.commands.setContent()`를 쓰세요 (Editor의 `content` prop은 초기값 전용, Viewer는 `content` 변경을 반영).
 
 바꿀 수 없는 것: `StaticViewer`의 인터랙션 (정적 렌더 전용).
 
