@@ -35,3 +35,5 @@ pnpm-debug.log*
 **/.omc/*
 !**/.omc/skills/
 !**/.omc/skills/**
+# npm/pnpm pack output
+*.tgz
