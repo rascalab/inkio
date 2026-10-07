@@ -34,6 +34,7 @@ Inkio is a pnpm monorepo of layered Tiptap-based React editors: `@inkio/core` fo
 | Notion preset entry | packages/editor/src/index.ts | re-exports core + advanced comment types |
 | E2E specs/config | e2e/, playwright.config.ts | chromium+firefox, ports 4173/4174 |
 | Release gates | scripts/check-attw.mjs, check-budgets.mjs, release-smoke.mjs | run via root scripts, never directly |
+| Maintainer guide | CONTRIBUTING.md | layout, policies, verification, release flow; docs site is user-facing only |
 
 ## CODE MAP
 Centrality unmeasured (typescript-language-server not installed); map is export-based, verified by file reads.

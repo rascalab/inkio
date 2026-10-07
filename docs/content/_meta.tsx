@@ -13,5 +13,4 @@ export default {
   frameworks: '프레임워크 통합',
   recipes: '레시피',
   playground: '플레이그라운드',
-  development: '개발 가이드',
 };

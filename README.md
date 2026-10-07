@@ -137,6 +137,8 @@ pnpm install
 pnpm verify
 ```
 
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the repository layout, verification commands and the release flow.
+
 Key examples:
 
 - `examples/basic-react` -> `@inkio/simple`
