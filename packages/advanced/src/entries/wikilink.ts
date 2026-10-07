@@ -1,1 +1,1 @@
-export { WikiLink, type WikiLinkOptions } from '../extensions/WikiLink';
+export { WikiLink, WikiLinkPluginKey, type WikiLinkItem, type WikiLinkOptions } from '../extensions/WikiLink';

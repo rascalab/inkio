@@ -13,7 +13,7 @@ import { Mention, type MentionItem } from './extensions/Mention';
 import { HashTag, type HashTagItem } from './extensions/HashTag';
 import { SlashCommand } from './extensions/SlashCommand';
 import type { SlashCommandItem, SlashCommandTransform } from './extensions/SlashCommand';
-import { WikiLink } from './extensions/WikiLink';
+import { WikiLink, type WikiLinkItem } from './extensions/WikiLink';
 import { Bookmark, type BookmarkPreview } from './extensions/Bookmark';
 import { BlockHandle } from './extensions/BlockHandle';
 import { Comment, toCommentOptions, type CommentConfig } from './comment';
@@ -24,6 +24,7 @@ export interface DefaultExtensionsOptions extends EssentialDefaultExtensionsOpti
   slashCommands?: (query: string) => SlashCommandItem[] | Promise<SlashCommandItem[]>;
   transformSlashCommands?: SlashCommandTransform;
   onWikiLinkClick?: (href: string) => void;
+  wikiLinkItems?: (props: { query: string }) => WikiLinkItem[] | Promise<WikiLinkItem[]>;
   blockHandle?: boolean;
   wikiLink?: boolean;
   bookmark?: boolean;
@@ -42,6 +43,7 @@ export function getDefaultExtensions(options: DefaultExtensionsOptions = {}) {
     slashCommands,
     transformSlashCommands,
     onWikiLinkClick,
+    wikiLinkItems,
     blockHandle,
     wikiLink,
     bookmark,
@@ -79,7 +81,9 @@ export function getDefaultExtensions(options: DefaultExtensionsOptions = {}) {
       ...(transformSlashCommands ? { transformItems: transformSlashCommands } : {}),
       onError,
     }),
-    ...(wikiLink !== false ? [WikiLink.configure({ onClick: onWikiLinkClick })] : []),
+    ...(wikiLink !== false
+      ? [WikiLink.configure({ onClick: onWikiLinkClick, items: wikiLinkItems, onError })]
+      : []),
     ...(bookmark
       ? [Bookmark.configure({ onResolveBookmark })]
       : []),

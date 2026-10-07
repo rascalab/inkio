@@ -14,7 +14,7 @@ import type { FloatingMenuProps } from '@inkio/core';
 import type { TableMenuProps } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import type { ImageBlockOptions } from '@inkio/core';
-import type { HashTagItem, MentionItem, SlashCommandItem, SlashCommandTransform, BookmarkPreview, CommentConfig } from '@inkio/advanced';
+import type { HashTagItem, MentionItem, SlashCommandItem, SlashCommandTransform, BookmarkPreview, CommentConfig, WikiLinkItem } from '@inkio/advanced';
 import { getDefaultExtensions, notifyCommentThreadsChanged, type DefaultExtensionsOptions } from '@inkio/advanced';
 import type { ExtensionsInput } from '../types';
 import { mapEditorUiToCoreProps, mergeImageBlockOptions, resolveExtensionsInput, useStableProps } from '@inkio/core';
@@ -58,6 +58,8 @@ export interface EditorProps {
   slashCommands?: (query: string) => SlashCommandItem[] | Promise<SlashCommandItem[]>;
   transformSlashCommands?: SlashCommandTransform;
   onWikiLinkClick?: (href: string) => void;
+  /** Page suggestions after typing `[[`; the chosen item's `id` becomes the link target. */
+  wikiLinkItems?: (params: { query: string }) => WikiLinkItem[] | Promise<WikiLinkItem[]>;
   onError?: InkioErrorHandler;
 
   // Complex features
@@ -92,6 +94,7 @@ export function Editor({
   slashCommands,
   transformSlashCommands,
   onWikiLinkClick,
+  wikiLinkItems,
   onError,
   comment,
   imageBlock,
@@ -121,6 +124,7 @@ export function Editor({
     slashCommands,
     transformSlashCommands,
     onWikiLinkClick,
+    wikiLinkItems,
     blockHandle,
     wikiLink,
     comment,
@@ -155,6 +159,7 @@ export function Editor({
       slashCommands: input.slashCommands,
       transformSlashCommands: input.transformSlashCommands,
       onWikiLinkClick: input.onWikiLinkClick,
+      wikiLinkItems: input.wikiLinkItems,
       blockHandle: input.blockHandle,
       wikiLink: input.wikiLink,
       comment: input.comment,

@@ -21,7 +21,7 @@ export type {
   SlashCommandTransform,
 } from './extensions/SlashCommand';
 export { WikiLink } from './extensions/WikiLink';
-export type { WikiLinkOptions } from './extensions/WikiLink';
+export type { WikiLinkItem, WikiLinkOptions } from './extensions/WikiLink';
 export { extractMentions, extractHashtags } from './serialization';
 export {
   Comment,

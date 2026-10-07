@@ -8,6 +8,7 @@ Versioning is unified across the publishable Inkio packages.
 
 ### Added
 
+- wiki links: `wikiLinkItems` on the `@inkio/editor` `Editor` (and `items` on the `WikiLink` extension) opens a page suggestion popup after typing `[[`; the chosen item's `id` becomes the link target. Without it, `[[name]]` still converts on the closing `]]`.
 - `useReadOnlyContentSync` in `@inkio/core` keeps a read-only editor in step with its `content` prop.
 
 ### Changed

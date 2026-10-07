@@ -134,6 +134,11 @@ import type { SlashCommandItem } from '@inkio/advanced';
 입력 규칙(input rule)이 발동해 텍스트가 위키 링크 노드로 치환되며, `[[...]]`가 포함된 텍스트를
 붙여넣어도 동일하게 변환됩니다.
 
+`wikiLinkItems`를 넘기면 `[[`를 입력하는 즉시 페이지 목록 팝업이 열리고, 이어서 입력한 글자가
+`query`로 전달됩니다(공백 포함). 항목을 고르면 그 항목의 `id`가 링크 대상(`href`)이 되고 칩에도
+그대로 표시되므로, 보통 `id`와 `label`에 같은 페이지 이름을 넣습니다. 목록에 없는 이름도
+`]]`까지 입력하면 링크가 됩니다. `wikiLinkItems`가 없으면 팝업 없이 `]]` 입력으로만 변환됩니다.
+
 `@inkio/editor`에서는 `wikiLink` prop으로 켜고 끄며 기본값은 `true`입니다.
 링크 클릭 동작은 `onWikiLinkClick` 콜백으로 처리합니다. 콜백을 지정하지 않으면 링크는
 클릭할 수 없는 텍스트로만 표시됩니다.
@@ -142,7 +147,10 @@ import type { SlashCommandItem } from '@inkio/advanced';
 import { Editor } from '@inkio/editor';
 
 <Editor
-  wikiLink
+  wikiLinkItems={async ({ query }) => {
+    const pages = await searchPages(query);
+    return pages.map((page) => ({ id: page.title, label: page.title }));
+  }}
   onWikiLinkClick={(href) => {
     router.push(`/wiki/${encodeURIComponent(href)}`);
   }}

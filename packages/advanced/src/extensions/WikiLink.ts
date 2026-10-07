@@ -1,5 +1,20 @@
-import { Node, mergeAttributes, InputRule, PasteRule } from '@tiptap/core';
-import { isSafeUrl } from '@inkio/core';
+import { Node, mergeAttributes, InputRule, PasteRule, type Editor } from '@tiptap/core';
+import { PluginKey } from '@tiptap/pm/state';
+import { Suggestion } from '@tiptap/suggestion';
+import {
+  createLatestWinsItems,
+  createSuggestionRenderer,
+  isSafeUrl,
+  type InkioErrorHandler,
+} from '@inkio/core';
+
+export interface WikiLinkItem {
+  /** Link target (page name) inserted as the node's `href`. */
+  id: string;
+  /** Text shown in the suggestion list. */
+  label: string;
+  [key: string]: unknown;
+}
 
 export interface WikiLinkOptions {
   HTMLAttributes: Record<string, any>;
@@ -8,7 +23,16 @@ export interface WikiLinkOptions {
    * @param href - 링크 대상 (페이지 이름)
    */
   onClick?: (href: string) => void;
+  /**
+   * Page suggestions shown after typing `[[`. Without it there is no popup
+   * and `[[name]]` still converts when the closing `]]` is typed.
+   */
+  items?: (props: { query: string }) => WikiLinkItem[] | Promise<WikiLinkItem[]>;
+  /** Receives errors thrown or rejected by `items`. */
+  onError?: InkioErrorHandler;
 }
+
+export const WikiLinkPluginKey = new PluginKey('wikiLink');
 
 // WikiLink 패턴 정규식
 // PasteRule은 /g 정규식의 lastIndex 상태를 공유하므로, 매 호출마다 새 인스턴스를
@@ -29,6 +53,8 @@ export const WikiLink = Node.create<WikiLinkOptions>({
     return {
       HTMLAttributes: {},
       onClick: undefined,
+      items: undefined,
+      onError: undefined,
     };
   },
 
@@ -118,6 +144,43 @@ export const WikiLink = Node.create<WikiLinkOptions>({
         },
       };
     };
+  },
+
+  addProseMirrorPlugins() {
+    if (!this.options.items) return [];
+    const type = this.type;
+    const items = createLatestWinsItems<{ query: string; editor: Editor }, WikiLinkItem>({
+      debounceMs: 150,
+      source: ({ query }) => this.options.items?.({ query }),
+      onError: (error) => {
+        this.options.onError?.(error, { source: 'wikiLink.suggestion', recoverable: true });
+      },
+    });
+
+    return [
+      Suggestion<WikiLinkItem, WikiLinkItem>({
+        editor: this.editor,
+        char: '[[',
+        pluginKey: WikiLinkPluginKey,
+        // Page names usually contain spaces.
+        allowSpaces: true,
+        items,
+        allow: ({ state, range }) => !!state.doc.resolve(range.from).parent.type.contentMatch.matchType(type),
+        command: ({ editor, range, props }) => {
+          const href = typeof props.id === 'string' ? props.id.trim() : '';
+          if (!href || !isSafeUrl(href)) return;
+          editor
+            .chain()
+            .focus()
+            .insertContentAt(range, [
+              { type: type.name, attrs: { href } },
+              { type: 'text', text: ' ' },
+            ])
+            .run();
+        },
+        render: createSuggestionRenderer<WikiLinkItem>({ header: 'Pages' }),
+      }),
+    ];
   },
 
   addInputRules() {

@@ -28,6 +28,7 @@ import '@inkio/editor/style.css';
 | `slashCommands` | `(query: string) => SlashCommandItem[] \| Promise<SlashCommandItem[]>` | 슬래시 커맨드 오버라이드 |
 | `transformSlashCommands` | `SlashCommandTransform` | 슬래시 커맨드 변환 |
 | `onWikiLinkClick` | `(href: string) => void` | 위키 링크 클릭 핸들러 |
+| `wikiLinkItems` | `(params: { query: string }) => WikiLinkItem[] \| Promise<WikiLinkItem[]>` | `[[` 입력 시 페이지 제안. 고른 항목의 `id`가 링크 대상 |
 | `onImageUpload` | `(file: File) => Promise<string \| { src: string }>` | 이미지 업로드 핸들러. 반환 URL은 안전성 검사를 통과해야 저장됩니다 |
 | `imageBlock` | `Partial<ImageBlockOptions>` | ImageBlock 확장 옵션 |
 | `comment` | `CommentConfig` | 댓글 기능 설정 (미지정 시 꺼짐) |
