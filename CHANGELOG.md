@@ -15,6 +15,10 @@ Versioning is unified across the publishable Inkio packages.
 
 - `Viewer` in `@inkio/editor` and `@inkio/simple` re-renders when `content` changes, like `@inkio/core`'s `Viewer` and `StaticViewer`. In 0.0.7 it kept the first document. `Editor` still treats `content` as the initial document.
 
+### Fixed
+
+- suggestion popups (`@`, `#`, `/`, `[[`) no longer flash "No results found" on every keystroke. Tiptap 3.31 reports each query with a loading pass before its result and the popup rendered that pass as an empty list; it now keeps the previous list until the result arrives and stays hidden before the first one.
+
 ## [0.0.7] - 2026-10-07
 
 See [MIGRATION.md](./MIGRATION.md#006--007) for upgrade steps.

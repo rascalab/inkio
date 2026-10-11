@@ -45,6 +45,7 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
     let component: SuggestionListRef | null = null;
     let cleanupAutoUpdate: (() => void) | null = null;
     let latestProps: SuggestionProps<any, I> | null = null;
+    let settledItems: I[] | null = null;
 
     const updatePopupPosition = () => {
       const popup = host?.element;
@@ -82,12 +83,23 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
         return;
       }
 
+      // Tiptap >= 3.31 reports every query twice: first with `loading: true`
+      // and no items, then with the result. Rendering the loading pass would
+      // flash the empty state on each keystroke, so the previous list stays
+      // up until the result arrives and nothing shows before the first one.
+      if (!props.loading) {
+        settledItems = props.items;
+      }
+      if (!settledItems) {
+        return;
+      }
+
       host.render(
         <SuggestionList
           ref={(ref) => {
             component = ref;
           }}
-          items={props.items as SuggestionItem[]}
+          items={settledItems as SuggestionItem[]}
           command={props.command as unknown as (item: SuggestionItem) => void}
           header={options.header}
           emptyMessage={options.emptyMessage ?? resolvedMessages.suggestion.empty}
@@ -143,6 +155,7 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
         host = null;
         component = null;
         latestProps = null;
+        settledItems = null;
       },
     };
   };
