@@ -117,9 +117,11 @@ describe('useImageEditorSession', () => {
       expect(exportToDataURLMock).toHaveBeenCalledTimes(1);
       expect(onSave).toHaveBeenCalledWith('data:image/png;base64,saved');
       expect(screen.getByTestId('is-dirty').textContent).toBe('false');
+      // onDirtyChange fires from an effect after the commit that updates
+      // the DOM, so it is awaited too rather than asserted right after.
+      expect(onDirtyChange).toHaveBeenLastCalledWith(false);
     });
 
     expect(onDirtyChange).toHaveBeenCalledWith(true);
-    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
   });
 });
