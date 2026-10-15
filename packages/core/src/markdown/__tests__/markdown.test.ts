@@ -7,11 +7,22 @@ describe('advanced inline nodes', () => {
     const json = parseMarkdown('See [[Guide]] for details.');
     const para = json.content?.[0];
     expect(para?.content).toContainEqual({ type: 'wikiLink', attrs: { href: 'Guide' } });
-    // remark escapes the brackets on export; re-parsing must restore the node.
+    // Exported unescaped so other markdown tools still see a wiki link.
     const md2 = stringifyMarkdown(json);
+    expect(md2).toBe('See [[Guide]] for details.');
     const json2 = parseMarkdown(md2);
     expect(json2.content?.[0]?.content).toContainEqual({ type: 'wikiLink', attrs: { href: 'Guide' } });
     expect(stringifyMarkdown(json2)).toBe(md2);
+  });
+
+  it('round-trips wiki names with spaces and underscores', () => {
+    const md = 'See [[Release Notes]] and [[my_page_name]].';
+    const json = parseMarkdown(md);
+    expect(json.content?.[0]?.content?.filter((node) => node.type === 'wikiLink')).toEqual([
+      { type: 'wikiLink', attrs: { href: 'Release Notes' } },
+      { type: 'wikiLink', attrs: { href: 'my_page_name' } },
+    ]);
+    expect(stringifyMarkdown(json)).toBe(md);
   });
 
   it('keeps unsafe wiki targets as plain text', () => {

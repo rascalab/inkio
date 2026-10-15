@@ -518,7 +518,10 @@ function jsonInlineToMdast(nodes: JSONContent[] = []): MdastNode[] {
         // A name containing ']]' would split the syntax on re-import (the
         // splitter cannot represent it): fall back to plain text so no
         // phantom link boundary is produced.
-        content.push({ type: 'text', value: name.includes(']]') ? name : `[[${name}]]` });
+        // Emitted as raw `html` because text nodes escape `[[` to `\[\[`,
+        // which other markdown tools (Obsidian, wikis) no longer read as a
+        // link; re-import still sees plain `[[name]]` text.
+        content.push(name.includes(']]') ? { type: 'text', value: name } : { type: 'html', value: `[[${name}]]` });
         break;
       }
       default:
@@ -650,11 +653,17 @@ function jsonBlocksToMdast(nodes: JSONContent[] = []): MdastNode[] {
         content.push({ type: 'thematicBreak' });
         break;
       case 'imageBlock':
+        // `image` is phrasing content: placed directly in the root it makes
+        // remark join every block without blank lines, merging the whole
+        // document into one paragraph on re-import.
         content.push({
-          type: 'image',
-          url: String(node.attrs?.src ?? ''),
-          alt: typeof node.attrs?.alt === 'string' ? node.attrs.alt : null,
-          title: typeof node.attrs?.title === 'string' ? node.attrs.title : null,
+          type: 'paragraph',
+          children: [{
+            type: 'image',
+            url: String(node.attrs?.src ?? ''),
+            alt: typeof node.attrs?.alt === 'string' ? node.attrs.alt : null,
+            title: typeof node.attrs?.title === 'string' ? node.attrs.title : null,
+          }],
         });
         break;
       case 'table': {

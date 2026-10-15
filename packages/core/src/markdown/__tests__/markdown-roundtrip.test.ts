@@ -19,6 +19,7 @@ const cases: Record<string, string> = {
   'callout directive': ':::callout{color="blue"}\n\nCallout body text.\n\n:::',
   'details block': '<details>\n<summary>Summary</summary>\n\nHidden body.\n\n</details>',
   'standalone image': '![alt text](https://example.com/i.png)',
+  'image between paragraphs': 'before\n\n![alt text](https://example.com/i.png)\n\nafter',
   'hard break': 'line one\\\nline two',
   'mixed document': '# Title\n\nIntro **para** with `code`.\n\n- a\n- b\n\n> note\n\n```ts\nok();\n```\n\n| x | y |\n| - | - |\n| 1 | 2 |\n\n---\n\nEnd.',
 };
