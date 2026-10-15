@@ -31,7 +31,7 @@ const initialContent = `<h2>Inkio in Next.js</h2>
 <ul>
   <li>Type <code>/</code> for slash commands</li>
   <li>Type <code>#</code> for hashtag suggestions</li>
-  <li>Type <code>[[page]]</code> for wiki links</li>
+  <li>Type <code>[[</code> to link a page (wiki link)</li>
   <li>Select text and press <code>Mod+Shift+M</code> to open comments</li>
   <li>Drop an image to open the image editor flow</li>
 </ul>`;
@@ -117,6 +117,14 @@ export function EditorDemo() {
       .map((name) => ({ id: name, label: name }));
   }, []);
 
+  const wikiLinkItems = useCallback(({ query }: { query: string }) => {
+    const pages = ['Knowledge Base', 'Roadmap', 'Release Notes'];
+    return pages
+      .filter((page) => page.toLowerCase().includes(query.toLowerCase()))
+      .map((page) => ({ id: page, label: page }));
+  }, []);
+  const [wikiLinkTarget, setWikiLinkTarget] = useState<string | null>(null);
+
   const handleReply = useCallback((commentId: string, text: string) => {
     const message: CommentMessage = { id: createId(), author: 'You', text, createdAt: new Date() };
     setComments((prev) =>
@@ -197,10 +205,12 @@ export function EditorDemo() {
         </div>
         <Editor
           content={initialContent}
-          placeholder="Type /, #, [[page]] and select text for comments..."
+          placeholder="Type /, #, [[ and select text for comments..."
           locale={locale}
           hashtagItems={hashtagItems}
           mentionItems={mentionItems}
+          wikiLinkItems={wikiLinkItems}
+          onWikiLinkClick={setWikiLinkTarget}
           onImageUpload={handleImageUpload}
           imageBlock={{ imageEditor: LazyImageEditorModal }}
           comment={comment}
@@ -221,6 +231,11 @@ export function EditorDemo() {
           onCreate={setEditorInstance}
           onUpdate={(next: unknown) => setJson(next)}
         />
+        {wikiLinkTarget && (
+          <p data-testid="next-editor-wiki-link-target">
+            Wiki link clicked: {wikiLinkTarget}
+          </p>
+        )}
       </section>
 
       <section className="demo-card">

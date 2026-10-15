@@ -155,6 +155,64 @@ test('next app router example creates a wiki link node from [[ ]] syntax', async
   expect(pageErrors).toEqual([]);
 });
 
+test('next app router example picks a wiki link page from the [[ popup and reports clicks', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => { pageErrors.push(error.message); });
+
+  await page.goto('http://localhost:4174');
+  await focusEditorEnd(page);
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('[[Know');
+
+  await expect(page.getByRole('option', { name: 'Knowledge Base' })).toBeVisible();
+  await page.keyboard.press('Enter');
+
+  const wikiLink = page.locator('.ProseMirror span[data-wiki-link]');
+  await expect(wikiLink).toHaveText('Knowledge Base');
+  await expect(page.locator('.ProseMirror')).not.toContainText('[[Know');
+
+  await wikiLink.click();
+  await expect(page.getByTestId('next-editor-wiki-link-target')).toHaveText('Wiki link clicked: Knowledge Base');
+  expect(pageErrors).toEqual([]);
+});
+
+test('next app router example viewer follows the edited document', async ({ page }) => {
+  await page.goto('http://localhost:4174/viewer-e2e');
+  const viewer = page.getByTestId('viewer-e2e-viewer');
+  await expect(viewer).toContainText('Viewer harness');
+
+  await focusEditorEnd(page);
+  await page.keyboard.type(' mirrored into the viewer');
+
+  await expect(viewer).toContainText('Viewer harness mirrored into the viewer');
+});
+
+test('next app router example suggestion popup never shows the empty state while matches exist', async ({ page }) => {
+  await page.goto('http://localhost:4174');
+  await focusEditorEnd(page);
+  await page.keyboard.press('Enter');
+
+  // Record every DOM state, not just the final one: the empty state can
+  // flash between keystrokes while each query loads.
+  await page.evaluate(() => {
+    const w = window as unknown as { __sawEmpty: boolean };
+    w.__sawEmpty = false;
+    new MutationObserver(() => {
+      if (document.querySelector('.inkio-suggestion-empty')) w.__sawEmpty = true;
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+
+  // Each step narrows the list (5 -> 4 -> 1 tags), so waiting for the new
+  // count proves that keystroke's query finished before the next one.
+  for (const [key, count] of [['#', 5], ['i', 4], ['n', 1]] as const) {
+    await page.keyboard.type(key);
+    await expect(page.getByRole('option')).toHaveCount(count);
+  }
+  await expect(page.getByRole('option', { name: '#inkio' })).toBeVisible();
+
+  expect(await page.evaluate(() => (window as unknown as { __sawEmpty: boolean }).__sawEmpty)).toBe(false);
+});
+
 test('next app router example adds a comment through the comment composer', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => { pageErrors.push(error.message); });
