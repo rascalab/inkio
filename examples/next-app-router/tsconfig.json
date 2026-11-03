@@ -28,6 +28,9 @@
       "@inkio/editor": [
         "../../packages/editor/src/index.ts"
       ],
+      "@inkio/editor/markdown": [
+        "../../packages/editor/src/markdown/index.ts"
+      ],
       "@inkio/editor/icons": [
         "../../packages/editor/src/icons/index.ts"
       ],

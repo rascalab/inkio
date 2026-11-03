@@ -1,5 +1,6 @@
 export {
   createMarkdownAdapter,
+  MarkdownPaste,
   parseMarkdown,
   stringifyMarkdown,
 } from '@inkio/core/markdown';

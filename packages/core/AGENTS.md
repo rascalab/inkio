@@ -31,6 +31,7 @@ src/
 
 ## CONVENTIONS
 - Markdown stays behind `@inkio/core/markdown` so unified/remark never enters the editor bundle.
+- Anything needing the parser ships from that entry too: `MarkdownPaste` is added through `extensions`, never by default.
 - Subpaths: `.` `./icons` `./markdown` `./static` `./style.css` `./minimal.css`.
 - Tests co-located: `src/__tests__/` + `src/**/__tests__/` + `*.test.ts(x)`; jsdom + `src/test-setup.ts`.
 - Inline option literals go through `useStableOptions`/`useStableCallback` (structural compare) — enforced by churn tests.

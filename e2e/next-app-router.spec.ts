@@ -363,3 +363,57 @@ test('Korean composition lands where the caret is', async ({ page, browserName }
   await expect(paragraphs.first()).toHaveText('슬래시 시험한글');
   await expect(paragraphs.nth(1)).toHaveText('');
 });
+
+const blockEditor = (page: import('@playwright/test').Page) => page.locator('.ProseMirror').first();
+
+test.describe('markdown paste', () => {
+  test.skip(({ browserName }) => browserName !== 'chromium', 'Firefox ignores clipboardData in the ClipboardEvent constructor');
+
+  async function pasteText(page: import('@playwright/test').Page, target: string, text: string, html?: string) {
+    await blockEditor(page).getByText(target, { exact: true }).click();
+    await page.keyboard.press('End');
+    await blockEditor(page).evaluate(async (root, [plain, rich]) => {
+      // A real paste comes well after the caret settles; the editor reads the
+      // selection change asynchronously and a paste does not flush it.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const clipboardData = new DataTransfer();
+      clipboardData.setData('text/plain', plain);
+      if (rich) clipboardData.setData('text/html', rich);
+      root.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }));
+    }, [text, html] as const);
+  }
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto('http://localhost:4174/block-e2e');
+    await expect(blockEditor(page)).toContainText('끝 문단');
+  });
+
+  test('becomes headings, lists and tables', async ({ page }) => {
+    await pasteText(page, '끝 문단', '## 범위\n\n- 가\n- 나\n\n| 이름 | 값 |\n| --- | --- |\n| 기간 | 3~5일 |');
+    const editor = blockEditor(page);
+    await expect(editor.locator('h2')).toHaveText('범위');
+    await expect(editor.locator('ul li')).toHaveCount(4);
+    await expect(editor.locator('table td').nth(1)).toHaveText('3~5일');
+    await expect(editor.locator('s, del')).toHaveCount(0);
+  });
+
+  test('stays in the paragraph when it is only a span', async ({ page }) => {
+    await pasteText(page, '끝 문단', '그리고 **굵게**');
+    const editor = blockEditor(page);
+    await expect(editor.locator('p', { hasText: '끝 문단' })).toHaveText('끝 문단그리고 굵게');
+    await expect(editor.locator('p strong')).toHaveText('굵게');
+  });
+
+  test('leaves plain sentences, rich copies and code blocks alone', async ({ page }) => {
+    await pasteText(page, '끝 문단', ' 2 - 1 = 1');
+    const editor = blockEditor(page);
+    await expect(editor.locator('p', { hasText: '끝 문단' })).toHaveText('끝 문단 2 - 1 = 1');
+
+    await pasteText(page, '하나', '**원문**', '<em>서식</em>');
+    await expect(editor.locator('li em')).toHaveText('서식');
+
+    await pasteText(page, '코드', '\n## 제목');
+    await expect(editor.locator('pre')).toContainText('## 제목');
+    await expect(editor.locator('h2')).toHaveCount(0);
+  });
+});

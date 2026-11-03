@@ -1,4 +1,5 @@
-import type { Extensions, JSONContent } from '@tiptap/core';
+import { Extension, type Extensions, type JSONContent } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { normalizeCalloutColor, normalizeCalloutIcon } from '../extensions/Callout';
 import { escapeHtml } from '../utils/html';
 import { isSafeUrl } from '../utils/url-safety';
@@ -803,3 +804,45 @@ export function parseMarkdown(markdown: string): JSONContent {
 export function stringifyMarkdown(content: JSONContent): string {
   return createMarkdownAdapter().stringify(content);
 }
+
+// Markdown copied as plain text: a block marker at the start of a line, or a
+// span only Markdown writes. Prose with a stray `*` or `-` stays prose.
+const MARKDOWN_PASTE_RE = /^ *(?:#{1,6} |[-*+] |\d+\. |> |```|\|.*\|$)|\*\*\S|~~\S|\[[^\]\n]+\]\(\S+\)/m;
+
+/**
+ * Turns Markdown pasted as plain text into document content. It lives here so
+ * the parser stays out of the editor bundle: add it with `extensions`.
+ */
+export const MarkdownPaste = Extension.create({
+  name: 'markdownPaste',
+
+  addProseMirrorPlugins() {
+    const { editor } = this;
+    return [
+      new Plugin({
+        key: new PluginKey('markdownPaste'),
+        props: {
+          handlePaste: (view, event) => {
+            const clipboard = event.clipboardData;
+            const text = clipboard?.getData('text/plain');
+            if (!text || clipboard?.getData('text/html') || !MARKDOWN_PASTE_RE.test(text)) {
+              return false;
+            }
+            // Paste-as-plain-text and code blocks keep every character. The
+            // shift state is only on ProseMirror's private input record.
+            const { input } = view as unknown as { input?: { shiftKey?: boolean } };
+            if (input?.shiftKey || view.state.selection.$from.parent.type.spec.code) {
+              return false;
+            }
+            const { content = [] } = parseMarkdown(text);
+            // One paragraph is a span: inserted as a block it would split the
+            // paragraph the caret is in.
+            const [first] = content;
+            const inline = content.length === 1 && first.type === 'paragraph';
+            return editor.commands.insertContent(inline ? (first.content ?? []) : content);
+          },
+        },
+      }),
+    ];
+  },
+});
