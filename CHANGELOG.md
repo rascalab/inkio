@@ -14,12 +14,14 @@ Versioning is unified across the publishable Inkio packages.
 ### Changed
 
 - `Viewer` in `@inkio/editor` and `@inkio/simple` re-renders when `content` changes, like `@inkio/core`'s `Viewer` and `StaticViewer`. In 0.0.7 it kept the first document. `Editor` still treats `content` as the initial document.
+- markdown import no longer reads a single tilde as strikethrough, so `3~5일, 7~9일` stays text. This departs from GFM, which allows one or two tildes. `~~gone~~` still strikes; a document that relied on `~gone~` now reads it literally.
 
 ### Fixed
 
 - suggestion popups (`@`, `#`, `/`, `[[`) no longer flash "No results found" on every keystroke. Tiptap 3.31 reports each query with a loading pass before its result and the popup rendered that pass as an empty list; it now keeps the previous list until the result arrives and stays hidden before the first one.
 - markdown export: a document containing an image was written without blank lines between blocks, so re-importing it merged the whole document into one paragraph. Images are now exported as their own paragraph.
 - markdown export writes wiki links as `[[name]]` instead of `\[\[name]]`, so other markdown tools still read them as links.
+- markdown export no longer escapes a lone `~` or an underscore inside a word (`3\~5`, `user\_id`), and no longer puts blank lines between list items.
 
 ## [0.0.7] - 2026-10-07
 

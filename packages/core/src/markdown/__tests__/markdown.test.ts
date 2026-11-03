@@ -271,3 +271,70 @@ describe('@inkio/core/markdown', () => {
   });
 
 });
+
+describe('text written as it reads', () => {
+  it('keeps a number range readable and unstruck', () => {
+    const markdown = 'REQ-3~5, REQ-7~9 기간은 3~5일';
+    const json = parseMarkdown(markdown);
+    expect(json.content?.[0]?.content).toEqual([{ type: 'text', text: markdown }]);
+    expect(stringifyMarkdown(json)).toBe(markdown);
+  });
+
+  it('still reads and writes strikethrough with two tildes', () => {
+    const json = parseMarkdown('a ~~gone~~ b');
+    expect(json.content?.[0]?.content?.[1]).toEqual({
+      type: 'text',
+      text: 'gone',
+      marks: [{ type: 'strike' }],
+    });
+    expect(stringifyMarkdown(json)).toBe('a ~~gone~~ b');
+  });
+
+  it('escapes tildes that would start strikethrough or touch a mark', () => {
+    const doubled = stringifyMarkdown({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'a~~b~~c' }] }],
+    });
+    expect(parseMarkdown(doubled).content?.[0]?.content).toEqual([{ type: 'text', text: 'a~~b~~c' }]);
+
+    const touching = stringifyMarkdown({
+      type: 'doc',
+      content: [{
+        type: 'paragraph',
+        content: [
+          { type: 'text', text: 'a~' },
+          { type: 'text', text: 'b', marks: [{ type: 'strike' }] },
+        ],
+      }],
+    });
+    expect(parseMarkdown(touching).content?.[0]?.content).toEqual([
+      { type: 'text', text: 'a~' },
+      { type: 'text', text: 'b', marks: [{ type: 'strike' }] },
+    ]);
+  });
+
+  it('keeps an underscore inside a word and escapes one that could emphasize', () => {
+    expect(stringifyMarkdown(parseMarkdown('user_id 값과 사용자_이름'))).toBe('user_id 값과 사용자_이름');
+
+    const emphasis = stringifyMarkdown({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'a _b_ c' }] }],
+    });
+    expect(parseMarkdown(emphasis).content?.[0]?.content).toEqual([{ type: 'text', text: 'a _b_ c' }]);
+  });
+
+  it('writes list items without blank lines between them', () => {
+    const markdown = '- 하나\n- 둘\n\n1. 첫째\n2. 둘째\n\n- [x] 끝\n- [ ] 남음';
+    expect(stringifyMarkdown(parseMarkdown(markdown))).toBe(markdown);
+  });
+
+  it('keeps nested lists and an item with two paragraphs readable', () => {
+    const nested = '- 위\n  - 아래\n- 다음';
+    expect(stringifyMarkdown(parseMarkdown(nested))).toBe(nested);
+
+    const twoParagraphs = '- 첫 문단\n\n  둘째 문단\n- 다음';
+    const json = parseMarkdown(twoParagraphs);
+    expect(json.content?.[0]?.content?.[0]?.content).toHaveLength(2);
+    expect(parseMarkdown(stringifyMarkdown(json))).toEqual(json);
+  });
+});

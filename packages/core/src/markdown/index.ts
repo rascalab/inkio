@@ -19,6 +19,7 @@ type MdastNode = {
   depth?: number;
   ordered?: boolean;
   checked?: boolean | null;
+  spread?: boolean;
   start?: number | null;
   lang?: string | null;
   url?: string;
@@ -29,10 +30,18 @@ type MdastNode = {
   children?: MdastNode[];
 };
 
+// A single tilde is not strikethrough here, though GFM allows it: it would
+// strike the words between two ranges ("3~5일, 7~9일"). The writer uses `~~`.
 const markdownParser = unified()
   .use(remarkParse)
-  .use(remarkGfm)
+  .use(remarkGfm, { singleTilde: false })
   .use(remarkDirective);
+
+// Escapes remark adds that nothing needs: a lone tilde between other characters
+// and an underscore inside a word cannot open anything. At the edge of a text
+// node the neighbour may be a mark's delimiter, so those stay escaped.
+const NEEDLESS_TILDE_ESCAPE_RE = /(?<=[^\\~])\\~(?=[^\\~])/g;
+const NEEDLESS_UNDERSCORE_ESCAPE_RE = /(?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}])/gu;
 
 const markdownStringifier = unified()
   .use(remarkStringify, {
@@ -42,6 +51,13 @@ const markdownStringifier = unified()
     listItemIndent: 'one',
     resourceLink: true,
     strong: '*',
+    handlers: {
+      text: (node, _parent, state, info) =>
+        state
+          .safe(node.value, info)
+          .replace(NEEDLESS_TILDE_ESCAPE_RE, '~')
+          .replace(NEEDLESS_UNDERSCORE_ESCAPE_RE, '_'),
+    },
   })
   .use(remarkGfm)
   .use(remarkDirective);
@@ -547,6 +563,7 @@ function jsonParagraphToMdast(node: JSONContent): MdastNode {
 function jsonListItemToMdast(node: JSONContent, task: boolean): MdastNode {
   return {
     type: 'listItem',
+    spread: false,
     ...(task ? { checked: Boolean(node.attrs?.checked) } : {}),
     children: jsonBlocksToMdast(node.content ?? []),
   };
@@ -623,6 +640,7 @@ function jsonBlocksToMdast(nodes: JSONContent[] = []): MdastNode[] {
       case 'bulletList':
         content.push({
           type: 'list',
+          spread: false,
           ordered: false,
           children: (node.content ?? []).map((child) => jsonListItemToMdast(child, false)),
         });
@@ -630,6 +648,7 @@ function jsonBlocksToMdast(nodes: JSONContent[] = []): MdastNode[] {
       case 'orderedList':
         content.push({
           type: 'list',
+          spread: false,
           ordered: true,
           start: typeof node.attrs?.start === 'number' ? node.attrs.start : 1,
           children: (node.content ?? []).map((child) => jsonListItemToMdast(child, false)),
@@ -638,6 +657,7 @@ function jsonBlocksToMdast(nodes: JSONContent[] = []): MdastNode[] {
       case 'taskList':
         content.push({
           type: 'list',
+          spread: false,
           ordered: false,
           children: (node.content ?? []).map((child) => jsonListItemToMdast(child, true)),
         });
