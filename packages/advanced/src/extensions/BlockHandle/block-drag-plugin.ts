@@ -67,7 +67,7 @@ const createHandleElement = (label: string) => {
   handle.setAttribute('aria-label', label);
   handle.style.userSelect = 'none';
 
-  const icon = createInkioIconElement(GripVerticalIconNode, { size: 14 });
+  const icon = createInkioIconElement(GripVerticalIconNode, { size: 16, strokeWidth: 1.8 });
   handle.appendChild(icon);
 
   return handle;

@@ -99,6 +99,12 @@ export {
   LinkOffIconNode,
   XIcon,
   XIconNode,
+  PlusIcon,
+  PlusIconNode,
+  ImageIcon,
+  ImageIconNode,
+  ListTreeIcon,
+  ListTreeIconNode,
 } from './icon';
 export {
   inkioIconRegistry,

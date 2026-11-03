@@ -177,7 +177,7 @@ export function createTriggerNode<
       return {
         HTMLAttributes: {},
         suggestions: [],
-        items: () => [],
+        items: undefined,
         onError: undefined,
         onClick: undefined,
         locale: undefined,
@@ -252,13 +252,18 @@ export function createTriggerNode<
       // A multi-trigger `suggestions` list keeps the base Tiptap behavior;
       // otherwise build the single default suggestion here, where the live
       // options are directly reachable (no extensionManager lookup).
+      const suggestion = this.options.suggestion as Partial<SuggestionOptions<Item, Item>> | undefined;
+      // Without a source there is nothing to suggest: no empty popup on `@`.
+      const hasSource = Boolean(this.options.items ?? suggestion?.items);
       const suggestionPlugins = this.options.suggestions?.length
         ? (this.parent?.() ?? [])
-        : [
+        : !hasSource
+          ? []
+          : [
             Suggestion<Item, Item>({
               editor: this.editor,
               ...createTriggerSuggestion<Item>(config, () => this.options),
-              ...(this.options.suggestion as Partial<SuggestionOptions<Item, Item>> | undefined),
+              ...suggestion,
             }),
           ];
       return [

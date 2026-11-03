@@ -1,9 +1,9 @@
 import { type NodeViewProps, NodeViewContent, NodeViewWrapper } from '@tiptap/react';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { editorMessages } from '../../i18n/messages';
 import { CopyIcon, CheckIcon } from '../../icons';
 
 const POPULAR_LANGUAGES = [
-  { value: '', label: 'Plain text' },
   { value: 'typescript', label: 'TypeScript' },
   { value: 'javascript', label: 'JavaScript' },
   { value: 'tsx', label: 'TSX' },
@@ -49,6 +49,7 @@ export function legacyCopyText(text: string): boolean {
 }
 
 function CodeBlockViewInner({ node, updateAttributes, editor }: NodeViewProps) {
+  const said = useMemo(() => editorMessages(editor).codeBlock, [editor]);
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const language = (node.attrs.language as string) || '';
@@ -111,8 +112,9 @@ function CodeBlockViewInner({ node, updateAttributes, editor }: NodeViewProps) {
                 className="inkio-codeblock-lang"
                 value={language}
                 onChange={handleLanguageChange}
-                aria-label="Code block language"
+                aria-label={said.language}
               >
+                <option value="">{said.plainText}</option>
                 {POPULAR_LANGUAGES.map((lang) => (
                   <option key={lang.value} value={lang.value}>
                     {lang.label}
@@ -127,8 +129,8 @@ function CodeBlockViewInner({ node, updateAttributes, editor }: NodeViewProps) {
                 className={`inkio-codeblock-copy${copied ? ' is-copied' : ''}${copyFailed ? ' is-error' : ''}`}
                 onClick={handleCopy}
                 disabled={copied}
-                aria-label={copied ? 'Copied' : copyFailed ? 'Copy failed — try again' : 'Copy code'}
-                title={copyFailed ? 'Copy failed — browser blocked clipboard access' : undefined}
+                aria-label={copied ? said.copied : copyFailed ? said.copyFailed : said.copy}
+                title={copyFailed ? said.copyBlocked : undefined}
               >
                 {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
               </button>
@@ -143,8 +145,8 @@ function CodeBlockViewInner({ node, updateAttributes, editor }: NodeViewProps) {
                 className={`inkio-codeblock-copy${copied ? ' is-copied' : ''}${copyFailed ? ' is-error' : ''}`}
                 onClick={handleCopy}
                 disabled={copied}
-                aria-label={copied ? 'Copied' : copyFailed ? 'Copy failed — try again' : 'Copy code'}
-                title={copyFailed ? 'Copy failed — browser blocked clipboard access' : undefined}
+                aria-label={copied ? said.copied : copyFailed ? said.copyFailed : said.copy}
+                title={copyFailed ? said.copyBlocked : undefined}
               >
                 {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
               </button>

@@ -79,6 +79,8 @@ export function Editor({
   const stableUi = useStableProps(ui ?? {});
   const extensionInputs = useStableProps({
     placeholder,
+    locale,
+    messages: stableUi.messages,
     tabBehavior,
     imageBlock,
     onImageUpload,
@@ -88,6 +90,8 @@ export function Editor({
   const resolvedExtensions = useMemo(() => {
     const opts: ExtensionsOptions = {
       placeholder: extensionInputs.placeholder,
+      locale: extensionInputs.locale,
+      messages: extensionInputs.messages,
       tabBehavior: extensionInputs.tabBehavior,
     };
     const mergedImageBlock = mergeImageBlockOptions(extensionInputs.imageBlock, {

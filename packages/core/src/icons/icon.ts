@@ -47,7 +47,10 @@ import {
   Merge,
   MessageSquare,
   Minus,
+  Image as ImagePicture,
+  ListTree,
   Palette,
+  Plus,
   Pencil,
   Redo,
   RotateCcw,
@@ -268,6 +271,9 @@ export const TypeIconNode = Type as InkioIconNode;
 export const UnderlineIconNode = Underline as InkioIconNode;
 export const UndoIconNode = Undo as InkioIconNode;
 export const XIconNode = X as InkioIconNode;
+export const PlusIconNode = Plus as InkioIconNode;
+export const ImageIconNode = ImagePicture as InkioIconNode;
+export const ListTreeIconNode = ListTree as InkioIconNode;
 
 export const AlignCenterIcon = createInkioIcon(AlignCenterIconNode, 'AlignCenterIcon');
 export const AlignLeftIcon = createInkioIcon(AlignLeftIconNode, 'AlignLeftIcon');
@@ -328,3 +334,6 @@ export const UnderlineIcon = createInkioIcon(UnderlineIconNode, 'UnderlineIcon')
 export const UndoIcon = createInkioIcon(UndoIconNode, 'UndoIcon');
 export const UnlinkIcon = createInkioIcon(LinkOffIconNode, 'UnlinkIcon');
 export const XIcon = createInkioIcon(XIconNode, 'XIcon');
+export const PlusIcon = createInkioIcon(PlusIconNode, 'PlusIcon');
+export const ImageIcon = createInkioIcon(ImageIconNode, 'ImageIcon');
+export const ListTreeIcon = createInkioIcon(ListTreeIconNode, 'ListTreeIcon');

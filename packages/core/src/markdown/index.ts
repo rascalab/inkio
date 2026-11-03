@@ -344,6 +344,7 @@ function directiveToJson(node: MdastNode): JSONContent[] {
 
     return [{
       type: 'details',
+      attrs: { open: false },
       content: [
         summaryContent.length > 0
           ? { type: 'detailsSummary', content: summaryContent }
@@ -807,7 +808,7 @@ export function stringifyMarkdown(content: JSONContent): string {
 
 // Markdown copied as plain text: a block marker at the start of a line, or a
 // span only Markdown writes. Prose with a stray `*` or `-` stays prose.
-const MARKDOWN_PASTE_RE = /^ *(?:#{1,6} |[-*+] |\d+\. |> |```|\|.*\|$)|\*\*\S|~~\S|\[[^\]\n]+\]\(\S+\)/m;
+const MARKDOWN_PASTE_RE = /^ *(?:#{1,6} |[-*+] |\d+\. |> |```|\|.*\|$|-{3,} *$)|\*\*\S|~~\S|\[[^\]\n]+\]\(\S+\)/m;
 
 /**
  * Turns Markdown pasted as plain text into document content. It lives here so

@@ -203,13 +203,18 @@ describe('Mention/HashTag output parity', () => {
     expect(mention.options.renderText({ node: { attrs: { id: 'a', label: null } } })).toBe('@a');
     expect(hashTag.options.renderText({ node: { attrs: { id: 'a', label: 'b' } } })).toBe('#b');
 
-    const keys = editor.state.plugins.map((plugin) => (plugin.spec as { key?: unknown }).key);
-    expect(keys).toEqual(expect.arrayContaining([
-      MentionPluginKey,
-      HashTagPluginKey,
-      mentionClickPluginKey,
-      hashTagClickPluginKey,
-    ]));
+    // Nothing to suggest without a source: `@` opens no empty popup.
+    const pluginKeys = (one: Editor) => one.state.plugins.map((plugin) => (plugin.spec as { key?: unknown }).key);
+    expect(pluginKeys(editor)).not.toContain(MentionPluginKey);
+    expect(pluginKeys(editor)).not.toContain(HashTagPluginKey);
+    expect(pluginKeys(editor)).toEqual(expect.arrayContaining([mentionClickPluginKey, hashTagClickPluginKey]));
     editor.destroy();
+
+    const sourced = new Editor({
+      extensions: [Document, Paragraph, Text, Mention.configure({ items: () => [] }), HashTag.configure({ items: () => [] })],
+    });
+    const keys = pluginKeys(sourced);
+    expect(keys).toEqual(expect.arrayContaining([MentionPluginKey, HashTagPluginKey]));
+    sourced.destroy();
   });
 });

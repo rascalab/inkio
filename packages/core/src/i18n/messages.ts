@@ -61,7 +61,6 @@ export interface InkioCoreMessages {
   suggestion: {
     empty: string;
     list: string;
-    commands: string;
     mentions: string;
     hashtags: string;
     pages: string;
@@ -82,6 +81,39 @@ export interface InkioCoreMessages {
     | 'image',
     { label: string; description: string }
   >;
+  editor: {
+    placeholder: string;
+    formattingControls: string;
+    blockControls: string;
+  };
+  codeBlock: {
+    language: string;
+    plainText: string;
+    copy: string;
+    copied: string;
+    copyFailed: string;
+    copyBlocked: string;
+  };
+  imageBlock: {
+    caption: string;
+    alignLeft: string;
+    alignCenter: string;
+    alignRight: string;
+    edit: string;
+    loading: string;
+    uploading: string;
+    blocked: string;
+  };
+  callout: {
+    defaultColor: string;
+    icon: string;
+    blue: string;
+    yellow: string;
+    red: string;
+    green: string;
+    purple: string;
+    gray: string;
+  };
   blockHandle: {
     menu: string;
     handle: string;
@@ -159,7 +191,6 @@ export const enCoreMessages: InkioCoreMessages = {
   suggestion: {
     empty: 'No results found',
     list: 'Suggestions',
-    commands: 'Commands',
     mentions: 'Mentions',
     hashtags: 'Hashtags',
     pages: 'Pages',
@@ -217,6 +248,39 @@ export const enCoreMessages: InkioCoreMessages = {
       label: 'Image',
       description: 'Upload an image',
     },
+  },
+  editor: {
+    placeholder: 'Start typing...',
+    formattingControls: 'Formatting controls',
+    blockControls: 'Block controls',
+  },
+  codeBlock: {
+    language: 'Code block language',
+    plainText: 'Plain text',
+    copy: 'Copy code',
+    copied: 'Copied',
+    copyFailed: 'Copy failed — try again',
+    copyBlocked: 'Copy failed — browser blocked clipboard access',
+  },
+  imageBlock: {
+    caption: 'Write a caption...',
+    alignLeft: 'Align left',
+    alignCenter: 'Align center',
+    alignRight: 'Align right',
+    edit: 'Edit image',
+    loading: 'Loading...',
+    uploading: 'Uploading image',
+    blocked: 'Blocked image',
+  },
+  callout: {
+    defaultColor: 'Default',
+    icon: 'Icon',
+    blue: 'Blue',
+    yellow: 'Yellow',
+    red: 'Red',
+    green: 'Green',
+    purple: 'Purple',
+    gray: 'Gray',
   },
   blockHandle: {
     menu: 'Block actions',
@@ -354,7 +418,6 @@ export const koCoreMessages: InkioCoreMessages = {
   suggestion: {
     empty: '검색 결과 없음',
     list: '추천 항목',
-    commands: '명령어',
     mentions: '멘션',
     hashtags: '해시태그',
     pages: '페이지',
@@ -413,6 +476,39 @@ export const koCoreMessages: InkioCoreMessages = {
       description: '이미지 올리기',
     },
   },
+  editor: {
+    placeholder: '내용을 입력하세요',
+    formattingControls: '서식 도구',
+    blockControls: '블록 도구',
+  },
+  codeBlock: {
+    language: '코드 언어',
+    plainText: '일반 텍스트',
+    copy: '코드 복사',
+    copied: '복사됨',
+    copyFailed: '복사 실패. 다시 시도하세요.',
+    copyBlocked: '복사 실패. 브라우저가 클립보드 접근을 막았습니다.',
+  },
+  imageBlock: {
+    caption: '캡션 입력',
+    alignLeft: '왼쪽 정렬',
+    alignCenter: '가운데 정렬',
+    alignRight: '오른쪽 정렬',
+    edit: '이미지 편집',
+    loading: '불러오는 중…',
+    uploading: '이미지 올리는 중',
+    blocked: '차단된 이미지',
+  },
+  callout: {
+    defaultColor: '기본',
+    icon: '아이콘',
+    blue: '파랑',
+    yellow: '노랑',
+    red: '빨강',
+    green: '초록',
+    purple: '보라',
+    gray: '회색',
+  },
   blockHandle: {
     menu: '블록 작업',
     handle: '블록 핸들',
@@ -450,6 +546,18 @@ export function resolveCoreMessages(
 ): InkioCoreMessages {
   const locale = pickMessageLocale(localeInput, Object.keys(CORE_MESSAGESETS));
   return deepMerge((CORE_MESSAGESETS as Record<string, InkioCoreMessages>)[locale] ?? enCoreMessages, overrides);
+}
+
+/**
+ * The messages of the locale an editor's extensions were built with. For node
+ * views and plugins, which have the editor but sit outside the React props that
+ * menus receive. Falls back to English when the app replaced the extension set.
+ */
+export function editorMessages(editor: { storage?: unknown }): InkioCoreMessages {
+  const { inkioLocale } = (editor.storage ?? {}) as {
+    inkioLocale?: { locale?: unknown; messages?: InkioCoreMessageOverrides | InkioMessageOverrides };
+  };
+  return resolveCoreMessages(inkioLocale?.locale, toCoreMessageOverrides(inkioLocale?.messages));
 }
 
 export function mergeCoreMessages(

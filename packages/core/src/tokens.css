@@ -89,7 +89,7 @@
 
   /* Shared chrome surface system */
   --inkio-surface-shell: color-mix(in srgb, var(--inkio-bg) 84%, rgba(15, 23, 42, 0.18));
-  --inkio-surface-panel: color-mix(in srgb, var(--inkio-bg) 92%, rgba(15, 23, 42, 0.12));
+  --inkio-surface-panel: color-mix(in srgb, var(--inkio-bg) 99%, rgb(15, 23, 42));
   --inkio-surface-field: color-mix(in srgb, var(--inkio-bg) 96%, rgba(15, 23, 42, 0.08));
   --inkio-surface-border: color-mix(in srgb, var(--inkio-border) 72%, transparent);
   --inkio-surface-border-strong: color-mix(in srgb, var(--inkio-border) 90%, transparent);
@@ -235,7 +235,7 @@
   --inkio-dark-ring: 0 0 0 3px rgba(0, 144, 255, 0.2);
 
   /* Code — slateDark 1/12 */
-  --inkio-dark-code-bg: #111113;
+  --inkio-dark-code-bg: #18191b;
   --inkio-dark-code-text: #edeef0;
 
   /* Callout Colors */

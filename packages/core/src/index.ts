@@ -106,6 +106,7 @@ export type {
 // Overlay positioning
 export {
   computeOverlayPosition,
+  fixedOrigin,
   autoUpdateOverlayPosition,
   toRectLike,
 } from './overlay/positioning';

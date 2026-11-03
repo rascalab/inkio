@@ -328,6 +328,21 @@ export function autoUpdateOverlayPosition({ update, elements = [] }: OverlayAuto
   };
 }
 
+/**
+ * Where viewport (0, 0) lands for a `position: fixed` element placed beside
+ * `element`. A transform or filter on an ancestor makes that ancestor the
+ * containing block, so viewport coordinates would be off by its offset and
+ * drift as the page scrolls. Subtract this from them.
+ */
+export function fixedOrigin(element: Element): { x: number; y: number } {
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;visibility:hidden';
+  (element.parentElement ?? document.body).appendChild(probe);
+  const { left, top } = probe.getBoundingClientRect();
+  probe.remove();
+  return { x: left, y: top };
+}
+
 export function toRectLike(rect: DOMRect | ClientRect | RectLike): RectLike {
   return {
     top: rect.top,

@@ -324,7 +324,7 @@ test('slash menu speaks the editor locale and finds a command typed in Korean', 
   await page.keyboard.press('Enter');
 
   await page.keyboard.type('/');
-  await expect(page.locator('.inkio-suggestion-header')).toHaveText('명령어');
+  await expect(page.locator('.inkio-suggestion-header')).toHaveCount(0);
   await expect(page.getByRole('listbox', { name: '추천 항목' })).toBeVisible();
 
   await compose(page, 'ㅍ', '표');
@@ -510,4 +510,125 @@ test('a table inserted from the menu takes Korean and Tab moves between cells', 
   await expect(table.locator('th').nth(0)).toHaveText('이름');
   await expect(table.locator('th').nth(1)).toHaveText('값');
   await expect(table.locator('tr')).toHaveCount(3);
+});
+
+test.describe('editor surfaces', () => {
+  test.skip(({ browserName }) => browserName !== 'chromium', 'layout and synthetic paste are checked once');
+
+  const long = Array.from({ length: 40 }, (_, i) => `문단 ${i}`).join('\n\n');
+
+  async function replaceWith(page: import('@playwright/test').Page, markdown: string) {
+    const editor = blockEditor(page);
+    await editor.evaluate((root, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData('text/plain', text);
+      (root as unknown as { editor: { commands: { clearContent: () => void; focus: () => void } } }).editor.commands.clearContent();
+      (root as unknown as { editor: { commands: { focus: () => void } } }).editor.commands.focus();
+      root.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }));
+    }, markdown);
+    // Tiptap moves focus on the next frame; keys sent before it race the caret.
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  }
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto('http://localhost:4174/block-e2e');
+    await expect(blockEditor(page)).toContainText('끝 문단');
+  });
+
+  test('a task checkbox sits on the line of its text', async ({ page }) => {
+    await replaceWith(page, '- [ ] 할 일');
+    const gap = await page.evaluate(() => {
+      const box = document.querySelector('.inkio-task-checkbox-btn')!.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(document.querySelector('.ProseMirror li p')!);
+      const text = range.getBoundingClientRect();
+      return Math.abs(box.top + box.height / 2 - (text.top + text.height / 2));
+    });
+    expect(gap).toBeLessThan(2);
+  });
+
+  test('table headers line up with their column', async ({ page }) => {
+    await replaceWith(page, '| 이름 | 값 |\n| --- | --- |\n| 기간 | 3~5일 |');
+    await expect(page.locator('.ProseMirror th').first()).toHaveCSS('text-align', 'start');
+  });
+
+  test('overlays follow a page scrolled under a filtered ancestor', async ({ page }) => {
+    await replaceWith(page, `${long}\n\n| 이름 | 값 |\n| --- | --- |\n| 기간 | 3~5일 |\n\n마지막`);
+
+    const cell = page.locator('.ProseMirror td').first();
+    await cell.scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => scrollY)).toBeGreaterThan(100);
+    await cell.hover();
+    const plus = page.locator('.inkio-table-insert--column').first();
+    await expect(plus).toBeVisible();
+    const table = (await page.locator('.ProseMirror table').boundingBox())!;
+    expect(Math.abs((await plus.boundingBox())!.y - table.y)).toBeLessThan(40);
+
+    const box = (await cell.boundingBox())!;
+    await page.mouse.click(box.x + 20, box.y + 10, { button: 'right' });
+    // Under the pointer, or shifted up only as far as the viewport requires.
+    const menu = (await page.locator('.inkio-table-context-menu').boundingBox())!;
+    expect(menu.y).toBeLessThanOrEqual(box.y + 10);
+    expect(menu.y + menu.height).toBeGreaterThanOrEqual(box.y + 10);
+  });
+
+  test('the formatting menu follows a page scrolled under a filtered ancestor', async ({ page }) => {
+    await replaceWith(page, `${long}\n\n마지막`);
+    const last = page.locator('.ProseMirror p', { hasText: '마지막' });
+    await last.scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => scrollY)).toBeGreaterThan(100);
+    const line = (await last.boundingBox())!;
+    await page.mouse.move(line.x + 2, line.y + line.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(line.x + 60, line.y + line.height / 2, { steps: 6 });
+    await page.mouse.up();
+    const bubble = page.locator('.inkio-floating-overlay.is-visible .inkio-bubble-menu');
+    await expect(bubble).toBeVisible();
+    expect(Math.abs((await bubble.boundingBox())!.y - (await last.boundingBox())!.y)).toBeLessThan(80);
+  });
+
+  test('a new toggle opens, and Enter in its summary goes inside', async ({ page }) => {
+    await replaceWith(page, '가');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('/토글');
+    await expect(page.getByRole('option')).toHaveCount(1);
+    await page.keyboard.press('Enter');
+    await expect(blockEditor(page).locator('[data-type="detailsContent"]')).toBeVisible();
+    await page.keyboard.type('요약');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('내용');
+    await expect(blockEditor(page).locator('[data-type="detailsContent"]')).toHaveText('내용');
+    await expect(blockEditor(page).locator('[data-type="detailsContent"]')).toBeVisible();
+  });
+
+  test('@ opens nothing when the app gave no mentions', async ({ page }) => {
+    await replaceWith(page, '가');
+    await page.keyboard.type(' @가');
+    await page.waitForTimeout(300);
+    await expect(page.locator('.inkio-suggestion-container')).toHaveCount(0);
+  });
+
+  test('a divider alone pastes as a divider', async ({ page }) => {
+    await replaceWith(page, '가\n\n---\n\n나');
+    await expect(blockEditor(page).locator('hr')).toHaveCount(1);
+  });
+
+  test('Enter right after opening the block menu keeps the block', async ({ page }) => {
+    await blockEditor(page).getByText('앞 문단', { exact: true }).hover();
+    await page.locator('[aria-label="블록 핸들"]').click();
+    const menu = page.locator('.inkio-block-handle-action-menu');
+    await expect(menu).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(blockEditor(page)).toContainText('앞 문단');
+
+    await page.keyboard.press('ArrowDown');
+    await expect(menu.getByRole('menuitem').first()).toBeFocused();
+  });
+
+  test('an empty editor asks in its locale', async ({ page }) => {
+    await blockEditor(page).evaluate((root) => {
+      (root as unknown as { editor: { commands: { clearContent: () => void } } }).editor.commands.clearContent();
+    });
+    await expect(blockEditor(page).locator('p').first()).toHaveAttribute('data-placeholder', '내용을 입력하세요');
+  });
 });

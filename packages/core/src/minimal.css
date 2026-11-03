@@ -83,6 +83,7 @@
 
 .inkio .inkio-content p {
   line-height: 1.75;
+  margin-top: 0;
   margin-bottom: 0.75rem;
 }
 
@@ -368,6 +369,7 @@
 .inkio .inkio-content td,
 .inkio .inkio-content th {
   vertical-align: top;
+  text-align: start;
   box-sizing: border-box;
   position: relative;
   min-width: 200px;

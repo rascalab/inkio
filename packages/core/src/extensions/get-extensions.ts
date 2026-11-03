@@ -38,6 +38,13 @@ import type { ImageBlockOptions } from './ImageBlock';
 import { LinkClickHandler } from './LinkClickHandler';
 import type { LinkClickHandlerOptions } from './LinkClickHandler';
 import { Details, DetailsContent, DetailsSummary } from '@tiptap/extension-details';
+import {
+  resolveCoreMessages,
+  toCoreMessageOverrides,
+  type InkioCoreMessageOverrides,
+  type InkioLocaleInput,
+  type InkioMessageOverrides,
+} from '../i18n/messages';
 import { Table } from '@tiptap/extension-table';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
@@ -51,6 +58,10 @@ import { isSafeUrl } from '../utils/url-safety';
 export interface CoreExtensionOptions {
   /** Placeholder text shown when the editor is empty */
   placeholder?: string;
+  /** Locale of the words node views and the default placeholder show */
+  locale?: InkioLocaleInput;
+  /** Message overrides for those words */
+  messages?: InkioCoreMessageOverrides | InkioMessageOverrides;
   /** Set to `false` to disable heading, or pass `{ levels }` to customize */
   heading?: false | { levels: number[] };
   /** Set to `false` to disable bold */
@@ -119,9 +130,32 @@ export interface CoreExtensionOptions {
   tocBlock?: false | { maxLevel?: number };
 }
 
+// A closed toggle hides what comes next: Enter in its summary would leave it.
+// So one just inserted is open; a document says what its own toggles are.
+const OpenOnInsertDetails = Details.extend({
+  addAttributes() {
+    const parent = (this.parent?.() ?? {}) as Record<string, object>;
+    return { ...parent, open: { ...parent.open, default: true } };
+  },
+});
+
+const InkioLocale = Extension.create<Pick<CoreExtensionOptions, 'locale' | 'messages'>>({
+  name: 'inkioLocale',
+
+  addOptions() {
+    return { locale: undefined, messages: undefined };
+  },
+
+  addStorage() {
+    return { locale: this.options.locale, messages: this.options.messages };
+  },
+});
+
 export const getExtensions = (options: CoreExtensionOptions = {}) => {
   const {
     placeholder,
+    locale,
+    messages,
     heading,
     bold,
     italic,
@@ -160,8 +194,10 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
     Dropcursor,
     Gapcursor,
     Placeholder.configure({
-      placeholder: placeholder || 'Start typing...',
+      placeholder: placeholder
+        || resolveCoreMessages(locale, toCoreMessageOverrides(messages)).editor.placeholder,
     }),
+    InkioLocale.configure({ locale, messages }),
   ];
 
   // Optional marks
@@ -274,7 +310,7 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
 
   if (toggleList !== false) {
     extensions.push(
-      Details.configure({ persist: true, HTMLAttributes: {} }),
+      OpenOnInsertDetails.configure({ persist: true, HTMLAttributes: {} }),
       DetailsSummary,
       DetailsContent,
       DetailsShortcut,

@@ -1,7 +1,8 @@
 import type { Editor } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { editorMessages } from '../i18n/messages';
 import { createOverlayHost, type OverlayHost } from '../utils/overlay-host';
 import {
   autoUpdateOverlayPosition,
@@ -12,12 +13,12 @@ import {
 export const calloutToolbarPluginKey = new PluginKey('calloutToolbar');
 
 const COLORS = [
-  { name: 'blue', label: 'Blue' },
-  { name: 'yellow', label: 'Yellow' },
-  { name: 'red', label: 'Red' },
-  { name: 'green', label: 'Green' },
-  { name: 'purple', label: 'Purple' },
-  { name: 'gray', label: 'Gray' },
+  'blue',
+  'yellow',
+  'red',
+  'green',
+  'purple',
+  'gray',
 ] as const;
 
 interface CalloutToolbarProps {
@@ -27,6 +28,7 @@ interface CalloutToolbarProps {
 }
 
 export function CalloutToolbar({ editor, currentColor, currentIcon }: CalloutToolbarProps) {
+  const said = useMemo(() => editorMessages(editor).callout, [editor]);
   const [iconValue, setIconValue] = useState(currentIcon || '');
   // The toolbar instance outlives the selected callout: follow prop changes
   // or the input keeps showing the previous block's icon.
@@ -68,8 +70,8 @@ export function CalloutToolbar({ editor, currentColor, currentIcon }: CalloutToo
           type="button"
           className={`inkio-callout-color-btn ${!currentColor ? 'is-active' : ''}`}
           onClick={() => setColor(null)}
-          aria-label="Default"
-          title="Default"
+          aria-label={said.defaultColor}
+          title={said.defaultColor}
         >
           <span
             className="inkio-callout-color-swatch"
@@ -81,16 +83,16 @@ export function CalloutToolbar({ editor, currentColor, currentIcon }: CalloutToo
         </button>
         {COLORS.map((c) => (
           <button
-            key={c.name}
+            key={c}
             type="button"
-            className={`inkio-callout-color-btn ${currentColor === c.name ? 'is-active' : ''}`}
-            onClick={() => setColor(c.name)}
-            aria-label={c.label}
-            title={c.label}
+            className={`inkio-callout-color-btn ${currentColor === c ? 'is-active' : ''}`}
+            onClick={() => setColor(c)}
+            aria-label={said[c]}
+            title={said[c]}
           >
             <span
               className="inkio-callout-color-swatch"
-              style={{ background: `var(--inkio-callout-${c.name})` }}
+              style={{ background: `var(--inkio-callout-${c})` }}
             />
           </button>
         ))}
@@ -100,7 +102,7 @@ export function CalloutToolbar({ editor, currentColor, currentIcon }: CalloutToo
           type="text"
           className="inkio-callout-icon-input"
           value={iconValue}
-          placeholder="Icon"
+          placeholder={said.icon}
           maxLength={2}
           onChange={(e) => {
             setIconValue(e.target.value);

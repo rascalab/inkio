@@ -24,6 +24,7 @@ import {
 import {
   autoUpdateOverlayPosition,
   computeOverlayPosition,
+  fixedOrigin,
 } from '../overlay/positioning';
 
 
@@ -130,7 +131,8 @@ export const FloatingMenu = ({
       boundaryRect,
     });
 
-    setPosition({ top: nextPosition.top, left: nextPosition.left });
+    const origin = fixedOrigin(editor.view.dom);
+    setPosition({ top: nextPosition.top - origin.y, left: nextPosition.left - origin.x });
     setIsVisible(true);
   }, [editor]);
 
@@ -300,7 +302,7 @@ export const FloatingMenu = ({
       <div
         className="inkio-bubble-menu"
         role="toolbar"
-        aria-label="Block controls"
+        aria-label={ui.messages.editor.blockControls}
       >
         {actionGroups.map((group, groupIndex) => (
           <Fragment key={`${group[0]?.group ?? 'group'}-${groupIndex}`}>

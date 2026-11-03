@@ -396,6 +396,9 @@
   border-radius: var(--inkio-radius-md);
   padding: 0.25rem;
   display: flex;
+  flex-wrap: wrap;
+  max-width: calc(100vw - 1rem);
+  box-sizing: border-box;
   align-items: center;
   gap: 0.125rem;
   z-index: var(--inkio-layer-overlay);

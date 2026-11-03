@@ -25,6 +25,7 @@ import { useInkioCoreUi } from '../context/use-inkio-ui';
 import {
   autoUpdateOverlayPosition,
   computeOverlayPosition,
+  fixedOrigin,
 } from '../overlay/positioning';
 
 export interface BubbleMenuProps {
@@ -115,7 +116,8 @@ export const BubbleMenu = ({
       boundaryRect,
     });
 
-    setPosition({ top: nextPosition.top, left: nextPosition.left });
+    const origin = fixedOrigin(editor.view.dom);
+    setPosition({ top: nextPosition.top - origin.y, left: nextPosition.left - origin.x });
     setIsVisible(true);
   }, [editor]);
 
@@ -271,7 +273,7 @@ export const BubbleMenu = ({
         left: position.left,
       }}
     >
-      <div className="inkio-bubble-menu" role="toolbar" aria-label="Formatting controls" onKeyDown={handleToolbarKeyDown}>
+      <div className="inkio-bubble-menu" role="toolbar" aria-label={ui.messages.editor.formattingControls} onKeyDown={handleToolbarKeyDown}>
         {actionGroups.map((group, groupIndex) => (
           <Fragment key={`${group[0]?.group ?? 'group'}-${groupIndex}`}>
             {groupIndex > 0 && <div className="inkio-bubble-divider" />}

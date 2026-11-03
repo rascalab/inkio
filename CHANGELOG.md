@@ -19,8 +19,17 @@ Versioning is unified across the publishable Inkio packages.
 
 ### Fixed
 
-- the slash menu and the `@`, `#`, `[[` popups follow `locale` and `messages`: their header, empty state and list name, and the default slash commands, which are found by those words (`/표`). They stayed English before, and `/표` found nothing.
+- the slash menu and the `@`, `#`, `[[` popups follow `locale` and `messages`: their header, empty state and list name, and the default slash commands, which are found by those words (`/표`). They stayed English before, and `/표` found nothing. The slash menu no longer has a "Commands" header.
 - `transformSlashCommands` receives the whole default list as documented. It got the list already filtered by the query against the English labels, so a renamed item could not match.
+- the words node views show (code block, image block, callout toolbar), the default placeholder and the menus' accessible names follow `locale` and `messages`.
+- a task checkbox lines up with its text, table headers with their column, and paragraphs no longer rely on the page's CSS reset to drop the browser's top margin. In a page without one every list item, quote and table cell sat 16px low.
+- the formatting and floating menus and the table controls land where they belong on a scrolled page when an ancestor has a transform or filter, which made them drift off screen.
+- a toggle just inserted is open, so Enter in its summary goes inside. Toggles read from a document keep their state; ones from markdown stay closed.
+- `@` opens no empty popup when the app supplies no mention source.
+- `MarkdownPaste` treats a line of `---` as Markdown.
+- the code block background is distinct from the page in dark mode, and the floating menu wraps instead of overflowing a narrow screen.
+- icons: everything draws from `@inkio/core/icons`. The table plus and the text color clear were hand-drawn, the toggle arrow a CSS triangle, and the block menu and floating menu showed different icons for callout. Default slash commands now carry the same icons as those menus. Menu icons are all 16px at stroke 1.8.
+- the block menu opens with focus on the menu instead of its first item, delete, so Enter right after opening no longer removes the block. Arrow keys enter the list. Popups and menus are opaque, so text behind them no longer shows through.
 - a block dragged by its handle onto a list lands between the items and splits the list, instead of being merged into an item.
 - suggestion popups (`@`, `#`, `/`, `[[`) no longer flash "No results found" on every keystroke. Tiptap 3.31 reports each query with a loading pass before its result and the popup rendered that pass as an empty list; it now keeps the previous list until the result arrives and stays hidden before the first one.
 - markdown export: a document containing an image was written without blank lines between blocks, so re-importing it merged the whole document into one paragraph. Images are now exported as their own paragraph.

@@ -92,7 +92,7 @@ describe('slash menu in the editor locale', () => {
     expect(items.map((item) => item.id)).toEqual(['heading1']);
   });
 
-  it('says the popup header and empty state in the locale', async () => {
+  it('has no header and says its empty state in the locale', async () => {
     const editor = createEditor(SlashCommand.configure({ locale: 'ko' }));
     const { options } = captured.find((entry) => entry.editor === editor)!;
 
@@ -103,7 +103,9 @@ describe('slash menu in the editor locale', () => {
       clientRect: () => null,
     } as never);
 
-    expect(hostRender.mock.calls[0][0].props).toMatchObject({ header: '명령어', locale: 'ko' });
+    const { props } = hostRender.mock.calls[0][0];
+    expect(props.header).toBeUndefined();
+    expect(props.locale).toBe('ko');
   });
 
   it('reaches every popup through getDefaultExtensions', () => {

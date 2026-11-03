@@ -106,8 +106,8 @@ describe('SuggestionPopup words', () => {
   }
 
   it('picks the header from the locale messages', () => {
-    expect(firstRender({ header: (said) => said.commands, locale: 'ko' }).header).toBe('명령어');
-    expect(firstRender({ header: (said) => said.commands }).header).toBe('Commands');
+    expect(firstRender({ header: (said) => said.mentions, locale: 'ko' }).header).toBe('멘션');
+    expect(firstRender({ header: (said) => said.mentions }).header).toBe('Mentions');
   });
 
   it('keeps a header given as text', () => {

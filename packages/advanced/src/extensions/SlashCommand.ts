@@ -1,7 +1,13 @@
 import { Extension, type Editor, type Range } from '@tiptap/core';
 import Suggestion, { type SuggestionOptions } from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
-import type { ReactNode } from 'react';
+import { createElement, type ComponentType, type ReactNode } from 'react';
+import {
+  ImageIcon,
+  ListTreeIcon,
+  resolveIconRegistry,
+  type InkioIconRegistry,
+} from '@inkio/core/icons';
 import {
   createLatestWinsItems,
   createSuggestionRenderer,
@@ -51,6 +57,8 @@ export interface SlashCommandOptions {
   locale?: InkioLocaleInput;
   /** Message overrides for the default items and the popup's own words */
   messages?: InkioCoreMessageOverrides | InkioMessageOverrides;
+  /** Icon overrides for the default items */
+  icons?: Partial<InkioIconRegistry>;
 }
 
 export const SlashCommandPluginKey = new PluginKey('slashCommand');
@@ -291,10 +299,26 @@ export const defaultSlashCommands: SlashCommandItem[] = [
 function localizedSlashCommands(
   locale: SlashCommandOptions['locale'],
   messages: SlashCommandOptions['messages'],
+  icons: SlashCommandOptions['icons'],
 ): SlashCommandItem[] {
   const said: Record<string, { label: string; description: string }> =
     mergeCoreMessages(locale, toCoreMessageOverrides(messages)).slashCommand;
-  return defaultSlashCommands.map((item) => ({ ...item, ...said[item.id] }));
+  const registry = resolveIconRegistry(icons);
+  // The same icon each action has in the other menus; two have no action there.
+  const iconOf: Record<string, ComponentType<{ size?: number; strokeWidth?: number }> | undefined> = {
+    ...registry,
+    numberedList: registry.orderedList,
+    toc: ListTreeIcon,
+    image: ImageIcon,
+  };
+  return defaultSlashCommands.map((item) => {
+    const Icon = iconOf[item.id];
+    return {
+      ...item,
+      ...said[item.id],
+      ...(Icon ? { icon: createElement(Icon, { size: 16, strokeWidth: 1.8 }) } : {}),
+    };
+  });
 }
 
 export const SlashCommand = Extension.create<SlashCommandOptions>({
@@ -310,12 +334,13 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
       onError: undefined,
       locale: undefined,
       messages: undefined,
+      icons: undefined,
     };
   },
 
   addProseMirrorPlugins() {
-    const { items, transformItems, onError, locale, messages } = this.options;
-    const defaults = localizedSlashCommands(locale, messages);
+    const { items, transformItems, onError, locale, messages, icons } = this.options;
+    const defaults = localizedSlashCommands(locale, messages, icons);
     // One sequence cell per plugin instance (i.e. per editor) so
     // interleaved editors never drop each other's results.
     const latest = { value: 0 };
@@ -369,11 +394,7 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
           // Allow slash command in paragraph at root, in callout, or in toggle list
           return isParagraph && (isRootDepth || isInCalloutOrToggle) && isStartOfNode;
         },
-        render: createSuggestionRenderer<SlashCommandItem>({
-          header: (said) => said.commands,
-          locale,
-          messages,
-        }),
+        render: createSuggestionRenderer<SlashCommandItem>({ locale, messages }),
         ...this.options.suggestion,
       }),
     ];

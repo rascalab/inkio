@@ -332,10 +332,12 @@ export const BlockHandleActionMenu = ({
 
   // The menu root is reused across blocks (menuRoot.render reuses the mounted
   // component), so reset keyboard state whenever the target block changes.
+  // Focus rests on the menu, not an item: the first item is delete, and Enter
+  // right after opening must not take the block. Arrow keys enter the list.
   useEffect(() => {
-    setActiveIndex(0);
+    setActiveIndex(-1);
     const frame = requestAnimationFrame(() => {
-      itemRefs.current[0]?.focus();
+      menuRef.current?.focus();
     });
     return () => cancelAnimationFrame(frame);
   }, [blockPos]);
@@ -408,7 +410,7 @@ export const BlockHandleActionMenu = ({
 
       if (event.key === 'ArrowUp') {
         event.preventDefault();
-        navigate(activeIndex - 1);
+        navigate(activeIndex === -1 ? menuItems.length - 1 : activeIndex - 1);
         return;
       }
 
@@ -444,6 +446,7 @@ export const BlockHandleActionMenu = ({
       className="inkio-block-handle-action-menu"
       style={{ top: position.top, left: position.left }}
       role="menu"
+      tabIndex={-1}
       aria-label={ui.messages.blockHandle.menu}
       onKeyDown={handleKeyDown}
     >

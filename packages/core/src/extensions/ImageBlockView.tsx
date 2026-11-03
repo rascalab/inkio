@@ -1,5 +1,6 @@
 import { NodeViewWrapper, NodeViewProps } from '@tiptap/react';
-import React, { memo, useRef, useState, useEffect, useCallback, Suspense } from 'react';
+import React, { memo, useMemo, useRef, useState, useEffect, useCallback, Suspense } from 'react';
+import { editorMessages } from '../i18n/messages';
 import {
   AlignCenterIcon,
   AlignLeftIcon,
@@ -31,6 +32,7 @@ export const IMAGE_BLOCK_CAPTION_DEBOUNCE_MS = 600;
 
 function ImageBlockViewInner(props: NodeViewProps) {
   const { node, updateAttributes, selected, editor, extension } = props;
+  const said = useMemo(() => editorMessages(editor).imageBlock, [editor]);
   const ImageEditorComponent = (extension?.options as any)?.imageEditor as React.ComponentType<ImageEditorComponentProps> | undefined;
   // Track editability via subscription (not render-time read) so the memo
   // below stays exact: same value bails out of setState on every keystroke,
@@ -177,7 +179,7 @@ function ImageBlockViewInner(props: NodeViewProps) {
         style={{ width: `${currentWidth}%` }}
       >
         {isUploading ? (
-          <div className="inkio-image-block-placeholder" role="img" aria-label={node.attrs.alt || 'Uploading image'}>
+          <div className="inkio-image-block-placeholder" role="img" aria-label={node.attrs.alt || said.uploading}>
             <Loader2Icon size={20} className="inkio-image-block-editor-spinner" />
           </div>
         ) : safeSrc ? (
@@ -188,7 +190,7 @@ function ImageBlockViewInner(props: NodeViewProps) {
             className="inkio-image-block-img"
           />
         ) : (
-          <div className="inkio-image-block-placeholder" role="img" aria-label={node.attrs.alt || 'Blocked image'} />
+          <div className="inkio-image-block-placeholder" role="img" aria-label={node.attrs.alt || said.blocked} />
         )}
 
         {/* Resize Handle - Editor only, hidden when image editor is open */}
@@ -203,7 +205,7 @@ function ImageBlockViewInner(props: NodeViewProps) {
         {isEditable ? (
           <input
             type="text"
-            placeholder="Write a caption..."
+            placeholder={said.caption}
             className="inkio-image-block-caption"
             value={captionDraft}
             onChange={(e) => handleCaptionChange(e.target.value)}
@@ -220,7 +222,7 @@ function ImageBlockViewInner(props: NodeViewProps) {
               type="button"
               onClick={() => updateAttributes({ align: 'left' })}
               className={`inkio-image-block-toolbar-btn${node.attrs.align === 'left' ? ' is-active' : ''}`}
-              title="Align left"
+              title={said.alignLeft}
             >
               <AlignLeftIcon size={14} strokeWidth={1.8} />
             </button>
@@ -228,7 +230,7 @@ function ImageBlockViewInner(props: NodeViewProps) {
               type="button"
               onClick={() => updateAttributes({ align: 'center' })}
               className={`inkio-image-block-toolbar-btn${node.attrs.align === 'center' ? ' is-active' : ''}`}
-              title="Align center"
+              title={said.alignCenter}
             >
               <AlignCenterIcon size={14} strokeWidth={1.8} />
             </button>
@@ -236,7 +238,7 @@ function ImageBlockViewInner(props: NodeViewProps) {
               type="button"
               onClick={() => updateAttributes({ align: 'right' })}
               className={`inkio-image-block-toolbar-btn${node.attrs.align === 'right' ? ' is-active' : ''}`}
-              title="Align right"
+              title={said.alignRight}
             >
               <AlignRightIcon size={14} strokeWidth={1.8} />
             </button>
@@ -246,7 +248,7 @@ function ImageBlockViewInner(props: NodeViewProps) {
                 type="button"
                 onClick={() => setIsEditorOpen(true)}
                 className="inkio-image-block-toolbar-btn"
-                title="Edit image"
+                title={said.edit}
                 data-testid="inkio-image-block-edit"
               >
                 <PencilIcon size={14} strokeWidth={1.8} />
@@ -262,7 +264,7 @@ function ImageBlockViewInner(props: NodeViewProps) {
           fallback={
             <div className="inkio-image-block-editor-loading">
               <Loader2Icon size={20} className="inkio-image-block-editor-spinner" />
-              <span>Loading...</span>
+              <span>{said.loading}</span>
             </div>
           }
         >

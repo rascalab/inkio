@@ -7,7 +7,8 @@ import type {
   InkioMessageOverrides,
 } from '../i18n/messages';
 import { useInkioCoreUi } from '../context/use-inkio-ui';
-import { autoUpdateOverlayPosition, computeOverlayPosition } from '../overlay/positioning';
+import { PlusIcon } from '../icons';
+import { autoUpdateOverlayPosition, computeOverlayPosition, fixedOrigin } from '../overlay/positioning';
 import { useDismissableLayer } from '../overlay/use-dismissable-layer';
 import {
   canExecuteTableAction,
@@ -35,10 +36,12 @@ type TableMetrics = {
   bottom: number;
   left: number;
   right: number;
+  /** Subtract from the viewport coordinates above when placing a fixed element. */
+  origin: { x: number; y: number };
 };
 
 type HoverState = { axis: 'column' | 'row'; index: number };
-type ContextMenuState = { x: number; y: number };
+type ContextMenuState = { x: number; y: number; origin: { x: number; y: number } };
 type ContextMenuEntry = { kind: 'action'; id: InkioTableActionId } | { kind: 'separator' };
 
 const CONTEXT_MENU_ENTRIES: ContextMenuEntry[] = [
@@ -57,7 +60,7 @@ const CONTEXT_MENU_HEIGHT = 264;
 const CONTEXT_MENU_GUTTER = 8;
 
 /** Place the context menu at the pointer, shifted inside the viewport gutter. */
-function placeContextMenu(x: number, y: number, width: number, height: number): ContextMenuState {
+function placeContextMenu(x: number, y: number, width: number, height: number): Omit<ContextMenuState, 'origin'> {
   const next = computeOverlayPosition({
     anchorRect: { top: y, bottom: y, left: x, right: x, width: 0, height: 0 },
     floatingRect: { width, height },
@@ -69,14 +72,6 @@ function placeContextMenu(x: number, y: number, width: number, height: number): 
     shift: true,
   });
   return { x: next.left, y: next.top };
-}
-
-function PlusGlyph() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
-      <path d="M6 2.5v7M2.5 6h7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
 }
 
 function resolveActiveTable(editor: Editor): HTMLTableElement | null {
@@ -91,7 +86,7 @@ function resolveActiveTable(editor: Editor): HTMLTableElement | null {
   return (element?.closest('table') as HTMLTableElement | null) ?? null;
 }
 
-function measureTable(table: HTMLTableElement): TableMetrics | null {
+function measureTable(table: HTMLTableElement): Omit<TableMetrics, 'origin'> | null {
   const allRows = Array.from(table.rows);
   if (allRows.length === 0 || allRows.every((row) => row.cells.length === 0)) {
     return null;
@@ -160,7 +155,8 @@ export const TableMenu = ({
     }
 
     tableRef.current = target;
-    setMetrics(target ? measureTable(target) : null);
+    const measured = target ? measureTable(target) : null;
+    setMetrics(measured && { ...measured, origin: fixedOrigin(editor.view.dom) });
   }, [editor]);
 
   const cancelHoverClear = useCallback(() => {
@@ -275,7 +271,10 @@ export const TableMenu = ({
       const pos = editor.view.posAtDOM(textblock, 0);
       editor.chain().focus(undefined, { scrollIntoView: false }).setTextSelection(pos).run();
       setContextMenu(
-        placeContextMenu(event.clientX, event.clientY, CONTEXT_MENU_WIDTH, CONTEXT_MENU_HEIGHT),
+        {
+          ...placeContextMenu(event.clientX, event.clientY, CONTEXT_MENU_WIDTH, CONTEXT_MENU_HEIGHT),
+          origin: fixedOrigin(dom),
+        },
       );
     };
 
@@ -409,13 +408,13 @@ export const TableMenu = ({
               style={
                 hover.axis === 'column'
                   ? {
-                      left: metrics.columns[hover.index],
-                      top: metrics.top,
+                      left: metrics.columns[hover.index] - metrics.origin.x,
+                      top: metrics.top - metrics.origin.y,
                       height: metrics.bottom - metrics.top,
                     }
                   : {
-                      top: metrics.rows[hover.index],
-                      left: metrics.left,
+                      top: metrics.rows[hover.index] - metrics.origin.y,
+                      left: metrics.left - metrics.origin.x,
                       width: metrics.right - metrics.left,
                     }
               }
@@ -432,7 +431,7 @@ export const TableMenu = ({
                 key={`column-${index}`}
                 type="button"
                 className="inkio-table-insert inkio-table-insert--column"
-                style={{ left: x, top: metrics.top }}
+                style={{ left: x - metrics.origin.x, top: metrics.top - metrics.origin.y }}
                 title={label}
                 aria-label={label}
                 onMouseEnter={() => {
@@ -450,7 +449,7 @@ export const TableMenu = ({
                   insertAt('column', index);
                 }}
               >
-                <PlusGlyph />
+                <PlusIcon size={12} strokeWidth={2} aria-hidden />
               </button>
             );
           })}
@@ -465,7 +464,7 @@ export const TableMenu = ({
                 key={`row-${index}`}
                 type="button"
                 className="inkio-table-insert inkio-table-insert--row"
-                style={{ left: metrics.left, top: y }}
+                style={{ left: metrics.left - metrics.origin.x, top: y - metrics.origin.y }}
                 title={label}
                 aria-label={label}
                 onMouseEnter={() => {
@@ -483,7 +482,7 @@ export const TableMenu = ({
                   insertAt('row', index);
                 }}
               >
-                <PlusGlyph />
+                <PlusIcon size={12} strokeWidth={2} aria-hidden />
               </button>
             );
           })}
@@ -496,7 +495,7 @@ export const TableMenu = ({
           className="inkio-table-context-menu"
           role="menu"
           aria-label={ui.messages.actions.table}
-          style={{ top: contextMenu.y, left: contextMenu.x }}
+          style={{ top: contextMenu.y - contextMenu.origin.y, left: contextMenu.x - contextMenu.origin.x }}
         >
           {CONTEXT_MENU_ENTRIES.map((entry, index) => {
             if (entry.kind === 'separator') {
@@ -522,7 +521,7 @@ export const TableMenu = ({
                   }
                 }}
               >
-                {Icon && <Icon size={15} strokeWidth={1.8} />}
+                {Icon && <Icon size={16} strokeWidth={1.8} />}
                 <span>{label}</span>
               </button>
             );

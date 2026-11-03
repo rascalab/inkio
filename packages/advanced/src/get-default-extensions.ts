@@ -57,7 +57,7 @@ export function getDefaultExtensions(options: DefaultExtensionsOptions = {}) {
   } = options;
 
   const extensions: Extensions = [
-    ...getEssentialDefaultExtensions(essentialOptions),
+    ...getEssentialDefaultExtensions({ ...essentialOptions, locale, messages }),
     Mention.configure({
       items: mentionItems as
         | ((props: { query: string }) => MentionItem[] | Promise<MentionItem[]>)
@@ -86,6 +86,7 @@ export function getDefaultExtensions(options: DefaultExtensionsOptions = {}) {
       onError,
       locale,
       messages,
+      icons,
     }),
     ...(wikiLink !== false
       ? [WikiLink.configure({ onClick: onWikiLinkClick, items: wikiLinkItems, onError, locale, messages })]
