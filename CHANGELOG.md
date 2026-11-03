@@ -21,6 +21,7 @@ Versioning is unified across the publishable Inkio packages.
 
 - the slash menu and the `@`, `#`, `[[` popups follow `locale` and `messages`: their header, empty state and list name, and the default slash commands, which are found by those words (`/표`). They stayed English before, and `/표` found nothing.
 - `transformSlashCommands` receives the whole default list as documented. It got the list already filtered by the query against the English labels, so a renamed item could not match.
+- a block dragged by its handle onto a list lands between the items and splits the list, instead of being merged into an item.
 - suggestion popups (`@`, `#`, `/`, `[[`) no longer flash "No results found" on every keystroke. Tiptap 3.31 reports each query with a loading pass before its result and the popup rendered that pass as an empty list; it now keeps the previous list until the result arrives and stays hidden before the first one.
 - markdown export: a document containing an image was written without blank lines between blocks, so re-importing it merged the whole document into one paragraph. Images are now exported as their own paragraph.
 - markdown export writes wiki links as `[[name]]` instead of `\[\[name]]`, so other markdown tools still read them as links.

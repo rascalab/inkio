@@ -366,6 +366,72 @@ test('Korean composition lands where the caret is', async ({ page, browserName }
 
 const blockEditor = (page: import('@playwright/test').Page) => page.locator('.ProseMirror').first();
 
+const blockOutline = (page: import('@playwright/test').Page) =>
+  blockEditor(page).evaluate((root) =>
+    Array.from(root.children).map((child) => {
+      if (child.tagName === 'UL') {
+        return `UL:${Array.from(child.children).map((item) => item.textContent).join('/')}`;
+      }
+      const code = child.querySelector('pre');
+      return code ? `PRE:${code.textContent}` : `${child.tagName}:${child.textContent}`;
+    }),
+  );
+
+async function dragBlock(
+  page: import('@playwright/test').Page,
+  source: string,
+  target: string,
+  side: 'above' | 'below',
+) {
+  const editor = blockEditor(page);
+  const from = editor.getByText(source, { exact: true });
+  await from.hover();
+  const handle = page.locator('[aria-label="블록 핸들"]');
+  await expect(handle).toBeVisible();
+  const grip = (await handle.boundingBox())!;
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+  await page.mouse.down();
+
+  const box = (await editor.getByText(target, { exact: true }).boundingBox())!;
+  const y = side === 'above' ? box.y + 2 : box.y + box.height - 2;
+  await page.mouse.move(box.x + 10, y, { steps: 8 });
+  await page.mouse.move(box.x + 12, y);
+  await page.mouse.up();
+}
+
+test.describe('block drag onto a list', () => {
+  test.skip(({ browserName }) => browserName !== 'chromium', 'one drag path is enough');
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto('http://localhost:4174/block-e2e');
+    await expect(blockEditor(page)).toContainText('끝 문단');
+  });
+
+  test('lands between the items and splits the list', async ({ page }) => {
+    await dragBlock(page, '끝 문단', '하나', 'below');
+    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'UL:하나', 'P:끝 문단', 'UL:둘', 'PRE:코드']);
+  });
+
+  test('lands beside the list at its ends', async ({ page }) => {
+    await dragBlock(page, '끝 문단', '하나', 'above');
+    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'P:끝 문단', 'UL:하나/둘', 'PRE:코드']);
+
+    await dragBlock(page, '앞 문단', '둘', 'below');
+    expect(await blockOutline(page)).toEqual(['P:끝 문단', 'UL:하나/둘', 'P:앞 문단', 'PRE:코드']);
+  });
+
+  test('undoes as one step', async ({ page }) => {
+    await dragBlock(page, '끝 문단', '하나', 'below');
+    await page.keyboard.press('ControlOrMeta+z');
+    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'UL:하나/둘', 'P:끝 문단', 'PRE:코드']);
+  });
+
+  test('still moves a list item inside its list', async ({ page }) => {
+    await dragBlock(page, '둘', '하나', 'above');
+    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'UL:둘/하나', 'P:끝 문단', 'PRE:코드']);
+  });
+});
+
 test.describe('markdown paste', () => {
   test.skip(({ browserName }) => browserName !== 'chromium', 'Firefox ignores clipboardData in the ClipboardEvent constructor');
 
@@ -416,4 +482,32 @@ test.describe('markdown paste', () => {
     await expect(editor.locator('pre')).toContainText('## 제목');
     await expect(editor.locator('h2')).toHaveCount(0);
   });
+});
+
+test('typing right after a click lands at the click', async ({ page }) => {
+  await page.goto('http://localhost:4174/block-e2e');
+  const editor = blockEditor(page);
+  await editor.getByText('끝 문단', { exact: true }).click();
+  await page.keyboard.type('X');
+  await expect(editor.locator('p').first()).toHaveText('앞 문단');
+  await expect(editor.locator('p', { hasText: '끝' })).toContainText('X');
+});
+
+test('a table inserted from the menu takes Korean and Tab moves between cells', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'composition is driven through CDP');
+  await page.goto('http://localhost:4174/slash-e2e');
+  await focusEditorEnd(page);
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('/');
+  await compose(page, 'ㅍ', '표');
+  await expect(page.getByRole('option')).toHaveCount(1);
+  await page.keyboard.press('Enter');
+
+  const table = page.locator('.ProseMirror').first().locator('table');
+  await compose(page, 'ㅇ', '이', '이름');
+  await page.keyboard.press('Tab');
+  await compose(page, 'ㄱ', '가', '값');
+  await expect(table.locator('th').nth(0)).toHaveText('이름');
+  await expect(table.locator('th').nth(1)).toHaveText('값');
+  await expect(table.locator('tr')).toHaveCount(3);
 });

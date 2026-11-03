@@ -6,7 +6,7 @@ import {
   type Node as ProseMirrorNode,
   type ResolvedPos,
 } from '@tiptap/pm/model';
-import { NodeSelection, Plugin, PluginKey } from '@tiptap/pm/state';
+import { NodeSelection, Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
 import type {
   InkioLocaleInput,
@@ -49,6 +49,8 @@ interface HoveredBlock {
   blockElement: HTMLElement;
 }
 
+const LIST_ITEM_TYPES = new Set(['listItem', 'taskItem']);
+const LIST_TYPES_SET = new Set(['bulletList', 'orderedList', 'taskList']);
 const HANDLE_CLASS_NAME = 'inkio-block-handle';
 const HIDE_DELAY_MS = 120;
 const HANDLE_SIZE = 24;
@@ -174,6 +176,68 @@ const findHoveredBlock = (view: EditorView, clientX: number, clientY: number): H
   };
 };
 
+/**
+ * ProseMirror puts a dropped block wherever the schema allows nearest the
+ * pointer, and a list item accepts paragraphs, so a block dropped on a list
+ * became part of an item. It lands between the items instead, splitting the
+ * list, or beside the list at either end.
+ */
+const dropBesideListItem = (
+  view: EditorView,
+  event: DragEvent,
+  { pos, node }: { pos: number; node: ProseMirrorNode },
+): boolean => {
+  const at = view.posAtCoords({ left: event.clientX, top: event.clientY });
+  if (!at) {
+    return false;
+  }
+
+  const $at = view.state.doc.resolve(at.pos);
+  let listDepth = 0;
+  for (let depth = 1; depth <= $at.depth && !listDepth; depth += 1) {
+    if (LIST_TYPES_SET.has($at.node(depth).type.name)) {
+      listDepth = depth;
+    }
+  }
+  if (!listDepth) {
+    return false;
+  }
+
+  let gap = at.pos;
+  if ($at.depth > listDepth) {
+    const itemPos = $at.before(listDepth + 1);
+    const itemDOM = view.nodeDOM(itemPos);
+    const rect = isHTMLElement(itemDOM) ? itemDOM.getBoundingClientRect() : null;
+    const below = rect ? event.clientY > rect.top + rect.height / 2 : false;
+    gap = below ? $at.after(listDepth + 1) : itemPos;
+  }
+  // A container dragged into its own list stays with the default.
+  if (gap >= pos && gap <= pos + node.nodeSize) {
+    return false;
+  }
+
+  const tr = view.state.tr.delete(pos, pos + node.nodeSize);
+  const $gap = tr.doc.resolve(tr.mapping.map(gap));
+  let target = $gap.pos + 1;
+  if ($gap.index() === 0) {
+    target = $gap.before();
+  } else if ($gap.index() === $gap.parent.childCount) {
+    target = $gap.after();
+  } else {
+    tr.split($gap.pos);
+  }
+
+  const $target = tr.doc.resolve(target);
+  if (!$target.parent.canReplaceWith($target.index(), $target.index(), node.type)) {
+    return false;
+  }
+  tr.insert(target, node);
+  tr.setSelection(TextSelection.near(tr.doc.resolve(target + 1)));
+  view.dispatch(tr.setMeta('uiEvent', 'drop'));
+  view.focus();
+  return true;
+};
+
 const FIRST_TEXT_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, summary, [data-type="toc"]';
 
 const getFirstLineHeight = (blockElement: HTMLElement): number => {
@@ -254,6 +318,8 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
   let editorView: EditorView | null = null;
   let activeBlockPos: number | null = null;
   let activeBlockElement: HTMLElement | null = null;
+  // A block on its way somewhere; a list item is not, it belongs in a list.
+  let draggedBlock: { pos: number; node: ProseMirrorNode } | null = null;
 
   let blockSelected = false;
   let currentBlockCleanup: (() => void) | null = null;
@@ -491,8 +557,6 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
 
     let capturedBlockPos: number | null = null;
 
-    const LIST_ITEM_TYPES = new Set(['listItem', 'taskItem']);
-    const LIST_TYPES_SET = new Set(['bulletList', 'orderedList', 'taskList']);
 
     handleElement.addEventListener('mousedown', (event) => {
       capturedBlockPos = activeBlockPos;
@@ -546,6 +610,7 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
           }
         } else {
           slice = selection.content();
+          draggedBlock = { pos: blockPos, node };
         }
 
         (editorView as EditorView & { dragging?: unknown }).dragging = {
@@ -565,6 +630,10 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
       } catch {
         // Ignore stale positions when drag begins after document updates.
       }
+    }, { signal });
+
+    handleElement.addEventListener('dragend', () => {
+      draggedBlock = null;
     }, { signal });
 
     handleElement.addEventListener('click', (event) => {
@@ -745,10 +814,12 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
           return false;
         },
       },
-      handleDrop: (view) => {
+      handleDrop: (view, event) => {
         closeMenu();
         hideHandle(view);
-        return false;
+        const dragged = draggedBlock;
+        draggedBlock = null;
+        return dragged ? dropBesideListItem(view, event, dragged) : false;
       },
     },
     view: (view) => {
