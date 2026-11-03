@@ -118,6 +118,47 @@ function hasSchemaNode(editor: Editor, name: string): boolean {
   return name in editor.state.schema.nodes;
 }
 
+function isInsideTable(editor: Editor): boolean {
+  const $from = editor.state.selection?.$from;
+  for (let depth = $from?.depth ?? 0; depth > 0; depth -= 1) {
+    if ($from.node(depth).type.name === 'table') return true;
+  }
+  return false;
+}
+
+const LIST_ITEM_NODES = ['listItem', 'taskItem'];
+const LIST_OF_COMMAND: Record<string, string> = {
+  bulletList: 'bulletList',
+  numberedList: 'orderedList',
+  taskList: 'taskList',
+};
+/** Blocks a list item would hold beside an empty line, or refuse outright. */
+const LEAVES_LIST = new Set(['table', 'horizontalRule', 'callout', 'toggleList', 'toc', 'image']);
+
+/**
+ * Where a command typed in a list item applies. A list command for the list it
+ * is already in has nothing to do; a block takes the item's place outside the
+ * list, as headings and code blocks do by themselves. Null means done.
+ */
+function prepareRange(editor: Editor, range: Range, id: unknown): Range | null {
+  const { $from } = editor.state.selection;
+  const item = LIST_ITEM_NODES.find((name) => $from.node($from.depth - 1)?.type.name === name);
+  if (!item || typeof id !== 'string') return range;
+
+  if (LIST_OF_COMMAND[id] === $from.node($from.depth - 2)?.type.name) {
+    editor.chain().focus().deleteRange(range).run();
+    return null;
+  }
+  if (!LEAVES_LIST.has(id)) return range;
+
+  const length = range.to - range.from;
+  while (editor.can().liftListItem(item)) {
+    editor.commands.liftListItem(item);
+  }
+  const to = editor.state.selection.from;
+  return { from: to - length, to };
+}
+
 /**
  * Cap on suggestion rows. The popup renders every returned item, so an
  * unbounded custom items() list costs layout per keystroke; the filter stops
@@ -156,7 +197,7 @@ export function filterSlashCommandItems(
 export const defaultSlashCommands: SlashCommandItem[] = [
   {
     id: 'heading1',
-    ...enCoreMessages.slashCommand.heading1,
+    label: enCoreMessages.slashCommand.heading1,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'setHeading', {
         args: { level: 1 },
@@ -166,7 +207,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'heading2',
-    ...enCoreMessages.slashCommand.heading2,
+    label: enCoreMessages.slashCommand.heading2,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'setHeading', {
         args: { level: 2 },
@@ -176,7 +217,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'heading3',
-    ...enCoreMessages.slashCommand.heading3,
+    label: enCoreMessages.slashCommand.heading3,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'setHeading', {
         args: { level: 3 },
@@ -186,7 +227,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'bulletList',
-    ...enCoreMessages.slashCommand.bulletList,
+    label: enCoreMessages.slashCommand.bulletList,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'toggleBulletList', {
         prepare: (chain) => chain.deleteRange(range),
@@ -195,7 +236,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'numberedList',
-    ...enCoreMessages.slashCommand.numberedList,
+    label: enCoreMessages.slashCommand.numberedList,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'toggleOrderedList', {
         prepare: (chain) => chain.deleteRange(range),
@@ -204,7 +245,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'taskList',
-    ...enCoreMessages.slashCommand.taskList,
+    label: enCoreMessages.slashCommand.taskList,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'toggleTaskList', {
         prepare: (chain) => chain.deleteRange(range),
@@ -213,18 +254,18 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'table',
-    ...enCoreMessages.slashCommand.table,
+    label: enCoreMessages.slashCommand.table,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'insertTable', {
         args: { rows: 3, cols: 3, withHeaderRow: true },
         prepare: (chain) => chain.deleteRange(range),
       });
     },
-    isAvailable: (editor) => hasSchemaNode(editor, 'table'),
+    isAvailable: (editor) => hasSchemaNode(editor, 'table') && !isInsideTable(editor),
   },
   {
     id: 'codeBlock',
-    ...enCoreMessages.slashCommand.codeBlock,
+    label: enCoreMessages.slashCommand.codeBlock,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'toggleCodeBlock', {
         prepare: (chain) => chain.deleteRange(range),
@@ -233,7 +274,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'horizontalRule',
-    ...enCoreMessages.slashCommand.horizontalRule,
+    label: enCoreMessages.slashCommand.horizontalRule,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'setHorizontalRule', {
         prepare: (chain) => chain.deleteRange(range),
@@ -242,7 +283,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'callout',
-    ...enCoreMessages.slashCommand.callout,
+    label: enCoreMessages.slashCommand.callout,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'setCallout', {
         prepare: (chain) => chain.deleteRange(range),
@@ -251,7 +292,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'toggleList',
-    ...enCoreMessages.slashCommand.toggleList,
+    label: enCoreMessages.slashCommand.toggleList,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'setDetails', {
         prepare: (chain) => chain.deleteRange(range),
@@ -261,15 +302,15 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'toc',
-    ...enCoreMessages.slashCommand.toc,
+    label: enCoreMessages.slashCommand.toc,
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).insertContent({ type: 'tocBlock' }).run();
     },
-    isAvailable: (editor) => hasSchemaNode(editor, 'tocBlock'),
+    isAvailable: (editor) => hasSchemaNode(editor, 'tocBlock') && !isInsideTable(editor),
   },
   {
     id: 'image',
-    ...enCoreMessages.slashCommand.image,
+    label: enCoreMessages.slashCommand.image,
     command: ({ editor, range }) => {
       const input = document.createElement('input');
       input.type = 'file';
@@ -301,7 +342,7 @@ function localizedSlashCommands(
   messages: SlashCommandOptions['messages'],
   icons: SlashCommandOptions['icons'],
 ): SlashCommandItem[] {
-  const said: Record<string, { label: string; description: string }> =
+  const said: Record<string, string> =
     mergeCoreMessages(locale, toCoreMessageOverrides(messages)).slashCommand;
   const registry = resolveIconRegistry(icons);
   // The same icon each action has in the other menus; two have no action there.
@@ -315,7 +356,7 @@ function localizedSlashCommands(
     const Icon = iconOf[item.id];
     return {
       ...item,
-      ...said[item.id],
+      label: said[item.id] ?? item.label,
       ...(Icon ? { icon: createElement(Icon, { size: 16, strokeWidth: 1.8 }) } : {}),
     };
   });
@@ -361,7 +402,9 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
               throw new Error('Slash command item is missing a valid command handler.');
             }
 
-            const maybePromise = props.command({ editor, range });
+            const target = prepareRange(editor, range, props.id);
+            if (!target) return;
+            const maybePromise = props.command({ editor, range: target });
             if (
               maybePromise
               && typeof maybePromise === 'object'
@@ -375,24 +418,10 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
             onError?.(toError(error), { source: 'slashCommand.command', recoverable: true });
           }
         },
+        // Any paragraph that starts with the slash: lists, quotes and cells too.
         allow: ({ state, range }) => {
-          const $from = state.doc.resolve(range.from);
-          const isRootDepth = $from.depth === 1;
-          const isParagraph = $from.parent.type.name === 'paragraph';
-          const isStartOfNode = $from.parent.textContent?.charAt(0) === '/';
-
-          // Check if we're in a callout or toggle list (depth > 1)
-          let isInCalloutOrToggle = false;
-          for (let d = $from.depth; d > 0; d--) {
-            const nodeName = $from.node(d).type.name;
-            if (nodeName === 'callout' || nodeName === 'detailsContent') {
-              isInCalloutOrToggle = true;
-              break;
-            }
-          }
-
-          // Allow slash command in paragraph at root, in callout, or in toggle list
-          return isParagraph && (isRootDepth || isInCalloutOrToggle) && isStartOfNode;
+          const { parent } = state.doc.resolve(range.from);
+          return parent.type.name === 'paragraph' && parent.textContent.charAt(0) === '/';
         },
         render: createSuggestionRenderer<SlashCommandItem>({ locale, messages }),
         ...this.options.suggestion,

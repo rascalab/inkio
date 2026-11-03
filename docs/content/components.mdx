@@ -18,7 +18,7 @@ import '@inkio/editor/style.css';
 | `placeholder` | `string` | 빈 에디터 placeholder 텍스트 |
 | `locale` | `InkioLocaleInput` | 로케일 |
 | `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 부모 환경을 따름) |
-| `tabBehavior` | `'indent' \| 'default'` | Tab 키 동작 (기본값: `'indent'`). `'indent'`에서도 리스트 밖에서는 브라우저 기본 포커스 이동을 유지합니다 |
+| `tabBehavior` | `'indent' \| 'default'` | Tab 키 동작 (기본값: `'indent'`). `'indent'`는 리스트 항목을 들여쓰고, 코드는 들여쓰며, 표에서는 칸을 옮기고, 그 밖에서는 탭 문자를 입력합니다. Esc로 에디터를 벗어납니다. `'default'`는 브라우저 기본 포커스 이동입니다 |
 | `onUpdate` | `(content: JSONContent) => void` | 콘텐츠 변경 콜백 |
 | `onCreate` | `(editor: TiptapEditor) => void` | 에디터 인스턴스 준비 콜백 |
 | `onError` | `InkioErrorHandler` | 에러 핸들러 |
@@ -92,7 +92,7 @@ import '@inkio/simple/style.css';
 | `placeholder` | `string` | placeholder 텍스트 |
 | `locale` | `InkioLocaleInput` | 로케일 |
 | `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 부모 환경을 따름) |
-| `tabBehavior` | `'indent' \| 'default'` | Tab 키 동작 (리스트 밖에서는 기본 포커스 이동 유지) |
+| `tabBehavior` | `'indent' \| 'default'` | Tab 키 동작 (`'indent'`는 입력, Esc로 에디터를 벗어남. `'default'`는 포커스 이동) |
 | `onUpdate` | `(content: JSONContent) => void` | 콘텐츠 변경 콜백 |
 | `onCreate` | `(editor: TiptapEditor) => void` | 에디터 인스턴스 준비 콜백 |
 | `onError` | `InkioErrorHandler` | 에러 핸들러 |

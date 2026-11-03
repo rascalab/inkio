@@ -1,4 +1,5 @@
 import { Extension, Extensions } from '@tiptap/core';
+import { TextSelection } from '@tiptap/pm/state';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { TaskItemView } from '../components/TaskItemView';
 import type { InkioIconComponent } from '../icons';
@@ -283,7 +284,9 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
 
   if (blockquote !== false) extensions.push(Blockquote);
   if (horizontalRule !== false) extensions.push(HorizontalRule);
-  if (codeBlock !== false) extensions.push(CodeBlock);
+  if (codeBlock !== false) {
+    extensions.push(CodeBlock.configure({ enableTabIndentation: true, tabSize: 2 }));
+  }
   if (history !== false) extensions.push(History);
   if (clearMarksOnEnter !== false) extensions.push(ClearMarksOnEnter);
   if (bulletList !== false || orderedList !== false || taskList !== false) {
@@ -338,10 +341,12 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
     extensions.push(
       Extension.create({
         name: 'tabIndent',
+        // Below the default, so an open suggestion takes Escape and a table Tab.
+        priority: 50,
         addKeyboardShortcuts() {
-          // Only trap Tab inside list items. Anywhere else the key must keep
-          // its default browser behavior (focus navigation) so keyboard and
-          // screen-reader users can leave the editor.
+          // Tab writes: it nests a list item, indents code (CodeBlock) or moves
+          // between cells (Table), and anywhere else types a tab. Escape leaves
+          // the editor, so keyboard and screen-reader users are not trapped.
           const listItemTypeAtSelection = (
             editor: { state: { selection: unknown } },
           ): 'listItem' | 'taskItem' | null => {
@@ -359,19 +364,35 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
             }
             return null;
           };
+          // Table and CodeBlock answer first (see `priority`); this is what is left.
           return {
             Tab: ({ editor }) => {
               const type = listItemTypeAtSelection(editor);
-              if (!type) return false;
-              if (editor.can().sinkListItem(type)) return editor.commands.sinkListItem(type);
-              return false;
+              if (type) {
+                if (editor.can().sinkListItem(type)) return editor.commands.sinkListItem(type);
+                return true;
+              }
+              return editor.commands.command(({ tr, dispatch }) => {
+                if (!(tr.selection instanceof TextSelection)) return true;
+                if (dispatch) tr.insertText('\t');
+                return true;
+              });
             },
             'Shift-Tab': ({ editor }) => {
               const type = listItemTypeAtSelection(editor);
-              if (!type) return false;
-              if (editor.can().liftListItem(type)) return editor.commands.liftListItem(type);
-              return false;
+              if (type) {
+                if (editor.can().liftListItem(type)) return editor.commands.liftListItem(type);
+                return true;
+              }
+              return editor.commands.command(({ tr, dispatch }) => {
+                const { $from, empty } = tr.selection;
+                if (empty && $from.nodeBefore?.text?.endsWith('\t') && dispatch) {
+                  tr.delete($from.pos - 1, $from.pos);
+                }
+                return true;
+              });
             },
+            Escape: ({ editor }) => editor.commands.blur(),
           };
         },
       }),

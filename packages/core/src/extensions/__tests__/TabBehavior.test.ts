@@ -46,19 +46,13 @@ describe('tabIndent Tab behavior', () => {
     expect(sinkListItem).toHaveBeenCalledWith('listItem');
   });
 
-  it('lets Tab keep default focus navigation outside lists (no focus trap)', () => {
+  it('keeps focus in a list item that cannot sink or lift', () => {
     const shortcuts = findTabShortcuts();
-    const { editor, sinkListItem } = mockEditor({ inList: false, canSink: false, canLift: false });
+    const { editor, sinkListItem, liftListItem } = mockEditor({ inList: true, canSink: false, canLift: false });
 
-    expect(shortcuts.Tab({ editor })).toBe(false);
+    expect(shortcuts.Tab({ editor })).toBe(true);
+    expect(shortcuts['Shift-Tab']({ editor })).toBe(true);
     expect(sinkListItem).not.toHaveBeenCalled();
-  });
-
-  it('lets Shift-Tab keep default behavior outside lists', () => {
-    const shortcuts = findTabShortcuts();
-    const { editor, liftListItem } = mockEditor({ inList: false, canSink: false, canLift: false });
-
-    expect(shortcuts['Shift-Tab']({ editor })).toBe(false);
     expect(liftListItem).not.toHaveBeenCalled();
   });
 

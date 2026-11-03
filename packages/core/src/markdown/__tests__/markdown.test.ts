@@ -338,3 +338,12 @@ describe('text written as it reads', () => {
     expect(parseMarkdown(stringifyMarkdown(json))).toEqual(json);
   });
 });
+
+describe('a typed tab', () => {
+  it('survives a round trip inside and at the start of a line', () => {
+    for (const text of ['가\t나', '\t가']) {
+      const doc = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] };
+      expect(parseMarkdown(stringifyMarkdown(doc)).content?.[0]?.content).toEqual([{ type: 'text', text }]);
+    }
+  });
+});

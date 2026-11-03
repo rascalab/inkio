@@ -54,7 +54,7 @@ describe('slash menu in the editor locale', () => {
     const editor = createEditor(SlashCommand.configure({ locale: 'ko' }));
 
     const [divider] = await itemsFor(editor, '구분');
-    expect(divider).toMatchObject({ id: 'horizontalRule', label: '구분선', description: '가로줄 넣기' });
+    expect(divider).toMatchObject({ id: 'horizontalRule', label: '구분선' });
   });
 
   it('still finds them by their id alias', async () => {
@@ -73,11 +73,11 @@ describe('slash menu in the editor locale', () => {
   it('applies message overrides to the default commands', async () => {
     const editor = createEditor(SlashCommand.configure({
       locale: 'ko',
-      messages: { core: { slashCommand: { heading1: { label: '큰 제목' } } } },
+      messages: { core: { slashCommand: { heading1: '큰 제목' } } },
     }));
 
     const [first] = await itemsFor(editor, '');
-    expect(first).toMatchObject({ label: '큰 제목', description: '큰 제목' });
+    expect(first).toMatchObject({ label: '큰 제목' });
   });
 
   it('hands transformItems the whole list, so a renamed item can match the query', async () => {

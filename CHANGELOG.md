@@ -15,6 +15,8 @@ Versioning is unified across the publishable Inkio packages.
 ### Changed
 
 - `Viewer` in `@inkio/editor` and `@inkio/simple` re-renders when `content` changes, like `@inkio/core`'s `Viewer` and `StaticViewer`. In 0.0.7 it kept the first document. `Editor` still treats `content` as the initial document.
+- Tab writes instead of leaving the editor: it nests a list item, indents code (2 spaces), moves between table cells and elsewhere types a tab. Shift+Tab undoes it. Escape leaves the editor, so keyboard users are not trapped; `tabBehavior="default"` keeps browser focus navigation.
+- the slash menu opens in any paragraph that starts with `/`, including list items, quotes and table cells, and default commands no longer show a description. `messages.core.slashCommand` entries are plain labels. In a list item a block command replaces the item outside the list (callout did nothing, and table, divider, toggle and table of contents landed inside the item beside an empty line), and a command for the list it is already in does nothing. Table and table of contents are not offered inside a table.
 - markdown import no longer reads a single tilde as strikethrough, so `3~5일, 7~9일` stays text. This departs from GFM, which allows one or two tildes. `~~gone~~` still strikes; a document that relied on `~gone~` now reads it literally.
 
 ### Fixed
