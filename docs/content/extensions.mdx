@@ -86,7 +86,7 @@ const extensions = getDefaultExtensions({
 토글 리스트, 목차, 이미지 등이 포함됩니다. 두 가지 방식으로 커스터마이즈할 수 있습니다.
 
 `transformSlashCommands`는 기본 명령 배열을 받아 가공한 뒤 반환합니다. 일부 명령만 추가하거나
-제거할 때 적합합니다. 반환된 항목은 이후 `query`로 필터링됩니다.
+제거할 때 적합합니다. 전체 목록을 받으며, 반환된 항목은 이후 `query`로 필터링됩니다.
 
 ```tsx
 import { Editor } from '@inkio/editor';

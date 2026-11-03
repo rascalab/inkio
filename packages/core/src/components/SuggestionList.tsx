@@ -51,8 +51,8 @@ export function SuggestionList({
   messages,
   ref,
 }: SuggestionListProps & { ref?: React.Ref<SuggestionListRef> }) {
-  const resolvedEmptyMessage = emptyMessage
-    ?? resolveCoreMessages(locale, toCoreMessageOverrides(messages)).suggestion.empty;
+  const resolvedMessages = resolveCoreMessages(locale, toCoreMessageOverrides(messages)).suggestion;
+  const resolvedEmptyMessage = emptyMessage ?? resolvedMessages.empty;
   const [selectedIndex, setSelectedIndex] = useState(0);
   const listContainerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<HTMLButtonElement[]>([]);
@@ -210,7 +210,7 @@ export function SuggestionList({
         ref={listContainerRef}
         id={listboxId}
         role="listbox"
-        aria-label="Suggestions"
+        aria-label={resolvedMessages.list}
         className="inkio-suggestion-list"
       >
         {items.length > 0 ? (

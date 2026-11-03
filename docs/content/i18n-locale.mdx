@@ -15,6 +15,10 @@ Inkio는 `locale`과 `messages` prop으로 UI 문구를 제어합니다.
 > 타입은 통과하지만 실제 문구는 영어(`en`)로 폴백됩니다. 더 세밀한
 > 조정은 `messages` 오버라이드를 쓰세요.
 
+슬래시 메뉴의 기본 명령과 `@`, `#`, `/`, `[[` 제안 창의 머리말·빈 상태 문구도
+`locale`을 따르며, 기본 명령은 그 언어의 이름으로 검색됩니다(`/표`). 명령 `id`로도 찾을 수
+있습니다(`/table`). `slashCommands`로 직접 준 항목은 그대로 표시됩니다.
+
 ## 메시지 override
 
 ```tsx
@@ -24,6 +28,12 @@ const messages: InkioMessageOverrides = {
   core: {
     actions: {
       comment: 'Discuss',
+    },
+    slashCommand: {
+      table: { label: 'Grid', description: 'Insert a grid' },
+    },
+    suggestion: {
+      commands: 'Blocks',
     },
   },
   extensions: {

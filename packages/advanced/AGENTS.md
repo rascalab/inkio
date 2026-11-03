@@ -27,6 +27,7 @@ src/
 - Every extension ships as its own subpath (`@inkio/advanced/comment`), not just the main entry.
 - `getDefaultExtensions` here (vs core `getExtensions`); `editor` preset consumes this package.
 - Tests use `vitest run --passWithNoTests` in this package.
+- Suggestion popups and default slash commands take their words from core messages (`suggestion`, `slashCommand`) through `locale`/`messages` options; no literal words in an extension.
 
 ## ANTI-PATTERNS
 - Do not import advanced in `simple` preset; only `editor` preset depends on it.

@@ -5,6 +5,7 @@ import {
   toCoreMessageOverrides,
   resolveCoreMessages,
   type InkioCoreMessageOverrides,
+  type InkioCoreMessages,
   type InkioLocaleInput,
   type InkioMessageOverrides,
 } from '../i18n/messages';
@@ -16,8 +17,8 @@ import {
 import { createOverlayHost, type OverlayHost } from '../utils/overlay-host';
 
 export interface CreateSuggestionRendererOptions {
-  /** Custom header text */
-  header?: string;
+  /** Custom header text, or a pick from the locale's suggestion messages */
+  header?: string | ((messages: InkioCoreMessages['suggestion']) => string);
   /** Empty state message */
   emptyMessage?: string;
   /** Custom render function for items */
@@ -39,6 +40,9 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
     options.locale,
     toCoreMessageOverrides(options.messages),
   );
+  const header = typeof options.header === 'function'
+    ? options.header(resolvedMessages.suggestion)
+    : options.header;
 
   return () => {
     let host: OverlayHost | null = null;
@@ -101,9 +105,11 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
           }}
           items={settledItems as SuggestionItem[]}
           command={props.command as unknown as (item: SuggestionItem) => void}
-          header={options.header}
-          emptyMessage={options.emptyMessage ?? resolvedMessages.suggestion.empty}
+          header={header}
+          emptyMessage={options.emptyMessage}
           renderItem={options.renderItem}
+          locale={options.locale}
+          messages={options.messages}
         />,
       );
 

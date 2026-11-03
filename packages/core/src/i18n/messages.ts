@@ -60,7 +60,28 @@ export interface InkioCoreMessages {
   };
   suggestion: {
     empty: string;
+    list: string;
+    commands: string;
+    mentions: string;
+    hashtags: string;
+    pages: string;
   };
+  slashCommand: Record<
+    | 'heading1'
+    | 'heading2'
+    | 'heading3'
+    | 'bulletList'
+    | 'numberedList'
+    | 'taskList'
+    | 'table'
+    | 'codeBlock'
+    | 'horizontalRule'
+    | 'callout'
+    | 'toggleList'
+    | 'toc'
+    | 'image',
+    { label: string; description: string }
+  >;
   blockHandle: {
     menu: string;
     handle: string;
@@ -137,6 +158,65 @@ export const enCoreMessages: InkioCoreMessages = {
   },
   suggestion: {
     empty: 'No results found',
+    list: 'Suggestions',
+    commands: 'Commands',
+    mentions: 'Mentions',
+    hashtags: 'Hashtags',
+    pages: 'Pages',
+  },
+  slashCommand: {
+    heading1: {
+      label: 'Heading 1',
+      description: 'Large section heading',
+    },
+    heading2: {
+      label: 'Heading 2',
+      description: 'Medium section heading',
+    },
+    heading3: {
+      label: 'Heading 3',
+      description: 'Small section heading',
+    },
+    bulletList: {
+      label: 'Bullet List',
+      description: 'Create a simple list',
+    },
+    numberedList: {
+      label: 'Numbered List',
+      description: 'Create a numbered list',
+    },
+    taskList: {
+      label: 'Task List',
+      description: 'Create a to-do list',
+    },
+    table: {
+      label: 'Table',
+      description: 'Insert a table',
+    },
+    codeBlock: {
+      label: 'Code Block',
+      description: 'Add a code snippet',
+    },
+    horizontalRule: {
+      label: 'Divider',
+      description: 'Add a horizontal rule',
+    },
+    callout: {
+      label: 'Callout',
+      description: 'Add a callout block',
+    },
+    toggleList: {
+      label: 'Toggle List',
+      description: 'Add a collapsible section',
+    },
+    toc: {
+      label: 'Table of Contents',
+      description: 'Insert a table of contents',
+    },
+    image: {
+      label: 'Image',
+      description: 'Upload an image',
+    },
   },
   blockHandle: {
     menu: 'Block actions',
@@ -273,6 +353,65 @@ export const koCoreMessages: InkioCoreMessages = {
   },
   suggestion: {
     empty: '검색 결과 없음',
+    list: '추천 항목',
+    commands: '명령어',
+    mentions: '멘션',
+    hashtags: '해시태그',
+    pages: '페이지',
+  },
+  slashCommand: {
+    heading1: {
+      label: '제목 1',
+      description: '큰 제목',
+    },
+    heading2: {
+      label: '제목 2',
+      description: '중간 제목',
+    },
+    heading3: {
+      label: '제목 3',
+      description: '작은 제목',
+    },
+    bulletList: {
+      label: '글머리 목록',
+      description: '간단한 목록 만들기',
+    },
+    numberedList: {
+      label: '번호 목록',
+      description: '번호가 있는 목록 만들기',
+    },
+    taskList: {
+      label: '할 일 목록',
+      description: '체크할 수 있는 목록 만들기',
+    },
+    table: {
+      label: '표',
+      description: '표 넣기',
+    },
+    codeBlock: {
+      label: '코드 블록',
+      description: '코드 조각 넣기',
+    },
+    horizontalRule: {
+      label: '구분선',
+      description: '가로줄 넣기',
+    },
+    callout: {
+      label: '콜아웃',
+      description: '강조 블록 넣기',
+    },
+    toggleList: {
+      label: '토글 목록',
+      description: '접을 수 있는 구간 넣기',
+    },
+    toc: {
+      label: '목차',
+      description: '목차 넣기',
+    },
+    image: {
+      label: '이미지',
+      description: '이미지 올리기',
+    },
   },
   blockHandle: {
     menu: '블록 작업',

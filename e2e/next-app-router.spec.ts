@@ -300,3 +300,66 @@ test('next app router example replies to, resolves, and deletes a comment thread
 
   expect(pageErrors).toEqual([]);
 });
+
+// CDP drives the browser's own composition path, which is what an input method
+// does: the text changes in place until it is committed, unlike keyboard.type.
+async function compose(page: import('@playwright/test').Page, ...steps: string[]) {
+  const cdp = await page.context().newCDPSession(page);
+  const last = steps[steps.length - 1];
+  for (const text of steps) {
+    await cdp.send('Input.imeSetComposition', {
+      text,
+      selectionStart: text.length,
+      selectionEnd: text.length,
+    });
+  }
+  await cdp.send('Input.insertText', { text: last });
+  await cdp.detach();
+}
+
+test('slash menu speaks the editor locale and finds a command typed in Korean', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'composition is driven through CDP');
+  await page.goto('http://localhost:4174/slash-e2e');
+  await focusEditorEnd(page);
+  await page.keyboard.press('Enter');
+
+  await page.keyboard.type('/');
+  await expect(page.locator('.inkio-suggestion-header')).toHaveText('명령어');
+  await expect(page.getByRole('listbox', { name: '추천 항목' })).toBeVisible();
+
+  await compose(page, 'ㅍ', '표');
+  await expect(page.getByRole('option')).toHaveCount(1);
+  await expect(page.getByRole('option')).toContainText('표 넣기');
+
+  await page.keyboard.press('Enter');
+  const editor = page.locator('.ProseMirror').first();
+  await expect(editor.locator('table')).toHaveCount(1);
+  await expect(editor).not.toContainText('/표');
+});
+
+test('slash menu says nothing matched in the editor locale', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'composition is driven through CDP');
+  await page.goto('http://localhost:4174/slash-e2e');
+  await focusEditorEnd(page);
+  await page.keyboard.press('Enter');
+
+  await page.keyboard.type('/');
+  await compose(page, 'ㅎ', '하', '핳');
+  await expect(page.locator('.inkio-suggestion-empty')).toHaveText('검색 결과 없음');
+});
+
+test('Korean composition lands where the caret is', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'composition is driven through CDP');
+  await page.goto('http://localhost:4174/slash-e2e');
+  await focusEditorEnd(page);
+
+  await compose(page, 'ㅎ', '하', '한');
+  await compose(page, 'ㄱ', '그', '글');
+  await page.keyboard.press('Enter');
+  await compose(page, 'ㄷ', '다', '달');
+  await page.keyboard.press('Backspace');
+
+  const paragraphs = page.locator('.ProseMirror').first().locator('p');
+  await expect(paragraphs.first()).toHaveText('슬래시 시험한글');
+  await expect(paragraphs.nth(1)).toHaveText('');
+});

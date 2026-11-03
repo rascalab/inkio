@@ -29,6 +29,6 @@ export const Mention = createTriggerNode<MentionOptions, MentionItem>({
   pluginKey: MentionPluginKey,
   clickPluginKey: mentionClickPluginKey,
   dataAttribute: 'data-mention',
-  header: 'Mentions',
+  header: (said) => said.mentions,
   insertCommand: 'insertMention',
 });

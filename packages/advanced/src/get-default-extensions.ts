@@ -63,6 +63,8 @@ export function getDefaultExtensions(options: DefaultExtensionsOptions = {}) {
         | ((props: { query: string }) => MentionItem[] | Promise<MentionItem[]>)
         | undefined,
       onError,
+      locale,
+      messages,
     }),
     ...(hashtagItems
       ? [
@@ -71,6 +73,8 @@ export function getDefaultExtensions(options: DefaultExtensionsOptions = {}) {
               | ((props: { query: string }) => HashTagItem[] | Promise<HashTagItem[]>)
               | undefined,
             onError,
+            locale,
+            messages,
           }),
         ]
       : []),
@@ -80,9 +84,11 @@ export function getDefaultExtensions(options: DefaultExtensionsOptions = {}) {
         : {}),
       ...(transformSlashCommands ? { transformItems: transformSlashCommands } : {}),
       onError,
+      locale,
+      messages,
     }),
     ...(wikiLink !== false
-      ? [WikiLink.configure({ onClick: onWikiLinkClick, items: wikiLinkItems, onError })]
+      ? [WikiLink.configure({ onClick: onWikiLinkClick, items: wikiLinkItems, onError, locale, messages })]
       : []),
     ...(bookmark
       ? [Bookmark.configure({ onResolveBookmark })]

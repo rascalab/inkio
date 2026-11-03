@@ -5,7 +5,10 @@ import {
   createLatestWinsItems,
   createSuggestionRenderer,
   isSafeUrl,
+  type InkioCoreMessageOverrides,
   type InkioErrorHandler,
+  type InkioLocaleInput,
+  type InkioMessageOverrides,
 } from '@inkio/core';
 
 export interface WikiLinkItem {
@@ -30,6 +33,10 @@ export interface WikiLinkOptions {
   items?: (props: { query: string }) => WikiLinkItem[] | Promise<WikiLinkItem[]>;
   /** Receives errors thrown or rejected by `items`. */
   onError?: InkioErrorHandler;
+  /** Locale of the suggestion popup's own words */
+  locale?: InkioLocaleInput;
+  /** Message overrides for the suggestion popup's own words */
+  messages?: InkioCoreMessageOverrides | InkioMessageOverrides;
 }
 
 export const WikiLinkPluginKey = new PluginKey('wikiLink');
@@ -55,6 +62,8 @@ export const WikiLink = Node.create<WikiLinkOptions>({
       onClick: undefined,
       items: undefined,
       onError: undefined,
+      locale: undefined,
+      messages: undefined,
     };
   },
 
@@ -178,7 +187,11 @@ export const WikiLink = Node.create<WikiLinkOptions>({
             ])
             .run();
         },
-        render: createSuggestionRenderer<WikiLinkItem>({ header: 'Pages' }),
+        render: createSuggestionRenderer<WikiLinkItem>({
+          header: (said) => said.pages,
+          locale: this.options.locale,
+          messages: this.options.messages,
+        }),
       }),
     ];
   },

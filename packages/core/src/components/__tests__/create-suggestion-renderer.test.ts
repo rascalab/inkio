@@ -92,3 +92,25 @@ describe('SuggestionPopup loading passes', () => {
     instance.onExit?.(pass(true, []));
   });
 });
+
+describe('SuggestionPopup words', () => {
+  function firstRender(options: Parameters<typeof createSuggestionRenderer>[0]) {
+    hostRender.mockClear();
+    createSuggestionRenderer(options)().onStart?.({
+      editor: { view: { dom: document.createElement('div') } },
+      items: [],
+      command: () => {},
+      clientRect: () => null,
+    } as never);
+    return hostRender.mock.calls[0][0].props;
+  }
+
+  it('picks the header from the locale messages', () => {
+    expect(firstRender({ header: (said) => said.commands, locale: 'ko' }).header).toBe('명령어');
+    expect(firstRender({ header: (said) => said.commands }).header).toBe('Commands');
+  });
+
+  it('keeps a header given as text', () => {
+    expect(firstRender({ header: 'Test', locale: 'ko' }).header).toBe('Test');
+  });
+});

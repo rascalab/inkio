@@ -11,7 +11,11 @@ import { Suggestion, type SuggestionOptions } from '@tiptap/suggestion';
 import {
   createLatestWinsItems,
   createSuggestionRenderer,
+  type CreateSuggestionRendererOptions,
+  type InkioCoreMessageOverrides,
   type InkioErrorHandler,
+  type InkioLocaleInput,
+  type InkioMessageOverrides,
 } from '@inkio/core';
 import { createInlineNodeClickPlugin } from './inline-node-click';
 
@@ -41,6 +45,10 @@ export interface TriggerNodeOptions<Item extends TriggerNodeItem> {
   onError?: InkioErrorHandler;
   /** Observational click callback (selection behavior unchanged) */
   onClick?: (id: string) => void;
+  /** Locale of the suggestion popup's own words */
+  locale?: InkioLocaleInput;
+  /** Message overrides for the suggestion popup's own words */
+  messages?: InkioCoreMessageOverrides | InkioMessageOverrides;
 }
 
 export interface TriggerNodeConfig {
@@ -55,7 +63,7 @@ export interface TriggerNodeConfig {
   /** Marker attribute rendered on the span, e.g. `data-mention`. */
   dataAttribute: string;
   /** Suggestion popup header. */
-  header: string;
+  header: CreateSuggestionRendererOptions['header'];
   /** Name of the insert command, e.g. `insertMention`. */
   insertCommand: string;
   /** Trailing debounce for async `items()` sources (ms). */
@@ -140,7 +148,11 @@ export function createTriggerSuggestion<Item extends TriggerNodeItem>(
       const type = state.schema.nodes[name];
       return !!type && !!$from.parent.type.contentMatch.matchType(type);
     },
-    render: createSuggestionRenderer<Item>({ header }),
+    render: createSuggestionRenderer<Item>({
+      header,
+      locale: getOptions()?.locale,
+      messages: getOptions()?.messages,
+    }),
   };
 }
 
@@ -168,6 +180,8 @@ export function createTriggerNode<
         items: () => [],
         onError: undefined,
         onClick: undefined,
+        locale: undefined,
+        messages: undefined,
         deleteTriggerWithBackspace: false,
         // The full suggestion (items/command/allow/render) is assembled in
         // addProseMirrorPlugins; user `suggestion` overrides still win.

@@ -28,6 +28,6 @@ export const HashTag = createTriggerNode<HashTagOptions, HashTagItem>({
   pluginKey: HashTagPluginKey,
   clickPluginKey: hashTagClickPluginKey,
   dataAttribute: 'data-hashtag',
-  header: 'Hashtags',
+  header: (said) => said.hashtags,
   insertCommand: 'insertHashTag',
 });

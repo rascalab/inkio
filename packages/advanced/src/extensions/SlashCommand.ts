@@ -5,9 +5,15 @@ import type { ReactNode } from 'react';
 import {
   createLatestWinsItems,
   createSuggestionRenderer,
+  enCoreMessages,
+  mergeCoreMessages,
   runOptionalChainCommand,
+  toCoreMessageOverrides,
   toError,
+  type InkioCoreMessageOverrides,
   type InkioErrorHandler,
+  type InkioLocaleInput,
+  type InkioMessageOverrides,
 } from '@inkio/core';
 
 export interface SlashCommandItem {
@@ -41,6 +47,10 @@ export interface SlashCommandOptions {
   transformItems?: SlashCommandTransform;
   /** Generic extension-level error callback */
   onError?: InkioErrorHandler;
+  /** Locale of the default items and the popup's own words */
+  locale?: InkioLocaleInput;
+  /** Message overrides for the default items and the popup's own words */
+  messages?: InkioCoreMessageOverrides | InkioMessageOverrides;
 }
 
 export const SlashCommandPluginKey = new PluginKey('slashCommand');
@@ -49,6 +59,8 @@ export interface SlashCommandItemSource {
   items: SlashCommandOptions['items'];
   transformItems: SlashCommandOptions['transformItems'];
   onError: SlashCommandOptions['onError'];
+  /** What to offer without custom `items`; defaults to defaultSlashCommands. */
+  defaults?: SlashCommandItem[];
   /** Shared sequence cell; callers supersede each other across keystrokes. */
   latest: { value: number };
 }
@@ -64,7 +76,7 @@ export async function resolveSlashCommandItems(
   context: SlashCommandContext,
   source: SlashCommandItemSource,
 ): Promise<SlashCommandItem[]> {
-  const { items, transformItems, onError, latest } = source;
+  const { items, transformItems, onError, defaults = defaultSlashCommands, latest } = source;
   // No debounce: the slash menu resolves synchronously-cheap defaults and
   // must feel instant. The caller-owned `latest` cell is the scope.
   const resolve = createLatestWinsItems<SlashCommandContext, SlashCommandItem>({
@@ -75,7 +87,7 @@ export async function resolveSlashCommandItems(
     source: async ({ query, editor }, { isCurrent }) => {
       const base = items
         ? await items({ query, editor })
-        : defaultSlashCommands.map((item) => ({ ...item }));
+        : defaults.map((item) => ({ ...item }));
       if (!isCurrent()) return [];
       // transformItems always applies — even on top of custom `items` and
       // even over an empty base (a transform may inject contextual items) —
@@ -136,8 +148,7 @@ export function filterSlashCommandItems(
 export const defaultSlashCommands: SlashCommandItem[] = [
   {
     id: 'heading1',
-    label: 'Heading 1',
-    description: 'Large section heading',
+    ...enCoreMessages.slashCommand.heading1,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'setHeading', {
         args: { level: 1 },
@@ -147,8 +158,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'heading2',
-    label: 'Heading 2',
-    description: 'Medium section heading',
+    ...enCoreMessages.slashCommand.heading2,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'setHeading', {
         args: { level: 2 },
@@ -158,8 +168,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'heading3',
-    label: 'Heading 3',
-    description: 'Small section heading',
+    ...enCoreMessages.slashCommand.heading3,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'setHeading', {
         args: { level: 3 },
@@ -169,8 +178,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'bulletList',
-    label: 'Bullet List',
-    description: 'Create a simple list',
+    ...enCoreMessages.slashCommand.bulletList,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'toggleBulletList', {
         prepare: (chain) => chain.deleteRange(range),
@@ -179,8 +187,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'numberedList',
-    label: 'Numbered List',
-    description: 'Create a numbered list',
+    ...enCoreMessages.slashCommand.numberedList,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'toggleOrderedList', {
         prepare: (chain) => chain.deleteRange(range),
@@ -189,8 +196,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'taskList',
-    label: 'Task List',
-    description: 'Create a to-do list',
+    ...enCoreMessages.slashCommand.taskList,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'toggleTaskList', {
         prepare: (chain) => chain.deleteRange(range),
@@ -199,8 +205,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'table',
-    label: 'Table',
-    description: 'Insert a table',
+    ...enCoreMessages.slashCommand.table,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'insertTable', {
         args: { rows: 3, cols: 3, withHeaderRow: true },
@@ -211,8 +216,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'codeBlock',
-    label: 'Code Block',
-    description: 'Add a code snippet',
+    ...enCoreMessages.slashCommand.codeBlock,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'toggleCodeBlock', {
         prepare: (chain) => chain.deleteRange(range),
@@ -221,8 +225,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'horizontalRule',
-    label: 'Divider',
-    description: 'Add a horizontal rule',
+    ...enCoreMessages.slashCommand.horizontalRule,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'setHorizontalRule', {
         prepare: (chain) => chain.deleteRange(range),
@@ -231,8 +234,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'callout',
-    label: 'Callout',
-    description: 'Add a callout block',
+    ...enCoreMessages.slashCommand.callout,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'setCallout', {
         prepare: (chain) => chain.deleteRange(range),
@@ -241,8 +243,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'toggleList',
-    label: 'Toggle List',
-    description: 'Add a collapsible section',
+    ...enCoreMessages.slashCommand.toggleList,
     command: ({ editor, range }) => {
       runOptionalChainCommand(editor, 'setDetails', {
         prepare: (chain) => chain.deleteRange(range),
@@ -252,8 +253,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'toc',
-    label: 'Table of Contents',
-    description: 'Insert a table of contents',
+    ...enCoreMessages.slashCommand.toc,
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).insertContent({ type: 'tocBlock' }).run();
     },
@@ -261,8 +261,7 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
   {
     id: 'image',
-    label: 'Image',
-    description: 'Upload an image',
+    ...enCoreMessages.slashCommand.image,
     command: ({ editor, range }) => {
       const input = document.createElement('input');
       input.type = 'file';
@@ -289,28 +288,40 @@ export const defaultSlashCommands: SlashCommandItem[] = [
   },
 ];
 
+function localizedSlashCommands(
+  locale: SlashCommandOptions['locale'],
+  messages: SlashCommandOptions['messages'],
+): SlashCommandItem[] {
+  const said: Record<string, { label: string; description: string }> =
+    mergeCoreMessages(locale, toCoreMessageOverrides(messages)).slashCommand;
+  return defaultSlashCommands.map((item) => ({ ...item, ...said[item.id] }));
+}
+
 export const SlashCommand = Extension.create<SlashCommandOptions>({
   name: 'slashCommand',
 
   addOptions() {
     return {
       suggestion: {},
-      items: ({ query, editor }) => {
-        return filterSlashCommandItems(defaultSlashCommands, query, editor);
-      },
+      // No default source: filtering it here would hide items from
+      // transformItems, which sees them before they are filtered by query.
+      items: undefined,
       transformItems: undefined,
       onError: undefined,
+      locale: undefined,
+      messages: undefined,
     };
   },
 
   addProseMirrorPlugins() {
-    const { items, transformItems, onError } = this.options;
+    const { items, transformItems, onError, locale, messages } = this.options;
+    const defaults = localizedSlashCommands(locale, messages);
     // One sequence cell per plugin instance (i.e. per editor) so
     // interleaved editors never drop each other's results.
     const latest = { value: 0 };
 
     const resolvedItems = async ({ query, editor }: SlashCommandContext) =>
-      resolveSlashCommandItems({ query, editor }, { items, transformItems, onError, latest });
+      resolveSlashCommandItems({ query, editor }, { items, transformItems, onError, defaults, latest });
 
     return [
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Extension.create erases items' return type to unknown[]; Suggestion expects SlashCommandItem[]
@@ -358,7 +369,11 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
           // Allow slash command in paragraph at root, in callout, or in toggle list
           return isParagraph && (isRootDepth || isInCalloutOrToggle) && isStartOfNode;
         },
-        render: createSuggestionRenderer<SlashCommandItem>({ header: 'Commands' }),
+        render: createSuggestionRenderer<SlashCommandItem>({
+          header: (said) => said.commands,
+          locale,
+          messages,
+        }),
         ...this.options.suggestion,
       }),
     ];
