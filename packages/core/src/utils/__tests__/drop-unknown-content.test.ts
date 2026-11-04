@@ -15,6 +15,21 @@ describe('dropUnknownContent', () => {
     expect(dropUnknownContent('<p>글</p>', schema)).toBe('<p>글</p>');
   });
 
+  it('does not throw on a malformed document', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let deep: Record<string, unknown> = { type: 'paragraph' };
+    for (let i = 0; i < 200_000; i += 1) deep = { type: 'paragraph', content: [deep] };
+    for (const doc of [
+      { type: 'paragraph', marks: 'bold', content: 'text' },
+      { type: 'paragraph', marks: [null, 7], content: [null, 7] },
+      { type: 'gone', content: 'text' },
+      deep,
+    ]) {
+      expect(() => dropUnknownContent(doc as never, schema)).not.toThrow();
+    }
+    warn.mockRestore();
+  });
+
   it('keeps text under a mark, and what an unknown node holds or is called', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const cleaned = dropUnknownContent({

@@ -44,7 +44,7 @@ const markdownParser = unified()
 const NEEDLESS_TILDE_ESCAPE_RE = /(?<=[^\\~])\\~(?=[^\\~])/g;
 const NEEDLESS_UNDERSCORE_ESCAPE_RE = /(?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}])/gu;
 
-const markdownStringifier = unified()
+const createMarkdownStringifier = (gfm: { tablePipeAlign: boolean }) => unified()
   .use(remarkStringify, {
     bullet: '-',
     fences: true,
@@ -60,8 +60,12 @@ const markdownStringifier = unified()
           .replace(NEEDLESS_UNDERSCORE_ESCAPE_RE, '_'),
     },
   })
-  .use(remarkGfm)
+  .use(remarkGfm, gfm)
   .use(remarkDirective);
+
+const markdownStringifier = createMarkdownStringifier({ tablePipeAlign: true });
+// Columns padded to their widest cell read well, and cost rows × width.
+const compactTableStringifier = createMarkdownStringifier({ tablePipeAlign: false });
 
 const DETAILS_BLOCK_RE = /<details>\s*<summary>([\s\S]*?)<\/summary>\s*([\s\S]*?)<\/details>/gi;
 const DETAILS_DIRECTIVE_RE = /:::details(?:\{([^}]*)\})?\n([\s\S]*?)\n:::/g;
@@ -438,6 +442,18 @@ let spanCellBudget = MAX_CELLS_ADDED_BY_SPANS;
 const MAX_PADDING_CELLS = 1_000_000;
 let paddingCellBudget = MAX_PADDING_CELLS;
 
+/**
+ * Aligning columns repeats a column's widest cell in every row, so one long cell
+ * over many rows grows without any malformed table. Past this much, a document's
+ * tables are written unaligned: still the same tables, in far fewer bytes.
+ */
+const MAX_ALIGNED_TABLE_CHARS = 5_000_000;
+let alignedTableChars = 0;
+
+function textLength(node: MdastNode): number {
+  return (node.value?.length ?? 0) + (node.children ?? []).reduce((sum, child) => sum + textLength(child), 0);
+}
+
 function chargeTablePadding(rows: MdastNode[]): void {
   const lengths = rows.map((row) => row.children?.length ?? 0);
   const width = lengths.reduce((widest, length) => Math.max(widest, length), 0);
@@ -445,6 +461,14 @@ function chargeTablePadding(rows: MdastNode[]): void {
   if (paddingCellBudget < 0) {
     throw new RangeError('Cannot write Markdown: a table has rows of very different lengths.');
   }
+
+  const columnWidths: number[] = [];
+  for (const row of rows) {
+    (row.children ?? []).forEach((cell, column) => {
+      columnWidths[column] = Math.max(columnWidths[column] ?? 0, textLength(cell));
+    });
+  }
+  alignedTableChars += rows.length * columnWidths.reduce((sum, columnWidth) => sum + columnWidth, 0);
 }
 
 function toSpan(value: unknown): number {
@@ -927,6 +951,7 @@ function jsonBlocksToMdast(nodes: JSONContent[] = []): MdastNode[] {
 function toMdastRoot(content: JSONContent): MdastNode {
   spanCellBudget = MAX_CELLS_ADDED_BY_SPANS;
   paddingCellBudget = MAX_PADDING_CELLS;
+  alignedTableChars = 0;
   const docContent = content.type === 'doc' ? (content.content ?? []) : [content];
   return {
     type: 'root',
@@ -939,7 +964,8 @@ function parseToMdast(markdown: string): MdastNode {
 }
 
 function stringifyFromMdast(root: MdastNode): string {
-  return postprocessMarkdown(String(markdownStringifier.stringify(root as any)).trim());
+  const stringifier = alignedTableChars > MAX_ALIGNED_TABLE_CHARS ? compactTableStringifier : markdownStringifier;
+  return postprocessMarkdown(String(stringifier.stringify(root as any)).trim());
 }
 
 export function createMarkdownAdapter(options: MarkdownAdapterOptions = {}) {

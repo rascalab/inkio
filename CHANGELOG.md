@@ -37,7 +37,7 @@ Versioning is unified across the publishable Inkio packages.
 - text being commented on stays highlighted while the comment is written, when focus has moved to the composer.
 - the table of contents' empty message follows `locale` and shows only to whoever is editing.
 - the image editor dialog has a localized name for screen readers, which no longer read its crop zoom number aloud.
-- `stringifyMarkdown` throws a `RangeError` for a malformed table whose rows differ so much that padding them would add over a million cells, instead of growing the output without limit. Tables made in an editor are rectangular and never reach this.
+- `stringifyMarkdown` throws a `RangeError` for a malformed table whose rows differ so much that padding them would add over a million cells, instead of growing the output without limit. Tables made in an editor are rectangular and never reach this. A document whose aligned tables would come to over 5 million characters, such as one long cell over many rows, is written with unaligned tables.
 - an image added from the slash menu, or pasted into an empty paragraph, replaces that paragraph and moves the caret below it. An empty line stayed above the image with the caret in it, so writing went above the image, and a menu covered the image's top.
 - the image editor opens in the `locale` of its editor (`ImageEditorComponentProps` gains `locale`), and the Korean close confirmation no longer has an English button.
 - closing the image editor without an edit no longer asks to discard, on the button or with Escape. Opening on the resize tool counted its starting crop as a change.

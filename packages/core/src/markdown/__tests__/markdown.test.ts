@@ -489,6 +489,23 @@ describe('merged table cells', () => {
     expect(stringifyMarkdown({ type: 'doc', content: [table] })).toContain('| 가');
   });
 
+  it('stops aligning columns when one long cell over many rows would blow up', () => {
+    const long = '가'.repeat(300_000);
+    const rows = [
+      { type: 'tableRow', content: [cell(long, undefined, 'tableHeader')] },
+      ...Array.from({ length: 1000 }, () => ({ type: 'tableRow', content: [cell('나')] })),
+    ];
+    const doc = { type: 'doc', content: [{ type: 'table', content: rows }] };
+    const markdown = stringifyMarkdown(doc);
+    expect(markdown.length).toBeLessThan(400_000);
+    expect(parseMarkdown(markdown)).toEqual(doc);
+  });
+
+  it('keeps aligning an ordinary table after a compact one', () => {
+    const table = '| 긴 머리글 | b |\n| ----- | - |\n| 1     | 2 |';
+    expect(stringifyMarkdown(parseMarkdown(table))).toBe(table);
+  });
+
   it('leaves a comment with no table after it as text', () => {
     const json = parseMarkdown('<!-- inkio:table-spans 0,0,2,1 -->\n\n문단');
     expect(json.content?.[0]?.content?.[0]?.text).toContain('inkio:table-spans');

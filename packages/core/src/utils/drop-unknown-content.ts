@@ -18,7 +18,7 @@ function cleanNode(node: JSONContent, schema: Schema, inline: boolean, unknown: 
   const type = schema.nodes[node.type ?? ''];
   if (!type) {
     unknown.add(node.type ?? 'unnamed');
-    if (node.content) return cleanChildren(node.content, schema, inline, unknown);
+    if (Array.isArray(node.content)) return cleanChildren(node.content, schema, inline, unknown);
     const text = textOf(node);
     if (!text) return [];
     return inline
@@ -26,15 +26,19 @@ function cleanNode(node: JSONContent, schema: Schema, inline: boolean, unknown: 
       : [{ type: 'paragraph', content: [{ type: 'text', text }] }];
   }
 
-  const marks = node.marks?.filter((mark) => {
-    if (schema.marks[mark.type]) return true;
-    unknown.add(mark.type);
-    return false;
-  });
+  const marks = Array.isArray(node.marks)
+    ? node.marks.filter((mark) => {
+        if (schema.marks[mark?.type]) return true;
+        unknown.add(String(mark?.type));
+        return false;
+      })
+    : null;
   return [{
     ...node,
     ...(marks ? { marks } : {}),
-    ...(node.content ? { content: cleanChildren(node.content, schema, type.inlineContent, unknown) } : {}),
+    ...(Array.isArray(node.content)
+      ? { content: cleanChildren(node.content, schema, type.inlineContent, unknown) }
+      : {}),
   }];
 }
 
@@ -46,7 +50,13 @@ function cleanNode(node: JSONContent, schema: Schema, inline: boolean, unknown: 
 export function dropUnknownContent<T extends string | JSONContent | undefined>(content: T, schema: Schema): T {
   if (!content || typeof content !== 'object') return content;
   const unknown = new Set<string>();
-  const [cleaned] = cleanNode(content as JSONContent, schema, false, unknown);
+  let cleaned: JSONContent | undefined;
+  try {
+    [cleaned] = cleanNode(content as JSONContent, schema, false, unknown);
+  } catch {
+    // Nested too deep to walk. Opening must not throw: Tiptap reports it instead.
+    return content;
+  }
   if (unknown.size === 0 || !cleaned) return content;
   console.warn(`[inkio] This editor has no extension for: ${[...unknown].join(', ')}. They were left out of the document.`);
   return cleaned as T;
