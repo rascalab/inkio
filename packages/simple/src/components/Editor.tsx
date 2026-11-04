@@ -81,6 +81,7 @@ export function Editor({
     placeholder,
     locale,
     messages: stableUi.messages,
+    icons: stableUi.icons,
     tabBehavior,
     imageBlock,
     onImageUpload,
@@ -92,6 +93,7 @@ export function Editor({
       placeholder: extensionInputs.placeholder,
       locale: extensionInputs.locale,
       messages: extensionInputs.messages,
+      icons: extensionInputs.icons,
       tabBehavior: extensionInputs.tabBehavior,
     };
     const mergedImageBlock = mergeImageBlockOptions(extensionInputs.imageBlock, {

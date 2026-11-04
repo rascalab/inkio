@@ -2,12 +2,7 @@ import { Extension, type Editor, type Range } from '@tiptap/core';
 import Suggestion, { type SuggestionOptions } from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
 import { createElement, type ComponentType, type ReactNode } from 'react';
-import {
-  ImageIcon,
-  ListTreeIcon,
-  resolveIconRegistry,
-  type InkioIconRegistry,
-} from '@inkio/core/icons';
+import { resolveIconRegistry, type InkioIconRegistry } from '@inkio/core/icons';
 import {
   createLatestWinsItems,
   createSuggestionRenderer,
@@ -345,12 +340,11 @@ function localizedSlashCommands(
   const said: Record<string, string> =
     mergeCoreMessages(locale, toCoreMessageOverrides(messages)).slashCommand;
   const registry = resolveIconRegistry(icons);
-  // The same icon each action has in the other menus; two have no action there.
+  // The same icon each action has in the other menus.
   const iconOf: Record<string, ComponentType<{ size?: number; strokeWidth?: number }> | undefined> = {
     ...registry,
     numberedList: registry.orderedList,
-    toc: ListTreeIcon,
-    image: ImageIcon,
+    toc: registry.tableOfContents,
   };
   return defaultSlashCommands.map((item) => {
     const Icon = iconOf[item.id];

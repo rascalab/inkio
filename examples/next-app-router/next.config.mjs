@@ -28,6 +28,7 @@ const nextConfig = {
         '@inkio/core': resolve(pkgs, 'core/src/index.ts'),
         '@inkio/advanced': resolve(pkgs, 'advanced/src/index.ts'),
         '@inkio/editor/markdown': resolve(pkgs, 'editor/src/markdown/index.ts'),
+        '@inkio/editor/icons': resolve(pkgs, 'editor/src/icons/index.ts'),
         '@inkio/editor': resolve(pkgs, 'editor/src/index.ts'),
         '@inkio/simple': resolve(pkgs, 'simple/src/index.ts'),
         '@inkio/image-editor': resolve(pkgs, 'image-editor/src/index.ts'),

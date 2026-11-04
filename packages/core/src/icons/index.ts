@@ -109,6 +109,7 @@ export {
 export {
   inkioIconRegistry,
   resolveIconRegistry,
+  editorIcons,
 } from './registry';
 export type {
   InkioIconComponent,

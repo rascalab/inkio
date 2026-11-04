@@ -7,7 +7,6 @@ import type {
   InkioMessageOverrides,
 } from '../i18n/messages';
 import { useInkioCoreUi } from '../context/use-inkio-ui';
-import { PlusIcon } from '../icons';
 import { autoUpdateOverlayPosition, computeOverlayPosition, fixedOrigin } from '../overlay/positioning';
 import { useDismissableLayer } from '../overlay/use-dismissable-layer';
 import {
@@ -449,7 +448,7 @@ export const TableMenu = ({
                   insertAt('column', index);
                 }}
               >
-                <PlusIcon size={12} strokeWidth={2} aria-hidden />
+                <ui.icons.insert size={12} strokeWidth={2} aria-hidden />
               </button>
             );
           })}
@@ -482,7 +481,7 @@ export const TableMenu = ({
                   insertAt('row', index);
                 }}
               >
-                <PlusIcon size={12} strokeWidth={2} aria-hidden />
+                <ui.icons.insert size={12} strokeWidth={2} aria-hidden />
               </button>
             );
           })}

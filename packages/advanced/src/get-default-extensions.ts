@@ -57,7 +57,7 @@ export function getDefaultExtensions(options: DefaultExtensionsOptions = {}) {
   } = options;
 
   const extensions: Extensions = [
-    ...getEssentialDefaultExtensions({ ...essentialOptions, locale, messages }),
+    ...getEssentialDefaultExtensions({ ...essentialOptions, locale, messages, icons }),
     Mention.configure({
       items: mentionItems as
         | ((props: { query: string }) => MentionItem[] | Promise<MentionItem[]>)

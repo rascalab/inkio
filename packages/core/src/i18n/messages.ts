@@ -476,10 +476,10 @@ export function resolveCoreMessages(
  * menus receive. Falls back to English when the app replaced the extension set.
  */
 export function editorMessages(editor: { storage?: unknown }): InkioCoreMessages {
-  const { inkioLocale } = (editor.storage ?? {}) as {
-    inkioLocale?: { locale?: unknown; messages?: InkioCoreMessageOverrides | InkioMessageOverrides };
+  const { inkioUi } = (editor.storage ?? {}) as {
+    inkioUi?: { locale?: unknown; messages?: InkioCoreMessageOverrides | InkioMessageOverrides };
   };
-  return resolveCoreMessages(inkioLocale?.locale, toCoreMessageOverrides(inkioLocale?.messages));
+  return resolveCoreMessages(inkioUi?.locale, toCoreMessageOverrides(inkioUi?.messages));
 }
 
 export function mergeCoreMessages(

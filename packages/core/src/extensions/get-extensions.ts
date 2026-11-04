@@ -3,6 +3,7 @@ import { TextSelection } from '@tiptap/pm/state';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { TaskItemView } from '../components/TaskItemView';
 import type { InkioIconComponent } from '../icons';
+import type { InkioIconRegistry } from '../icons/registry';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
@@ -63,6 +64,8 @@ export interface CoreExtensionOptions {
   locale?: InkioLocaleInput;
   /** Message overrides for those words */
   messages?: InkioCoreMessageOverrides | InkioMessageOverrides;
+  /** Icon overrides for what node views draw */
+  icons?: Partial<InkioIconRegistry>;
   /** Set to `false` to disable heading, or pass `{ levels }` to customize */
   heading?: false | { levels: number[] };
   /** Set to `false` to disable bold */
@@ -140,15 +143,15 @@ const OpenOnInsertDetails = Details.extend({
   },
 });
 
-const InkioLocale = Extension.create<Pick<CoreExtensionOptions, 'locale' | 'messages'>>({
-  name: 'inkioLocale',
+const InkioUi = Extension.create<Pick<CoreExtensionOptions, 'locale' | 'messages' | 'icons'>>({
+  name: 'inkioUi',
 
   addOptions() {
-    return { locale: undefined, messages: undefined };
+    return { locale: undefined, messages: undefined, icons: undefined };
   },
 
   addStorage() {
-    return { locale: this.options.locale, messages: this.options.messages };
+    return { locale: this.options.locale, messages: this.options.messages, icons: this.options.icons };
   },
 });
 
@@ -157,6 +160,7 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
     placeholder,
     locale,
     messages,
+    icons,
     heading,
     bold,
     italic,
@@ -198,7 +202,7 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
       placeholder: placeholder
         || resolveCoreMessages(locale, toCoreMessageOverrides(messages)).editor.placeholder,
     }),
-    InkioLocale.configure({ locale, messages }),
+    InkioUi.configure({ locale, messages, icons }),
   ];
 
   // Optional marks

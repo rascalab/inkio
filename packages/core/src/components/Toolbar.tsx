@@ -2,7 +2,6 @@ import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Editor, useEditorState } from '@tiptap/react';
 import * as Popover from '@radix-ui/react-popover';
 import type { InkioIconRegistry } from '../icons/registry';
-import { XIcon } from '../icons';
 import {
   getToolbarActionsFor,
   splitToolbarActionGroups,
@@ -303,7 +302,7 @@ export const Toolbar = ({
                                 setTextColorOpen(false);
                               }}
                             >
-                              <XIcon size={14} strokeWidth={1.8} aria-hidden />
+                              <ui.icons.close size={14} strokeWidth={1.8} aria-hidden />
                             </button>
                           </div>
                           <label className="inkio-color-input-label">

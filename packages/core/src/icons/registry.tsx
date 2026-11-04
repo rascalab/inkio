@@ -12,6 +12,15 @@ import {
   CodeBlockIcon,
   CodeIcon,
   ColumnsIcon,
+  CopyIcon,
+  GripVerticalIcon,
+  ImageIcon,
+  ListTreeIcon,
+  Loader2Icon,
+  PencilIcon,
+  PlusIcon,
+  TypeIcon,
+  XIcon,
   Heading1Icon,
   Heading2Icon,
   Heading3Icon,
@@ -79,7 +88,18 @@ export type BuiltinInkioIconId =
   | 'mergeCells'
   | 'splitCell'
   | 'deleteTable'
-  | 'taskCheck';
+  | 'taskCheck'
+  | 'grip'
+  | 'insert'
+  | 'close'
+  | 'copy'
+  | 'duplicate'
+  | 'delete'
+  | 'text'
+  | 'tableOfContents'
+  | 'image'
+  | 'edit'
+  | 'spinner';
 
 export type InkioIconId = BuiltinInkioIconId | (string & {});
 
@@ -126,6 +146,17 @@ export const inkioIconRegistry: InkioIconRegistry = {
   splitCell: SplitCellIcon,
   deleteTable: Trash2Icon,
   taskCheck: CheckIcon,
+  grip: GripVerticalIcon,
+  insert: PlusIcon,
+  close: XIcon,
+  copy: CopyIcon,
+  duplicate: CopyIcon,
+  delete: Trash2Icon,
+  text: TypeIcon,
+  tableOfContents: ListTreeIcon,
+  image: ImageIcon,
+  edit: PencilIcon,
+  spinner: Loader2Icon,
 };
 
 export function resolveIconRegistry(overrides?: Partial<InkioIconRegistry>): InkioIconRegistry {
@@ -133,4 +164,10 @@ export function resolveIconRegistry(overrides?: Partial<InkioIconRegistry>): Ink
     ...inkioIconRegistry,
     ...overrides,
   } as InkioIconRegistry;
+}
+
+/** The icons an editor's extensions were built with, for node views and plugins. */
+export function editorIcons(editor: { storage?: unknown }): InkioIconRegistry {
+  const { inkioUi } = (editor.storage ?? {}) as { inkioUi?: { icons?: Partial<InkioIconRegistry> } };
+  return resolveIconRegistry(inkioUi?.icons);
 }

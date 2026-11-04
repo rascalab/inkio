@@ -320,7 +320,7 @@ import '@inkio/editor/minimal.css';
 | 대상 | 방법 | 비고 |
 |------|------|------|
 | 문구 | `ui.messages` | 타입별 override, `en*Messages`에서 출발 |
-| 아이콘 | `ui.icons` | `Partial<InkioIconRegistry>`, 일부만 교체 가능 |
+| 아이콘 | `ui.icons` | `Partial<InkioIconRegistry>`, 일부만 교체 가능. 에디터가 그리는 모든 아이콘에 적용되고, 토글 화살표만 `--inkio-toggle-chevron` CSS 변수로 바꿉니다 |
 | 색상·폰트·간격 | CSS 변수 (`--inkio-*`) | `minimal.css` + 토큰 재정의 |
 | 전체 테마 | `theme` prop 또는 CSS | `'light'`/`'dark'`, 미지정 시 부모 추종 |
 | 메뉴 구성 | `ui.show*` + `toolbar`/`bubbleMenu` 세부 옵션 | preset별 기본값 상이 (위 비교표) |

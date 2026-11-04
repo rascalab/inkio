@@ -15,7 +15,7 @@ import {
   type InkioOptionalChainCommand,
 } from '@inkio/core';
 import { NodeSelection } from '@tiptap/pm/state';
-import { defaultBlockMenuIcons, type BlockMenuIcons, type BlockMenuIconId } from './icons';
+import { blockMenuIconsFrom, type BlockMenuIcons, type BlockMenuIconId } from './icons';
 
 interface AnchorRect {
   top: number;
@@ -169,10 +169,10 @@ export const BlockHandleActionMenu = ({
 
   const icons = useMemo(() => {
     return {
-      ...defaultBlockMenuIcons,
+      ...blockMenuIconsFrom(ui.icons),
       ...iconOverrides,
     };
-  }, [iconOverrides]);
+  }, [iconOverrides, ui.icons]);
 
   // blockPos is captured at menu-open time and may be stale after doc edits.
   // Clamp into range, verify a node exists, and validate its identity before
@@ -263,7 +263,7 @@ export const BlockHandleActionMenu = ({
   const menuItems = useMemo<MenuItem[]>(() => {
     const labels = ui.messages.blockHandle;
 
-    const icon = (id: BlockMenuIconId) => icons[id] ?? defaultBlockMenuIcons[id];
+    const icon = (id: BlockMenuIconId) => icons[id];
 
     return [
       {

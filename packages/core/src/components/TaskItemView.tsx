@@ -1,11 +1,11 @@
 import { NodeViewWrapper, NodeViewContent, type NodeViewProps } from '@tiptap/react';
 import { memo } from 'react';
-import { CheckIcon as DefaultCheckIcon } from '../icons';
+import { editorIcons } from '../icons/registry';
 import type { InkioIconComponent } from '../icons';
 
 function TaskItemViewInner({ node, updateAttributes, extension, editor }: NodeViewProps) {
   const checked = node.attrs.checked as boolean;
-  const CheckIcon: InkioIconComponent = extension.options.checkIcon || DefaultCheckIcon;
+  const CheckIcon: InkioIconComponent = extension.options.checkIcon || editorIcons(editor).taskCheck;
 
   const toggleChecked = () => {
     // Read-only surfaces (Viewer) render the state statically.

@@ -36,7 +36,7 @@ src/
 - Tests co-located: `src/__tests__/` + `src/**/__tests__/` + `*.test.ts(x)`; jsdom + `src/test-setup.ts`.
 - Inline option literals go through `useStableOptions`/`useStableCallback` (structural compare) — enforced by churn tests.
 - Dependency layering is contract-tested (`dependency-contract.test.ts`): React is the only peer; no `@tiptap/*` in peers; no marked/turndown in core.
-- Icons come from `src/icons` (lucide). Menu icons are 16px at stroke 1.8; compact controls in a node view are 14px.
+- Icons come from `src/icons` (lucide) and are drawn through the registry (`ui.icons`, `editorIcons(editor)` in node views), so an app can replace every one (`icon-contract.test.ts`). Menu icons are 16px at stroke 1.8; compact controls in a node view are 14px.
 - CSS tokens live in `tokens.css`; `surface-contract.test.ts` pins style snippets to them.
 
 ## ANTI-PATTERNS

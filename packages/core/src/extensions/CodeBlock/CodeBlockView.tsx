@@ -1,7 +1,7 @@
 import { type NodeViewProps, NodeViewContent, NodeViewWrapper } from '@tiptap/react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { editorMessages } from '../../i18n/messages';
-import { CopyIcon, CheckIcon } from '../../icons';
+import { editorIcons } from '../../icons/registry';
 
 const POPULAR_LANGUAGES = [
   { value: 'typescript', label: 'TypeScript' },
@@ -50,6 +50,7 @@ export function legacyCopyText(text: string): boolean {
 
 function CodeBlockViewInner({ node, updateAttributes, editor }: NodeViewProps) {
   const said = useMemo(() => editorMessages(editor).codeBlock, [editor]);
+  const { copy: CopyIcon, taskCheck: CheckIcon } = useMemo(() => editorIcons(editor), [editor]);
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const language = (node.attrs.language as string) || '';

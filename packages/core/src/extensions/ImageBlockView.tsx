@@ -1,13 +1,7 @@
 import { NodeViewWrapper, NodeViewProps } from '@tiptap/react';
 import React, { memo, useMemo, useRef, useState, useEffect, useCallback, Suspense } from 'react';
 import { editorMessages } from '../i18n/messages';
-import {
-  AlignCenterIcon,
-  AlignLeftIcon,
-  AlignRightIcon,
-  Loader2Icon,
-  PencilIcon,
-} from '../icons';
+import { editorIcons } from '../icons/registry';
 import {
   IMAGE_BLOCK_MAX_WIDTH_PERCENT,
   IMAGE_BLOCK_MIN_WIDTH_PERCENT,
@@ -33,6 +27,13 @@ export const IMAGE_BLOCK_CAPTION_DEBOUNCE_MS = 600;
 function ImageBlockViewInner(props: NodeViewProps) {
   const { node, updateAttributes, selected, editor, extension } = props;
   const said = useMemo(() => editorMessages(editor).imageBlock, [editor]);
+  const {
+    textAlignCenter: AlignCenterIcon,
+    textAlignLeft: AlignLeftIcon,
+    textAlignRight: AlignRightIcon,
+    spinner: Loader2Icon,
+    edit: PencilIcon,
+  } = useMemo(() => editorIcons(editor), [editor]);
   const ImageEditorComponent = (extension?.options as any)?.imageEditor as React.ComponentType<ImageEditorComponentProps> | undefined;
   // Track editability via subscription (not render-time read) so the memo
   // below stays exact: same value bails out of setState on every keystroke,

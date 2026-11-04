@@ -101,6 +101,7 @@ export {
   XIconNode,
   inkioIconRegistry,
   resolveIconRegistry,
+  editorIcons,
 } from '@inkio/core/icons';
 export type {
   InkioIconComponent,

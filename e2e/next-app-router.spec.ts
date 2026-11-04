@@ -768,3 +768,50 @@ test.describe('slash menu inside other blocks', () => {
     await expect(page.locator('.inkio-suggestion-description')).toHaveCount(0);
   });
 });
+
+test('an app can replace every icon the editor draws', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'checked once');
+  await page.goto('http://localhost:4174/icons-e2e');
+  const editor = blockEditor(page);
+  await expect(editor).toContainText('끝 문단');
+  const foreign = () => page.evaluate(() =>
+    Array.from(document.querySelectorAll('svg:not([data-app-icon])')).map((svg) => svg.parentElement?.className || svg.parentElement?.tagName));
+  const allAppIcons = async () => expect(await foreign()).toEqual([]);
+
+  await editor.getByText('앞 문단', { exact: true }).hover();
+  const handle = page.locator('[aria-label="블록 핸들"]');
+  await expect(handle.locator('svg[data-app-icon]')).toHaveCount(1);
+  await allAppIcons();
+
+  await handle.click();
+  await expect(page.locator('.inkio-block-handle-action-menu svg[data-app-icon]').first()).toBeVisible();
+  await allAppIcons();
+  await page.keyboard.press('Escape');
+
+  await page.locator('.ProseMirror td').first().hover();
+  await expect(page.locator('.inkio-table-insert svg[data-app-icon]').first()).toBeAttached();
+  await allAppIcons();
+
+  await editor.getByText('코드', { exact: true }).hover();
+  await allAppIcons();
+
+  await editor.evaluate((root) => {
+    const { editor: tiptap } = root as unknown as { editor: { chain: () => any; state: { doc: { content: { size: number } } } } };
+    const end = tiptap.state.doc.content.size - 1;
+    tiptap.chain().focus().setTextSelection({ from: end - 2, to: end }).run();
+  });
+  await expect(page.locator('.inkio-floating-overlay.is-visible svg[data-app-icon]').first()).toBeVisible();
+  await allAppIcons();
+
+  await editor.evaluate((root) => {
+    (root as unknown as { editor: { commands: { focus: (at: string) => void } } }).editor.commands.focus('end');
+  });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await page.keyboard.press('Enter');
+  await allAppIcons();
+  await page.keyboard.type('/');
+  // Scoped: the code block's language picker has options too.
+  const popup = page.getByRole('listbox', { name: '추천 항목' });
+  await expect(popup.getByRole('option').first().locator('svg[data-app-icon]')).toBeVisible();
+  await allAppIcons();
+});

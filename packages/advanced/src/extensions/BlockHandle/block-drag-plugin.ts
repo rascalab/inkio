@@ -54,12 +54,13 @@ const LIST_TYPES_SET = new Set(['bulletList', 'orderedList', 'taskList']);
 const HANDLE_CLASS_NAME = 'inkio-block-handle';
 const HIDE_DELAY_MS = 120;
 const HANDLE_SIZE = 24;
+const GRIP_PROPS = { size: 16, strokeWidth: 1.8 };
 
 export const blockHandlePluginKey = new PluginKey<BlockHandlePluginState>('blockHandle');
 
 const isHTMLElement = (value: unknown): value is HTMLElement => value instanceof HTMLElement;
 
-const createHandleElement = (label: string) => {
+const createHandleElement = (label: string, withDefaultIcon: boolean) => {
   const handle = document.createElement('div');
   handle.className = HANDLE_CLASS_NAME;
   handle.setAttribute('draggable', 'true');
@@ -67,8 +68,8 @@ const createHandleElement = (label: string) => {
   handle.setAttribute('aria-label', label);
   handle.style.userSelect = 'none';
 
-  const icon = createInkioIconElement(GripVerticalIconNode, { size: 16, strokeWidth: 1.8 });
-  handle.appendChild(icon);
+  if (!withDefaultIcon) return handle;
+  handle.appendChild(createInkioIconElement(GripVerticalIconNode, GRIP_PROPS));
 
   return handle;
 };
@@ -325,6 +326,7 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
   let currentBlockCleanup: (() => void) | null = null;
 
   let menuHost: OverlayHost | null = null;
+  let gripHost: OverlayHost | null = null;
   let openMenuBlockPos: number | null = null;
   let openMenuBlockFingerprint: BlockFingerprint | null = null;
   let abortController: AbortController | null = null;
@@ -538,8 +540,18 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
       options.locale,
       toCoreMessageOverrides(options.messages),
     ).blockHandle.handle;
-    handleElement = createHandleElement(handleLabel);
+    const Grip = options.coreIcons?.grip;
+    handleElement = createHandleElement(handleLabel, !Grip);
     document.body.appendChild(handleElement);
+    // An app's icon is a component; only the default can be built without React.
+    if (Grip) {
+      gripHost = createOverlayHost({
+        parent: handleElement,
+        className: 'inkio-block-handle-grip',
+        label: 'block handle icon',
+      });
+      gripHost.render(React.createElement(Grip, GRIP_PROPS));
+    }
 
     abortController?.abort();
     abortController = new AbortController();
@@ -935,6 +947,8 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
           closeMenu();
 
           menuHost?.destroy();
+          gripHost?.destroy();
+          gripHost = null;
           menuHost = null;
 
           if (handleElement) {
