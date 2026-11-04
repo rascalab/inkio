@@ -421,11 +421,20 @@ function applyTableSpans(rows: JSONContent[], spans: TableSpan[]): JSONContent[]
   }));
 }
 
+/** Documents can come from anywhere: a span this large is written as a plain cell, not expanded. */
+const MAX_MERGED_CELLS = 100_000;
+
+function toSpan(value: unknown): number {
+  const span = Number(value);
+  return Number.isSafeInteger(span) && span > 0 ? span : 1;
+}
+
 /** The GFM rows of a table, with an empty cell wherever a merged cell covers a column. */
 function jsonTableToMdast(node: JSONContent): { rows: MdastNode[]; spans: TableSpan[] } {
   const covered = new Set<string>();
   const spans: TableSpan[] = [];
   const emptyCell = (): MdastNode => ({ type: 'tableCell', children: [] });
+  const rowCount = node.content?.length ?? 0;
 
   const rows = (node.content ?? []).map((row, rowIndex) => {
     const children: MdastNode[] = [];
@@ -436,9 +445,10 @@ function jsonTableToMdast(node: JSONContent): { rows: MdastNode[]; spans: TableS
     for (const cell of row.content ?? []) {
       fillCovered();
       const column = children.length;
-      const colspan = Number(cell.attrs?.colspan ?? 1) || 1;
-      const rowspan = Number(cell.attrs?.rowspan ?? 1) || 1;
-      if (colspan > 1 || rowspan > 1) {
+      const colspan = toSpan(cell.attrs?.colspan);
+      const rowspan = Math.min(toSpan(cell.attrs?.rowspan), rowCount - rowIndex);
+      const area = colspan * rowspan;
+      if (area > 1 && covered.size + area <= MAX_MERGED_CELLS) {
         spans.push({ row: rowIndex, column, colspan, rowspan });
         for (let r = rowIndex; r < rowIndex + rowspan; r += 1) {
           for (let c = column; c < column + colspan; c += 1) {

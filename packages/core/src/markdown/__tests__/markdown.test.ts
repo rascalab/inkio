@@ -392,6 +392,34 @@ describe('merged table cells', () => {
     }
   });
 
+  it('writes spans it cannot trust as plain cells', () => {
+    for (const attrs of [
+      { colspan: 1_000_000_000, rowspan: 1_000_000_000 },
+      { colspan: -2, rowspan: 1 },
+      { colspan: 1.5, rowspan: 1 },
+    ]) {
+      const markdown = stringifyMarkdown({
+        type: 'doc',
+        content: [{ type: 'table', content: [
+          { type: 'tableRow', content: [cell('가', attrs, 'tableHeader'), cell('나', undefined, 'tableHeader')] },
+        ] }],
+      });
+      expect(markdown).not.toContain('inkio:table-spans');
+      expect(markdown.replace(/ +/g, ' ')).toContain('| 가 | 나 |');
+    }
+  });
+
+  it('limits a row span to the rows the table has', () => {
+    const markdown = stringifyMarkdown({
+      type: 'doc',
+      content: [{ type: 'table', content: [
+        { type: 'tableRow', content: [cell('가', { colspan: 1, rowspan: 1_000_000 }, 'tableHeader'), cell('나', undefined, 'tableHeader')] },
+        { type: 'tableRow', content: [cell('다')] },
+      ] }],
+    });
+    expect(markdown).toContain('<!-- inkio:table-spans 0,0,1,2 -->');
+  });
+
   it('leaves a comment with no table after it as text', () => {
     const json = parseMarkdown('<!-- inkio:table-spans 0,0,2,1 -->\n\n문단');
     expect(json.content?.[0]?.content?.[0]?.text).toContain('inkio:table-spans');
