@@ -442,6 +442,19 @@ describe('merged table cells', () => {
     expect(markdown).not.toContain('inkio:table-spans');
   });
 
+  it('charges the work of a table that gives up its merges', () => {
+    const tooWide = {
+      type: 'table',
+      content: [{ type: 'tableRow', content: [cell('가', { colspan: 99_999, rowspan: 1 })] }],
+    };
+    const small = {
+      type: 'table',
+      content: [{ type: 'tableRow', content: [cell('나', { colspan: 2, rowspan: 1 })] }],
+    };
+    const markdown = stringifyMarkdown({ type: 'doc', content: [tooWide, small] });
+    expect(markdown).not.toContain('inkio:table-spans');
+  });
+
   it('counts the cells spans add across the whole document', () => {
     const wideTable = {
       type: 'table',

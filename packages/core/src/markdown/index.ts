@@ -446,7 +446,6 @@ function layoutMergedTable(node: JSONContent): TableLayout | null {
   const sourceRows = node.content ?? [];
   const covered = new Set<string>();
   const spans: TableSpan[] = [];
-  let spannedCells = 0;
 
   const rows: MdastNode[] = [];
   for (const [rowIndex, row] of sourceRows.entries()) {
@@ -464,8 +463,10 @@ function layoutMergedTable(node: JSONContent): TableLayout | null {
       const rowspan = Math.min(toSpan(cell.attrs?.rowspan), sourceRows.length - rowIndex);
       const area = colspan * rowspan;
       if (area > 1) {
-        spannedCells += area;
-        if (spannedCells > spanCellBudget) return null;
+        // Charged before expanding and kept even if this table gives up, so
+        // tables that fail can't repeat the work without limit.
+        if (area > spanCellBudget) return null;
+        spanCellBudget -= area;
         spans.push({ row: rowIndex, column, colspan, rowspan });
         for (let r = rowIndex; r < rowIndex + rowspan; r += 1) {
           for (let c = column; c < column + colspan; c += 1) {
@@ -482,10 +483,10 @@ function layoutMergedTable(node: JSONContent): TableLayout | null {
   const widest = (lengths: number[]) => lengths.reduce((max, length) => Math.max(max, length), 0);
   const plainWidth = widest(sourceRows.map((row) => row.content?.length ?? 0));
   const width = widest(rows.map((row) => row.children?.length ?? 0));
-  const added = spannedCells + (width - plainWidth) * sourceRows.length;
-  if (added > spanCellBudget) return null;
+  const widening = (width - plainWidth) * sourceRows.length;
+  if (widening > spanCellBudget) return null;
 
-  spanCellBudget -= added;
+  spanCellBudget -= widening;
   return { rows, spans };
 }
 
