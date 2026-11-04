@@ -10,6 +10,12 @@ docs/.next-pages/
 examples/*/.next/
 dist/
 
+# Written by Next.js: next-env.d.ts by next dev/build/typegen, the agent files
+# by next dev when an AI agent runs it in a folder that has neither
+next-env.d.ts
+examples/*/AGENTS.md
+examples/*/CLAUDE.md
+
 # TypeScript cache
 *.tsbuildinfo
 

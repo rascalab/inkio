@@ -7,7 +7,7 @@
     "build": "next build --webpack",
     "build:smoke": "INKIO_USE_SOURCE_PACKAGES=1 next build --webpack",
     "start": "next start",
-    "typecheck": "tsc --noEmit -p tsconfig.build.json"
+    "typecheck": "next typegen && tsc --noEmit -p tsconfig.build.json"
   },
   "dependencies": {
     "@inkio/advanced": "workspace:*",

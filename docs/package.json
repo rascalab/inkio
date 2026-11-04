@@ -7,8 +7,8 @@
     "build": "next build --webpack",
     "postbuild": "node ./scripts/postbuild-pagefind.mjs",
     "start": "next start",
-    "lint": "tsc --noEmit -p tsconfig.build.json",
-    "typecheck": "tsc --noEmit -p tsconfig.build.json"
+    "lint": "next typegen && tsc --noEmit -p tsconfig.build.json",
+    "typecheck": "next typegen && tsc --noEmit -p tsconfig.build.json"
   },
   "dependencies": {
     "@inkio/advanced": "workspace:*",
