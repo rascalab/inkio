@@ -633,31 +633,32 @@ test.describe('editor surfaces', () => {
   });
 });
 
+// Set directly, not pasted: Firefox ignores clipboardData on a synthetic paste.
+const TABLE = '<table><tbody><tr><th><p>가</p></th><th><p>뒤</p></th></tr><tr><td><p>다</p></td><td><p>라</p></td></tr></tbody></table>';
+const NESTED = '<ul><li><p>앞</p><ul><li><p>뒤</p></li></ul></li></ul>';
+
 test.describe('Tab', () => {
-  async function fill(page: import('@playwright/test').Page, markdown: string, caretAfter: string) {
+  async function fill(page: import('@playwright/test').Page, html: string, caretAfter: string) {
     await page.goto('http://localhost:4174/block-e2e');
     await expect(blockEditor(page)).toContainText('끝 문단');
     await blockEditor(page).evaluate(async (root, [text, after]) => {
       const { editor } = root as unknown as { editor: any };
-      editor.commands.clearContent();
+      editor.commands.setContent(text);
       editor.commands.focus();
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      const clipboardData = new DataTransfer();
-      clipboardData.setData('text/plain', text);
-      root.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }));
       let at = -1;
       editor.state.doc.descendants((node: any, pos: number) => {
         if (at < 0 && node.isText && node.text.includes(after)) at = pos + node.text.indexOf(after) + after.length;
       });
       editor.chain().focus().setTextSelection(at).run();
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    }, [markdown, caretAfter] as const);
+    }, [html, caretAfter] as const);
   }
   const focused = (page: import('@playwright/test').Page) =>
     page.evaluate(() => document.activeElement?.classList.contains('ProseMirror'));
 
   test('types a tab in a paragraph and Shift+Tab takes it back', async ({ page }) => {
-    await fill(page, '가나', '가');
+    await fill(page, '<p>가나</p>', '가');
     await page.keyboard.press('Tab');
     await page.keyboard.type('다');
     await expect(blockEditor(page).locator('p').first()).toHaveText('가\t다나');
@@ -669,7 +670,7 @@ test.describe('Tab', () => {
   });
 
   test('indents code by two spaces and stays in the block', async ({ page }) => {
-    await fill(page, '```\n가\n```', '가');
+    await fill(page, '<pre><code>가</code></pre>', '가');
     await page.keyboard.press('Tab');
     await page.keyboard.type('나');
     await expect(blockEditor(page).locator('pre')).toContainText('가  나');
@@ -677,18 +678,18 @@ test.describe('Tab', () => {
   });
 
   test('still nests a list item and moves between table cells', async ({ page }) => {
-    await fill(page, '- 가\n- 나', '나');
+    await fill(page, '<ul><li><p>가</p></li><li><p>나</p></li></ul>', '나');
     await page.keyboard.press('Tab');
     await expect(blockEditor(page).locator('li li')).toHaveText('나');
 
-    await fill(page, '| 가 | 나 |\n| --- | --- |\n| 다 | 라 |', '가');
+    await fill(page, TABLE.replace('뒤', '나'), '가');
     await page.keyboard.press('Tab');
     await page.keyboard.type('X');
     await expect(blockEditor(page).locator('th').nth(1)).toContainText('X');
   });
 
   test('Escape leaves the editor, and closes an open menu first', async ({ page }) => {
-    await fill(page, '가', '가');
+    await fill(page, '<p>가</p>', '가');
     await page.keyboard.press('Enter');
     await page.keyboard.type('/');
     await expect(page.getByRole('listbox')).toBeVisible();
@@ -702,24 +703,21 @@ test.describe('Tab', () => {
 });
 
 test.describe('slash menu inside other blocks', () => {
-  async function slashIn(page: import('@playwright/test').Page, markdown: string) {
+  async function slashIn(page: import('@playwright/test').Page, html: string) {
     await page.goto('http://localhost:4174/block-e2e');
     await expect(blockEditor(page)).toContainText('끝 문단');
     await blockEditor(page).evaluate(async (root, text) => {
       const { editor } = root as unknown as { editor: any };
-      editor.commands.clearContent();
+      editor.commands.setContent(text);
       editor.commands.focus();
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      const clipboardData = new DataTransfer();
-      clipboardData.setData('text/plain', text);
-      root.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }));
       let at = -1;
       editor.state.doc.descendants((node: any, pos: number) => {
         if (at < 0 && node.isText && node.text.includes('뒤')) at = pos;
       });
       editor.chain().focus().setTextSelection({ from: at, to: at + 1 }).deleteSelection().run();
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    }, markdown);
+    }, html);
     await page.keyboard.type('/');
   }
   const pick = async (page: import('@playwright/test').Page, label: string) => {
@@ -732,10 +730,10 @@ test.describe('slash menu inside other blocks', () => {
     });
 
   for (const [place, markdown] of [
-    ['a bullet', '- 앞\n- 뒤'],
-    ['a numbered item', '1. 앞\n2. 뒤'],
-    ['a task', '- [ ] 앞\n- [ ] 뒤'],
-    ['a nested item', '- 앞\n  - 뒤'],
+    ['a bullet', '<ul><li><p>앞</p></li><li><p>뒤</p></li></ul>'],
+    ['a numbered item', '<ol><li><p>앞</p></li><li><p>뒤</p></li></ol>'],
+    ['a task', '<ul data-type="taskList"><li data-type="taskItem"><p>앞</p></li><li data-type="taskItem"><p>뒤</p></li></ul>'],
+    ['a nested item', NESTED],
   ] as const) {
     test(`opens in ${place} and a block takes the item's place`, async ({ page }) => {
       await slashIn(page, markdown);
@@ -748,21 +746,21 @@ test.describe('slash menu inside other blocks', () => {
   }
 
   test('a table leaves the list with no empty line behind', async ({ page }) => {
-    await slashIn(page, '- 앞\n- 뒤');
+    await slashIn(page, '<ul><li><p>앞</p></li><li><p>뒤</p></li></ul>');
     await pick(page, '표');
     expect(await outline(page)).toEqual(['bulletList', 'table']);
     await expect(blockEditor(page).locator('li')).toHaveCount(1);
   });
 
   test('a command for the list it is in only removes the slash', async ({ page }) => {
-    await slashIn(page, '- 앞\n  - 뒤');
+    await slashIn(page, NESTED);
     await pick(page, '글머리 목록');
     await expect(blockEditor(page).locator('li li')).toHaveCount(1);
     await expect(blockEditor(page).locator('li li')).toHaveText('');
   });
 
   test('a cell offers no table, and shows no descriptions', async ({ page }) => {
-    await slashIn(page, '| 가 | 뒤 |\n| --- | --- |\n| 다 | 라 |');
+    await slashIn(page, TABLE);
     await expect(page.getByRole('option', { name: '코드 블록', exact: true })).toBeVisible();
     await expect(page.getByRole('option', { name: '표', exact: true })).toHaveCount(0);
     await expect(page.locator('.inkio-suggestion-description')).toHaveCount(0);
