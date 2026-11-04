@@ -450,8 +450,10 @@ let paddingCellBudget = MAX_PADDING_CELLS;
 const MAX_ALIGNED_TABLE_CHARS = 5_000_000;
 let alignedTableChars = 0;
 
-function textLength(node: MdastNode): number {
-  return (node.value?.length ?? 0) + (node.children ?? []).reduce((sum, child) => sum + textLength(child), 0);
+/** Roughly what a node takes in Markdown: its text, a link's address, and its syntax. */
+function writtenLength(node: MdastNode): number {
+  const own = [node.value, node.url, node.title, node.alt].reduce((sum, text) => sum + (text?.length ?? 0), 4);
+  return (node.children ?? []).reduce((sum, child) => sum + writtenLength(child), own);
 }
 
 function chargeTablePadding(rows: MdastNode[]): void {
@@ -465,7 +467,7 @@ function chargeTablePadding(rows: MdastNode[]): void {
   const columnWidths: number[] = [];
   for (const row of rows) {
     (row.children ?? []).forEach((cell, column) => {
-      columnWidths[column] = Math.max(columnWidths[column] ?? 0, textLength(cell));
+      columnWidths[column] = Math.max(columnWidths[column] ?? 0, writtenLength(cell));
     });
   }
   alignedTableChars += rows.length * columnWidths.reduce((sum, columnWidth) => sum + columnWidth, 0);

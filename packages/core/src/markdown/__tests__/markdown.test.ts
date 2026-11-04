@@ -501,6 +501,16 @@ describe('merged table cells', () => {
     expect(parseMarkdown(markdown)).toEqual(doc);
   });
 
+  it('counts a long link address as width', () => {
+    const href = `https://example.com/${'a'.repeat(300_000)}`;
+    const link = { type: 'paragraph', content: [{ type: 'text', text: '링크', marks: [{ type: 'link', attrs: { href } }] }] };
+    const rows = [
+      { type: 'tableRow', content: [{ type: 'tableHeader', content: [link] }] },
+      ...Array.from({ length: 1000 }, () => ({ type: 'tableRow', content: [cell('나')] })),
+    ];
+    expect(stringifyMarkdown({ type: 'doc', content: [{ type: 'table', content: rows }] }).length).toBeLessThan(400_000);
+  });
+
   it('keeps aligning an ordinary table after a compact one', () => {
     const table = '| 긴 머리글 | b |\n| ----- | - |\n| 1     | 2 |';
     expect(stringifyMarkdown(parseMarkdown(table))).toBe(table);
