@@ -1,6 +1,5 @@
-import type { InkioLocaleInput, InkioMessageOverrides } from '@inkio/core';
+import type { DeepPartial, InkioLocaleInput, InkioMessageOverrides } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
-import type { InkioImageEditorMessageOverrides } from './i18n';
 
 export type ToolType = 'crop' | 'rotate' | 'resize' | 'draw' | 'shape' | 'text' | 'filter' | 'redact' | 'sticker';
 export type EnabledToolType = Exclude<ToolType, 'crop'>;
@@ -202,6 +201,12 @@ export interface ImageEditorState {
   isLoading: boolean;
   error: string | null;
 }
+
+export interface InkioImageEditorMessages {
+  imageEditor: ImageEditorLocale;
+}
+
+export type InkioImageEditorMessageOverrides = DeepPartial<InkioImageEditorMessages>;
 
 export interface ImageEditorLocale {
   crop: string;

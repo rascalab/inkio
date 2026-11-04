@@ -5,7 +5,7 @@ import {
   commentThreadPopoverPluginKey,
   COMMENT_THREADS_CHANGED_EVENT,
   type CommentOptions,
-} from './Comment';
+} from './comment-shared';
 import { CommentThreadPopover } from './components/CommentThreadPopover';
 import {
   autoUpdateOverlayPosition,

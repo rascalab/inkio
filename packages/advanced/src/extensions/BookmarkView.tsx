@@ -1,7 +1,7 @@
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { memo, useEffect, useRef, useState } from 'react';
 import { sanitizeUrlOrEmpty } from '@inkio/core';
-import type { BookmarkOptions, BookmarkPreview } from './Bookmark';
+import type { BookmarkOptions, BookmarkPreview } from './bookmark-types';
 
 const resolvePreviewUpdate = (preview: BookmarkPreview): Record<string, string | null> => {
   const nextAttributes: Record<string, string | null> = {};

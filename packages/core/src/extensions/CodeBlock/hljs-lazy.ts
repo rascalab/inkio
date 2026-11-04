@@ -2,9 +2,9 @@ import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import type { Transaction } from '@tiptap/pm/state';
 import { clampRange, collectChangedRanges } from '../../utils/changed-ranges';
-import { LOWLIGHT_REFRESH_META } from './lowlight-plugin';
+import { LOWLIGHT_REFRESH_META, type InkioLowlight } from './lowlight-plugin';
 
-export type InkioLowlight = ReturnType<typeof import('lowlight').createLowlight>;
+export type { InkioLowlight };
 
 interface HljsLanguageModule {
   default: Parameters<InkioLowlight['register']>[1];

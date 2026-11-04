@@ -5,7 +5,7 @@ import {
   commentComposerPluginKey,
   defaultGenerateId,
   type CommentOptions,
-} from './Comment';
+} from './comment-shared';
 import { CommentComposer } from './components/CommentComposer';
 import { createOverlayHost, type OverlayHost } from '@inkio/core';
 

@@ -11,23 +11,12 @@ import {
   type InkioCommentMessageOverrides,
 } from '../i18n';
 import { getInitials } from '../utils';
-import { notifyCommentThreadsChanged } from '../Comment';
+import { notifyCommentThreadsChanged, type CommentMessage, type CommentThreadData } from '../comment-shared';
 import { CommentActionIcon } from './CommentActionIcon';
 
 // ─── Data types ────────────────────────────────────────────
 
-export interface CommentMessage {
-  id: string;
-  author: string;
-  text: string;
-  createdAt: Date;
-}
-
-export interface CommentThreadData {
-  id: string;
-  messages: CommentMessage[];
-  resolved: boolean;
-}
+export type { CommentMessage, CommentThreadData };
 
 /** Highlight range found in the editor document */
 interface EditorCommentMark {

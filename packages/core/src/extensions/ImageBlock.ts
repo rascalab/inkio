@@ -1,19 +1,28 @@
-import React from 'react';
 import { mergeAttributes, Node } from '@tiptap/core';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
 import { Plugin, PluginKey, Selection } from '@tiptap/pm/state';
 import { toError, type InkioErrorHandler } from '../errors';
-import type { InkioLocaleInput } from '../i18n/messages';
 import { isSafeUrl } from '../utils/url-safety';
+import {
+  IMAGE_BLOCK_MAX_WIDTH_PERCENT,
+  IMAGE_BLOCK_MIN_WIDTH_PERCENT,
+  UPLOAD_PLACEHOLDER_PREFIX,
+  type ImageEditorComponent,
+} from './image-block-shared';
 import { ImageBlockView } from './ImageBlockView';
+
+export {
+  IMAGE_BLOCK_MAX_WIDTH_PERCENT,
+  IMAGE_BLOCK_MIN_WIDTH_PERCENT,
+  UPLOAD_PLACEHOLDER_PREFIX,
+} from './image-block-shared';
+export type { ImageEditorComponent, ImageEditorComponentProps } from './image-block-shared';
 
 type ImageUploadResult = string | Record<string, any>;
 type ImageAlign = 'left' | 'center' | 'right';
 
-export const IMAGE_BLOCK_MIN_WIDTH_PERCENT = 10;
-export const IMAGE_BLOCK_MAX_WIDTH_PERCENT = 100;
 
 /**
  * Single width boundary for the resize handle and the setImageBlockWidth
@@ -46,12 +55,6 @@ type ImageNodeAttributes = {
 
 const KNOWN_IMAGE_ATTR_KEYS = ['src', 'alt', 'title', 'width', 'align', 'caption'] as const;
 
-/**
- * Prefix marking a transient upload-placeholder `src`. This is a sentinel
- * string, not a real URL — the view layer must render it as a loading state
- * instead of an `<img src>` (which would trigger a relative-path fetch).
- */
-export const UPLOAD_PLACEHOLDER_PREFIX = '__inkio_upload_';
 
 function toImageNodeAttributes(result: ImageUploadResult, fallbackAlt?: string): Partial<ImageNodeAttributes> {
   if (typeof result === 'string') {
@@ -99,26 +102,6 @@ function toImageNodeAttributes(result: ImageUploadResult, fallbackAlt?: string):
 
   return attrs;
 }
-
-export interface ImageEditorComponentProps {
-  isOpen: boolean;
-  imageSrc: string;
-  onSave: (editedImageData: string) => void;
-  onClose: () => void;
-  /** Resolved theme of the editor that opened it (`theme` prop or a `.dark` ancestor). */
-  theme?: 'light' | 'dark';
-  /** `locale` of the editor that opened it. */
-  locale?: InkioLocaleInput;
-}
-
-/**
- * A component that can take those props. Not `ComponentType`: its `defaultProps`
- * would also require the component's props to fit these, which turns away one
- * like `ImageEditorModal` whose `locale` accepts more than an editor passes.
- */
-export type ImageEditorComponent =
-  | ((props: ImageEditorComponentProps) => ReturnType<React.FunctionComponent>)
-  | (new (props: ImageEditorComponentProps) => React.Component);
 
 export interface ImageBlockOptions {
   HTMLAttributes: Record<string, any>;

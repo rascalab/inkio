@@ -1,10 +1,9 @@
 import { Text } from 'react-konva';
 import type Konva from 'konva';
+import { STICKER_FONT_FAMILY } from '../constants';
 import type { StickerAnnotation } from '../types';
 import { useAnnotationShapeHandlers, type AnnotationShapeProps } from './use-annotation-shape-handlers';
 
-export const STICKER_FONT_FAMILY =
-  '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", sans-serif';
 
 export function StickerAnnotationShape(props: AnnotationShapeProps<StickerAnnotation>) {
   const { annotation, scale } = props;
@@ -38,3 +37,5 @@ export function StickerAnnotationShape(props: AnnotationShapeProps<StickerAnnota
     />
   );
 }
+
+export { STICKER_FONT_FAMILY };

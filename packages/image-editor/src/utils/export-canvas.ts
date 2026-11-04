@@ -6,7 +6,7 @@ import { applyImageFilter, resolveEffectiveFilter } from './filters';
 import { clampNumber } from './math';
 import { isImageTainted } from './image-loader';
 import type { CropRect } from '../types';
-import { STICKER_FONT_FAMILY } from '../annotations/StickerAnnotationShape';
+import { STICKER_FONT_FAMILY } from '../constants';
 
 export type ExportFormat = 'png' | 'jpeg' | 'webp';
 

@@ -1,16 +1,11 @@
 import {
   deepMerge,
   pickMessageLocale,
-  type DeepPartial,
   type InkioMessageOverrides,
 } from '@inkio/core';
-import type { ImageEditorLocale } from '../types';
+import type { InkioImageEditorMessageOverrides, InkioImageEditorMessages } from '../types';
 
-export interface InkioImageEditorMessages {
-  imageEditor: ImageEditorLocale;
-}
-
-export type InkioImageEditorMessageOverrides = DeepPartial<InkioImageEditorMessages>;
+export type { InkioImageEditorMessageOverrides, InkioImageEditorMessages };
 
 export const koImageEditorMessages: InkioImageEditorMessages = {
   imageEditor: {

@@ -1,6 +1,9 @@
 import type { ImageEditorLocale, ToolType } from './types';
 import { COLOR_PRESETS } from './color-presets';
 
+export const STICKER_FONT_FAMILY =
+  '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", sans-serif';
+
 export const DEFAULT_LOCALE: ImageEditorLocale = {
   crop: 'Crop',
   rotate: 'Rotate',

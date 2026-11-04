@@ -5,7 +5,8 @@ import type { EditorState, Transaction } from '@tiptap/pm/state';
 import type { Step } from '@tiptap/pm/transform';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import highlight from 'highlight.js/lib/core';
-import type { InkioLowlight } from './hljs-lazy';
+
+export type InkioLowlight = ReturnType<typeof import('lowlight').createLowlight>;
 
 function parseNodes(
   nodes: Array<{ value?: string; children?: unknown; properties?: { className?: string[] } }>,

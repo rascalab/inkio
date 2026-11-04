@@ -2,24 +2,9 @@ import { mergeAttributes, Node } from '@tiptap/core';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { sanitizeUrlOrEmpty } from '@inkio/core';
 import { BookmarkView } from './BookmarkView';
+import type { BookmarkOptions } from './bookmark-types';
 
-export interface BookmarkPreview {
-  title?: string;
-  description?: string;
-  image?: string;
-  favicon?: string;
-}
-
-export interface BookmarkAttributes extends BookmarkPreview {
-  url: string;
-}
-
-export interface BookmarkOptions {
-  HTMLAttributes: Record<string, any>;
-  onResolveBookmark?: (url: string) => Promise<BookmarkPreview>;
-  /** Loading placeholder text while the preview resolves. */
-  loadingPreviewText?: string;
-}
+export type { BookmarkAttributes, BookmarkOptions, BookmarkPreview } from './bookmark-types';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {

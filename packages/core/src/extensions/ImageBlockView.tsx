@@ -7,7 +7,7 @@ import {
   IMAGE_BLOCK_MIN_WIDTH_PERCENT,
   UPLOAD_PLACEHOLDER_PREFIX,
   type ImageEditorComponentProps,
-} from './ImageBlock';
+} from './image-block-shared';
 import { isSafeUrl } from '../utils/url-safety';
 import { isDarkTheme } from './CodeBlock/hljs-theme';
 

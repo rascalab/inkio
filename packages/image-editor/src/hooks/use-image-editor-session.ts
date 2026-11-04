@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useCanvasExport } from './use-canvas-export';
 import { useImageEditor } from './use-image-editor';
 import { useKeyboardShortcuts } from './use-keyboard-shortcuts';
-import { resolveControlsModel, type ViewportKind } from '../toolbar/ToolOptionsPanel';
+import { resolveControlsModel, type ViewportKind } from '../utils/controls-model';
 import type { ImageEditorLocale, ImageEditorState, ToolType } from '../types';
 import { getSelectedAnnotation } from '../utils/annotation-types';
 import { loadImage } from '../utils/image-loader';
