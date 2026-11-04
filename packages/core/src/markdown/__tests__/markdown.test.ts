@@ -347,3 +347,53 @@ describe('a typed tab', () => {
     }
   });
 });
+
+describe('merged table cells', () => {
+  const cell = (text: string, attrs?: Record<string, number>, type = 'tableCell') => ({
+    type,
+    ...(attrs ? { attrs } : {}),
+    content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+  });
+  const merged = {
+    type: 'doc',
+    content: [{
+      type: 'table',
+      content: [
+        { type: 'tableRow', content: [cell('가', { colspan: 2, rowspan: 1 }, 'tableHeader'), cell('다', undefined, 'tableHeader')] },
+        { type: 'tableRow', content: [cell('라', { colspan: 1, rowspan: 2 }), cell('마'), cell('바')] },
+        { type: 'tableRow', content: [cell('아'), cell('자')] },
+      ],
+    }],
+  };
+
+  it('keeps every value in its column for other tools', () => {
+    const markdown = stringifyMarkdown(merged);
+    expect(markdown).toContain('<!-- inkio:table-spans 0,0,2,1 1,0,1,2 -->');
+    expect(markdown.replace(/ +/g, ' ')).toContain('| 가 | | 다 |');
+    expect(markdown.replace(/ +/g, ' ')).toContain('| | 아 | 자 |');
+  });
+
+  it('restores the merges when read back', () => {
+    expect(parseMarkdown(stringifyMarkdown(merged))).toEqual(merged);
+  });
+
+  it('adds no comment to a table without merges', () => {
+    const markdown = '| a | b |\n| - | - |\n| 1 | 2 |';
+    expect(stringifyMarkdown(parseMarkdown(markdown))).toBe(markdown);
+  });
+
+  it('ignores a span that does not fit, or that would swallow text', () => {
+    const table = '| a | b |\n| - | - |\n| 1 | 2 |';
+    for (const spans of ['0,0,5,1', '0,0,2,1', '9,9,2,2', '0,0,1,1']) {
+      const json = parseMarkdown(`<!-- inkio:table-spans ${spans} -->\n\n${table}`);
+      expect(json.content?.[0]?.type).toBe('table');
+      expect(JSON.stringify(json)).not.toContain('colspan');
+      expect(JSON.stringify(json)).toContain('"b"');
+    }
+  });
+
+  it('leaves a comment with no table after it as text', () => {
+    const json = parseMarkdown('<!-- inkio:table-spans 0,0,2,1 -->\n\n문단');
+    expect(json.content?.[0]?.content?.[0]?.text).toContain('inkio:table-spans');
+  });
+});

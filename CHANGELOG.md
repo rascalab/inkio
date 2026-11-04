@@ -8,7 +8,7 @@ Versioning is unified across the publishable Inkio packages.
 
 ### Added
 
-- the table context menu offers merge and split. They existed as commands with no way to reach them; right-clicking a selected cell now keeps the selection, so there is something to merge.
+- the table context menu offers merge and split when they apply. They existed as commands with no way to reach them; right-clicking a selected cell now keeps the selection, so there is something to merge.
 - wiki links: `wikiLinkItems` on the `@inkio/editor` `Editor` (and `items` on the `WikiLink` extension) opens a page suggestion popup after typing `[[`; the chosen item's `id` becomes the link target. Without it, `[[name]]` still converts on the closing `]]`.
 - `MarkdownPaste` from the `/markdown` subpaths turns Markdown pasted as plain text into document content. Add it with `extensions`; it is opt-in so the parser stays out of the editor bundle.
 - `ui.icons` now reaches every icon the editors draw: new ids `grip`, `insert`, `close`, `copy`, `duplicate`, `delete`, `text`, `tableOfContents`, `image`, `edit` and `spinner`, plus node views and the block menu, which used to draw theirs directly. The toggle arrow, whose button Tiptap owns, follows the `--inkio-toggle-chevron` CSS variable.
@@ -16,6 +16,7 @@ Versioning is unified across the publishable Inkio packages.
 
 ### Changed
 
+- the table context menu holds only what the table offers no other way to do: merge, split, delete row and delete column. The `+` buttons add rows and columns, and the block handle menu deletes the table.
 - `Viewer` in `@inkio/editor` and `@inkio/simple` re-renders when `content` changes, like `@inkio/core`'s `Viewer` and `StaticViewer`. In 0.0.7 it kept the first document. `Editor` still treats `content` as the initial document.
 - Tab writes instead of leaving the editor: it nests a list item, indents code (2 spaces), moves between table cells and elsewhere types a tab. Shift+Tab undoes it. Escape leaves the editor, so keyboard users are not trapped; `tabBehavior="default"` keeps browser focus navigation.
 - the slash menu opens in any paragraph that starts with `/`, including list items, quotes and table cells, and default commands no longer show a description. `messages.core.slashCommand` entries are plain labels. In a list item a block command replaces the item outside the list (callout did nothing, and table, divider, toggle and table of contents landed inside the item beside an empty line), and a command for the list it is already in does nothing. Table and table of contents are not offered inside a table.
@@ -27,6 +28,7 @@ Versioning is unified across the publishable Inkio packages.
 - the image editor opens in the `locale` of its editor (`ImageEditorComponentProps` gains `locale`), and the Korean close confirmation no longer has an English button.
 - closing the image editor without an edit no longer asks to discard, on the button or with Escape. Opening on the resize tool counted its starting crop as a change.
 - a table column `+` lands at its boundary when a merged cell shortens the first row.
+- markdown export keeps merged tables aligned. A merged cell shifted every value after it into the wrong column; empty cells now hold the columns, and a comment before the table restores the merges on import.
 - the image resize handle sits on the image's corner instead of the caption line, and text in selected table cells no longer shows a second highlight.
 - `useReadOnlyContentSync` no longer logs a React `flushSync` error when the document has an image or code block.
 - the slash menu and the `@`, `#`, `[[` popups follow `locale` and `messages`: their header, empty state and list name, and the default slash commands, which are found by those words (`/표`). They stayed English before, and `/표` found nothing. The slash menu no longer has a "Commands" header.

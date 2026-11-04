@@ -125,16 +125,26 @@ describe('TableMenu', () => {
     expect(editor.view.posAtDOM).toHaveBeenLastCalledWith(table.rows[1].cells[1], 0);
   });
 
-  it('offers merge and split in the context menu', async () => {
+  it('offers merge and split only when they apply', async () => {
     const { editor, table, commandSpies } = createMockEditor({ splitCell: false });
-    const { getByRole } = render(<TableMenu editor={editor} />);
+    const { getByRole, queryByRole } = render(<TableMenu editor={editor} />);
 
     fireEvent.contextMenu(table.rows[1].cells[1], { clientX: 40, clientY: 40 });
     await waitFor(() => getByRole('menu'));
 
-    expect(getByRole('menuitem', { name: 'Split cell' })).toBeDisabled();
+    expect(queryByRole('menuitem', { name: 'Split cell' })).toBeNull();
     fireEvent.mouseDown(getByRole('menuitem', { name: 'Merge cells' }));
     expect(commandSpies.mergeCells).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves out what the table offers another way', async () => {
+    const { editor, table } = createMockEditor({ mergeCells: false, splitCell: false });
+    const { getAllByRole, getByRole } = render(<TableMenu editor={editor} />);
+
+    fireEvent.contextMenu(table.rows[1].cells[1], { clientX: 40, clientY: 40 });
+    await waitFor(() => getByRole('menu'));
+
+    expect(getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Delete row', 'Delete column']);
   });
 
   it('keeps a selection of several cells when one of them is right-clicked', async () => {
@@ -189,12 +199,12 @@ describe('TableMenu', () => {
   });
 
   it('disables a context-menu action when the command is unavailable', async () => {
-    const { editor, table } = createMockEditor({ deleteTable: false });
+    const { editor, table } = createMockEditor({ deleteRow: false });
     const { getByRole } = render(<TableMenu editor={editor} />);
 
     fireEvent.contextMenu(table.rows[1].cells[1], { clientX: 40, clientY: 40 });
 
     await waitFor(() => getByRole('menu'));
-    expect(getByRole('menuitem', { name: 'Delete table' })).toBeDisabled();
+    expect(getByRole('menuitem', { name: 'Delete row' })).toBeDisabled();
   });
 });

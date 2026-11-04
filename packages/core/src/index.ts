@@ -140,7 +140,7 @@ export type { ToCProps } from './components/ToC';
 
 // ImageBlock
 export { ImageBlock } from './extensions/ImageBlock';
-export type { ImageBlockOptions, ImageEditorComponentProps, ImageUploadContext } from './extensions/ImageBlock';
+export type { ImageBlockOptions, ImageEditorComponent, ImageEditorComponentProps, ImageUploadContext } from './extensions/ImageBlock';
 
 // TocBlock
 export { TocBlock } from './extensions/TocBlock';

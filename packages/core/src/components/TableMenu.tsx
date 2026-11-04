@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/react';
 import type { InkioIconId, InkioIconRegistry } from '../icons/registry';
 import type {
@@ -40,29 +40,27 @@ type TableMetrics = {
 };
 
 type HoverState = { axis: 'column' | 'row'; index: number };
-type ContextMenuState = { x: number; y: number; origin: { x: number; y: number } };
-type ContextMenuEntry = { kind: 'action'; id: InkioTableActionId } | { kind: 'separator' };
+type ContextMenuState = {
+  x: number;
+  y: number;
+  /** The pointer: the menu's size is only known after it renders, and placement restarts from here. */
+  anchor: { x: number; y: number };
+  origin: { x: number; y: number };
+};
 
-const CONTEXT_MENU_ENTRIES: ContextMenuEntry[] = [
-  { kind: 'action', id: 'addRowBefore' },
-  { kind: 'action', id: 'addRowAfter' },
-  { kind: 'action', id: 'addColumnBefore' },
-  { kind: 'action', id: 'addColumnAfter' },
-  { kind: 'separator' },
-  { kind: 'action', id: 'mergeCells' },
-  { kind: 'action', id: 'splitCell' },
-  { kind: 'separator' },
-  { kind: 'action', id: 'deleteRow' },
-  { kind: 'action', id: 'deleteColumn' },
-  { kind: 'action', id: 'deleteTable' },
-];
+// Only what the table offers no other way to do: the + buttons add rows and
+// columns, and the block handle menu deletes the table.
+const CONTEXT_MENU_CELL_ACTIONS: InkioTableActionId[] = ['mergeCells', 'splitCell'];
+const CONTEXT_MENU_DELETE_ACTIONS: InkioTableActionId[] = ['deleteRow', 'deleteColumn'];
+
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 const CONTEXT_MENU_WIDTH = 200;
-const CONTEXT_MENU_HEIGHT = 340;
+const CONTEXT_MENU_HEIGHT = 180;
 const CONTEXT_MENU_GUTTER = 8;
 
 /** Place the context menu at the pointer, shifted inside the viewport gutter. */
-function placeContextMenu(x: number, y: number, width: number, height: number): Omit<ContextMenuState, 'origin'> {
+function placeContextMenu(x: number, y: number, width: number, height: number): { x: number; y: number } {
   const next = computeOverlayPosition({
     anchorRect: { top: y, bottom: y, left: x, right: x, width: 0, height: 0 },
     floatingRect: { width, height },
@@ -310,6 +308,7 @@ export const TableMenu = ({
       setContextMenu(
         {
           ...placeContextMenu(event.clientX, event.clientY, CONTEXT_MENU_WIDTH, CONTEXT_MENU_HEIGHT),
+          anchor: { x: event.clientX, y: event.clientY },
           origin: fixedOrigin(dom),
         },
       );
@@ -321,12 +320,13 @@ export const TableMenu = ({
 
   // Reclamp the context menu to the real rendered size: the open-time
   // estimate uses fixed constants, which long i18n labels or zoom overflow.
-  useEffect(() => {
+  // Before paint: the menu's height varies, and it must not appear elsewhere first.
+  useIsomorphicLayoutEffect(() => {
     if (!contextMenu || !menuRef.current) {
       return;
     }
     const rect = menuRef.current.getBoundingClientRect();
-    const { x, y } = placeContextMenu(contextMenu.x, contextMenu.y, rect.width, rect.height);
+    const { x, y } = placeContextMenu(contextMenu.anchor.x, contextMenu.anchor.y, rect.width, rect.height);
     if (x !== contextMenu.x || y !== contextMenu.y) {
       setContextMenu({ ...contextMenu, x, y });
     }
@@ -438,6 +438,34 @@ export const TableMenu = ({
     return null;
   }
 
+  // Merge and split appear when they apply: a cell selection, a merged cell.
+  const cellActions = contextMenu
+    ? CONTEXT_MENU_CELL_ACTIONS.filter((id) => canExecuteTableAction(editor, id))
+    : [];
+
+  const renderContextItem = (id: InkioTableActionId, isDanger = false) => {
+    const Icon = ui.icons[id as InkioIconId];
+    const disabled = !canExecuteTableAction(editor, id);
+    return (
+      <button
+        key={id}
+        type="button"
+        role="menuitem"
+        className={`inkio-table-context-item${isDanger ? ' is-danger' : ''}`}
+        disabled={disabled}
+        onMouseDown={(event) => {
+          event.preventDefault();
+          if (!disabled) {
+            runAction(id);
+          }
+        }}
+      >
+        {Icon && <Icon size={16} strokeWidth={1.8} />}
+        <span>{ui.messages.tableMenu[id]}</span>
+      </button>
+    );
+  };
+
   return (
     <>
       {metrics && (
@@ -537,35 +565,9 @@ export const TableMenu = ({
           aria-label={ui.messages.actions.table}
           style={{ top: contextMenu.y - contextMenu.origin.y, left: contextMenu.x - contextMenu.origin.x }}
         >
-          {CONTEXT_MENU_ENTRIES.map((entry, index) => {
-            if (entry.kind === 'separator') {
-              return <div key={`separator-${index}`} className="inkio-table-context-separator" />;
-            }
-
-            const Icon = ui.icons[entry.id as InkioIconId];
-            const label = ui.messages.tableMenu[entry.id];
-            const disabled = !canExecuteTableAction(editor, entry.id);
-            const isDanger = entry.id === 'deleteRow' || entry.id === 'deleteColumn' || entry.id === 'deleteTable';
-
-            return (
-              <button
-                key={entry.id}
-                type="button"
-                role="menuitem"
-                className={`inkio-table-context-item${isDanger ? ' is-danger' : ''}`}
-                disabled={disabled}
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  if (!disabled) {
-                    runAction(entry.id);
-                  }
-                }}
-              >
-                {Icon && <Icon size={16} strokeWidth={1.8} />}
-                <span>{label}</span>
-              </button>
-            );
-          })}
+          {cellActions.map((id) => renderContextItem(id))}
+          {cellActions.length > 0 && <div className="inkio-table-context-separator" />}
+          {CONTEXT_MENU_DELETE_ACTIONS.map((id) => renderContextItem(id, true))}
         </div>
       )}
     </>

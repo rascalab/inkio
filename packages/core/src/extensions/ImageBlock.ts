@@ -5,6 +5,7 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
 import { Plugin, PluginKey, Selection } from '@tiptap/pm/state';
 import { toError, type InkioErrorHandler } from '../errors';
+import type { InkioLocaleInput } from '../i18n/messages';
 import { isSafeUrl } from '../utils/url-safety';
 import { ImageBlockView } from './ImageBlockView';
 
@@ -106,14 +107,18 @@ export interface ImageEditorComponentProps {
   onClose: () => void;
   /** Resolved theme of the editor that opened it (`theme` prop or a `.dark` ancestor). */
   theme?: 'light' | 'dark';
-  /**
-   * `locale` of the editor that opened it: an `InkioLocaleInput`. Loosely typed
-   * because `ComponentType` compares props both ways, and `ImageEditorModal`,
-   * which this package cannot name, also accepts a table of words here.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  locale?: any;
+  /** `locale` of the editor that opened it. */
+  locale?: InkioLocaleInput;
 }
+
+/**
+ * A component that can take those props. Not `ComponentType`: its `defaultProps`
+ * would also require the component's props to fit these, which turns away one
+ * like `ImageEditorModal` whose `locale` accepts more than an editor passes.
+ */
+export type ImageEditorComponent =
+  | ((props: ImageEditorComponentProps) => ReturnType<React.FunctionComponent>)
+  | (new (props: ImageEditorComponentProps) => React.Component);
 
 export interface ImageBlockOptions {
   HTMLAttributes: Record<string, any>;
@@ -130,7 +135,7 @@ export interface ImageBlockOptions {
   /** Generic extension-level error callback */
   onError?: InkioErrorHandler;
   /** Optional image editor component. When provided, an edit button appears on the image toolbar. */
-  imageEditor?: React.ComponentType<ImageEditorComponentProps>;
+  imageEditor?: ImageEditorComponent;
 }
 
 /**

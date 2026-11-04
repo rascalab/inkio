@@ -55,6 +55,8 @@ import { MarkdownPaste } from '@inkio/editor/markdown';
 Markdown round-trip은 `core` 범위까지만 보장합니다.
 구현은 `remark/unified` 기반이며 HTML bridge를 사용하지 않습니다.
 
+GFM 표에는 셀 병합이 없습니다. 병합한 표는 빈 칸으로 열 위치를 유지해 내보내고, 병합 정보는 표 바로 앞의 주석(`<!-- inkio:table-spans ... -->`)에 남겨 Inkio가 다시 읽을 때 복원합니다. 다른 도구에서는 병합이 풀린 표로 보입니다.
+
 ### Advanced 노드 처리
 
 | 노드 | 내보내기 | 다시 읽기 |

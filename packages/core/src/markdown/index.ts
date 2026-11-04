@@ -368,10 +368,99 @@ function directiveToJson(node: MdastNode): JSONContent[] {
   }];
 }
 
+type TableSpan = { row: number; column: number; colspan: number; rowspan: number };
+
+/**
+ * GFM has no merged cells. The writer keeps every column in place with empty
+ * cells, so other tools show an aligned table, and notes the merges in a comment
+ * they don't show, so this reader restores them.
+ */
+const TABLE_SPANS_COMMENT = /^<!--\s*inkio:table-spans((?:\s+\d+,\d+,\d+,\d+)+)\s*-->$/;
+
+function parseTableSpansComment(value: string | undefined): TableSpan[] | null {
+  const match = TABLE_SPANS_COMMENT.exec(value?.trim() ?? '');
+  if (!match) return null;
+  return match[1].trim().split(/\s+/).map((entry) => {
+    const [row, column, colspan, rowspan] = entry.split(',').map(Number);
+    return { row, column, colspan, rowspan };
+  });
+}
+
+/** Merges the cells each span covers. A span the table can't hold is ignored, as is one over text. */
+function applyTableSpans(rows: JSONContent[], spans: TableSpan[]): JSONContent[] {
+  const covered = new Set<string>();
+
+  for (const { row, column, colspan, rowspan } of spans) {
+    const keys: string[] = [];
+    let fits = colspan >= 1 && rowspan >= 1 && colspan * rowspan > 1;
+    for (let r = row; fits && r < row + rowspan; r += 1) {
+      for (let c = column; fits && c < column + colspan; c += 1) {
+        const cell = rows[r]?.content?.[c];
+        const isOrigin = r === row && c === column;
+        const isEmpty = !cell?.content?.some((block) => (block.content?.length ?? 0) > 0);
+        const key = `${r},${c}`;
+        fits = Boolean(cell) && !covered.has(key) && (isOrigin || isEmpty);
+        if (!isOrigin) keys.push(key);
+      }
+    }
+    if (!fits) continue;
+
+    const origin = rows[row].content![column];
+    origin.attrs = { ...origin.attrs, colspan, rowspan };
+    covered.add(`${row},${column}`);
+    keys.forEach((key) => covered.add(key));
+    keys.forEach((key) => {
+      const [r, c] = key.split(',').map(Number);
+      rows[r].content![c] = { type: 'covered' };
+    });
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    content: row.content?.filter((cell) => cell.type !== 'covered'),
+  }));
+}
+
+/** The GFM rows of a table, with an empty cell wherever a merged cell covers a column. */
+function jsonTableToMdast(node: JSONContent): { rows: MdastNode[]; spans: TableSpan[] } {
+  const covered = new Set<string>();
+  const spans: TableSpan[] = [];
+  const emptyCell = (): MdastNode => ({ type: 'tableCell', children: [] });
+
+  const rows = (node.content ?? []).map((row, rowIndex) => {
+    const children: MdastNode[] = [];
+    const fillCovered = () => {
+      while (covered.has(`${rowIndex},${children.length}`)) children.push(emptyCell());
+    };
+
+    for (const cell of row.content ?? []) {
+      fillCovered();
+      const column = children.length;
+      const colspan = Number(cell.attrs?.colspan ?? 1) || 1;
+      const rowspan = Number(cell.attrs?.rowspan ?? 1) || 1;
+      if (colspan > 1 || rowspan > 1) {
+        spans.push({ row: rowIndex, column, colspan, rowspan });
+        for (let r = rowIndex; r < rowIndex + rowspan; r += 1) {
+          for (let c = column; c < column + colspan; c += 1) {
+            if (r !== rowIndex || c !== column) covered.add(`${r},${c}`);
+          }
+        }
+      }
+      children.push(jsonTableCellToMdast(cell));
+    }
+    fillCovered();
+
+    return { type: 'tableRow', children };
+  });
+
+  return { rows, spans };
+}
+
 function mdastBlocksToJson(nodes: MdastNode[] = []): JSONContent[] {
   const content: JSONContent[] = [];
+  let tableSpans: TableSpan[] | null = null;
 
-  for (const node of nodes) {
+  for (const [index, node] of nodes.entries()) {
     switch (node.type) {
       case 'heading':
         content.push({
@@ -416,21 +505,28 @@ function mdastBlocksToJson(nodes: MdastNode[] = []): JSONContent[] {
       case 'thematicBreak':
         content.push({ type: 'horizontalRule' });
         break;
-      case 'table':
+      case 'table': {
+        const rows = (node.children ?? []).map((row, rowIndex) => ({
+          type: 'tableRow',
+          content: (row.children ?? []).map((cell) =>
+            tableCellToJson(cell, rowIndex === 0 ? 'tableHeader' : 'tableCell'),
+          ),
+        }));
         content.push({
           type: 'table',
-          content: (node.children ?? []).map((row, rowIndex) => ({
-            type: 'tableRow',
-            content: (row.children ?? []).map((cell) =>
-              tableCellToJson(cell, rowIndex === 0 ? 'tableHeader' : 'tableCell'),
-            ),
-          })),
+          content: tableSpans ? applyTableSpans(rows, tableSpans) : rows,
         });
+        tableSpans = null;
         break;
+      }
       case 'containerDirective':
         directiveToJson(node).forEach((child) => content.push(child));
         break;
       case 'html':
+        if (nodes[index + 1]?.type === 'table') {
+          tableSpans = parseTableSpansComment(node.value);
+          if (tableSpans) break;
+        }
         content.push({
           type: 'paragraph',
           content: node.value ? [{ type: 'text', text: node.value }] : undefined,
@@ -689,10 +785,11 @@ function jsonBlocksToMdast(nodes: JSONContent[] = []): MdastNode[] {
         });
         break;
       case 'table': {
-        const rows = (node.content ?? []).map((row) => ({
-          type: 'tableRow',
-          children: (row.content ?? []).map((cell) => jsonTableCellToMdast(cell)),
-        }));
+        const { rows, spans } = jsonTableToMdast(node);
+        if (spans.length > 0) {
+          const entries = spans.map((span) => `${span.row},${span.column},${span.colspan},${span.rowspan}`);
+          content.push({ type: 'html', value: `<!-- inkio:table-spans ${entries.join(' ')} -->` });
+        }
         content.push({
           type: 'table',
           children: rows,

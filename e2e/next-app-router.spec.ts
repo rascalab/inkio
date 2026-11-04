@@ -93,6 +93,57 @@ test('next app router example inserts an image from the slash command without a 
   expect(pageErrors).not.toEqual(
     expect.arrayContaining([expect.stringContaining('Applying a mismatched transaction')]),
   );
+
+  // The image takes the empty line's place, and writing continues below it.
+  await page.keyboard.type('below the image');
+  const lastBlocks = await editor.evaluate((root) => {
+    const { content } = (root as unknown as { editor: { getJSON: () => { content: { type: string; content?: unknown[] }[] } } }).editor.getJSON();
+    return content.slice(-3).map((node) => ({ type: node.type, empty: !node.content }));
+  });
+  expect(lastBlocks.slice(1)).toEqual([
+    { type: 'imageBlock', empty: true },
+    { type: 'paragraph', empty: false },
+  ]);
+  expect(lastBlocks[0].empty).toBe(false);
+});
+
+test('cells selected in a table merge and split from its menu', async ({ page }) => {
+  await page.goto('http://localhost:4174/slash-e2e');
+  const editor = page.locator('.ProseMirror').first();
+  await expect(editor).toBeVisible();
+  await editor.evaluate((root) => {
+    const { editor: instance } = root as unknown as { editor: { commands: { clearContent: () => void; focus: () => void; insertTable: (options: { rows: number; cols: number; withHeaderRow: boolean }) => void } } };
+    // `commands` holds one transaction: read it again for each command.
+    instance.commands.clearContent();
+    instance.commands.focus();
+    instance.commands.insertTable({ rows: 3, cols: 3, withHeaderRow: true });
+  });
+
+  const cells = editor.locator('td');
+  const menu = page.locator('.inkio-table-context-menu');
+  const first = (await cells.nth(0).boundingBox())!;
+  const second = (await cells.nth(1).boundingBox())!;
+
+  // A plain cell offers only what the table has no other way to do.
+  await cells.nth(0).click({ button: 'right' });
+  await expect(menu.getByRole('menuitem')).toHaveText(['행 삭제', '열 삭제']);
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+
+  await page.mouse.move(first.x + 20, first.y + 15);
+  await page.mouse.down();
+  await page.mouse.move(second.x + 20, second.y + 15, { steps: 8 });
+  await page.mouse.up();
+  await expect(editor.locator('.selectedCell')).toHaveCount(2);
+
+  await page.mouse.click(second.x + 20, second.y + 15, { button: 'right' });
+  await expect(editor.locator('.selectedCell')).toHaveCount(2);
+  await menu.getByRole('menuitem', { name: '셀 병합' }).click();
+  await expect(editor.locator('td[colspan="2"]')).toHaveCount(1);
+
+  await editor.locator('td[colspan="2"]').click({ button: 'right' });
+  await menu.getByRole('menuitem', { name: '셀 분할' }).click();
+  await expect(editor.locator('td[colspan="2"]')).toHaveCount(0);
 });
 
 async function focusEditorEnd(page: import('@playwright/test').Page) {
@@ -262,6 +313,9 @@ test('next app router example inserts a bookmark that resolves a preview', async
 });
 
 test('next app router example replies to, resolves, and deletes a comment thread', async ({ page }) => {
+  // The longest flow here: on a loaded machine every step passes but the page
+  // load alone can take most of the default 30 seconds.
+  test.slow();
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => { pageErrors.push(error.message); });
 
