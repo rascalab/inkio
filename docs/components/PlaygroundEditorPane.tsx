@@ -194,7 +194,7 @@ export default function PlaygroundEditorPane({
         <section className="playground-section">
           <div className="playground-section-label">Viewer</div>
           <div style={{ position: 'relative' }}>
-            <InkioViewer content={doc} theme={inkioTheme} onCreate={setViewerInstance} />
+            <InkioViewer key={locale} content={doc} locale={locale} theme={inkioTheme} onCreate={setViewerInstance} />
             <ToC source={viewerInstance} />
           </div>
         </section>

@@ -1,6 +1,6 @@
 import { Extension, type Editor, type Range } from '@tiptap/core';
 import Suggestion, { type SuggestionOptions } from '@tiptap/suggestion';
-import { PluginKey } from '@tiptap/pm/state';
+import { PluginKey, Selection } from '@tiptap/pm/state';
 import { createElement, type ComponentType, type ReactNode } from 'react';
 import { resolveIconRegistry, type InkioIconRegistry } from '@inkio/core/icons';
 import {
@@ -168,7 +168,9 @@ export function filterSlashCommandItems(
   limit: number = SLASH_COMMAND_MAX_ITEMS,
 ) {
   if (limit <= 0) return [];
-  const normalizedQuery = query.toLowerCase();
+  // Labels hold spaces (`제목 1`), and people may or may not type them.
+  const compact = (text: string) => text.toLowerCase().replace(/\s+/g, '');
+  const normalizedQuery = compact(query);
   const result: SlashCommandItem[] = [];
   for (const item of items) {
     if (result.length >= limit) break;
@@ -178,8 +180,8 @@ export function filterSlashCommandItems(
     // The id doubles as a short alias (`toc` for "Table of Contents").
     if (
       normalizedQuery
-      && !item.label.toLowerCase().includes(normalizedQuery)
-      && !item.id.toLowerCase().includes(normalizedQuery)
+      && !compact(item.label).includes(normalizedQuery)
+      && !compact(item.id).includes(normalizedQuery)
     ) {
       continue;
     }
@@ -300,6 +302,9 @@ export const defaultSlashCommands: SlashCommandItem[] = [
     label: enCoreMessages.slashCommand.toc,
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).insertContent({ type: 'tocBlock' }).run();
+      // Insertion selects the block, and typing would replace it: write below it.
+      const { doc, selection, tr } = editor.state;
+      editor.view.dispatch(tr.setSelection(Selection.near(doc.resolve(selection.to), 1)));
     },
     isAvailable: (editor) => hasSchemaNode(editor, 'tocBlock') && !isInsideTable(editor),
   },
@@ -380,8 +385,12 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
     // interleaved editors never drop each other's results.
     const latest = { value: 0 };
 
-    const resolvedItems = async ({ query, editor }: SlashCommandContext) =>
-      resolveSlashCommandItems({ query, editor }, { items, transformItems, onError, defaults, latest });
+    let lastResultCount = 0;
+    const resolvedItems = async ({ query, editor }: SlashCommandContext) => {
+      const results = await resolveSlashCommandItems({ query, editor }, { items, transformItems, onError, defaults, latest });
+      lastResultCount = results.length;
+      return results;
+    };
 
     return [
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Extension.create erases items' return type to unknown[]; Suggestion expects SlashCommandItem[]
@@ -390,6 +399,7 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
         char: '/',
         pluginKey: SlashCommandPluginKey,
         items: resolvedItems as any,
+        allowSpaces: true,
         command: ({ editor, range, props }) => {
           try {
             if (!props || typeof props.command !== 'function') {
@@ -415,7 +425,9 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
         // Any paragraph that starts with the slash: lists, quotes and cells too.
         allow: ({ state, range }) => {
           const { parent } = state.doc.resolve(range.from);
-          return parent.type.name === 'paragraph' && parent.textContent.charAt(0) === '/';
+          if (parent.type.name !== 'paragraph' || parent.textContent.charAt(0) !== '/') return false;
+          // A space after a query nothing matched: this is a sentence, not a command.
+          return lastResultCount > 0 || !/\s/.test(state.doc.textBetween(range.from, range.to));
         },
         render: createSuggestionRenderer<SlashCommandItem>({ locale, messages }),
         ...this.options.suggestion,

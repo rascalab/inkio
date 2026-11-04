@@ -1,5 +1,5 @@
 import type { Editor, Range } from '@tiptap/core';
-import { SlashCommand, SlashCommandItem, defaultSlashCommands } from '../SlashCommand';
+import { SlashCommand, SlashCommandItem, defaultSlashCommands, filterSlashCommandItems } from '../SlashCommand';
 
 function createMockEditor(commandNames: string[] = [], schemaNodes: string[] = []) {
   const chain = {
@@ -192,5 +192,21 @@ describe('SlashCommand extension', () => {
 
     createElementSpy.mockRestore();
     rafSpy.mockRestore();
+  });
+});
+
+describe('slash command search', () => {
+  const items = [{ id: 'heading1', label: '제목 1', command: () => {} }, { id: 'table', label: '표', command: () => {} }];
+  const labels = (query: string) =>
+    filterSlashCommandItems(items as SlashCommandItem[], query, {} as Editor).map((item) => item.label);
+
+  it('finds a label with or without its space', () => {
+    expect(labels('제목 1')).toEqual(['제목 1']);
+    expect(labels('제목1')).toEqual(['제목 1']);
+    expect(labels('제목 ')).toEqual(['제목 1']);
+  });
+
+  it('matches nothing for a sentence', () => {
+    expect(labels('표는 이렇게')).toEqual([]);
   });
 });

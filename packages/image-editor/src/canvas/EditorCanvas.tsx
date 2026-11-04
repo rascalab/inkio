@@ -993,7 +993,7 @@ export function EditorCanvas({
               containerHeight={stageSize.height}
               frame={cropFrame}
             />
-            <div className="inkio-ie-sr-only" data-testid="inkio-ie-crop-viewport-zoom">
+            <div className="inkio-ie-sr-only" data-testid="inkio-ie-crop-viewport-zoom" aria-hidden="true">
               {resolvedCropViewport.zoom.toFixed(4)}
             </div>
           </>

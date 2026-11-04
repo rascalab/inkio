@@ -1,6 +1,7 @@
 import { type NodeViewProps, NodeViewWrapper } from '@tiptap/react';
 import { memo } from 'react';
 import { useHeadings } from '../../components/useHeadings';
+import { editorMessages } from '../../i18n/messages';
 
 function TocBlockViewInner({ editor, node }: NodeViewProps) {
   const maxLevel = (node.attrs.maxLevel as number) || 3;
@@ -9,7 +10,8 @@ function TocBlockViewInner({ editor, node }: NodeViewProps) {
   if (filtered.length === 0) {
     return (
       <NodeViewWrapper className="inkio-toc-block" contentEditable={false} data-drag-handle="">
-        <p className="inkio-toc-block-empty">Add headings to see the table of contents.</p>
+        {/* A prompt for whoever is writing: a reader has no headings to add. */}
+        {editor.isEditable && <p className="inkio-toc-block-empty">{editorMessages(editor).tocBlock.empty}</p>}
       </NodeViewWrapper>
     );
   }

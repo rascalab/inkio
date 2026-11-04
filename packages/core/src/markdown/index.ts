@@ -430,6 +430,23 @@ function applyTableSpans(rows: JSONContent[], spans: TableSpan[]): JSONContent[]
 const MAX_CELLS_ADDED_BY_SPANS = 100_000;
 let spanCellBudget = MAX_CELLS_ADDED_BY_SPANS;
 
+/**
+ * GFM pads a row shorter than the widest one. A table built in an editor is
+ * rectangular and pads nothing, so this only stops malformed documents: dropping
+ * their cells would lose text silently, so they fail instead.
+ */
+const MAX_PADDING_CELLS = 1_000_000;
+let paddingCellBudget = MAX_PADDING_CELLS;
+
+function chargeTablePadding(rows: MdastNode[]): void {
+  const lengths = rows.map((row) => row.children?.length ?? 0);
+  const width = lengths.reduce((widest, length) => Math.max(widest, length), 0);
+  for (const length of lengths) paddingCellBudget -= width - length;
+  if (paddingCellBudget < 0) {
+    throw new RangeError('Cannot write Markdown: a table has rows of very different lengths.');
+  }
+}
+
 function toSpan(value: unknown): number {
   const span = Number(value);
   return Number.isSafeInteger(span) && span > 0 ? span : 1;
@@ -491,13 +508,15 @@ function layoutMergedTable(node: JSONContent): TableLayout | null {
 }
 
 function jsonTableToMdast(node: JSONContent): TableLayout {
-  return layoutMergedTable(node) ?? {
+  const layout = layoutMergedTable(node) ?? {
     rows: (node.content ?? []).map((row) => ({
       type: 'tableRow',
       children: (row.content ?? []).map((cell) => jsonTableCellToMdast(cell)),
     })),
     spans: [],
   };
+  chargeTablePadding(layout.rows);
+  return layout;
 }
 
 function mdastBlocksToJson(nodes: MdastNode[] = []): JSONContent[] {
@@ -666,7 +685,7 @@ function jsonInlineToMdast(nodes: JSONContent[] = []): MdastNode[] {
         content.push({ type: 'text', value: `@${node.attrs?.label ?? node.attrs?.id ?? ''}` });
         break;
       case 'hashTag':
-        content.push({ type: 'text', value: `#${node.attrs?.label ?? node.attrs?.id ?? ''}` });
+        content.push({ type: 'text', value: `#${String(node.attrs?.label ?? node.attrs?.id ?? '').replace(/^#/, '')}` });
         break;
       case 'wikiLink': {
         const name = String(node.attrs?.label ?? node.attrs?.href ?? '').trim();
@@ -907,6 +926,7 @@ function jsonBlocksToMdast(nodes: JSONContent[] = []): MdastNode[] {
 
 function toMdastRoot(content: JSONContent): MdastNode {
   spanCellBudget = MAX_CELLS_ADDED_BY_SPANS;
+  paddingCellBudget = MAX_PADDING_CELLS;
   const docContent = content.type === 'doc' ? (content.content ?? []) : [content];
   return {
     type: 'root',

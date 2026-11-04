@@ -42,6 +42,9 @@ export interface BubbleMenuProps {
   items?: InkioToolbarActionTransform;
 }
 
+/** A table's cell selection. By shape: importing the class would tie this to the table extension. */
+const isCellSelection = (selection: object): boolean => '$anchorCell' in selection;
+
 export const BubbleMenu = ({
   editor,
   className,
@@ -92,7 +95,8 @@ export const BubbleMenu = ({
       return;
     }
 
-    if ('node' in selection && selection.node) {
+    // Selected table cells are for the table's menu; this one would cover the row above.
+    if (('node' in selection && selection.node) || isCellSelection(selection)) {
       setIsVisible(false);
       return;
     }

@@ -297,6 +297,8 @@ export interface ImageEditorLocale {
   closeConfirm: string;
   /** Label for the discard button in the non-blocking close confirmation. */
   discardChanges?: string;
+  /** The dialog's name for screen readers. */
+  dialogTitle?: string;
   /** @deprecated Tiny viewport hard-disable was removed in favor of a scroll shell. */
   smallViewportTitle?: string;
   /** @deprecated Tiny viewport hard-disable was removed in favor of a scroll shell. */

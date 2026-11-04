@@ -426,6 +426,10 @@
   cursor: pointer;
 }
 
+.inkio-comment-pending {
+  background-color: color-mix(in srgb, var(--inkio-primary) 22%, transparent);
+}
+
 .inkio-comment-resolved {
   background-color: var(--inkio-comment-resolved-bg);
 }

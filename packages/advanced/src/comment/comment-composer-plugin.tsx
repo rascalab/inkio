@@ -1,6 +1,6 @@
 import type { Editor } from '@tiptap/core';
 import { Plugin } from '@tiptap/pm/state';
-import type { EditorView } from '@tiptap/pm/view';
+import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import {
   commentComposerPluginKey,
   defaultGenerateId,
@@ -123,6 +123,18 @@ export function createCommentComposerPlugin(
           return { ...prev, from: tr.mapping.map(prev.from), to: tr.mapping.map(prev.to) };
         }
         return prev;
+      },
+    },
+
+    props: {
+      // Focus moves to the composer and takes the selection's highlight with it:
+      // keep showing what the comment is about.
+      decorations(state) {
+        const pluginState = commentComposerPluginKey.getState(state) as ComposerPluginState | undefined;
+        if (!pluginState?.active || pluginState.from === pluginState.to) return null;
+        return DecorationSet.create(state.doc, [
+          Decoration.inline(pluginState.from, pluginState.to, { class: 'inkio-comment-pending' }),
+        ]);
       },
     },
 

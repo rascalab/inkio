@@ -101,7 +101,7 @@ export function ImageEditorModal({
             onEscapeKeyDown={handleEscape}
           >
             <Dialog.Title asChild>
-              <span className="inkio-ie-sr-only">Image editor</span>
+              <span className="inkio-ie-sr-only">{resolvedImageEditorLocale.dialogTitle ?? 'Image editor'}</span>
             </Dialog.Title>
             {confirmDiscard && (
               <div

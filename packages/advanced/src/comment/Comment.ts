@@ -447,3 +447,26 @@ export const Comment = Mark.create<CommentOptions>({
     return plugins;
   },
 });
+
+/**
+ * The comment mark for an editor with no comment config, such as a read-only
+ * page: the document must still load, so the mark exists, but it has no commands,
+ * threads or highlight.
+ */
+export const CommentDisplay = Comment.extend<CommentOptions & { displayOnly: true }>({
+  addOptions() {
+    return { ...(this.parent?.() as CommentOptions), displayOnly: true };
+  },
+  addCommands() {
+    return {};
+  },
+  addKeyboardShortcuts() {
+    return {};
+  },
+  addProseMirrorPlugins() {
+    return [];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['span', HTMLAttributes, 0];
+  },
+});

@@ -35,6 +35,9 @@ type TableMetrics = {
   bottom: number;
   left: number;
   right: number;
+  /** What a table wider than the editor shows while it scrolls sideways. */
+  viewLeft: number;
+  viewRight: number;
   /** Subtract from the viewport coordinates above when placing a fixed element. */
   origin: { x: number; y: number };
 };
@@ -120,7 +123,17 @@ function measureTable(table: HTMLTableElement): Omit<TableMetrics, 'origin'> | n
   rows.push(allRows[allRows.length - 1].getBoundingClientRect().bottom);
 
   const rect = table.getBoundingClientRect();
-  return { columns, rows, top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right };
+  const view = table.closest('.tableWrapper')?.getBoundingClientRect();
+  return {
+    columns,
+    rows,
+    top: rect.top,
+    bottom: rect.bottom,
+    left: rect.left,
+    right: rect.right,
+    viewLeft: view?.left ?? -Infinity,
+    viewRight: view?.right ?? Infinity,
+  };
 }
 
 /**
@@ -490,6 +503,7 @@ export const TableMenu = ({
           )}
 
           {metrics.columns.map((x, index) => {
+            if (x < metrics.viewLeft - 1 || x > metrics.viewRight + 1) return null;
             const isLast = index === metrics.columns.length - 1;
             const label = isLast
               ? ui.messages.tableMenu.addColumnAfter
@@ -532,7 +546,7 @@ export const TableMenu = ({
                 key={`row-${index}`}
                 type="button"
                 className="inkio-table-insert inkio-table-insert--row"
-                style={{ left: metrics.left - metrics.origin.x, top: y - metrics.origin.y }}
+                style={{ left: Math.max(metrics.left, metrics.viewLeft) - metrics.origin.x, top: y - metrics.origin.y }}
                 title={label}
                 aria-label={label}
                 onMouseEnter={() => {

@@ -24,6 +24,20 @@ Versioning is unified across the publishable Inkio packages.
 
 ### Fixed
 
+- a document holding a comment, hashtag or bookmark no longer opens empty in an editor or `Viewer` that wasn't configured for them. Tiptap replaces a whole document with an empty one when any node or mark is not in the schema, and saving that would lose it. These three are now always in the schema, without their UI, and `bookmark: false` still turns bookmarks off. Anything else unknown drops only itself: marks go, text stays, a node keeps its children or label, and a console warning names it. This covers the initial `content` and `setContent`.
+- writing can continue below an image, table of contents, callout, quote, table or code block at the end of a document. A click under an image or table of contents did nothing and under a callout or quote it went inside: an editable document now keeps an empty line after such a block. A document ending in one gains that line, and an update, on its first selection.
+- a table of contents added from the slash menu stays when you keep typing. It stayed selected, so the next key replaced it.
+- the block menu's turn into works on lists, tasks, quotes and callouts, where most choices did nothing, and a table, image or divider offers only delete and duplicate.
+- Backspace at the start of a list item leaves the list, or joins the item above when it has text, as other editors do. It left a second paragraph hidden inside the item above.
+- the slash menu finds commands with a space in their name (`/제목 1`, `/코드 블록`, and `/제목1`), and closes once what follows is plainly a sentence.
+- a link typed as `example.com` opens that site instead of a path on the current one, and `me@example.com` becomes a `mailto:` link.
+- hashtags and mentions whose label already starts with the trigger no longer show it twice (`##inkio`).
+- a table with many columns scrolls sideways instead of squeezing every cell to one letter per line (`cellMinWidth` 96px), and column `+` buttons appear only for edges in view.
+- the formatting menu stays away while table cells are selected, where it covered the row above. Format several cells' text by selecting it inside a cell.
+- text being commented on stays highlighted while the comment is written, when focus has moved to the composer.
+- the table of contents' empty message follows `locale` and shows only to whoever is editing.
+- the image editor dialog has a localized name for screen readers, which no longer read its crop zoom number aloud.
+- `stringifyMarkdown` throws a `RangeError` for a malformed table whose rows differ so much that padding them would add over a million cells, instead of growing the output without limit. Tables made in an editor are rectangular and never reach this.
 - an image added from the slash menu, or pasted into an empty paragraph, replaces that paragraph and moves the caret below it. An empty line stayed above the image with the caret in it, so writing went above the image, and a menu covered the image's top.
 - the image editor opens in the `locale` of its editor (`ImageEditorComponentProps` gains `locale`), and the Korean close confirmation no longer has an English button.
 - closing the image editor without an edit no longer asks to discard, on the button or with Escape. Opening on the resize tool counted its starting crop as a change.

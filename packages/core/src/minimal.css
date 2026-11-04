@@ -359,6 +359,10 @@
 }
 
 /* Tables - Essential functionality */
+.inkio .inkio-content .tableWrapper {
+  overflow-x: auto;
+}
+
 .inkio .inkio-content table {
   border-collapse: collapse;
   table-layout: fixed;

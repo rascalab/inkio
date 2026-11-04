@@ -94,6 +94,9 @@ export interface InkioCoreMessages {
     copyFailed: string;
     copyBlocked: string;
   };
+  tocBlock: {
+    empty: string;
+  };
   imageBlock: {
     caption: string;
     alignLeft: string;
@@ -222,6 +225,9 @@ export const enCoreMessages: InkioCoreMessages = {
     copied: 'Copied',
     copyFailed: 'Copy failed — try again',
     copyBlocked: 'Copy failed — browser blocked clipboard access',
+  },
+  tocBlock: {
+    empty: 'Add headings to see the table of contents.',
   },
   imageBlock: {
     caption: 'Write a caption...',
@@ -410,6 +416,9 @@ export const koCoreMessages: InkioCoreMessages = {
     copied: '복사됨',
     copyFailed: '복사 실패. 다시 시도하세요.',
     copyBlocked: '복사 실패. 브라우저가 클립보드 접근을 막았습니다.',
+  },
+  tocBlock: {
+    empty: '제목을 추가하면 목차가 만들어집니다.',
   },
   imageBlock: {
     caption: '캡션 입력',

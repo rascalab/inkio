@@ -1,4 +1,4 @@
-import { Extension, Extensions } from '@tiptap/core';
+import { Extension, Extensions, commands as tiptapCommands, type JSONContent } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { TaskItemView } from '../components/TaskItemView';
@@ -19,6 +19,7 @@ import Color from '@tiptap/extension-color';
 import Heading from '@tiptap/extension-heading';
 import BulletList from '@tiptap/extension-bullet-list';
 import OrderedList from '@tiptap/extension-ordered-list';
+import { ListKeymap } from '@tiptap/extension-list';
 import ListItem from '@tiptap/extension-list-item';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
@@ -35,6 +36,8 @@ import TextAlign from '@tiptap/extension-text-align';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { ClearMarksOnEnter } from './ClearMarksOnEnter';
 import { ListMerge } from './ListMerge';
+import { TrailingParagraph } from './TrailingParagraph';
+import { dropUnknownContent } from '../utils/drop-unknown-content';
 import { ImageBlock } from './ImageBlock';
 import type { ImageBlockOptions } from './ImageBlock';
 import { LinkClickHandler } from './LinkClickHandler';
@@ -153,6 +156,14 @@ const InkioUi = Extension.create<Pick<CoreExtensionOptions, 'locale' | 'messages
   addStorage() {
     return { locale: this.options.locale, messages: this.options.messages, icons: this.options.icons };
   },
+
+  addCommands() {
+    return {
+      // Tiptap's, except a node or mark this editor doesn't have costs only itself.
+      setContent: (content, options) => (props) =>
+        tiptapCommands.setContent(dropUnknownContent(content as JSONContent, props.editor.schema), options)(props),
+    };
+  },
 });
 
 export const getExtensions = (options: CoreExtensionOptions = {}) => {
@@ -198,6 +209,7 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
     HardBreak,
     Dropcursor,
     Gapcursor,
+    TrailingParagraph,
     Placeholder.configure({
       placeholder: placeholder
         || resolveCoreMessages(locale, toCoreMessageOverrides(messages)).editor.placeholder,
@@ -264,6 +276,11 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
   if (bulletList !== false || orderedList !== false) {
     extensions.push(ListItem);
   }
+  if (bulletList !== false || orderedList !== false || taskList !== false) {
+    // Backspace at the start of an item joins it to the one above, instead of
+    // leaving a second paragraph inside that item.
+    extensions.push(ListKeymap);
+  }
   if (bulletList !== false) {
     extensions.push(BulletList);
   }
@@ -326,7 +343,15 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
 
   if (table !== false) {
     extensions.push(
-      Table.configure({ HTMLAttributes: {}, resizable: false, allowTableNodeSelection: false }),
+      Table.configure({
+        HTMLAttributes: {},
+        resizable: false,
+        allowTableNodeSelection: false,
+        // Too many columns for the screen scroll sideways instead of squeezing
+        // every cell down to one letter per line.
+        cellMinWidth: 96,
+        renderWrapper: true,
+      }),
       TableRow,
       TableHeader,
       TableCell,

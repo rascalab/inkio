@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { isSafeUrl } from '../utils/url-safety';
+import { isSafeUrl, normalizeLinkInput } from '../utils/url-safety';
 
 export interface BubbleMenuLinkInputPopoverProps {
   initialUrl?: string;
@@ -48,7 +48,7 @@ export function BubbleMenuLinkInputPopover({
       return;
     }
     setError(null);
-    onSave(trimmed);
+    onSave(normalizeLinkInput(trimmed));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

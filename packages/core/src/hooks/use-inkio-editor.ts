@@ -1,6 +1,8 @@
+import { getSchema } from '@tiptap/core';
 import { useEditor, type Editor as TiptapEditor, type Extensions, type JSONContent } from '@tiptap/react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { resolveInkioExtensions } from '../extensions/resolve-extensions';
+import { dropUnknownContent } from '../utils/drop-unknown-content';
 import { useCoalescedDocUpdate } from './use-coalesced-doc-update';
 
 export interface UseInkioEditorOptions {
@@ -52,6 +54,10 @@ export function useInkioEditor({
     return resolveInkioExtensions(extensions, placeholder);
   }, [extensions, placeholder]);
 
+  // `content` is the initial document, so this runs once.
+  const [initialContent] = useState(() =>
+    (typeof content === 'object' ? dropUnknownContent(content, getSchema(finalExtensions)) : content));
+
   const prevExtensionsRef = useRef<Extensions | null>(null);
   const onCreateRef = useRef(onCreate);
   const emitUpdate = useCoalescedDocUpdate(onUpdate);
@@ -63,7 +69,7 @@ export function useInkioEditor({
   const editor = useEditor({
     immediatelyRender: false,
     extensions: finalExtensions,
-    content,
+    content: initialContent,
     editable,
     editorProps: {
       attributes: {

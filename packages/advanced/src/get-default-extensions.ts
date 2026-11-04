@@ -16,7 +16,7 @@ import type { SlashCommandItem, SlashCommandTransform } from './extensions/Slash
 import { WikiLink, type WikiLinkItem } from './extensions/WikiLink';
 import { Bookmark, type BookmarkPreview } from './extensions/Bookmark';
 import { BlockHandle } from './extensions/BlockHandle';
-import { Comment, toCommentOptions, type CommentConfig } from './comment';
+import { Comment, CommentDisplay, toCommentOptions, type CommentConfig } from './comment';
 
 export interface DefaultExtensionsOptions extends EssentialDefaultExtensionsOptions {
   mentionItems?: (props: { query: string }) => MentionItem[] | Promise<MentionItem[]>;
@@ -66,18 +66,16 @@ export function getDefaultExtensions(options: DefaultExtensionsOptions = {}) {
       locale,
       messages,
     }),
-    ...(hashtagItems
-      ? [
-          HashTag.configure({
-            items: hashtagItems as
-              | ((props: { query: string }) => HashTagItem[] | Promise<HashTagItem[]>)
-              | undefined,
-            onError,
-            locale,
-            messages,
-          }),
-        ]
-      : []),
+    // Always in the schema, like the marks below: Tiptap empties a whole document
+    // that holds a node it doesn't know. Without items `#` just opens nothing.
+    HashTag.configure({
+      items: hashtagItems as
+        | ((props: { query: string }) => HashTagItem[] | Promise<HashTagItem[]>)
+        | undefined,
+      onError,
+      locale,
+      messages,
+    }),
     SlashCommand.configure({
       ...(slashCommands
         ? { items: ({ query }: { query: string }) => slashCommands(query) }
@@ -91,12 +89,12 @@ export function getDefaultExtensions(options: DefaultExtensionsOptions = {}) {
     ...(wikiLink !== false
       ? [WikiLink.configure({ onClick: onWikiLinkClick, items: wikiLinkItems, onError, locale, messages })]
       : []),
-    ...(bookmark
+    ...(bookmark !== false
       ? [Bookmark.configure({ onResolveBookmark })]
       : []),
-    ...(comment
-      ? [Comment.configure({ ...toCommentOptions(comment), locale, messages, icons })]
-      : []),
+    comment
+      ? Comment.configure({ ...toCommentOptions(comment), locale, messages, icons })
+      : CommentDisplay,
   ];
 
   if (blockHandle !== false) {

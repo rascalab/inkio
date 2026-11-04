@@ -98,13 +98,12 @@ test('next app router example inserts an image from the slash command without a 
   await page.keyboard.type('below the image');
   const lastBlocks = await editor.evaluate((root) => {
     const { content } = (root as unknown as { editor: { getJSON: () => { content: { type: string; content?: unknown[] }[] } } }).editor.getJSON();
-    return content.slice(-3).map((node) => ({ type: node.type, empty: !node.content }));
+    return content.slice(-2).map((node) => ({ type: node.type, empty: !node.content }));
   });
-  expect(lastBlocks.slice(1)).toEqual([
+  expect(lastBlocks).toEqual([
     { type: 'imageBlock', empty: true },
     { type: 'paragraph', empty: false },
   ]);
-  expect(lastBlocks[0].empty).toBe(false);
 });
 
 test('cells selected in a table merge and split from its menu', async ({ page }) => {
@@ -135,6 +134,8 @@ test('cells selected in a table merge and split from its menu', async ({ page })
   await page.mouse.move(second.x + 20, second.y + 15, { steps: 8 });
   await page.mouse.up();
   await expect(editor.locator('.selectedCell')).toHaveCount(2);
+  // The formatting menu would cover the row above.
+  await expect(page.locator('.inkio-floating-overlay.is-visible')).toHaveCount(0);
 
   await page.mouse.click(second.x + 20, second.y + 15, { button: 'right' });
   await expect(editor.locator('.selectedCell')).toHaveCount(2);
@@ -463,26 +464,26 @@ test.describe('block drag onto a list', () => {
 
   test('lands between the items and splits the list', async ({ page }) => {
     await dragBlock(page, '끝 문단', '하나', 'below');
-    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'UL:하나', 'P:끝 문단', 'UL:둘', 'PRE:코드']);
+    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'UL:하나', 'P:끝 문단', 'UL:둘', 'PRE:코드', 'P:']);
   });
 
   test('lands beside the list at its ends', async ({ page }) => {
     await dragBlock(page, '끝 문단', '하나', 'above');
-    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'P:끝 문단', 'UL:하나/둘', 'PRE:코드']);
+    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'P:끝 문단', 'UL:하나/둘', 'PRE:코드', 'P:']);
 
     await dragBlock(page, '앞 문단', '둘', 'below');
-    expect(await blockOutline(page)).toEqual(['P:끝 문단', 'UL:하나/둘', 'P:앞 문단', 'PRE:코드']);
+    expect(await blockOutline(page)).toEqual(['P:끝 문단', 'UL:하나/둘', 'P:앞 문단', 'PRE:코드', 'P:']);
   });
 
   test('undoes as one step', async ({ page }) => {
     await dragBlock(page, '끝 문단', '하나', 'below');
     await page.keyboard.press('ControlOrMeta+z');
-    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'UL:하나/둘', 'P:끝 문단', 'PRE:코드']);
+    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'UL:하나/둘', 'P:끝 문단', 'PRE:코드', 'P:']);
   });
 
   test('still moves a list item inside its list', async ({ page }) => {
     await dragBlock(page, '둘', '하나', 'above');
-    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'UL:둘/하나', 'P:끝 문단', 'PRE:코드']);
+    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'UL:둘/하나', 'P:끝 문단', 'PRE:코드', 'P:']);
   });
 });
 
@@ -794,15 +795,15 @@ test.describe('slash menu inside other blocks', () => {
       await expect(page.getByRole('option', { name: '콜아웃', exact: true })).toBeVisible();
       await pick(page, '콜아웃');
       const blocks = await outline(page);
-      expect(blocks[1]).toBe('callout');
-      expect(blocks).toHaveLength(2);
+      // The line after is what the document keeps to write on below a last block.
+      expect(blocks.slice(1)).toEqual(['callout', 'paragraph']);
     });
   }
 
   test('a table leaves the list with no empty line behind', async ({ page }) => {
     await slashIn(page, '<ul><li><p>앞</p></li><li><p>뒤</p></li></ul>');
     await pick(page, '표');
-    expect(await outline(page)).toEqual(['bulletList', 'table']);
+    expect(await outline(page)).toEqual(['bulletList', 'table', 'paragraph']);
     await expect(blockEditor(page).locator('li')).toHaveCount(1);
   });
 
@@ -866,4 +867,105 @@ test('an app can replace every icon the editor draws', async ({ page, browserNam
   const popup = page.getByRole('listbox', { name: '추천 항목' });
   await expect(popup.getByRole('option').first().locator('svg[data-app-icon]')).toBeVisible();
   await allAppIcons();
+});
+
+test.describe('writing a document', () => {
+  test.skip(({ browserName }) => browserName !== 'chromium', 'checked once');
+
+  type Root = { editor: { commands: { setContent: (doc: unknown) => void; focus: (position?: string) => void }; getJSON: () => { content: { type: string }[] } } };
+
+  async function load(page: import('@playwright/test').Page, content: unknown[]) {
+    await page.goto('http://localhost:4174/slash-e2e');
+    const editor = page.locator('.ProseMirror').first();
+    await expect(editor).toBeVisible();
+    await editor.evaluate((root, doc) => {
+      (root as unknown as Root).editor.commands.setContent({ type: 'doc', content: doc });
+      (root as unknown as Root).editor.commands.focus('end');
+    }, content);
+    await page.waitForTimeout(100);
+    return editor;
+  }
+  const types = (editor: import('@playwright/test').Locator) =>
+    editor.evaluate((root) => (root as unknown as Root).editor.getJSON().content.map((node) => node.type));
+  const paragraph = (text: string) => ({ type: 'paragraph', content: [{ type: 'text', text }] });
+
+  test('a table of contents stays when writing goes on after it', async ({ page }) => {
+    const editor = await load(page, [paragraph('앞'), { type: 'paragraph' }]);
+    await page.keyboard.type('/toc');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('다음 글');
+    await expect.poll(() => types(editor)).toEqual(['paragraph', 'tocBlock', 'paragraph']);
+    await expect(editor.locator('p').last()).toHaveText('다음 글');
+  });
+
+  for (const [name, block] of [
+    ['an image', { type: 'imageBlock', attrs: { src: '/favicon.ico' } }],
+    ['a callout', { type: 'callout', content: [paragraph('콜아웃')] }],
+    ['a quote', { type: 'blockquote', content: [paragraph('인용')] }],
+  ] as const) {
+    test(`a click under ${name} at the end writes below it`, async ({ page }) => {
+      const editor = await load(page, [paragraph('앞'), block]);
+      await page.keyboard.press('ArrowLeft');
+      const last = await editor.evaluate((root) => {
+        const rect = root.lastElementChild!.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      });
+      await page.mouse.click(last.x, last.y);
+      await page.waitForTimeout(100);
+      await page.keyboard.type('아래 글');
+      await expect(editor.locator(':scope > p').last()).toHaveText('아래 글');
+    });
+  }
+
+  test('Backspace at the start of a list item does not hide a paragraph inside the item above', async ({ page }) => {
+    const editor = await load(page, [{ type: 'paragraph' }]);
+    await page.keyboard.type('- 하나');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Backspace');
+    await expect(editor.locator('li p')).toHaveCount(1);
+  });
+
+  test('a command is found with the space in its name, and a sentence closes the menu', async ({ page }) => {
+    await load(page, [{ type: 'paragraph' }]);
+    await page.keyboard.type('/코드 블록');
+    await expect(page.getByRole('option')).toHaveText(['코드 블록']);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.press('Backspace');
+    await page.keyboard.type('/없는 명령 입니다');
+    await expect(page.getByRole('listbox')).toHaveCount(0);
+  });
+
+  test('the block menu turns a list into a heading, and offers a table only what it can do', async ({ page }) => {
+    const editor = await load(page, [
+      { type: 'bulletList', content: [{ type: 'listItem', content: [paragraph('항목')] }] },
+      { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', content: [paragraph('셀')] }] }] },
+      paragraph('끝'),
+    ]);
+    const openMenuOn = async (selector: string) => {
+      const box = (await editor.locator(selector).first().boundingBox())!;
+      await page.mouse.move(box.x + 30, box.y + 8);
+      await page.locator('[aria-label="Block handle"], [aria-label="블록 핸들"]').first().click();
+    };
+
+    await openMenuOn('td');
+    await expect(page.getByRole('menuitem')).toHaveCount(2);
+    await page.keyboard.press('Escape');
+
+    await openMenuOn('li');
+    await page.getByRole('menuitem', { name: '제목 1' }).click();
+    await expect(editor.locator('h1')).toHaveText('항목');
+    await expect(editor.locator('li')).toHaveCount(0);
+  });
+
+  test('a table too wide for the screen scrolls instead of squeezing its cells', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 780 });
+    const cells = Array.from({ length: 6 }, () => ({ type: 'tableCell', content: [paragraph('내용')] }));
+    const editor = await load(page, [{ type: 'table', content: [{ type: 'tableRow', content: cells }] }, paragraph('끝')]);
+    const width = (await editor.locator('td').first().boundingBox())!.width;
+    expect(width).toBeGreaterThanOrEqual(90);
+    const wrapper = editor.locator('.tableWrapper');
+    expect(await wrapper.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
 });

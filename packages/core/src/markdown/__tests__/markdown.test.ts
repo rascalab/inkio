@@ -468,6 +468,27 @@ describe('merged table cells', () => {
     expect(stringifyMarkdown(document).match(/inkio:table-spans/g)).toHaveLength(1);
   });
 
+  it('refuses a malformed table that padding would blow up, and writes the next document', () => {
+    const malformed = {
+      type: 'doc',
+      content: [{
+        type: 'table',
+        content: [
+          { type: 'tableRow', content: Array.from({ length: 2000 }, () => cell('가')) },
+          ...Array.from({ length: 1000 }, () => ({ type: 'tableRow', content: [cell('나')] })),
+        ],
+      }],
+    };
+    expect(() => stringifyMarkdown(malformed)).toThrow(RangeError);
+    expect(stringifyMarkdown(merged)).toContain('inkio:table-spans');
+  });
+
+  it('writes a large rectangular table, which pads nothing', () => {
+    const row = { type: 'tableRow', content: Array.from({ length: 50 }, () => cell('가')) };
+    const table = { type: 'table', content: Array.from({ length: 2000 }, () => row) };
+    expect(stringifyMarkdown({ type: 'doc', content: [table] })).toContain('| 가');
+  });
+
   it('leaves a comment with no table after it as text', () => {
     const json = parseMarkdown('<!-- inkio:table-spans 0,0,2,1 -->\n\n문단');
     expect(json.content?.[0]?.content?.[0]?.text).toContain('inkio:table-spans');

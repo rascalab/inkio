@@ -1,3 +1,4 @@
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/core';
 import type {
@@ -65,6 +66,23 @@ export interface BlockFingerprint {
 const FINGERPRINT_TEXT_LENGTH = 64;
 
 /** Capture the identity of the node at `pos`, or null when there is none. */
+
+/** From the start of a block's first text block to the end of its last. */
+function textRangeOf(node: ProseMirrorNode, pos: number): { from: number; to: number } | null {
+  let from: number | null = null;
+  let to = 0;
+  node.descendants((child, offset) => {
+    if (!child.isTextblock) return true;
+    const start = pos + 1 + offset + 1;
+    from ??= start;
+    to = start + child.content.size;
+    return false;
+  });
+  return from === null ? null : { from, to };
+}
+
+const TURNS_INTO_TEXT = new Set(['paragraph', 'heading', 'bulletList', 'orderedList', 'taskList', 'listItem', 'taskItem', 'blockquote', 'callout', 'codeBlock']);
+
 export function fingerprintBlockAt(
   doc: { nodeAt: (pos: number) => FingerprintableNode | null | undefined },
   pos: number,
@@ -198,24 +216,38 @@ export const BlockHandleActionMenu = ({
         return;
       }
       const resolved = resolveBlockPos();
+      let selectedText = false;
       const didRun = runOptionalChainCommand(editor, command, {
         args: attrs,
         prepare: (chain) => {
-          // Atom/leaf blocks (hr, bookmark) and listItem containers have no
-          // valid inner text position — let the command decide placement.
-          if (!resolved || resolved.node.isAtom || resolved.node.isLeaf || resolved.node.type.name === 'listItem') {
+          // Atom/leaf blocks (hr, bookmark) have no inner text position: let the
+          // command decide placement.
+          if (!resolved || resolved.node.isAtom || resolved.node.isLeaf) {
             return chain;
           }
-          const setTextSelection = (chain as Record<string, unknown>).setTextSelection;
-          if (typeof setTextSelection === 'function') {
-            const inner = Math.max(0, Math.min(resolved.pos + 1, editor.state.doc.content.size));
-            return (setTextSelection as (position: number) => typeof chain).call(chain, inner);
+          const steps = chain as unknown as {
+            setTextSelection?: (position: number | { from: number; to: number }) => typeof chain;
+            clearNodes?: () => typeof chain;
+          };
+          if (typeof steps.setTextSelection !== 'function') return chain;
+          // Lists, quotes and callouts wrap their text, and a command for a text
+          // block does nothing there: take the whole block back to paragraphs first.
+          if (!resolved.node.isTextblock && typeof steps.clearNodes === 'function') {
+            const textRange = textRangeOf(resolved.node, resolved.pos);
+            if (textRange) {
+              selectedText = true;
+              steps.setTextSelection(textRange);
+              return steps.clearNodes();
+            }
           }
-          return chain;
+          const inner = Math.max(0, Math.min(resolved.pos + 1, editor.state.doc.content.size));
+          return steps.setTextSelection(inner);
         },
       });
 
       if (didRun) {
+        // A caret, not a selection: the formatting menu has no reason to open.
+        if (selectedText) editor.commands.setTextSelection(editor.state.selection.to);
         onClose();
       }
     },
@@ -265,7 +297,7 @@ export const BlockHandleActionMenu = ({
 
     const icon = (id: BlockMenuIconId) => icons[id];
 
-    return [
+    const items: MenuItem[] = [
       {
         id: 'delete',
         icon: icon('delete'),
@@ -328,7 +360,13 @@ export const BlockHandleActionMenu = ({
         onSelect: () => turnInto('toggleCodeBlock'),
       },
     ];
-  }, [deleteBlock, duplicateBlock, icons, turnInto, ui.messages.blockHandle]);
+
+    // A table or an image can't become text: the rest of the list would do nothing.
+    const block = resolveBlockPos();
+    return !block || TURNS_INTO_TEXT.has(block.node.type.name)
+      ? items
+      : items.filter((item) => item.id === 'delete' || item.id === 'duplicate');
+  }, [deleteBlock, duplicateBlock, icons, resolveBlockPos, turnInto, ui.messages.blockHandle]);
 
   // The menu root is reused across blocks (menuRoot.render reuses the mounted
   // component), so reset keyboard state whenever the target block changes.

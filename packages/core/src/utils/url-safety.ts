@@ -56,6 +56,18 @@ function getProtocol(normalized: string): string | null {
   return match ? match[1].toLowerCase() : null;
 }
 
+/**
+ * What someone means by a link they typed. `example.com` stored as is would be a
+ * path on the current site. Paths and anything with a scheme stay as they are.
+ */
+export function normalizeLinkInput(value: string): string {
+  const url = value.trim();
+  if (/^(?:[a-z][a-z\d+.-]*:\/\/|mailto:|tel:|[/#?.])/i.test(url)) return url;
+  if (/^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(url)) return `mailto:${url}`;
+  if (/^[^\s/:]+\.[^\s/:.]{2,}(?:[:/?#]\S*)?$/.test(url)) return `https://${url}`;
+  return url;
+}
+
 export function isSafeUrl(url: string | null | undefined): boolean {
   if (!url) return false;
   if (typeof url !== 'string') return false;

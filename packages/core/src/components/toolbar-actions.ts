@@ -48,6 +48,7 @@ export interface InkioToolbarAction {
   labelKey?: BuiltinInkioToolbarActionId;
   label?: string;
   extensionNames?: string[];
+  isAvailable?: (editor: Editor) => boolean;
   surfaces: InkioMenuSurface[];
   group: string;
   run: (editor: Editor) => void;
@@ -352,6 +353,10 @@ const inkioToolbarSchema: InkioToolbarAction[] = [
     surfaces: ['bubble', 'toolbar'],
     group: 'insert',
     extensionNames: ['comment'],
+    // The mark is always in the schema; writing needs the comment config.
+    isAvailable: (editor) => !editor.extensionManager?.extensions?.some(
+      (extension) => extension.name === 'comment' && extension.options?.displayOnly,
+    ),
     run: () => {
       // Bubble menu and toolbar own comment request behavior.
     },
@@ -372,6 +377,10 @@ export const defaultFloatingMenuActions = defaultActionsFor('floating');
 export const defaultToolbarActions = defaultActionsFor('toolbar');
 
 function isToolbarActionAvailable(editor: Editor, action: InkioToolbarAction): boolean {
+  if (action.isAvailable && !action.isAvailable(editor)) {
+    return false;
+  }
+
   if (!action.extensionNames || action.extensionNames.length === 0) {
     return true;
   }
