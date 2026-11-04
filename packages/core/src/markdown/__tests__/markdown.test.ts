@@ -420,6 +420,29 @@ describe('merged table cells', () => {
     expect(markdown).toContain('<!-- inkio:table-spans 0,0,1,2 -->');
   });
 
+  it('does not let spans grow a small document into a huge table', () => {
+    const rows = Array.from({ length: 2000 }, (_, index) => ({
+      type: 'tableRow',
+      content: [cell(`${index}`, index === 0 ? { colspan: 90_000, rowspan: 1 } : undefined)],
+    }));
+    const markdown = stringifyMarkdown({ type: 'doc', content: [{ type: 'table', content: rows }] });
+    expect(markdown).not.toContain('inkio:table-spans');
+    expect(markdown.length).toBeLessThan(100_000);
+  });
+
+  it('counts the cells spans add across the whole document', () => {
+    const wideTable = {
+      type: 'table',
+      content: [{ type: 'tableRow', content: [cell('가', { colspan: 40_000, rowspan: 1 })] }],
+    };
+    const document = { type: 'doc', content: [wideTable, wideTable, wideTable] };
+
+    // The first fits. The other two would pass the limit, so they stay plain.
+    expect(stringifyMarkdown(document).match(/inkio:table-spans/g)).toHaveLength(1);
+    // Each document starts over.
+    expect(stringifyMarkdown(document).match(/inkio:table-spans/g)).toHaveLength(1);
+  });
+
   it('leaves a comment with no table after it as text', () => {
     const json = parseMarkdown('<!-- inkio:table-spans 0,0,2,1 -->\n\n문단');
     expect(json.content?.[0]?.content?.[0]?.text).toContain('inkio:table-spans');

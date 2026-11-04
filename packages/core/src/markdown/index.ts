@@ -421,8 +421,14 @@ function applyTableSpans(rows: JSONContent[], spans: TableSpan[]): JSONContent[]
   }));
 }
 
-/** Documents can come from anywhere: a span this large is written as a plain cell, not expanded. */
-const MAX_MERGED_CELLS = 100_000;
+/**
+ * Documents can come from anywhere, and a few bytes of `colspan` can ask for a
+ * huge table: every row is padded to the widest one. Merges in one document may
+ * add this many cells; a span past that is written as a plain cell. Writing is
+ * synchronous, and `toMdastRoot` resets this for each document.
+ */
+const MAX_CELLS_ADDED_BY_SPANS = 100_000;
+let spanCellBudget = MAX_CELLS_ADDED_BY_SPANS;
 
 function toSpan(value: unknown): number {
   const span = Number(value);
@@ -435,6 +441,7 @@ function jsonTableToMdast(node: JSONContent): { rows: MdastNode[]; spans: TableS
   const spans: TableSpan[] = [];
   const emptyCell = (): MdastNode => ({ type: 'tableCell', children: [] });
   const rowCount = node.content?.length ?? 0;
+  let columnCount = (node.content ?? []).reduce((widest, row) => Math.max(widest, row.content?.length ?? 0), 0);
 
   const rows = (node.content ?? []).map((row, rowIndex) => {
     const children: MdastNode[] = [];
@@ -448,7 +455,11 @@ function jsonTableToMdast(node: JSONContent): { rows: MdastNode[]; spans: TableS
       const colspan = toSpan(cell.attrs?.colspan);
       const rowspan = Math.min(toSpan(cell.attrs?.rowspan), rowCount - rowIndex);
       const area = colspan * rowspan;
-      if (area > 1 && covered.size + area <= MAX_MERGED_CELLS) {
+      const widened = Math.max(columnCount, column + colspan);
+      const cost = area + (widened - columnCount) * rowCount;
+      if (area > 1 && cost <= spanCellBudget) {
+        spanCellBudget -= cost;
+        columnCount = widened;
         spans.push({ row: rowIndex, column, colspan, rowspan });
         for (let r = rowIndex; r < rowIndex + rowspan; r += 1) {
           for (let c = column; c < column + colspan; c += 1) {
@@ -872,6 +883,7 @@ function jsonBlocksToMdast(nodes: JSONContent[] = []): MdastNode[] {
 }
 
 function toMdastRoot(content: JSONContent): MdastNode {
+  spanCellBudget = MAX_CELLS_ADDED_BY_SPANS;
   const docContent = content.type === 'doc' ? (content.content ?? []) : [content];
   return {
     type: 'root',
