@@ -379,6 +379,11 @@
   background-color: rgba(0, 144, 255, 0.12);
 }
 
+/* The cell shows the selection; the browser's text highlight would double it. */
+.inkio .inkio-content .selectedCell ::selection {
+  background: transparent;
+}
+
 .inkio .inkio-content .column-resize-handle {
   position: absolute;
   top: 0;
@@ -573,6 +578,11 @@
 .inkio-image-block-container.is-selected {
   outline: 2px solid var(--inkio-primary);
   border-radius: var(--inkio-radius-sm);
+}
+
+/* The resize handle sits on the image's corner, not below the caption. */
+.inkio-image-block-media {
+  position: relative;
 }
 
 .inkio-image-block-img {

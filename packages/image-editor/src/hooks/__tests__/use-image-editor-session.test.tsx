@@ -29,7 +29,7 @@ function SessionHarness({
   onDirtyChange: (dirty: boolean) => void;
   onSave: (dataUrl: string) => void;
 }) {
-  const { dispatch } = useImageEditor();
+  const { state, dispatch } = useImageEditor();
   const session = useImageEditorSession({
     src: 'fixture-image',
     locale: DEFAULT_LOCALE,
@@ -63,6 +63,14 @@ function SessionHarness({
       >
         dirty
       </button>
+      <button
+        type="button"
+        data-testid="open-resize"
+        onClick={() => dispatch({ type: 'SET_TOOL', tool: 'resize' })}
+      >
+        resize
+      </button>
+      <span data-testid="has-crop-draft">{state.pendingCrop ? 'true' : 'false'}</span>
       <button
         type="button"
         data-testid="save"
@@ -123,5 +131,26 @@ describe('useImageEditorSession', () => {
     });
 
     expect(onDirtyChange).toHaveBeenCalledWith(true);
+  });
+
+  it('is not dirty when the resize tool seeds its crop draft', async () => {
+    const onDirtyChange = vi.fn();
+
+    render(
+      <ImageEditorProvider locale={DEFAULT_LOCALE}>
+        <SessionHarness onDirtyChange={onDirtyChange} onSave={vi.fn()} />
+      </ImageEditorProvider>,
+    );
+
+    await waitFor(() => {
+      expect(loadImageMock).toHaveBeenCalledWith('fixture-image');
+    });
+    fireEvent.click(screen.getByTestId('open-resize'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('has-crop-draft').textContent).toBe('true');
+    });
+    expect(screen.getByTestId('is-dirty').textContent).toBe('false');
+    expect(onDirtyChange).not.toHaveBeenCalledWith(true);
   });
 });

@@ -18,6 +18,9 @@ export function useReadOnlyContentSync(
     if (!editor || editor.isDestroyed || editor.isEditable) return;
     if (isEqualStaticContent(appliedRef.current, content)) return;
     appliedRef.current = content;
-    editor.commands.setContent(content ?? '');
+    // React node views render with flushSync, which React refuses inside an effect.
+    queueMicrotask(() => {
+      if (!editor.isDestroyed) editor.commands.setContent(content ?? '');
+    });
   }, [editor, content]);
 }

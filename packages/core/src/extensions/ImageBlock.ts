@@ -1,8 +1,9 @@
 import React from 'react';
 import { mergeAttributes, Node } from '@tiptap/core';
 import { ReactNodeViewRenderer } from '@tiptap/react';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey, Selection } from '@tiptap/pm/state';
 import { toError, type InkioErrorHandler } from '../errors';
 import { isSafeUrl } from '../utils/url-safety';
 import { ImageBlockView } from './ImageBlockView';
@@ -105,6 +106,13 @@ export interface ImageEditorComponentProps {
   onClose: () => void;
   /** Resolved theme of the editor that opened it (`theme` prop or a `.dark` ancestor). */
   theme?: 'light' | 'dark';
+  /**
+   * `locale` of the editor that opened it: an `InkioLocaleInput`. Loosely typed
+   * because `ComponentType` compares props both ways, and `ImageEditorModal`,
+   * which this package cannot name, also accepts a table of words here.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  locale?: any;
 }
 
 export interface ImageBlockOptions {
@@ -158,6 +166,27 @@ async function sniffImageContent(file: File): Promise<boolean> {
   }
 }
 
+/**
+ * Inserts a block image at `pos`. An empty paragraph is replaced rather than
+ * left behind, and a caret in it moves below the image so writing continues
+ * there, on a new line when the image would otherwise end its parent.
+ */
+function insertImageNode(view: EditorView, pos: number, node: ProseMirrorNode) {
+  const { doc, schema, selection, tr } = view.state;
+  const $pos = doc.resolve(pos);
+  const caretInEmptyBlock = selection.empty && selection.from === pos && $pos.parent.content.size === 0;
+
+  tr.replaceRangeWith(pos, pos, node);
+  if (caretInEmptyBlock) {
+    const after = tr.mapping.map(pos);
+    if (!tr.doc.resolve(after).nodeAfter && schema.nodes.paragraph) {
+      tr.insert(after, schema.nodes.paragraph.create());
+    }
+    tr.setSelection(Selection.near(tr.doc.resolve(after), 1));
+  }
+  view.dispatch(tr);
+}
+
 /** Shared upload helpers — used by both addCommands and addProseMirrorPlugins. */
 function createImageUploadHelpers(options: ImageBlockOptions) {
   const { onUpload, resolveFileUrl, allowedMimeTypes, maxFileSize, onUploadError, onError } = options;
@@ -190,18 +219,19 @@ function createImageUploadHelpers(options: ImageBlockOptions) {
     onError?.(normalizedError, { source, recoverable });
   };
 
-  const processImageFile = async (file: File, view: EditorView, pos: number) => {
+  /** Resolves to the position right after the image, or null when none was inserted. */
+  const processImageFile = async (file: File, view: EditorView, pos: number): Promise<number | null> => {
     if (allowedMimeTypes && !allowedMimeTypes.includes(file.type)) {
       reportUploadError(new Error(`File type ${file.type} is not allowed.`), 'imageBlock.validation');
-      return false;
+      return null;
     }
     if (maxFileSize && file.size > maxFileSize) {
       reportUploadError(new Error(`File size exceeds maximum allowed size.`), 'imageBlock.validation');
-      return false;
+      return null;
     }
     if (!(await sniffImageContent(file))) {
       reportUploadError(new Error(`File content is not a supported image.`), 'imageBlock.validation');
-      return false;
+      return null;
     }
 
     const placeholderSrc = `${UPLOAD_PLACEHOLDER_PREFIX}${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -213,7 +243,7 @@ function createImageUploadHelpers(options: ImageBlockOptions) {
         alt: file.name,
       });
       const clampedPos = Math.max(0, Math.min(pos, view.state.doc.content.size));
-      view.dispatch(view.state.tr.insert(clampedPos, placeholderNode));
+      insertImageNode(view, clampedPos, placeholderNode);
 
       let attrs: Partial<ImageNodeAttributes>;
       if (onUpload) {
@@ -240,34 +270,32 @@ function createImageUploadHelpers(options: ImageBlockOptions) {
         attrs.src = resolved;
       }
 
-      let placeholderPos = findPlaceholderPos(view.state, placeholderSrc);
+      const placeholderPos = findPlaceholderPos(view.state, placeholderSrc);
 
       if (placeholderPos === -1) {
-        return false;
+        return null;
       }
 
       const finalNode = schema.nodes.imageBlock.create(attrs);
       const tr = view.state.tr.replaceWith(placeholderPos, placeholderPos + 1, finalNode);
       view.dispatch(tr);
-      return true;
+      return placeholderPos + finalNode.nodeSize;
     } catch (error) {
       const placeholderPos = findPlaceholderPos(view.state, placeholderSrc);
       if (placeholderPos !== -1) {
         view.dispatch(view.state.tr.delete(placeholderPos, placeholderPos + 1));
       }
       reportUploadError(error, 'imageBlock.upload');
-      return false;
+      return null;
     }
   };
 
   const processImageFiles = async (files: File[], view: EditorView, startPos: number) => {
-    let offset = 0;
+    let pos = startPos;
     for (const file of files) {
-      const sizeBefore = view.state.doc.content.size;
-      const result = await processImageFile(file, view, startPos + offset);
-      if (result) {
-        const sizeAfter = view.state.doc.content.size;
-        offset += sizeAfter - sizeBefore;
+      const next = await processImageFile(file, view, pos);
+      if (next !== null) {
+        pos = next;
       }
     }
   };

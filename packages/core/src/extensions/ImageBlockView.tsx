@@ -1,6 +1,6 @@
 import { NodeViewWrapper, NodeViewProps } from '@tiptap/react';
 import React, { memo, useMemo, useRef, useState, useEffect, useCallback, Suspense } from 'react';
-import { editorMessages } from '../i18n/messages';
+import { editorLocale, editorMessages } from '../i18n/messages';
 import { editorIcons } from '../icons/registry';
 import {
   IMAGE_BLOCK_MAX_WIDTH_PERCENT,
@@ -179,28 +179,30 @@ function ImageBlockViewInner(props: NodeViewProps) {
         className={`inkio-image-block-container${isEditable && selected ? ' is-selected' : ''}`}
         style={{ width: `${currentWidth}%` }}
       >
-        {isUploading ? (
-          <div className="inkio-image-block-placeholder" role="img" aria-label={node.attrs.alt || said.uploading}>
-            <Loader2Icon size={20} className="inkio-image-block-editor-spinner" />
-          </div>
-        ) : safeSrc ? (
-          <img
-            ref={imageRef}
-            src={safeSrc}
-            alt={node.attrs.alt}
-            className="inkio-image-block-img"
-          />
-        ) : (
-          <div className="inkio-image-block-placeholder" role="img" aria-label={node.attrs.alt || said.blocked} />
-        )}
+        <div className="inkio-image-block-media">
+          {isUploading ? (
+            <div className="inkio-image-block-placeholder" role="img" aria-label={node.attrs.alt || said.uploading}>
+              <Loader2Icon size={20} className="inkio-image-block-editor-spinner" />
+            </div>
+          ) : safeSrc ? (
+            <img
+              ref={imageRef}
+              src={safeSrc}
+              alt={node.attrs.alt}
+              className="inkio-image-block-img"
+            />
+          ) : (
+            <div className="inkio-image-block-placeholder" role="img" aria-label={node.attrs.alt || said.blocked} />
+          )}
 
-        {/* Resize Handle - Editor only, hidden when image editor is open */}
-        {isEditable && !isEditorOpen && !isUploading && (
-          <div
-            className={`inkio-image-block-resize-handle${showControls ? ' is-visible' : ''}`}
-            onMouseDown={handleResizeStart}
-          />
-        )}
+          {/* Resize Handle - Editor only, hidden when image editor is open */}
+          {isEditable && !isEditorOpen && !isUploading && (
+            <div
+              className={`inkio-image-block-resize-handle${showControls ? ' is-visible' : ''}`}
+              onMouseDown={handleResizeStart}
+            />
+          )}
+        </div>
 
         {/* Caption */}
         {isEditable ? (
@@ -282,6 +284,7 @@ function ImageBlockViewInner(props: NodeViewProps) {
             }}
             onClose={() => setIsEditorOpen(false)}
             theme={editorTheme(editor)}
+            locale={editorLocale(editor)}
           />
         </Suspense>
       )}

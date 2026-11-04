@@ -7,10 +7,12 @@ import type { ImageEditorComponentProps } from '../ImageBlock';
 
 let capturedSave: ((data: string) => void) | null = null;
 let capturedTheme: ImageEditorComponentProps['theme'];
+let capturedLocale: ImageEditorComponentProps['locale'];
 
 function StubImageEditor(props: ImageEditorComponentProps) {
   capturedSave = props.onSave;
   capturedTheme = props.theme;
+  capturedLocale = props.locale;
   return null;
 }
 
@@ -58,6 +60,14 @@ describe('ImageBlockView image editor theme', () => {
       page.remove();
       editorRoot.remove();
     }
+  });
+
+  it('opens the image editor in the locale of its editor', () => {
+    const props = createProps('https://example.com/a.png');
+    (props.editor as unknown as { storage: unknown }).storage = { inkioUi: { locale: 'ko' } };
+    render(<ImageBlockView {...props} />);
+    fireEvent.click(screen.getByTestId('inkio-image-block-edit'));
+    expect(capturedLocale).toBe('ko');
   });
 });
 

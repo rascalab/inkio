@@ -49,13 +49,16 @@ const CONTEXT_MENU_ENTRIES: ContextMenuEntry[] = [
   { kind: 'action', id: 'addColumnBefore' },
   { kind: 'action', id: 'addColumnAfter' },
   { kind: 'separator' },
+  { kind: 'action', id: 'mergeCells' },
+  { kind: 'action', id: 'splitCell' },
+  { kind: 'separator' },
   { kind: 'action', id: 'deleteRow' },
   { kind: 'action', id: 'deleteColumn' },
   { kind: 'action', id: 'deleteTable' },
 ];
 
 const CONTEXT_MENU_WIDTH = 200;
-const CONTEXT_MENU_HEIGHT = 264;
+const CONTEXT_MENU_HEIGHT = 340;
 const CONTEXT_MENU_GUTTER = 8;
 
 /** Place the context menu at the pointer, shifted inside the viewport gutter. */
@@ -120,6 +123,35 @@ function measureTable(table: HTMLTableElement): Omit<TableMetrics, 'origin'> | n
 
   const rect = table.getBoundingClientRect();
   return { columns, rows, top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right };
+}
+
+/**
+ * The cell a column insert anchors to. Merged cells leave a row with fewer cells
+ * than columns, so its cell indexes don't match boundary indexes: use a row
+ * without spans, or when every row has one, the cell touching the boundary.
+ */
+function findCellAtColumnEdge(
+  table: HTMLTableElement,
+  columnCount: number,
+  columnIndex: number,
+  edge: number,
+  after: boolean,
+): HTMLTableCellElement | null {
+  const rows = Array.from(table.rows);
+  const fullRow = rows.find((row) => row.cells.length === columnCount);
+  if (fullRow) {
+    return fullRow.cells[columnIndex];
+  }
+
+  for (const row of rows) {
+    for (const cell of Array.from(row.cells)) {
+      const rect = cell.getBoundingClientRect();
+      if (Math.round(after ? rect.right : rect.left) === Math.round(edge)) {
+        return cell;
+      }
+    }
+  }
+  return null;
 }
 
 export const TableMenu = ({
@@ -263,12 +295,18 @@ export const TableMenu = ({
       }
 
       event.preventDefault();
-      // Land inside the cell's first textblock (a selection at the cell
-      // boundary is not a valid TextSelection) and don't scroll: the scroll
-      // listener below would close this menu right after it opens.
-      const textblock = cell.querySelector('p, h1, h2, h3, h4, h5, h6') ?? cell;
-      const pos = editor.view.posAtDOM(textblock, 0);
-      editor.chain().focus(undefined, { scrollIntoView: false }).setTextSelection(pos).run();
+      // Don't scroll: the scroll listener below would close this menu right
+      // after it opens.
+      const chain = editor.chain().focus(undefined, { scrollIntoView: false });
+      if (cell.classList.contains('selectedCell')) {
+        // Keep a selection of several cells, or there is nothing left to merge.
+        chain.run();
+      } else {
+        // Land inside the cell's first textblock (a selection at the cell
+        // boundary is not a valid TextSelection).
+        const textblock = cell.querySelector('p, h1, h2, h3, h4, h5, h6') ?? cell;
+        chain.setTextSelection(editor.view.posAtDOM(textblock, 0)).run();
+      }
       setContextMenu(
         {
           ...placeContextMenu(event.clientX, event.clientY, CONTEXT_MENU_WIDTH, CONTEXT_MENU_HEIGHT),
@@ -359,13 +397,16 @@ export const TableMenu = ({
       }
 
       if (axis === 'column') {
-        const cells = table.rows[0]?.cells;
-        if (!cells || cells.length === 0) {
+        const columns = measureTable(table)?.columns;
+        if (!columns) {
           return;
         }
-        const after = index >= cells.length;
-        const cell = cells[after ? cells.length - 1 : index];
-        runTableCommandAt(editor, editor.view.posAtDOM(cell, 0), after ? 'addColumnAfter' : 'addColumnBefore');
+        const columnCount = columns.length - 1;
+        const after = index >= columnCount;
+        const cell = findCellAtColumnEdge(table, columnCount, after ? columnCount - 1 : index, columns[index], after);
+        if (cell) {
+          runTableCommandAt(editor, editor.view.posAtDOM(cell, 0), after ? 'addColumnAfter' : 'addColumnBefore');
+        }
         return;
       }
 

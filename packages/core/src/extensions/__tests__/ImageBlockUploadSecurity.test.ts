@@ -141,6 +141,58 @@ describe('ImageBlock upload URL validation', () => {
     editor.destroy();
   });
 
+  it('replaces the empty paragraph with the caret and continues below the image', async () => {
+    const editor = createEditor({ onUpload: async () => 'https://example.com/a.png' });
+    editor.commands.focus('end');
+
+    editor.commands.uploadImageBlock([makeFile('x', 'a.png', 'image/png')]);
+    await flushUploads();
+
+    expect(editor.getJSON().content?.map((node) => node.type)).toEqual(['imageBlock', 'paragraph']);
+    expect(editor.state.selection.$from.parent.type.name).toBe('paragraph');
+    expect(editor.state.selection.from).toBe(2);
+    editor.destroy();
+  });
+
+  it('keeps several files in order', async () => {
+    const urls = ['https://example.com/1.png', 'https://example.com/2.png'];
+    const editor = createEditor({ onUpload: async () => urls.shift() as string });
+    editor.commands.focus('end');
+
+    editor.commands.uploadImageBlock([
+      makeFile('x', '1.png', 'image/png'),
+      makeFile('x', '2.png', 'image/png'),
+    ]);
+    await flushUploads();
+
+    const nodes = editor.getJSON().content ?? [];
+    expect(nodes.map((node) => node.type)).toEqual(['imageBlock', 'imageBlock', 'paragraph']);
+    expect(nodes.map((node) => node.attrs?.src).slice(0, 2)).toEqual([
+      'https://example.com/1.png',
+      'https://example.com/2.png',
+    ]);
+    editor.destroy();
+  });
+
+  it('leaves the caret alone when an image lands elsewhere', async () => {
+    const editor = createEditor({ onUpload: async () => 'https://example.com/a.png' });
+    editor.commands.setContent({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'keep' }] },
+        { type: 'paragraph' },
+      ],
+    });
+    editor.commands.setTextSelection(3);
+
+    editor.commands.uploadImageBlock([makeFile('x', 'a.png', 'image/png')], 7);
+    await flushUploads();
+
+    expect(editor.getJSON().content?.map((node) => node.type)).toEqual(['paragraph', 'imageBlock']);
+    expect(editor.state.selection.from).toBe(3);
+    editor.destroy();
+  });
+
   it('setImageBlock command rejects unsafe src', () => {
     const editor = createEditor({});
     const result = editor.commands.setImageBlock({ src: 'javascript:alert(1)' });

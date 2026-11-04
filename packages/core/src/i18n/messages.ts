@@ -482,6 +482,12 @@ export function editorMessages(editor: { storage?: unknown }): InkioCoreMessages
   return resolveCoreMessages(inkioUi?.locale, toCoreMessageOverrides(inkioUi?.messages));
 }
 
+/** The locale an editor's extensions were built with, for what they open outside it. */
+export function editorLocale(editor: { storage?: unknown }): InkioLocaleInput | undefined {
+  const { inkioUi } = (editor.storage ?? {}) as { inkioUi?: { locale?: InkioLocaleInput } };
+  return inkioUi?.locale;
+}
+
 export function mergeCoreMessages(
   localeInput: unknown,
   ...overrides: Array<InkioCoreMessageOverrides | undefined>

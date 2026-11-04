@@ -1,4 +1,27 @@
 import type { ImageEditorState } from '../types';
+import { getTransformedDimensions } from './geometry';
+
+/**
+ * The resize tool seeds a crop draft as soon as it opens. A draft covering what
+ * is already applied changes nothing on save, so it is not an edit.
+ */
+function getEffectivePendingCrop(state: ImageEditorState): ImageEditorState['pendingCrop'] {
+  const { pendingCrop } = state;
+  if (!pendingCrop) return null;
+
+  const size = getTransformedDimensions(
+    state.originalWidth,
+    state.originalHeight,
+    state.transform,
+    state.outputSize,
+  );
+  const applied = state.transform.crop ?? { x: 0, y: 0, width: size.width, height: size.height };
+  const isUnchanged = pendingCrop.x === applied.x
+    && pendingCrop.y === applied.y
+    && pendingCrop.width === applied.width
+    && pendingCrop.height === applied.height;
+  return isUnchanged ? null : pendingCrop;
+}
 
 export interface VisualRefs {
   transform: ImageEditorState['transform'];
@@ -12,7 +35,7 @@ export interface VisualRefs {
 export function getVisualRefs(state: ImageEditorState): VisualRefs {
   return {
     transform: state.transform,
-    pendingCrop: state.pendingCrop,
+    pendingCrop: getEffectivePendingCrop(state),
     outputSize: state.outputSize,
     annotations: state.annotations,
     filter: state.filter,

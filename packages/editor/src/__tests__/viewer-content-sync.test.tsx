@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/react';
+import { act, render, waitFor } from '@testing-library/react';
 import type { TiptapEditor } from '@inkio/core';
 import { Viewer } from '../components/Viewer';
 
@@ -28,7 +28,7 @@ describe('@inkio/editor Viewer content', () => {
 
     rerender(<Viewer content="<p>second</p>" onCreate={onCreate} />);
 
-    expect(editor.getText()).toBe('second');
+    await waitFor(() => expect(editor.getText()).toBe('second'));
     expect(container.querySelector('.inkio-content')?.textContent).toBe('second');
   });
 

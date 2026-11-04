@@ -33,13 +33,17 @@ function createMockEditor(
 
   const commandSpies = Object.fromEntries(TABLE_COMMANDS.map((name) => [name, vi.fn()]));
   const focusSpy = vi.fn();
+  const setTextSelectionSpy = vi.fn();
   const makeChain = () => {
     const chain: Record<string, unknown> = {
       focus: (...args: unknown[]) => {
         focusSpy(...args);
         return chain;
       },
-      setTextSelection: () => chain,
+      setTextSelection: (...args: unknown[]) => {
+        setTextSelectionSpy(...args);
+        return chain;
+      },
       run: () => true,
     };
     for (const name of TABLE_COMMANDS) {
@@ -71,7 +75,7 @@ function createMockEditor(
     off: vi.fn(),
   } as any;
 
-  return { editor, table, commandSpies, focusSpy };
+  return { editor, table, commandSpies, focusSpy, setTextSelectionSpy };
 }
 
 describe('TableMenu', () => {
@@ -94,6 +98,56 @@ describe('TableMenu', () => {
     fireEvent.mouseDown(columnButtons[0]);
 
     expect(commandSpies.addColumnBefore).toHaveBeenCalledTimes(1);
+  });
+
+  it('inserts at the clicked boundary when a merged cell shortens the first row', async () => {
+    const { editor, table, commandSpies } = createMockEditor();
+    // A1 spans two columns, so the first row has fewer cells than columns.
+    table.rows[0].deleteCell(1);
+    table.rows[0].cells[0].colSpan = 2;
+    const edges = [0, 100, 200, 300];
+    const stubRect = (cell: HTMLTableCellElement, column: number, span = 1) => {
+      cell.getBoundingClientRect = () => ({ left: edges[column], right: edges[column + span] }) as DOMRect;
+    };
+    stubRect(table.rows[0].cells[0], 0, 2);
+    stubRect(table.rows[0].cells[1], 2);
+    for (const row of [table.rows[1], table.rows[2]]) {
+      Array.from(row.cells).forEach((cell, column) => stubRect(cell, column));
+    }
+    const { getAllByRole } = render(<TableMenu editor={editor} />);
+
+    const columnButtons = await waitFor(() => getAllByRole('button', { name: /Add column/ }));
+    expect(columnButtons).toHaveLength(4);
+    fireEvent.mouseDown(columnButtons[1]);
+
+    expect(commandSpies.addColumnBefore).toHaveBeenCalledTimes(1);
+    expect(commandSpies.addColumnAfter).not.toHaveBeenCalled();
+    expect(editor.view.posAtDOM).toHaveBeenLastCalledWith(table.rows[1].cells[1], 0);
+  });
+
+  it('offers merge and split in the context menu', async () => {
+    const { editor, table, commandSpies } = createMockEditor({ splitCell: false });
+    const { getByRole } = render(<TableMenu editor={editor} />);
+
+    fireEvent.contextMenu(table.rows[1].cells[1], { clientX: 40, clientY: 40 });
+    await waitFor(() => getByRole('menu'));
+
+    expect(getByRole('menuitem', { name: 'Split cell' })).toBeDisabled();
+    fireEvent.mouseDown(getByRole('menuitem', { name: 'Merge cells' }));
+    expect(commandSpies.mergeCells).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a selection of several cells when one of them is right-clicked', async () => {
+    const { editor, table, setTextSelectionSpy } = createMockEditor();
+    const { getByRole } = render(<TableMenu editor={editor} />);
+
+    table.rows[1].cells[1].classList.add('selectedCell');
+    fireEvent.contextMenu(table.rows[1].cells[1], { clientX: 40, clientY: 40 });
+    await waitFor(() => getByRole('menu'));
+    expect(setTextSelectionSpy).not.toHaveBeenCalled();
+
+    fireEvent.contextMenu(table.rows[2].cells[1], { clientX: 40, clientY: 40 });
+    expect(setTextSelectionSpy).toHaveBeenCalledTimes(1);
   });
 
   it('opens a context menu on right-click and runs the chosen action', async () => {

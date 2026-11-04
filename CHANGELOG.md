@@ -8,6 +8,7 @@ Versioning is unified across the publishable Inkio packages.
 
 ### Added
 
+- the table context menu offers merge and split. They existed as commands with no way to reach them; right-clicking a selected cell now keeps the selection, so there is something to merge.
 - wiki links: `wikiLinkItems` on the `@inkio/editor` `Editor` (and `items` on the `WikiLink` extension) opens a page suggestion popup after typing `[[`; the chosen item's `id` becomes the link target. Without it, `[[name]]` still converts on the closing `]]`.
 - `MarkdownPaste` from the `/markdown` subpaths turns Markdown pasted as plain text into document content. Add it with `extensions`; it is opt-in so the parser stays out of the editor bundle.
 - `ui.icons` now reaches every icon the editors draw: new ids `grip`, `insert`, `close`, `copy`, `duplicate`, `delete`, `text`, `tableOfContents`, `image`, `edit` and `spinner`, plus node views and the block menu, which used to draw theirs directly. The toggle arrow, whose button Tiptap owns, follows the `--inkio-toggle-chevron` CSS variable.
@@ -22,6 +23,12 @@ Versioning is unified across the publishable Inkio packages.
 
 ### Fixed
 
+- an image added from the slash menu, or pasted into an empty paragraph, replaces that paragraph and moves the caret below it. An empty line stayed above the image with the caret in it, so writing went above the image, and a menu covered the image's top.
+- the image editor opens in the `locale` of its editor (`ImageEditorComponentProps` gains `locale`), and the Korean close confirmation no longer has an English button.
+- closing the image editor without an edit no longer asks to discard, on the button or with Escape. Opening on the resize tool counted its starting crop as a change.
+- a table column `+` lands at its boundary when a merged cell shortens the first row.
+- the image resize handle sits on the image's corner instead of the caption line, and text in selected table cells no longer shows a second highlight.
+- `useReadOnlyContentSync` no longer logs a React `flushSync` error when the document has an image or code block.
 - the slash menu and the `@`, `#`, `[[` popups follow `locale` and `messages`: their header, empty state and list name, and the default slash commands, which are found by those words (`/표`). They stayed English before, and `/표` found nothing. The slash menu no longer has a "Commands" header.
 - `transformSlashCommands` receives the whole default list as documented. It got the list already filtered by the query against the English labels, so a renamed item could not match.
 - the words node views show (code block, image block, callout toolbar), the default placeholder and the menus' accessible names follow `locale` and `messages`.
