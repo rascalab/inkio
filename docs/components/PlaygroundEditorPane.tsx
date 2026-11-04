@@ -18,7 +18,7 @@ import {
   type CommentMessage,
   type CommentData,
 } from '@inkio/advanced';
-import { PLAYGROUND_INITIAL_CONTENT } from './playground-content';
+import { PLAYGROUND_INITIAL_CONTENT, type PlaygroundLocale } from './playground-content';
 import { useDebouncedState } from './use-debounced-state';
 import { useObjectUrlRegistry } from './use-object-urls';
 import { LazyImageEditorModal } from './lazy-image-editor-modal';
@@ -41,12 +41,14 @@ const PLAYGROUND_PAGES = [
 
 type PlaygroundEditorPaneProps = {
   content?: string;
+  locale: PlaygroundLocale;
   showViewer: boolean;
   showJSON: boolean;
 };
 
 export default function PlaygroundEditorPane({
   content: initialDoc,
+  locale,
   showViewer,
   showJSON,
 }: PlaygroundEditorPaneProps) {
@@ -86,7 +88,6 @@ export default function PlaygroundEditorPane({
   const commentsRef = useRef<CommentData[]>([]);
   commentsRef.current = comments;
 
-  const locale = 'en-US,en;q=0.9';
   const iconOverrides = useMemo<Partial<InkioIconRegistry>>(
     () => ({ comment: inkioIconRegistry.comment }),
     [],
@@ -94,13 +95,13 @@ export default function PlaygroundEditorPane({
   const messages = useMemo<InkioMessageOverrides>(
     () => ({
       core: {
-        suggestion: { empty: 'No matching items.' },
+        suggestion: { empty: locale === 'ko' ? '맞는 항목이 없어요.' : 'No matching items.' },
       },
       extensions: {
-        commentComposer: { placeholder: 'Share feedback...' },
+        commentComposer: { placeholder: locale === 'ko' ? '의견을 남겨 보세요...' : 'Share feedback...' },
       },
     }),
-    [],
+    [locale],
   );
 
   const handleReply = useCallback((commentId: string, text: string) => {
@@ -153,9 +154,15 @@ export default function PlaygroundEditorPane({
           </span>
         </div>
         <div style={{ position: 'relative' }}>
+          {/* The editor reads locale when it is created; doc keeps what was written. */}
           <InkioEditor
+            key={locale}
             content={doc ?? PLAYGROUND_INITIAL_CONTENT}
-            placeholder="Try /, #, [[, comments, and image editing..."
+            placeholder={
+              locale === 'ko'
+                ? '/, #, [[, 댓글, 이미지 편집을 써 보세요...'
+                : 'Try /, #, [[, comments, and image editing...'
+            }
             theme={inkioTheme}
             locale={locale}
             ui={{

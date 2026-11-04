@@ -6,19 +6,21 @@ import {
   Viewer as SimpleViewer,
 } from '@inkio/simple';
 import type { InkioJSONContent } from '@inkio/core';
-import { PLAYGROUND_INITIAL_CONTENT } from './playground-content';
+import { PLAYGROUND_INITIAL_CONTENT, type PlaygroundLocale } from './playground-content';
 import { useDebouncedState } from './use-debounced-state';
 import { useObjectUrlRegistry } from './use-object-urls';
 import { LazyImageEditorModal } from './lazy-image-editor-modal';
 
 type PlaygroundSimplePaneProps = {
   content?: string;
+  locale: PlaygroundLocale;
   showViewer: boolean;
   showJSON: boolean;
 };
 
 export default function PlaygroundSimplePane({
   content: initialDoc,
+  locale,
   showViewer,
   showJSON,
 }: PlaygroundSimplePaneProps) {
@@ -39,10 +41,12 @@ export default function PlaygroundSimplePane({
           Editor
           <span className="playground-mode-badge">@inkio/simple + lazy @inkio/image-editor</span>
         </div>
+        {/* The editor reads locale when it is created; doc keeps what was written. */}
         <SimpleEditor
+          key={locale}
           content={doc ?? PLAYGROUND_INITIAL_CONTENT}
-          placeholder="Write a document..."
-          locale="en-US,en;q=0.9"
+          placeholder={locale === 'ko' ? '문서를 작성해 보세요...' : 'Write a document...'}
+          locale={locale}
           onImageUpload={handleImageUpload}
           imageBlock={imageBlock}
           ui={{ autoresize: true, showToolbar: true }}

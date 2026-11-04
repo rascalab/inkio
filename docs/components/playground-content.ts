@@ -1,3 +1,5 @@
+export type PlaygroundLocale = 'ko' | 'en';
+
 /** Shared initial content for playground editors (JSON format for SSR-safe rendering). */
 export const PLAYGROUND_INITIAL_CONTENT = {
   type: 'doc',

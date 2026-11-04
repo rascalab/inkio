@@ -3,12 +3,19 @@
 import { useCallback, useState } from 'react';
 import EditorPane from './PlaygroundEditorPane';
 import SimplePane from './PlaygroundSimplePane';
+import type { PlaygroundLocale } from './playground-content';
 import './Playground.css';
 
 type PlaygroundMode = 'editor' | 'simple';
 
+const LOCALES: { id: PlaygroundLocale; label: string }[] = [
+  { id: 'ko', label: '한국어' },
+  { id: 'en', label: 'English' },
+];
+
 export default function Playground({ content }: { content?: string } = {}) {
   const [mode, setMode] = useState<PlaygroundMode>('editor');
+  const [locale, setLocale] = useState<PlaygroundLocale>('ko');
   const [showViewer, setShowViewer] = useState(true);
   const [showJSON, setShowJSON] = useState(true);
 
@@ -43,6 +50,19 @@ export default function Playground({ content }: { content?: string } = {}) {
           </div>
         </div>
         <div className="playground-header-right">
+          <div className="playground-mode-switch" role="group" aria-label="Editor language">
+            {LOCALES.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={locale === id}
+                className={`playground-mode-btn${locale === id ? ' is-active' : ''}`}
+                onClick={() => setLocale(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <label className="playground-toggle-label">
             <input
               type="checkbox"
@@ -69,6 +89,7 @@ export default function Playground({ content }: { content?: string } = {}) {
           <SimplePane
             key="simple"
             content={content}
+            locale={locale}
             showViewer={showViewer}
             showJSON={showJSON}
           />
@@ -76,6 +97,7 @@ export default function Playground({ content }: { content?: string } = {}) {
           <EditorPane
             key="editor"
             content={content}
+            locale={locale}
             showViewer={showViewer}
             showJSON={showJSON}
           />
