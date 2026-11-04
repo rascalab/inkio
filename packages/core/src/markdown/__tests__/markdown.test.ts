@@ -430,6 +430,18 @@ describe('merged table cells', () => {
     expect(markdown.length).toBeLessThan(100_000);
   });
 
+  it('counts how far merges push later cells', () => {
+    // Small spans in the first row push the second row right, widening all 2000 rows.
+    const width = 300;
+    const rows = [
+      { type: 'tableRow', content: Array.from({ length: width }, () => cell('가', { colspan: 1, rowspan: 2 })) },
+      { type: 'tableRow', content: Array.from({ length: width }, () => cell('나')) },
+      ...Array.from({ length: 1998 }, () => ({ type: 'tableRow', content: [cell('다')] })),
+    ];
+    const markdown = stringifyMarkdown({ type: 'doc', content: [{ type: 'table', content: rows }] });
+    expect(markdown).not.toContain('inkio:table-spans');
+  });
+
   it('counts the cells spans add across the whole document', () => {
     const wideTable = {
       type: 'table',

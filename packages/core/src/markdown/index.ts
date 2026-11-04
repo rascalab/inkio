@@ -424,8 +424,8 @@ function applyTableSpans(rows: JSONContent[], spans: TableSpan[]): JSONContent[]
 /**
  * Documents can come from anywhere, and a few bytes of `colspan` can ask for a
  * huge table: every row is padded to the widest one. Merges in one document may
- * add this many cells; a span past that is written as a plain cell. Writing is
- * synchronous, and `toMdastRoot` resets this for each document.
+ * add this many cells; a table past that is written without its merges. Writing
+ * is synchronous, and `toMdastRoot` resets this for each document.
  */
 const MAX_CELLS_ADDED_BY_SPANS = 100_000;
 let spanCellBudget = MAX_CELLS_ADDED_BY_SPANS;
@@ -435,31 +435,37 @@ function toSpan(value: unknown): number {
   return Number.isSafeInteger(span) && span > 0 ? span : 1;
 }
 
-/** The GFM rows of a table, with an empty cell wherever a merged cell covers a column. */
-function jsonTableToMdast(node: JSONContent): { rows: MdastNode[]; spans: TableSpan[] } {
+type TableLayout = { rows: MdastNode[]; spans: TableSpan[] };
+
+/**
+ * The GFM rows of a table, with an empty cell wherever a merged cell covers a
+ * column. Null when the cells this adds, measured on the finished table, don't
+ * fit the budget: a merge also pushes later cells right, which widens every row.
+ */
+function layoutMergedTable(node: JSONContent): TableLayout | null {
+  const sourceRows = node.content ?? [];
   const covered = new Set<string>();
   const spans: TableSpan[] = [];
-  const emptyCell = (): MdastNode => ({ type: 'tableCell', children: [] });
-  const rowCount = node.content?.length ?? 0;
-  let columnCount = (node.content ?? []).reduce((widest, row) => Math.max(widest, row.content?.length ?? 0), 0);
+  let spannedCells = 0;
 
-  const rows = (node.content ?? []).map((row, rowIndex) => {
+  const rows: MdastNode[] = [];
+  for (const [rowIndex, row] of sourceRows.entries()) {
     const children: MdastNode[] = [];
     const fillCovered = () => {
-      while (covered.has(`${rowIndex},${children.length}`)) children.push(emptyCell());
+      while (covered.has(`${rowIndex},${children.length}`)) {
+        children.push({ type: 'tableCell', children: [] });
+      }
     };
 
     for (const cell of row.content ?? []) {
       fillCovered();
       const column = children.length;
       const colspan = toSpan(cell.attrs?.colspan);
-      const rowspan = Math.min(toSpan(cell.attrs?.rowspan), rowCount - rowIndex);
+      const rowspan = Math.min(toSpan(cell.attrs?.rowspan), sourceRows.length - rowIndex);
       const area = colspan * rowspan;
-      const widened = Math.max(columnCount, column + colspan);
-      const cost = area + (widened - columnCount) * rowCount;
-      if (area > 1 && cost <= spanCellBudget) {
-        spanCellBudget -= cost;
-        columnCount = widened;
+      if (area > 1) {
+        spannedCells += area;
+        if (spannedCells > spanCellBudget) return null;
         spans.push({ row: rowIndex, column, colspan, rowspan });
         for (let r = rowIndex; r < rowIndex + rowspan; r += 1) {
           for (let c = column; c < column + colspan; c += 1) {
@@ -470,11 +476,27 @@ function jsonTableToMdast(node: JSONContent): { rows: MdastNode[]; spans: TableS
       children.push(jsonTableCellToMdast(cell));
     }
     fillCovered();
+    rows.push({ type: 'tableRow', children });
+  }
 
-    return { type: 'tableRow', children };
-  });
+  const widest = (lengths: number[]) => lengths.reduce((max, length) => Math.max(max, length), 0);
+  const plainWidth = widest(sourceRows.map((row) => row.content?.length ?? 0));
+  const width = widest(rows.map((row) => row.children?.length ?? 0));
+  const added = spannedCells + (width - plainWidth) * sourceRows.length;
+  if (added > spanCellBudget) return null;
 
+  spanCellBudget -= added;
   return { rows, spans };
+}
+
+function jsonTableToMdast(node: JSONContent): TableLayout {
+  return layoutMergedTable(node) ?? {
+    rows: (node.content ?? []).map((row) => ({
+      type: 'tableRow',
+      children: (row.content ?? []).map((cell) => jsonTableCellToMdast(cell)),
+    })),
+    spans: [],
+  };
 }
 
 function mdastBlocksToJson(nodes: MdastNode[] = []): JSONContent[] {
