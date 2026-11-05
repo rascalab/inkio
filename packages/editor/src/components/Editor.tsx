@@ -181,7 +181,7 @@ export function Editor({
     }
 
     return resolveExtensionsInput(extensions, getDefaultExtensions(opts));
-  }, [extensionInputs, extensions]);
+  }, [extensionInputs, extensions, firstUi]);
 
   const coreProps: CoreEditorProps = {
     ...mapEditorUiToCoreProps(stableUi, {

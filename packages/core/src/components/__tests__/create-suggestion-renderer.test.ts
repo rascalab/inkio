@@ -94,10 +94,10 @@ describe('SuggestionPopup loading passes', () => {
 });
 
 describe('SuggestionPopup words', () => {
-  function firstRender(options: Parameters<typeof createSuggestionRenderer>[0]) {
+  function firstRender(options: Parameters<typeof createSuggestionRenderer>[0], storage?: unknown) {
     hostRender.mockClear();
     createSuggestionRenderer(options)().onStart?.({
-      editor: { view: { dom: document.createElement('div') } },
+      editor: { storage, view: { dom: document.createElement('div') } },
       items: [],
       command: () => {},
       clientRect: () => null,
@@ -108,6 +108,14 @@ describe('SuggestionPopup words', () => {
   it('picks the header from the locale messages', () => {
     expect(firstRender({ header: (said) => said.mentions, locale: 'ko' }).header).toBe('멘션');
     expect(firstRender({ header: (said) => said.mentions }).header).toBe('Mentions');
+  });
+
+  it('speaks the language the editor has now, unless configured with its own', () => {
+    const storage = { inkioUi: { locale: 'ko' } };
+    const header = (said: { mentions: string }) => said.mentions;
+    expect(firstRender({ header }, storage).header).toBe('멘션');
+    expect(firstRender({ header }, storage).locale).toBe('ko');
+    expect(firstRender({ header, locale: 'en' }, storage).header).toBe('Mentions');
   });
 
   it('keeps a header given as text', () => {

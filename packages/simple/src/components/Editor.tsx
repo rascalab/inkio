@@ -100,7 +100,7 @@ export function Editor({
       opts.imageBlock = mergedImageBlock;
     }
     return resolveExtensionsInput(extensions, getExtensions(opts));
-  }, [extensionInputs, extensions]);
+  }, [extensionInputs, extensions, firstUi]);
 
   const coreProps: CoreEditorProps = {
     ...mapEditorUiToCoreProps(stableUi, {

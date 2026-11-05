@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import type { InkioCoreMessageOverrides, InkioLocaleInput, InkioMessageOverrides } from '../i18n/messages';
 import type { InkioIconRegistry } from '../icons/registry';
 import { isEqualOptionsValue } from '../utils/stable-options';
@@ -73,15 +73,12 @@ export function useEditorUiRevision(editor: {
   on: (event: 'transaction', listener: () => void) => unknown;
   off: (event: 'transaction', listener: () => void) => unknown;
 }): number {
+  const subscribe = useCallback((listener: () => void) => {
+    editor.on('transaction', listener);
+    return () => {
+      editor.off('transaction', listener);
+    };
+  }, [editor]);
   const read = () => editorUiRevision(editor);
-  return useSyncExternalStore(
-    (listener) => {
-      editor.on('transaction', listener);
-      return () => {
-        editor.off('transaction', listener);
-      };
-    },
-    read,
-    read,
-  );
+  return useSyncExternalStore(subscribe, read, read);
 }
