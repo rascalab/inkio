@@ -356,6 +356,33 @@ test('next app router example replies to, resolves, and deletes a comment thread
   expect(pageErrors).toEqual([]);
 });
 
+test('next app router example hides a comment thread while its text is deleted', async ({ page }) => {
+  await page.goto('http://localhost:4174');
+  const editor = page.locator('.ProseMirror').first();
+  await expect(editor).toBeVisible();
+
+  await editor.locator('p').first().click();
+  await page.keyboard.press('Home');
+  for (let i = 0; i < 12; i += 1) {
+    await page.keyboard.press('Shift+ArrowRight');
+  }
+  await page.keyboard.press('ControlOrMeta+Shift+m');
+  const composer = page.locator('.inkio-comment-composer');
+  await expect(composer).toBeVisible();
+  await composer.locator('.inkio-comment-composer-input').fill('On deleted text');
+  await composer.locator('.inkio-comment-composer-submit').click();
+  const thread = page.locator('.inkio-comment-thread');
+  await expect(thread).toHaveCount(1);
+
+  await page.locator('.inkio-comment-thread-quote').click();
+  await page.keyboard.press('Backspace');
+  await expect(thread).toHaveCount(0);
+
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(thread).toHaveCount(1);
+  await expect(thread).toContainText('On deleted text');
+});
+
 // CDP drives the browser's own composition path, which is what an input method
 // does: the text changes in place until it is committed, unlike keyboard.type.
 async function compose(page: import('@playwright/test').Page, ...steps: string[]) {

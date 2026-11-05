@@ -19,7 +19,6 @@ export interface InkioCommentMessages {
     resolve: string;
     delete: string;
     quoteHint: string;
-    quoteGone: string;
     you: string;
     time: {
       justNow: string;
@@ -50,7 +49,6 @@ export const koCommentMessages: InkioCommentMessages = {
     resolve: '해결',
     delete: '삭제',
     quoteHint: '스레드를 선택하면 강조 표시된 텍스트로 이동합니다.',
-    quoteGone: '댓글을 단 글이 문서에 없습니다.',
     you: '나',
     time: {
       justNow: '방금',
@@ -79,7 +77,6 @@ export const enCommentMessages: InkioCommentMessages = {
     resolve: 'Resolve',
     delete: 'Delete',
     quoteHint: 'Select a thread to jump to the highlighted text.',
-    quoteGone: 'The text this was on is no longer in the document.',
     you: 'You',
     time: {
       justNow: 'just now',

@@ -360,15 +360,16 @@ export const CommentPanel = ({
 
   interface PanelRow {
     commentId: string;
-    /** Null for orphan threads (external data without a document mark). */
-    mark: EditorCommentMark | null;
+    mark: EditorCommentMark;
     threadData: CommentThreadData | undefined;
     resolved: boolean;
     quoteText: string;
   }
 
+  // The document decides what is listed: a thread whose text was deleted leaves
+  // the panel, and undo brings it back along with its mark.
   const allRows = useMemo<PanelRow[]>(() => {
-    const rows: PanelRow[] = editorMarks.map((mark) => {
+    return editorMarks.map((mark) => {
       const threadData = threads.find((thread) => thread.id === mark.commentId);
       return {
         commentId: mark.commentId,
@@ -378,22 +379,6 @@ export const CommentPanel = ({
         quoteText: mark.text,
       };
     });
-    // Orphans: external threads whose document mark is gone (deleted text,
-    // loaded doc without marks). Render them from thread data so the panel
-    // never desyncs from the external store and the thread can still be read
-    // or deleted. Undo brings the mark back. Resolved state comes from the
-    // thread itself and scroll-to is unavailable.
-    for (const thread of threads) {
-      if (rows.some((row) => row.commentId === thread.id)) continue;
-      rows.push({
-        commentId: thread.id,
-        mark: null,
-        threadData: thread,
-        resolved: thread.resolved,
-        quoteText: '',
-      });
-    }
-    return rows;
   }, [editorMarks, threads, isResolvedMark]);
 
   const displayThreads = useMemo(() => {
@@ -412,8 +397,7 @@ export const CommentPanel = ({
   if (!hasCommentExtension) return null;
 
   const resolvedCurrentUser = currentUser || ui.messages.commentPanel.you;
-  // Counts share the displayThreads denominator (doc marks joined with thread
-  // data, plus orphan threads) so badges match the filtered lists.
+  // Counts share the displayThreads denominator so badges match the filtered lists.
   const openCount = allRows.filter((row) => !row.resolved).length;
   const resolvedCount = allRows.filter((row) => row.resolved).length;
 
@@ -471,15 +455,13 @@ export const CommentPanel = ({
                 className={`inkio-comment-thread ${isResolved ? 'is-resolved' : ''} ${isActive ? 'is-active' : ''}`}
               >
                 <div
-                  className={`inkio-comment-thread-quote${mark ? '' : ' is-gone'}`}
-                  onClick={() => mark && handleScrollTo(mark)}
-                  title={mark ? ui.messages.commentPanel.quoteHint : undefined}
+                  className="inkio-comment-thread-quote"
+                  onClick={() => handleScrollTo(mark)}
+                  title={ui.messages.commentPanel.quoteHint}
                 >
                   <div className="inkio-comment-quote-bar" />
                   <span className="inkio-comment-quote-text">
-                    {!mark
-                      ? ui.messages.commentPanel.quoteGone
-                      : quoteText.length > 100 ? `${quoteText.slice(0, 100)}…` : quoteText}
+                    {quoteText.length > 100 ? `${quoteText.slice(0, 100)}…` : quoteText}
                   </span>
                 </div>
 
