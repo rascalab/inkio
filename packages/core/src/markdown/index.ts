@@ -967,7 +967,7 @@ function parseToMdast(markdown: string): MdastNode {
 
 function stringifyFromMdast(root: MdastNode): string {
   const stringifier = alignedTableChars > MAX_ALIGNED_TABLE_CHARS ? compactTableStringifier : markdownStringifier;
-  return postprocessMarkdown(String(stringifier.stringify(root as any)).trim());
+  return postprocessMarkdown(String(stringifier.stringify(root as Parameters<typeof stringifier.stringify>[0])).trim());
 }
 
 export function createMarkdownAdapter(options: MarkdownAdapterOptions = {}) {

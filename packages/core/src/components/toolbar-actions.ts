@@ -276,7 +276,7 @@ const inkioToolbarSchema: InkioToolbarAction[] = [
     surfaces: ['floating', 'toolbar'],
     group: 'blocks',
     extensionNames: ['callout'],
-    run: (editor) => (editor.chain().focus() as any).toggleCallout().run(),
+    run: (editor) => editor.chain().focus().toggleCallout().run(),
     isActive: (editor) => editor.isActive('callout'),
   },
   {

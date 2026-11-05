@@ -36,7 +36,7 @@ function ImageBlockViewInner(props: NodeViewProps) {
     spinner: Loader2Icon,
     edit: PencilIcon,
   } = useMemo(() => editorIcons(editor), [editor, uiRevision]);
-  const ImageEditorComponent = (extension?.options as any)?.imageEditor as React.ComponentType<ImageEditorComponentProps> | undefined;
+  const ImageEditorComponent = (extension?.options as { imageEditor?: React.ComponentType<ImageEditorComponentProps> } | undefined)?.imageEditor;
   // Track editability via subscription (not render-time read) so the memo
   // below stays exact: same value bails out of setState on every keystroke,
   // and only a real setEditable flip re-renders.
