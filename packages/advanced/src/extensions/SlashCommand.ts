@@ -303,8 +303,9 @@ export const defaultSlashCommands: SlashCommandItem[] = [
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).insertContent({ type: 'tocBlock' }).run();
       // Insertion selects the block, and typing would replace it: write below it.
-      const { doc, selection, tr } = editor.state;
-      editor.view.dispatch(tr.setSelection(Selection.near(doc.resolve(selection.to), 1)));
+      const { doc, schema, selection, tr } = editor.state;
+      if (!doc.resolve(selection.to).nodeAfter) tr.insert(selection.to, schema.nodes.paragraph.create());
+      editor.view.dispatch(tr.setSelection(Selection.near(tr.doc.resolve(selection.to), 1)));
     },
     isAvailable: (editor) => hasSchemaNode(editor, 'tocBlock') && !isInsideTable(editor),
   },

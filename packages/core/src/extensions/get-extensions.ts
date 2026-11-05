@@ -36,7 +36,7 @@ import TextAlign from '@tiptap/extension-text-align';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { ClearMarksOnEnter } from './ClearMarksOnEnter';
 import { ListMerge } from './ListMerge';
-import { TrailingParagraph } from './TrailingParagraph';
+import { LineBelowLastBlock } from './LineBelowLastBlock';
 import { dropUnknownContent } from '../utils/drop-unknown-content';
 import { ImageBlock } from './ImageBlock';
 import type { ImageBlockOptions } from './ImageBlock';
@@ -209,7 +209,7 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
     HardBreak,
     Dropcursor,
     Gapcursor,
-    TrailingParagraph,
+    LineBelowLastBlock,
     Placeholder.configure({
       placeholder: placeholder
         || resolveCoreMessages(locale, toCoreMessageOverrides(messages)).editor.placeholder,

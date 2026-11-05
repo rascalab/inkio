@@ -464,26 +464,26 @@ test.describe('block drag onto a list', () => {
 
   test('lands between the items and splits the list', async ({ page }) => {
     await dragBlock(page, '끝 문단', '하나', 'below');
-    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'UL:하나', 'P:끝 문단', 'UL:둘', 'PRE:코드', 'P:']);
+    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'UL:하나', 'P:끝 문단', 'UL:둘', 'PRE:코드']);
   });
 
   test('lands beside the list at its ends', async ({ page }) => {
     await dragBlock(page, '끝 문단', '하나', 'above');
-    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'P:끝 문단', 'UL:하나/둘', 'PRE:코드', 'P:']);
+    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'P:끝 문단', 'UL:하나/둘', 'PRE:코드']);
 
     await dragBlock(page, '앞 문단', '둘', 'below');
-    expect(await blockOutline(page)).toEqual(['P:끝 문단', 'UL:하나/둘', 'P:앞 문단', 'PRE:코드', 'P:']);
+    expect(await blockOutline(page)).toEqual(['P:끝 문단', 'UL:하나/둘', 'P:앞 문단', 'PRE:코드']);
   });
 
   test('undoes as one step', async ({ page }) => {
     await dragBlock(page, '끝 문단', '하나', 'below');
     await page.keyboard.press('ControlOrMeta+z');
-    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'UL:하나/둘', 'P:끝 문단', 'PRE:코드', 'P:']);
+    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'UL:하나/둘', 'P:끝 문단', 'PRE:코드']);
   });
 
   test('still moves a list item inside its list', async ({ page }) => {
     await dragBlock(page, '둘', '하나', 'above');
-    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'UL:둘/하나', 'P:끝 문단', 'PRE:코드', 'P:']);
+    expect(await blockOutline(page)).toEqual(['P:앞 문단', 'UL:둘/하나', 'P:끝 문단', 'PRE:코드']);
   });
 });
 
@@ -795,15 +795,14 @@ test.describe('slash menu inside other blocks', () => {
       await expect(page.getByRole('option', { name: '콜아웃', exact: true })).toBeVisible();
       await pick(page, '콜아웃');
       const blocks = await outline(page);
-      // The line after is what the document keeps to write on below a last block.
-      expect(blocks.slice(1)).toEqual(['callout', 'paragraph']);
+      expect(blocks.slice(1)).toEqual(['callout']);
     });
   }
 
   test('a table leaves the list with no empty line behind', async ({ page }) => {
     await slashIn(page, '<ul><li><p>앞</p></li><li><p>뒤</p></li></ul>');
     await pick(page, '표');
-    expect(await outline(page)).toEqual(['bulletList', 'table', 'paragraph']);
+    expect(await outline(page)).toEqual(['bulletList', 'table']);
     await expect(blockEditor(page).locator('li')).toHaveCount(1);
   });
 
@@ -898,20 +897,33 @@ test.describe('writing a document', () => {
     await expect(editor.locator('p').last()).toHaveText('다음 글');
   });
 
-  for (const [name, block] of [
-    ['an image', { type: 'imageBlock', attrs: { src: '/favicon.ico' } }],
-    ['a callout', { type: 'callout', content: [paragraph('콜아웃')] }],
-    ['a quote', { type: 'blockquote', content: [paragraph('인용')] }],
+  const cell = { type: 'tableCell', content: [paragraph('셀')] };
+  for (const [name, block, inside] of [
+    ['an image', { type: 'imageBlock', attrs: { src: '/favicon.ico' } }, 'img'],
+    ['a callout', { type: 'callout', content: [paragraph('콜아웃')] }, 'p'],
+    ['a quote', { type: 'blockquote', content: [paragraph('인용')] }, 'p'],
+    ['a table', { type: 'table', content: [{ type: 'tableRow', content: [cell, cell] }] }, 'td'],
   ] as const) {
-    test(`a click under ${name} at the end writes below it`, async ({ page }) => {
+    const lastBlockTypes = [paragraph('앞').type, block.type];
+    test(`a click under ${name} at the end makes a line below it`, async ({ page }) => {
       const editor = await load(page, [paragraph('앞'), block]);
-      await page.keyboard.press('ArrowLeft');
+      expect(await types(editor)).toEqual(lastBlockTypes);
       const last = await editor.evaluate((root) => {
         const rect = root.lastElementChild!.getBoundingClientRect();
-        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        return { x: rect.left + rect.width / 2, bottom: rect.bottom };
       });
-      await page.mouse.click(last.x, last.y);
+      await page.mouse.click(last.x, last.bottom + 4);
       await page.waitForTimeout(100);
+      await page.keyboard.type('아래 글');
+      await expect(editor.locator(':scope > p').last()).toHaveText('아래 글');
+    });
+
+    test(`clicking inside ${name} adds nothing, and ArrowDown makes the line`, async ({ page }) => {
+      const editor = await load(page, [paragraph('앞'), block]);
+      await editor.locator(`:scope > :last-child ${inside}`).first().click();
+      await page.waitForTimeout(100);
+      expect(await types(editor)).toEqual(lastBlockTypes);
+      await page.keyboard.press('ArrowDown');
       await page.keyboard.type('아래 글');
       await expect(editor.locator(':scope > p').last()).toHaveText('아래 글');
     });

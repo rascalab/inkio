@@ -4,7 +4,7 @@ import type { Node as PmNode } from '@tiptap/pm/model';
 import { canJoin } from '@tiptap/pm/transform';
 import { clampRange, collectChangedRanges } from '../utils/changed-ranges';
 
-const LIST_TYPES = new Set(['bulletList', 'orderedList', 'taskList']);
+export const LIST_TYPES = new Set(['bulletList', 'orderedList', 'taskList']);
 
 /**
  * Automatically merges adjacent lists of the same type.
