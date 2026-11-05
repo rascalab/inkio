@@ -3,49 +3,11 @@ import react from '@vitejs/plugin-react';
 import dts from 'vite-plugin-dts';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { readFileSync } from 'fs';
+import { copyCss } from '../../scripts/vite-css-plugin';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const enableDts = process.env.INKIO_VITE_SKIP_DTS !== '1';
-
-function inlineCssImports(filePath: string, stack: string[] = []): string {
-  const resolved = resolve(filePath);
-  // Cycle detection follows the current DFS path only: a shared visited set
-  // mistakes diamond imports (A->B,A->C,B->D,C->D) for a cycle.
-  if (stack.includes(resolved)) {
-    throw new Error(`CSS import cycle detected: ${[...stack, resolved].join(' -> ')}`);
-  }
-  let content: string;
-  try {
-    content = readFileSync(resolved, 'utf-8');
-  } catch (error) {
-    const importer = stack.length > 0 ? stack[stack.length - 1] : '(entry)';
-    throw new Error(
-      `CSS import failed: cannot read ${resolved} (imported from ${importer}): ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-  const dir = dirname(resolved);
-  const next = [...stack, resolved];
-  return content.replace(/@import\s+["'](\.[^"']+)["']\s*;/g, (_match, rel) => {
-    return inlineCssImports(resolve(dir, rel), next);
-  });
-}
-
-/** Collect all CSS files in the @import chain. */
-function collectCssFiles(filePath: string, visited = new Set<string>()): string[] {
-  const resolved = resolve(filePath);
-  if (visited.has(resolved)) return [];
-  visited.add(resolved);
-  const content = readFileSync(resolved, 'utf-8');
-  const dir = dirname(resolved);
-  const files = [resolved];
-  content.replace(/@import\s+["'](\.[^"']+)["']\s*;/g, (_match, rel) => {
-    files.push(...collectCssFiles(resolve(dir, rel), visited));
-    return '';
-  });
-  return files;
-}
 
 export default defineConfig({
   plugins: [
@@ -67,30 +29,7 @@ export default defineConfig({
           }),
         ]
       : []),
-    {
-      name: 'copy-css',
-      buildStart() {
-        const cssFiles = new Set([
-          ...collectCssFiles(resolve(__dirname, 'src/minimal.css')),
-          ...collectCssFiles(resolve(__dirname, 'src/style.css')),
-        ]);
-        for (const file of cssFiles) {
-          this.addWatchFile(file);
-        }
-      },
-      generateBundle() {
-        this.emitFile({
-          type: 'asset',
-          fileName: 'minimal.css',
-          source: inlineCssImports(resolve(__dirname, 'src/minimal.css')),
-        });
-        this.emitFile({
-          type: 'asset',
-          fileName: 'style.css',
-          source: inlineCssImports(resolve(__dirname, 'src/style.css')),
-        });
-      },
-    },
+    copyCss(__dirname),
   ],
   resolve: {
     alias: [
