@@ -21,6 +21,8 @@ import {
 import type { Editor } from '@tiptap/core';
 import {
   createOverlayHost,
+  editorUi,
+  editorUiRevision,
   mergeCoreMessages,
   toCoreMessageOverrides,
   toRectLike,
@@ -396,11 +398,26 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
     return menuHost.ready();
   };
 
+  const currentUi = () => editorUi(options.editor, {
+    locale: options.locale,
+    messages: options.messages,
+    icons: options.coreIcons,
+  });
+
+  // Resolved through the same message merge as the React menu so locale
+  // overrides apply to the handle too.
+  const handleLabel = () => {
+    const ui = currentUi();
+    return mergeCoreMessages(ui.locale, toCoreMessageOverrides(ui.messages)).blockHandle.handle;
+  };
+  let handleUiRevision = editorUiRevision(options.editor);
+
   const renderMenu = () => {
     if (!menuHost?.isMounted() || openMenuBlockPos === null) {
       return;
     }
 
+    const ui = currentUi();
     menuHost.render(
       React.createElement(BlockHandleActionMenu, {
         editor: options.editor,
@@ -409,9 +426,9 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
         anchorRect: getHandleAnchorRect(),
         anchorResolver: getHandleAnchorRect,
         icons: options.icons,
-        locale: options.locale,
-        messages: options.messages,
-        coreIcons: options.coreIcons,
+        locale: ui.locale,
+        messages: ui.messages,
+        coreIcons: ui.icons,
         onClose: closeMenu,
       }),
     );
@@ -534,14 +551,9 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
       return;
     }
 
-    // Resolve the screen-reader label through the same message merge as
-    // the React menu so locale overrides apply to the handle too.
-    const handleLabel = mergeCoreMessages(
-      options.locale,
-      toCoreMessageOverrides(options.messages),
-    ).blockHandle.handle;
-    const Grip = options.coreIcons?.grip;
-    handleElement = createHandleElement(handleLabel, !Grip);
+    const Grip = currentUi().icons?.grip;
+    handleElement = createHandleElement(handleLabel(), !Grip);
+    handleUiRevision = editorUiRevision(options.editor);
     document.body.appendChild(handleElement);
     // An app's icon is a component; only the default can be built without React.
     if (Grip) {
@@ -858,6 +870,14 @@ export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
       return {
         update: (nextView, prevState) => {
           editorView = nextView;
+
+          const uiRevision = editorUiRevision(options.editor);
+          if (uiRevision !== handleUiRevision) {
+            handleUiRevision = uiRevision;
+            handleElement?.setAttribute('aria-label', handleLabel());
+            const Grip = currentUi().icons?.grip;
+            if (Grip) gripHost?.render(React.createElement(Grip, GRIP_PROPS));
+          }
 
           // Remap openMenuBlockPos when the document changes.
           // Done here in the view update (not in plugin state apply) to avoid

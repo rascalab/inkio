@@ -3,7 +3,7 @@ export type { EditorProps } from './components/Editor';
 export { Viewer } from './components/Viewer';
 export type { ViewerProps } from './components/Viewer';
 export type { ExtensionsInput } from './types';
-export { getDefaultExtensions } from '@inkio/advanced';
+export { getDefaultExtensions, getCommentIds } from '@inkio/advanced';
 export type { CommentConfig, CommentData } from '@inkio/advanced';
 export { ToC } from '@inkio/core';
 export type { ToCProps } from '@inkio/core';
@@ -21,6 +21,7 @@ export {
   InkioProvider,
   pickMessageLocale,
   resolveLocaleInput,
+  setEditorUi,
   toPlainText,
   toSummary,
   getContentStats,

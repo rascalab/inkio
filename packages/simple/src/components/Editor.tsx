@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Editor as CoreEditor,
   type EditorProps as CoreEditorProps,
@@ -18,7 +18,7 @@ import type { TableMenuProps } from '@inkio/core';
 import type { InkioJSONContent as JSONContent } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import type { ExtensionsInput } from '../types';
-import { mapEditorUiToCoreProps, mergeImageBlockOptions, resolveExtensionsInput, useEditorPerLocale, useStableProps } from '@inkio/core';
+import { mapEditorUiToCoreProps, mergeImageBlockOptions, resolveExtensionsInput, useStableProps } from '@inkio/core';
 
 export interface EditorProps {
   /** Initial document only (uncontrolled). */
@@ -77,11 +77,10 @@ export function Editor({
   // per keystroke). Structural inputs are stabilized; callbacks become
   // stable forwarders to the latest implementation.
   const stableUi = useStableProps(ui ?? {});
+  // Only where the extensions start: `CoreEditor` keeps the live editor up to date
+  // with later changes, so the document, caret and undo history stay.
+  const [firstUi] = useState(() => ({ placeholder, locale, messages: stableUi.messages, icons: stableUi.icons }));
   const extensionInputs = useStableProps({
-    placeholder,
-    locale,
-    messages: stableUi.messages,
-    icons: stableUi.icons,
     tabBehavior,
     imageBlock,
     onImageUpload,
@@ -90,10 +89,7 @@ export function Editor({
 
   const resolvedExtensions = useMemo(() => {
     const opts: ExtensionsOptions = {
-      placeholder: extensionInputs.placeholder,
-      locale: extensionInputs.locale,
-      messages: extensionInputs.messages,
-      icons: extensionInputs.icons,
+      ...firstUi,
       tabBehavior: extensionInputs.tabBehavior,
     };
     const mergedImageBlock = mergeImageBlockOptions(extensionInputs.imageBlock, {
@@ -106,8 +102,6 @@ export function Editor({
     return resolveExtensionsInput(extensions, getExtensions(opts));
   }, [extensionInputs, extensions]);
 
-  const perLocale = useEditorPerLocale(locale, content, onCreate);
-
   const coreProps: CoreEditorProps = {
     ...mapEditorUiToCoreProps(stableUi, {
       showToolbar: true,
@@ -115,15 +109,15 @@ export function Editor({
       showFloatingMenu: false,
       showTableMenu: true,
     }),
-    content: perLocale.content,
+    content,
     extensions: resolvedExtensions,
     editable,
     placeholder,
     theme,
     onUpdate,
-    onCreate: perLocale.onCreate,
+    onCreate,
     locale,
   };
 
-  return <CoreEditor key={perLocale.key} {...coreProps} />;
+  return <CoreEditor {...coreProps} />;
 }

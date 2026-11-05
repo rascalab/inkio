@@ -18,6 +18,7 @@ export {
   InkioProvider,
   pickMessageLocale,
   resolveLocaleInput,
+  setEditorUi,
   toPlainText,
   toSummary,
   getContentStats,

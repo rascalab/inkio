@@ -7,7 +7,7 @@ import {
   type CommentOptions,
 } from './comment-shared';
 import { CommentComposer } from './components/CommentComposer';
-import { createOverlayHost, type OverlayHost } from '@inkio/core';
+import { createOverlayHost, editorUi, type OverlayHost } from '@inkio/core';
 
 function getSelectionRect(view: EditorView, from: number, to: number) {
   const start = view.coordsAtPos(from);
@@ -72,9 +72,7 @@ export function createCommentComposerPlugin(
         open={true}
         anchorRect={anchorResolver()}
         anchorResolver={anchorResolver}
-        locale={options.locale}
-        messages={options.messages}
-        icons={options.icons}
+        {...editorUi(editor, options)}
         onSubmit={(text: string) => {
           // The composer must never mutate a read-only editor.
           if (!editor.isEditable) {

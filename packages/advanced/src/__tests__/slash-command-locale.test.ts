@@ -1,3 +1,4 @@
+import { setEditorUi } from '@inkio/core';
 import { Editor } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
@@ -108,11 +109,21 @@ describe('slash menu in the editor locale', () => {
     expect(props.locale).toBe('ko');
   });
 
-  it('reaches every popup through getDefaultExtensions', () => {
-    const named = getDefaultExtensions({ locale: 'ko', hashtagItems: () => [] });
-    for (const name of ['mention', 'hashTag', 'slashCommand', 'wikiLink']) {
-      const extension = named.find((one) => one.name === name);
-      expect(extension?.options.locale, name).toBe('ko');
-    }
+  it('follows the locale of a live editor', async () => {
+    const editor = new Editor({
+      element: document.createElement('div'),
+      extensions: getDefaultExtensions({ locale: 'ko' }),
+      content: '<p></p>',
+    });
+    editors.push(editor);
+    const [korean] = await itemsFor(editor, '구분');
+    expect(korean).toMatchObject({ id: 'horizontalRule', label: '구분선' });
+
+    setEditorUi(editor, { locale: 'en' });
+
+    const [english] = await itemsFor(editor, 'divider');
+    expect(english.id).toBe('horizontalRule');
+    expect(english.label).not.toBe('구분선');
+    expect(await itemsFor(editor, '구분')).toHaveLength(0);
   });
 });

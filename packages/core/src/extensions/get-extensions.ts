@@ -2,6 +2,7 @@ import { Extension, Extensions, commands as tiptapCommands, type JSONContent } f
 import { TextSelection } from '@tiptap/pm/state';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { TaskItemView } from './TaskItemView';
+import { editorUi } from '../context/editor-ui';
 import type { InkioIconComponent } from '../icons';
 import type { InkioIconRegistry } from '../icons/registry';
 import Document from '@tiptap/extension-document';
@@ -45,8 +46,7 @@ import { LinkClickHandler } from './LinkClickHandler';
 import type { LinkClickHandlerOptions } from './LinkClickHandler';
 import { Details, DetailsContent, DetailsSummary } from '@tiptap/extension-details';
 import {
-  resolveCoreMessages,
-  toCoreMessageOverrides,
+  editorMessages,
   type InkioCoreMessageOverrides,
   type InkioLocaleInput,
   type InkioMessageOverrides,
@@ -147,15 +147,15 @@ const OpenOnInsertDetails = Details.extend({
   },
 });
 
-const InkioUi = Extension.create<Pick<CoreExtensionOptions, 'locale' | 'messages' | 'icons'>>({
+const InkioUi = Extension.create<Pick<CoreExtensionOptions, 'locale' | 'messages' | 'icons' | 'placeholder'>>({
   name: 'inkioUi',
 
   addOptions() {
-    return { locale: undefined, messages: undefined, icons: undefined };
+    return { locale: undefined, messages: undefined, icons: undefined, placeholder: undefined };
   },
 
   addStorage() {
-    return { locale: this.options.locale, messages: this.options.messages, icons: this.options.icons };
+    return { ...this.options };
   },
 
   addCommands() {
@@ -213,10 +213,9 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
     LineBelowLastBlock,
     KeepSelectedBlock,
     Placeholder.configure({
-      placeholder: placeholder
-        || resolveCoreMessages(locale, toCoreMessageOverrides(messages)).editor.placeholder,
+      placeholder: ({ editor }) => editorUi(editor).placeholder || editorMessages(editor).editor.placeholder,
     }),
-    InkioUi.configure({ locale, messages, icons }),
+    InkioUi.configure({ locale, messages, icons, placeholder }),
   ];
 
   // Optional marks

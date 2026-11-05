@@ -77,15 +77,15 @@ describe('getExtensions — option flags', () => {
   it('passes placeholder through to Placeholder extension', () => {
     const extensions = getExtensions({ placeholder: 'Type here...' });
     const placeholder = extensions.find((e: any) => e.name === 'placeholder') as any;
-    expect(placeholder).toBeDefined();
-    // The placeholder option is stored in extension options
-    expect(placeholder.options.placeholder).toBe('Type here...');
+    const ui = extensions.find((e: any) => e.name === 'inkioUi') as any;
+    const editor = { storage: { inkioUi: ui.options } };
+    expect(placeholder.options.placeholder({ editor })).toBe('Type here...');
   });
 
   it('uses default placeholder text when none specified', () => {
     const extensions = getExtensions();
     const placeholder = extensions.find((e: any) => e.name === 'placeholder') as any;
-    expect(placeholder.options.placeholder).toBe('Start typing...');
+    expect(placeholder.options.placeholder({ editor: {} })).toBe('Start typing...');
   });
 
   it('excludes imageBlock when imageBlock: false', () => {

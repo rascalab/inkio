@@ -2,6 +2,7 @@ import type { Editor } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useEditorUiRevision } from '../context/editor-ui';
 import { editorMessages } from '../i18n/messages';
 import { createOverlayHost, type OverlayHost } from '../utils/overlay-host';
 import {
@@ -28,7 +29,8 @@ interface CalloutToolbarProps {
 }
 
 export function CalloutToolbar({ editor, currentColor, currentIcon }: CalloutToolbarProps) {
-  const said = useMemo(() => editorMessages(editor).callout, [editor]);
+  const uiRevision = useEditorUiRevision(editor);
+  const said = useMemo(() => editorMessages(editor).callout, [editor, uiRevision]);
   const [iconValue, setIconValue] = useState(currentIcon || '');
   // The toolbar instance outlives the selected callout: follow prop changes
   // or the input keeps showing the previous block's icon.

@@ -5,6 +5,8 @@ import { CalloutToolbar } from '../callout-toolbar-plugin';
 
 function stubEditor() {
   return {
+    on: vi.fn(),
+    off: vi.fn(),
     commands: {
       updateCalloutIcon: vi.fn(),
       updateCalloutColor: vi.fn(),

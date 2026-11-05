@@ -11,6 +11,7 @@ import {
   autoUpdateOverlayPosition,
   computeOverlayPosition,
   createOverlayHost,
+  editorUi,
   type OverlayHost,
 } from '@inkio/core';
 
@@ -251,9 +252,7 @@ export function createCommentThreadPopoverPlugin(
         quotedText={cachedQuotedText}
         thread={thread}
         currentUser={currentUser}
-        locale={options.locale}
-        messages={options.messages}
-        icons={options.icons}
+        {...editorUi(editor, options)}
         onReply={canMutate && options.onCommentReply ? handleReply : undefined}
         onResolve={canMutate ? handleResolve : undefined}
         onDelete={canMutate ? handleDelete : undefined}

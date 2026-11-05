@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Editor as CoreEditor,
   type EditorProps as CoreEditorProps,
@@ -17,7 +17,7 @@ import type { ImageBlockOptions } from '@inkio/core';
 import type { HashTagItem, MentionItem, SlashCommandItem, SlashCommandTransform, BookmarkPreview, CommentConfig, WikiLinkItem } from '@inkio/advanced';
 import { getDefaultExtensions, notifyCommentThreadsChanged, type DefaultExtensionsOptions } from '@inkio/advanced';
 import type { ExtensionsInput } from '../types';
-import { mapEditorUiToCoreProps, mergeImageBlockOptions, resolveExtensionsInput, useEditorPerLocale, useStableProps } from '@inkio/core';
+import { mapEditorUiToCoreProps, mergeImageBlockOptions, resolveExtensionsInput, useStableProps } from '@inkio/core';
 import type { InkioJSONContent as JSONContent } from '@inkio/core';
 
 interface EditorUiOptions {
@@ -112,11 +112,10 @@ export function Editor({
   // stable forwarders to the latest implementation, so one call covers every
   // field (a missed per-field wrapper was a past bug source).
   const stableUi = useStableProps(ui ?? {});
+  // Only where the extensions start: `CoreEditor` keeps the live editor up to date
+  // with later changes, so the document, caret and undo history stay.
+  const [firstUi] = useState(() => ({ placeholder, locale, messages: stableUi.messages, icons: stableUi.icons }));
   const extensionInputs = useStableProps({
-    placeholder,
-    locale,
-    messages: stableUi.messages,
-    icons: stableUi.icons,
     tabBehavior,
     onError,
     mentionItems,
@@ -148,10 +147,7 @@ export function Editor({
   const resolvedExtensions = useMemo(() => {
     const input = extensionInputs;
     const opts: DefaultExtensionsOptions = {
-      placeholder: input.placeholder,
-      locale: input.locale,
-      messages: input.messages,
-      icons: input.icons,
+      ...firstUi,
       tabBehavior: input.tabBehavior,
       onError: input.onError,
       mentionItems: input.mentionItems,
@@ -187,8 +183,6 @@ export function Editor({
     return resolveExtensionsInput(extensions, getDefaultExtensions(opts));
   }, [extensionInputs, extensions]);
 
-  const perLocale = useEditorPerLocale(locale, content, onCreate);
-
   const coreProps: CoreEditorProps = {
     ...mapEditorUiToCoreProps(stableUi, {
       showToolbar: false,
@@ -199,15 +193,15 @@ export function Editor({
     // This wrapper has no toolbar surface.
     showToolbar: false,
     toolbar: undefined,
-    content: perLocale.content,
+    content,
     extensions: resolvedExtensions,
     editable,
     placeholder,
     theme,
     onUpdate,
-    onCreate: perLocale.onCreate,
+    onCreate,
     locale,
   };
 
-  return <CoreEditor key={perLocale.key} {...coreProps} />;
+  return <CoreEditor {...coreProps} />;
 }

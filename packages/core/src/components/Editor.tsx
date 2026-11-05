@@ -1,8 +1,10 @@
 'use client';
 
 import { EditorContent, type Extensions, type JSONContent, type Editor as TiptapEditor } from '@tiptap/react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useInkioEditor } from '../hooks/use-inkio-editor';
+import { setEditorUi, type EditorUi } from '../context/editor-ui';
+import { useInkioContext } from '../context/InkioProvider';
 import { BubbleMenu } from './BubbleMenu';
 import type { BubbleMenuProps } from './BubbleMenu';
 import { FloatingMenu } from './FloatingMenu';
@@ -88,9 +90,11 @@ export const Editor = ({
   messages,
   icons,
 }: EditorProps) => {
+  // The first placeholder only: later ones reach the live editor below.
+  const [firstPlaceholder] = useState(placeholder);
   const resolvedExtensions = useMemo(
-    () => resolveInkioExtensions(extensions, placeholder),
-    [extensions, placeholder],
+    () => resolveInkioExtensions(extensions, firstPlaceholder),
+    [extensions, firstPlaceholder],
   );
 
   // Warn in an effect, not during render: parent re-renders (and
@@ -111,6 +115,22 @@ export const Editor = ({
     onUpdate,
     onCreate,
   });
+  // A prop this editor was never given leaves what its extensions were configured with.
+  const context = useInkioContext();
+  const givenUi = useRef<EditorUi>({});
+  const uiLocale = locale ?? context.locale;
+  const uiMessages = messages ?? context.messages;
+  const uiIcons = icons ?? context.icons;
+  useEffect(() => {
+    if (!editor) return;
+    const current: EditorUi = { locale: uiLocale, messages: uiMessages, icons: uiIcons, placeholder };
+    const given = givenUi.current as Record<string, unknown>;
+    for (const [key, value] of Object.entries(current)) {
+      if (value !== undefined || key in given) given[key] = value;
+    }
+    setEditorUi(editor, givenUi.current);
+  }, [editor, uiLocale, uiMessages, uiIcons, placeholder]);
+
   // `immediatelyRender: false` keeps `editor` null through SSR and the
   // hydration render (it is created in a mount effect), so a non-null editor
   // already implies the client has hydrated.

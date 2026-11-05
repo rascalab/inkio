@@ -1,5 +1,6 @@
 import { type NodeViewProps, NodeViewContent, NodeViewWrapper } from '@tiptap/react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEditorUiRevision } from '../../context/editor-ui';
 import { editorMessages } from '../../i18n/messages';
 import { editorIcons } from '../../icons/registry';
 
@@ -49,8 +50,9 @@ export function legacyCopyText(text: string): boolean {
 }
 
 function CodeBlockViewInner({ node, updateAttributes, editor }: NodeViewProps) {
-  const said = useMemo(() => editorMessages(editor).codeBlock, [editor]);
-  const { copy: CopyIcon, taskCheck: CheckIcon } = useMemo(() => editorIcons(editor), [editor]);
+  const uiRevision = useEditorUiRevision(editor);
+  const said = useMemo(() => editorMessages(editor).codeBlock, [editor, uiRevision]);
+  const { copy: CopyIcon, taskCheck: CheckIcon } = useMemo(() => editorIcons(editor), [editor, uiRevision]);
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const language = (node.attrs.language as string) || '';

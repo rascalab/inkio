@@ -63,8 +63,6 @@ export function getDefaultExtensions(options: DefaultExtensionsOptions = {}) {
         | ((props: { query: string }) => MentionItem[] | Promise<MentionItem[]>)
         | undefined,
       onError,
-      locale,
-      messages,
     }),
     // Always in the schema, like the marks below: Tiptap empties a whole document
     // that holds a node it doesn't know. Without items `#` just opens nothing.
@@ -73,8 +71,6 @@ export function getDefaultExtensions(options: DefaultExtensionsOptions = {}) {
         | ((props: { query: string }) => HashTagItem[] | Promise<HashTagItem[]>)
         | undefined,
       onError,
-      locale,
-      messages,
     }),
     SlashCommand.configure({
       ...(slashCommands
@@ -82,28 +78,21 @@ export function getDefaultExtensions(options: DefaultExtensionsOptions = {}) {
         : {}),
       ...(transformSlashCommands ? { transformItems: transformSlashCommands } : {}),
       onError,
-      locale,
-      messages,
-      icons,
     }),
     ...(wikiLink !== false
-      ? [WikiLink.configure({ onClick: onWikiLinkClick, items: wikiLinkItems, onError, locale, messages })]
+      ? [WikiLink.configure({ onClick: onWikiLinkClick, items: wikiLinkItems, onError })]
       : []),
     ...(bookmark !== false
       ? [Bookmark.configure({ onResolveBookmark })]
       : []),
     comment
-      ? Comment.configure({ ...toCommentOptions(comment), locale, messages, icons })
+      ? Comment.configure(toCommentOptions(comment))
       : CommentDisplay,
   ];
 
   if (blockHandle !== false) {
     extensions.push(
-      BlockHandle.configure({
-        locale,
-        messages,
-        coreIcons: icons,
-      }),
+      BlockHandle,
     );
   }
 

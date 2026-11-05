@@ -1,9 +1,11 @@
 import { type NodeViewProps, NodeViewWrapper } from '@tiptap/react';
 import { memo } from 'react';
 import { useHeadings } from '../../headings/use-headings';
+import { useEditorUiRevision } from '../../context/editor-ui';
 import { editorMessages } from '../../i18n/messages';
 
 function TocBlockViewInner({ editor, node }: NodeViewProps) {
+  useEditorUiRevision(editor);
   const maxLevel = (node.attrs.maxLevel as number) || 3;
   const { filtered, minLevel, handleClick } = useHeadings(editor, maxLevel);
 

@@ -10,7 +10,7 @@ function createProps(): NodeViewProps {
       textContent: 'const a = 1;',
     },
     updateAttributes: vi.fn(),
-    editor: { isEditable: false },
+    editor: { isEditable: false, on: () => {}, off: () => {} },
   } as unknown as NodeViewProps;
 }
 

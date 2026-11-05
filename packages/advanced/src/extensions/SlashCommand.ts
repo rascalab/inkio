@@ -7,6 +7,7 @@ import {
   createLatestWinsItems,
   createSuggestionRenderer,
   enCoreMessages,
+  editorUi,
   mergeCoreMessages,
   runOptionalChainCommand,
   toCoreMessageOverrides,
@@ -381,13 +382,14 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
 
   addProseMirrorPlugins() {
     const { items, transformItems, onError, locale, messages, icons } = this.options;
-    const defaults = localizedSlashCommands(locale, messages, icons);
     // One sequence cell per plugin instance (i.e. per editor) so
     // interleaved editors never drop each other's results.
     const latest = { value: 0 };
 
     let lastResultCount = 0;
     const resolvedItems = async ({ query, editor }: SlashCommandContext) => {
+      const ui = editorUi(editor, { locale, messages, icons });
+      const defaults = localizedSlashCommands(ui.locale, ui.messages, ui.icons);
       const results = await resolveSlashCommandItems({ query, editor }, { items, transformItems, onError, defaults, latest });
       lastResultCount = results.length;
       return results;

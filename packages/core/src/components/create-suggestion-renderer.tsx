@@ -1,6 +1,7 @@
 import React from 'react';
 import { SuggestionProps, SuggestionKeyDownProps, type SuggestionOptions } from '@tiptap/suggestion';
 import { SuggestionList, SuggestionItem, SuggestionListRef } from './SuggestionList';
+import { editorUi } from '../context/editor-ui';
 import {
   toCoreMessageOverrides,
   resolveCoreMessages,
@@ -36,14 +37,6 @@ export interface CreateSuggestionRendererOptions {
 export function createSuggestionRenderer<I extends SuggestionItem = SuggestionItem>(
   options: CreateSuggestionRendererOptions = {}
 ): NonNullable<SuggestionOptions<I>['render']> {
-  const resolvedMessages = resolveCoreMessages(
-    options.locale,
-    toCoreMessageOverrides(options.messages),
-  );
-  const header = typeof options.header === 'function'
-    ? options.header(resolvedMessages.suggestion)
-    : options.header;
-
   return () => {
     let host: OverlayHost | null = null;
     let component: SuggestionListRef | null = null;
@@ -98,6 +91,14 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
         return;
       }
 
+      const { locale, messages } = editorUi(props.editor, {
+        locale: options.locale,
+        messages: options.messages,
+      });
+      const header = typeof options.header === 'function'
+        ? options.header(resolveCoreMessages(locale, toCoreMessageOverrides(messages)).suggestion)
+        : options.header;
+
       host.render(
         <SuggestionList
           ref={(ref) => {
@@ -108,8 +109,8 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
           header={header}
           emptyMessage={options.emptyMessage}
           renderItem={options.renderItem}
-          locale={options.locale}
-          messages={options.messages}
+          locale={locale}
+          messages={messages}
         />,
       );
 

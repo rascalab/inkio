@@ -31,3 +31,4 @@ export type {
   InkioCommentMessageOverrides,
   InkioTypedCommentMessageOverrides,
 } from './i18n';
+export { getCommentIds } from './utils';

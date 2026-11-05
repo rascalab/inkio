@@ -1,9 +1,11 @@
 import { NodeViewWrapper, NodeViewContent, type NodeViewProps } from '@tiptap/react';
 import { memo } from 'react';
+import { useEditorUiRevision } from '../context/editor-ui';
 import { editorIcons } from '../icons/registry';
 import type { InkioIconComponent } from '../icons';
 
 function TaskItemViewInner({ node, updateAttributes, extension, editor }: NodeViewProps) {
+  useEditorUiRevision(editor);
   const checked = node.attrs.checked as boolean;
   const CheckIcon: InkioIconComponent = extension.options.checkIcon || editorIcons(editor).taskCheck;
 

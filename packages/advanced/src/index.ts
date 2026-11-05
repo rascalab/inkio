@@ -38,6 +38,7 @@ export {
   formatRelativeTime,
   toCommentOptions,
   notifyCommentThreadsChanged,
+  getCommentIds,
 } from './comment';
 export type {
   CommentOptions,

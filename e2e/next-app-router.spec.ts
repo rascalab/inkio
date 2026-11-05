@@ -375,6 +375,7 @@ test('next app router example hides a comment thread while its text is deleted',
   await expect(thread).toHaveCount(1);
 
   await page.locator('.inkio-comment-thread-quote').click();
+  await expect(editor).toBeFocused();
   await page.keyboard.press('Backspace');
   await expect(thread).toHaveCount(0);
 
