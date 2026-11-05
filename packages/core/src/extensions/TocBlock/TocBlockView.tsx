@@ -1,6 +1,6 @@
 import { type NodeViewProps, NodeViewWrapper } from '@tiptap/react';
 import { memo } from 'react';
-import { useHeadings } from '../../components/useHeadings';
+import { useHeadings } from '../../headings/use-headings';
 import { editorMessages } from '../../i18n/messages';
 
 function TocBlockViewInner({ editor, node }: NodeViewProps) {

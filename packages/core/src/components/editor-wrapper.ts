@@ -1,4 +1,4 @@
-import type { EditorProps } from '../components/Editor';
+import type { EditorProps } from './Editor';
 import type { ImageBlockOptions } from '../extensions/ImageBlock';
 import type { InkioErrorHandler } from '../errors';
 

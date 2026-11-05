@@ -1,4 +1,5 @@
-import { ToolOptionsPanel, type ControlPanel } from '../toolbar/ToolOptionsPanel';
+import type { ControlPanel } from '../utils/controls-model';
+import { ToolOptionsPanel } from '../toolbar/ToolOptionsPanel';
 
 interface DesktopUtilPanelProps {
   panel: ControlPanel;

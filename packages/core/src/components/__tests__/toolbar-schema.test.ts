@@ -2,13 +2,13 @@ import {
   getToolbarActionsFor,
   splitToolbarActionGroups,
   type InkioToolbarAction,
-} from '../../components/toolbar-actions';
+} from '../toolbar-actions';
 import {
   defaultBubbleMenuActions,
   defaultFloatingMenuActions,
   defaultToolbarActions,
-} from '../../components/toolbar-actions';
-import { inkioIconRegistry } from '../registry';
+} from '../toolbar-actions';
+import { inkioIconRegistry } from '../../icons/registry';
 
 function makeEditor(extensionNames: string[]) {
   return {

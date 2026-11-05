@@ -10,6 +10,7 @@ export default defineConfig({
       'packages/editor',
       'packages/image-editor',
       'packages/collab',
+      { test: { name: 'repo', include: ['tests/**/*.test.ts'] } },
     ],
   },
 });

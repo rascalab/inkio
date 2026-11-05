@@ -1,7 +1,7 @@
 import { Extension, Extensions, commands as tiptapCommands, type JSONContent } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
 import { ReactNodeViewRenderer } from '@tiptap/react';
-import { TaskItemView } from '../components/TaskItemView';
+import { TaskItemView } from './TaskItemView';
 import type { InkioIconComponent } from '../icons';
 import type { InkioIconRegistry } from '../icons/registry';
 import Document from '@tiptap/extension-document';

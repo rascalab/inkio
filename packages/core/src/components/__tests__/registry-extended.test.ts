@@ -2,14 +2,14 @@ import {
   inkioIconRegistry,
   resolveIconRegistry,
   type InkioIconId,
-} from '../registry';
+} from '../../icons/registry';
 import {
   defaultBubbleMenuActions,
   defaultFloatingMenuActions,
   defaultToolbarActions,
   getToolbarActionsFor,
   splitToolbarActionGroups,
-} from '../../components/toolbar-actions';
+} from '../toolbar-actions';
 
 const ALL_ICON_IDS: InkioIconId[] = [
   'bold', 'italic', 'underline', 'strike', 'code', 'highlight',

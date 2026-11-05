@@ -8,9 +8,6 @@ import { StickerOptionsPanel } from './options/StickerOptionsPanel';
 import { TextOptionsPanel } from './options/TextOptionsPanel';
 import type { ControlPanel, ViewportKind } from '../utils/controls-model';
 
-export { resolveControlsModel } from '../utils/controls-model';
-export type { ControlPanel, ResolvedControlsModel, ViewportKind } from '../utils/controls-model';
-
 interface ToolControlsProps {
   panel: ControlPanel;
   viewportKind: ViewportKind;

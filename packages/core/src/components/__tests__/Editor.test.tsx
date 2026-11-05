@@ -3,7 +3,7 @@ import { render, waitFor } from '@testing-library/react';
 import { hydrateRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
 import { Editor } from '../Editor';
-import { isEqualStaticContent } from '../Editor';
+import { isEqualStaticContent } from '../../utils/static-content';
 
 describe('Editor component', () => {
   it('should render without crashing with default props', () => {

@@ -7,8 +7,8 @@ export { StaticViewer } from './components/StaticViewer';
 export type { StaticViewerProps } from './components/StaticViewer';
 export { InkioErrorBoundary } from './components/ErrorBoundary';
 export type { InkioErrorBoundaryProps, InkioErrorFallbackProps } from './components/ErrorBoundary';
-export type { HeadingItem } from './components/headings';
-export { getHeadingsFromContent, getHeadingsFromDoc } from './components/headings';
+export type { HeadingItem } from './headings/headings';
+export { getHeadingsFromContent, getHeadingsFromDoc } from './headings/headings';
 
 // Menus
 export { BubbleMenu } from './components/BubbleMenu';
@@ -69,8 +69,8 @@ export { isSafeUrl, sanitizeUrlOrEmpty } from './utils/url-safety';
 export { createId } from './utils/create-id';
 export { mergeExtensions, resolveExtensionsInput } from './utils/extensions-input';
 export { isEqualOptionsValue, useStableCallback, useStableOptions, useStableProps } from './utils/stable-options';
-export { mapEditorUiToCoreProps, mergeImageBlockOptions } from './utils/editor-wrapper';
-export type { InkioEditorUiDefaults, InkioEditorUiOptions, InkioImageUploadHandler } from './utils/editor-wrapper';
+export { mapEditorUiToCoreProps, mergeImageBlockOptions } from './components/editor-wrapper';
+export type { InkioEditorUiDefaults, InkioEditorUiOptions, InkioImageUploadHandler } from './components/editor-wrapper';
 export { getCreateRoot } from './utils/create-root';
 export type { CreateRootFn } from './utils/create-root';
 export { createLatestWinsItems } from './utils/latest-wins';

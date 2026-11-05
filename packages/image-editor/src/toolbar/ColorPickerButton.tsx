@@ -5,14 +5,14 @@ import {
   computeOverlayPosition,
   useDismissableLayer,
 } from '@inkio/core';
-import { PaletteIcon } from '../../icons';
+import { PaletteIcon } from '../icons';
 import {
   colorToHsva,
   hsvaToCss,
   normalizeColor,
   parseColor,
   rgbaToCss,
-} from '../../utils/color';
+} from '../utils/color';
 
 declare global {
   interface Window {

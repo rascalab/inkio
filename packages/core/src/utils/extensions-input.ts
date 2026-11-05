@@ -1,7 +1,6 @@
 import type { Extensions } from '@tiptap/core';
-import type { EditorProps } from '../components/Editor';
 
-export type CoreExtensions = NonNullable<EditorProps['extensions']>;
+export type CoreExtensions = Extensions;
 
 export type ExtensionsInput =
   | CoreExtensions

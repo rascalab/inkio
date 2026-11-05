@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { BoldIcon, CloseIcon, ItalicIcon, LockIcon, UnlockIcon } from '../icons';
-import { ColorPickerButton } from './options/ColorPickerButton';
+import { ColorPickerButton } from './ColorPickerButton';
 
 /**
  * Pintura-style inspector primitives. Each tool renders ONE ToolPanel with

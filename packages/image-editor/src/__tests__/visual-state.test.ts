@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { imageEditorReducer, initialState } from '../../reducer';
+import { imageEditorReducer, initialState } from '../reducer';
 import {
   areVisualRefsEqual,
   getVisualRefs,
   nextVisualVersion,
-} from '../visual-state';
-import type { ImageEditorState } from '../../types';
+} from '../utils/visual-state';
+import type { ImageEditorState } from '../types';
 
 describe('visual version counter', () => {
   it('starts at the given version for a null previous state', () => {

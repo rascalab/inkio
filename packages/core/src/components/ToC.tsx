@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { Editor as TiptapEditor } from '@tiptap/react';
-import { useHeadings } from './useHeadings';
+import { useHeadings } from '../headings/use-headings';
 
 export interface ToCProps {
   /** Editor or Viewer instance — used to find heading elements and extract content. */

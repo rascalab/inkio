@@ -1,6 +1,6 @@
 import type { Editor as TiptapEditor, JSONContent } from '@tiptap/react';
 import { useEffect, useRef } from 'react';
-import { isEqualStaticContent } from '../components/Editor';
+import { isEqualStaticContent } from '../utils/static-content';
 
 /**
  * Keeps a read-only editor in step with its `content` prop. Editors read

@@ -1,8 +1,9 @@
-import corePackage from '../../package.json';
-import advancedPackage from '../../../advanced/package.json';
-import simplePackage from '../../../simple/package.json';
-import editorPackage from '../../../editor/package.json';
-import imageEditorPackage from '../../../image-editor/package.json';
+import { describe, expect, it } from 'vitest';
+import corePackage from '../packages/core/package.json';
+import advancedPackage from '../packages/advanced/package.json';
+import simplePackage from '../packages/simple/package.json';
+import editorPackage from '../packages/editor/package.json';
+import imageEditorPackage from '../packages/image-editor/package.json';
 
 describe('layered package dependency contract', () => {
   it('keeps React as a peer and owns runtime packages internally', () => {

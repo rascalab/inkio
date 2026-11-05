@@ -7,7 +7,7 @@ import { DEFAULT_LOCALE } from '../../../constants';
 import { DrawOptionsPanel } from '../DrawOptionsPanel';
 import { ShapeOptionsPanel } from '../ShapeOptionsPanel';
 import { TextOptionsPanel } from '../TextOptionsPanel';
-import { resolveControlsModel } from '../../ToolOptionsPanel';
+import { resolveControlsModel } from '../../../utils/controls-model';
 
 afterEach(() => {
   cleanup();
