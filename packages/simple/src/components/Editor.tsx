@@ -18,7 +18,7 @@ import type { TableMenuProps } from '@inkio/core';
 import type { InkioJSONContent as JSONContent } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import type { ExtensionsInput } from '../types';
-import { mapEditorUiToCoreProps, mergeImageBlockOptions, resolveExtensionsInput, useStableProps } from '@inkio/core';
+import { mapEditorUiToCoreProps, mergeImageBlockOptions, resolveExtensionsInput, useEditorPerLocale, useStableProps } from '@inkio/core';
 
 export interface EditorProps {
   /** Initial document only (uncontrolled). */
@@ -106,6 +106,8 @@ export function Editor({
     return resolveExtensionsInput(extensions, getExtensions(opts));
   }, [extensionInputs, extensions]);
 
+  const perLocale = useEditorPerLocale(locale, content, onCreate);
+
   const coreProps: CoreEditorProps = {
     ...mapEditorUiToCoreProps(stableUi, {
       showToolbar: true,
@@ -113,15 +115,15 @@ export function Editor({
       showFloatingMenu: false,
       showTableMenu: true,
     }),
-    content,
+    content: perLocale.content,
     extensions: resolvedExtensions,
     editable,
     placeholder,
     theme,
     onUpdate,
-    onCreate,
+    onCreate: perLocale.onCreate,
     locale,
   };
 
-  return <CoreEditor {...coreProps} />;
+  return <CoreEditor key={perLocale.key} {...coreProps} />;
 }

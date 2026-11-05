@@ -154,9 +154,7 @@ export default function PlaygroundEditorPane({
           </span>
         </div>
         <div style={{ position: 'relative' }}>
-          {/* The editor reads locale when it is created; doc keeps what was written. */}
           <InkioEditor
-            key={locale}
             content={doc ?? PLAYGROUND_INITIAL_CONTENT}
             placeholder={
               locale === 'ko'
@@ -194,7 +192,7 @@ export default function PlaygroundEditorPane({
         <section className="playground-section">
           <div className="playground-section-label">Viewer</div>
           <div style={{ position: 'relative' }}>
-            <InkioViewer key={locale} content={doc} locale={locale} theme={inkioTheme} onCreate={setViewerInstance} />
+            <InkioViewer content={doc} locale={locale} theme={inkioTheme} onCreate={setViewerInstance} />
             <ToC source={viewerInstance} />
           </div>
         </section>

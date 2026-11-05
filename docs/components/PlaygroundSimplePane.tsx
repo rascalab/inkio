@@ -41,9 +41,7 @@ export default function PlaygroundSimplePane({
           Editor
           <span className="playground-mode-badge">@inkio/simple + lazy @inkio/image-editor</span>
         </div>
-        {/* The editor reads locale when it is created; doc keeps what was written. */}
         <SimpleEditor
-          key={locale}
           content={doc ?? PLAYGROUND_INITIAL_CONTENT}
           placeholder={locale === 'ko' ? '문서를 작성해 보세요...' : 'Write a document...'}
           locale={locale}

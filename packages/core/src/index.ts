@@ -69,6 +69,7 @@ export { isSafeUrl, sanitizeUrlOrEmpty } from './utils/url-safety';
 export { createId } from './utils/create-id';
 export { mergeExtensions, resolveExtensionsInput } from './utils/extensions-input';
 export { isEqualOptionsValue, useStableCallback, useStableOptions, useStableProps } from './utils/stable-options';
+export { useEditorPerLocale } from './hooks/use-editor-per-locale';
 export { mapEditorUiToCoreProps, mergeImageBlockOptions } from './components/editor-wrapper';
 export type { InkioEditorUiDefaults, InkioEditorUiOptions, InkioImageUploadHandler } from './components/editor-wrapper';
 export { getCreateRoot } from './utils/create-root';

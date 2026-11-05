@@ -593,6 +593,14 @@
   flex-shrink: 0;
 }
 
+.inkio-comment-thread-quote.is-gone {
+  cursor: default;
+}
+
+.inkio-comment-thread-quote.is-gone .inkio-comment-quote-text {
+  color: var(--inkio-text-muted);
+}
+
 .inkio-comment-quote-text {
   font-size: 0.75rem;
   color: var(--inkio-text-heading);

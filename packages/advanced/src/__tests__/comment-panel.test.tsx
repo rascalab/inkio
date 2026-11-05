@@ -46,7 +46,8 @@ describe('CommentPanel single source of truth', () => {
       />,
     );
 
-    expect(screen.getAllByText('orphan message')).toHaveLength(2); // quote + message
+    expect(screen.getAllByText('orphan message')).toHaveLength(1);
+    expect(container.querySelector('.inkio-comment-thread-quote.is-gone')).not.toBeNull();
     // Open count includes the orphan instead of showing an empty panel.
     expect(container.querySelector('.inkio-comment-badge')?.textContent).toBe('1');
   });
@@ -65,7 +66,7 @@ describe('CommentPanel single source of truth', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /resolved/i }));
-    expect(screen.getAllByText('orphan message')).toHaveLength(2); // quote + message
+    expect(screen.getAllByText('orphan message')).toHaveLength(1);
   });
 
   it('does not double-call resolve when panel and extension share the same handler', () => {
@@ -316,7 +317,7 @@ describe('CommentPanel single source of truth', () => {
       <CommentPanel editor={editor} threads={[orphanThread(false)]} currentUser="Tester" />,
     );
 
-    expect(screen.getAllByText('orphan message')).toHaveLength(2);
+    expect(screen.getAllByText('orphan message')).toHaveLength(1);
     expect(container.querySelector('.inkio-comment-reply-row')).toBeNull();
     expect(container.querySelector('.inkio-comment-thread-actions')).toBeNull();
   });

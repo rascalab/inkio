@@ -36,6 +36,7 @@ import TextAlign from '@tiptap/extension-text-align';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { ClearMarksOnEnter } from './ClearMarksOnEnter';
 import { ListMerge } from './ListMerge';
+import { KeepSelectedBlock } from './KeepSelectedBlock';
 import { LineBelowLastBlock } from './LineBelowLastBlock';
 import { dropUnknownContent } from '../utils/drop-unknown-content';
 import { ImageBlock } from './ImageBlock';
@@ -210,6 +211,7 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
     Dropcursor,
     Gapcursor,
     LineBelowLastBlock,
+    KeepSelectedBlock,
     Placeholder.configure({
       placeholder: placeholder
         || resolveCoreMessages(locale, toCoreMessageOverrides(messages)).editor.placeholder,

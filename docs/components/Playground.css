@@ -71,6 +71,16 @@
   gap: 24px;
 }
 
+.playground-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.playground-pane[hidden] {
+  display: none;
+}
+
 .playground-section {
   display: flex;
   flex-direction: column;

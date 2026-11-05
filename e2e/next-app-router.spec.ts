@@ -897,6 +897,58 @@ test.describe('writing a document', () => {
     await expect(editor.locator('p').last()).toHaveText('다음 글');
   });
 
+  for (const [name, block] of [
+    ['an image', { type: 'imageBlock', attrs: { src: '/favicon.ico' } }],
+    ['a table of contents', { type: 'tocBlock' }],
+  ] as const) {
+    const select = (editor: import('@playwright/test').Locator, pos: number) =>
+      editor.evaluate((root, at) => {
+        (root as unknown as Root).editor.commands.setNodeSelection(at);
+        (root as unknown as Root).editor.commands.focus();
+      }, pos);
+
+    test(`typing with ${name} selected writes below and keeps it`, async ({ page }) => {
+      const editor = await load(page, [paragraph('앞'), block]);
+      await select(editor, 3);
+      await page.keyboard.type('below');
+      expect(await types(editor)).toEqual(['paragraph', block.type, 'paragraph']);
+      await expect(editor.locator(':scope > p').last()).toHaveText('below');
+    });
+
+    test(`composing Korean with ${name} selected writes below and keeps it`, async ({ page, browserName }) => {
+      test.skip(browserName !== 'chromium', 'composition is driven through CDP');
+      const editor = await load(page, [paragraph('앞'), block]);
+      await select(editor, 3);
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Process', windowsVirtualKeyCode: 229 });
+      await cdp.detach();
+      await compose(page, 'ㅎ', '하', '한');
+      expect(await types(editor)).toEqual(['paragraph', block.type, 'paragraph']);
+      await expect(editor.locator(':scope > p').last()).toHaveText('한');
+    });
+  }
+
+  test('typing with a block selected uses an empty line already below it', async ({ page }) => {
+    const editor = await load(page, [{ type: 'tocBlock' }, { type: 'paragraph' }]);
+    await editor.evaluate((root) => {
+      (root as unknown as Root).editor.commands.setNodeSelection(0);
+      (root as unknown as Root).editor.commands.focus();
+    });
+    await page.keyboard.type('x');
+    expect(await types(editor)).toEqual(['tocBlock', 'paragraph']);
+    await expect(editor.locator(':scope > p')).toHaveText('x');
+  });
+
+  test('Backspace still removes a selected block', async ({ page }) => {
+    const editor = await load(page, [paragraph('앞'), { type: 'tocBlock' }, paragraph('뒤')]);
+    await editor.evaluate((root) => {
+      (root as unknown as Root).editor.commands.setNodeSelection(3);
+      (root as unknown as Root).editor.commands.focus();
+    });
+    await page.keyboard.press('Backspace');
+    expect(await types(editor)).toEqual(['paragraph', 'paragraph']);
+  });
+
   const cell = { type: 'tableCell', content: [paragraph('셀')] };
   for (const [name, block, inside] of [
     ['an image', { type: 'imageBlock', attrs: { src: '/favicon.ico' } }, 'img'],

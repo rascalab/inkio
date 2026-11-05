@@ -19,8 +19,11 @@ export default function Playground({ content }: { content?: string } = {}) {
   const [showViewer, setShowViewer] = useState(true);
   const [showJSON, setShowJSON] = useState(true);
 
+  const [simpleOpened, setSimpleOpened] = useState(false);
+
   const handleModeChange = useCallback((nextMode: PlaygroundMode) => {
     setMode(nextMode);
+    if (nextMode === 'simple') setSimpleOpened(true);
   }, []);
 
   return (
@@ -85,23 +88,15 @@ export default function Playground({ content }: { content?: string } = {}) {
       </header>
 
       <main className="playground-main">
-        {mode === 'simple' ? (
-          <SimplePane
-            key="simple"
-            content={content}
-            locale={locale}
-            showViewer={showViewer}
-            showJSON={showJSON}
-          />
-        ) : (
-          <EditorPane
-            key="editor"
-            content={content}
-            locale={locale}
-            showViewer={showViewer}
-            showJSON={showJSON}
-          />
+        {/* Both stay mounted once opened, so each tab keeps what was written in it. */}
+        {simpleOpened && (
+          <div className="playground-pane" hidden={mode !== 'simple'}>
+            <SimplePane content={content} locale={locale} showViewer={showViewer} showJSON={showJSON} />
+          </div>
         )}
+        <div className="playground-pane" hidden={mode !== 'editor'}>
+          <EditorPane content={content} locale={locale} showViewer={showViewer} showJSON={showJSON} />
+        </div>
       </main>
     </div>
   );

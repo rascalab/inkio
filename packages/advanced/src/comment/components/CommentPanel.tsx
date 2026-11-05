@@ -364,7 +364,6 @@ export const CommentPanel = ({
     mark: EditorCommentMark | null;
     threadData: CommentThreadData | undefined;
     resolved: boolean;
-    /** Quote text: doc mark text, else first message, else empty. */
     quoteText: string;
   }
 
@@ -381,7 +380,8 @@ export const CommentPanel = ({
     });
     // Orphans: external threads whose document mark is gone (deleted text,
     // loaded doc without marks). Render them from thread data so the panel
-    // never desyncs from the external store — resolved state comes from the
+    // never desyncs from the external store and the thread can still be read
+    // or deleted. Undo brings the mark back. Resolved state comes from the
     // thread itself and scroll-to is unavailable.
     for (const thread of threads) {
       if (rows.some((row) => row.commentId === thread.id)) continue;
@@ -390,7 +390,7 @@ export const CommentPanel = ({
         mark: null,
         threadData: thread,
         resolved: thread.resolved,
-        quoteText: thread.messages[0]?.text ?? '',
+        quoteText: '',
       });
     }
     return rows;
@@ -471,13 +471,15 @@ export const CommentPanel = ({
                 className={`inkio-comment-thread ${isResolved ? 'is-resolved' : ''} ${isActive ? 'is-active' : ''}`}
               >
                 <div
-                  className="inkio-comment-thread-quote"
+                  className={`inkio-comment-thread-quote${mark ? '' : ' is-gone'}`}
                   onClick={() => mark && handleScrollTo(mark)}
                   title={mark ? ui.messages.commentPanel.quoteHint : undefined}
                 >
                   <div className="inkio-comment-quote-bar" />
                   <span className="inkio-comment-quote-text">
-                    {quoteText.length > 100 ? `${quoteText.slice(0, 100)}…` : quoteText}
+                    {!mark
+                      ? ui.messages.commentPanel.quoteGone
+                      : quoteText.length > 100 ? `${quoteText.slice(0, 100)}…` : quoteText}
                   </span>
                 </div>
 
