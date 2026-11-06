@@ -275,6 +275,7 @@ test('next app router example adds a comment through the comment composer', asyn
 
   // Select text in the first paragraph so the comment shortcut has a range to anchor.
   await editor.locator('p').first().click();
+  await expect(editor).toBeFocused();
   await page.keyboard.press('Home');
   for (let i = 0; i < 12; i += 1) {
     await page.keyboard.press('Shift+ArrowRight');
@@ -326,6 +327,7 @@ test('next app router example replies to, resolves, and deletes a comment thread
 
   // Create a comment on the first paragraph.
   await editor.locator('p').first().click();
+  await expect(editor).toBeFocused();
   await page.keyboard.press('Home');
   for (let i = 0; i < 12; i += 1) {
     await page.keyboard.press('Shift+ArrowRight');
@@ -362,6 +364,7 @@ test('next app router example hides a comment thread while its text is deleted',
   await expect(editor).toBeVisible();
 
   await editor.locator('p').first().click();
+  await expect(editor).toBeFocused();
   await page.keyboard.press('Home');
   for (let i = 0; i < 12; i += 1) {
     await page.keyboard.press('Shift+ArrowRight');
