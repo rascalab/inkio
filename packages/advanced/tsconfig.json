@@ -28,6 +28,9 @@
     "src/get-default-extensions.ts",
     "src/entries/**/*.ts",
     "src/entries/**/*.tsx",
+    // Type-only module: nothing imports it at runtime, so the declaration
+    // build only emits it when it is a root file here.
+    "src/extensions/bookmark-types.ts",
     "src/comment/**/*.ts",
     "src/comment/**/*.tsx"
   ],
