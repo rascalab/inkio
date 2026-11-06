@@ -1,5 +1,23 @@
 # Migration
 
+## 0.0.7 → 0.0.8
+
+No API is removed. These changes in behavior may need a look:
+
+- **Tab writes.** Tab nests a list item, indents code, moves between table cells and otherwise types a tab; Escape leaves the editor. To keep browser focus navigation, pass `tabBehavior="default"` to `Editor` in `@inkio/editor` or `@inkio/simple`.
+- **`Viewer` follows `content`.** `Viewer` in `@inkio/editor` and `@inkio/simple` re-renders when `content` changes. If you remounted it with a `key` to show a new document, the `key` is no longer needed.
+- **A single tilde is text.** Markdown import reads `~gone~` literally. Use `~~gone~~` for strikethrough.
+- **Comment threads of deleted text leave `CommentPanel`.** `onDelete` is not called for them, so clear your store on save:
+
+  ```ts
+  import { getCommentIds } from '@inkio/editor';
+
+  const keep = new Set(getCommentIds(editor.getJSON()));
+  // delete stored threads whose id is not in `keep`
+  ```
+
+- **Changing `locale` keeps the editor.** `Editor` updates its words in place and keeps the caret and undo history. With `useInkioEditor`, which has no `locale` prop to watch, call `setEditorUi(editor, { locale })`.
+
 ## 0.0.6 → 0.0.7
 
 ### `content` is initial-only

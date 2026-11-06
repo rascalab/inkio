@@ -6,6 +6,10 @@ Versioning is unified across the publishable Inkio packages.
 
 ## [Unreleased]
 
+## [0.0.8] - 2026-11-06
+
+See [MIGRATION.md](./MIGRATION.md#007--008) for behavior changes to check.
+
 ### Added
 
 - the table context menu offers merge and split when they apply. They existed as commands with no way to reach them; right-clicking a selected cell now keeps the selection, so there is something to merge.
