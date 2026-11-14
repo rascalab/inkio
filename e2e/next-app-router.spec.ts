@@ -1,4 +1,22 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
+
+async function selectCommentText(editor: Locator) {
+  await editor.locator('p').first().click();
+  await expect(editor).toBeFocused();
+  // Home has different caret semantics across platforms. Select a plain-text
+  // range so this fixture never spans inline code, which excludes comment marks.
+  await editor.locator('p').first().evaluate((paragraph) => {
+    const text = paragraph.firstChild;
+    const selection = window.getSelection();
+    if (!(text instanceof Text) || !selection) throw new Error('Comment text is unavailable.');
+    const range = document.createRange();
+    range.setStart(text, 0);
+    range.setEnd(text, 12);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
+  await expect.poll(() => editor.evaluate(() => window.getSelection()?.toString())).toBe('This example');
+}
 
 test('next app router example serves editor content in the initial HTML', async ({ page }) => {
   const response = await page.request.get('http://localhost:4174');
@@ -274,12 +292,7 @@ test('next app router example adds a comment through the comment composer', asyn
   await expect(editor).toBeVisible();
 
   // Select text in the first paragraph so the comment shortcut has a range to anchor.
-  await editor.locator('p').first().click();
-  await expect(editor).toBeFocused();
-  await page.keyboard.press('Home');
-  for (let i = 0; i < 12; i += 1) {
-    await page.keyboard.press('Shift+ArrowRight');
-  }
+  await selectCommentText(editor);
   await page.keyboard.press('ControlOrMeta+Shift+m');
 
   const composer = page.locator('.inkio-comment-composer');
@@ -326,12 +339,7 @@ test('next app router example replies to, resolves, and deletes a comment thread
   await expect(editor).toBeVisible();
 
   // Create a comment on the first paragraph.
-  await editor.locator('p').first().click();
-  await expect(editor).toBeFocused();
-  await page.keyboard.press('Home');
-  for (let i = 0; i < 12; i += 1) {
-    await page.keyboard.press('Shift+ArrowRight');
-  }
+  await selectCommentText(editor);
   await page.keyboard.press('ControlOrMeta+Shift+m');
   const composer = page.locator('.inkio-comment-composer');
   await expect(composer).toBeVisible();
@@ -363,12 +371,7 @@ test('next app router example hides a comment thread while its text is deleted',
   const editor = page.locator('.ProseMirror').first();
   await expect(editor).toBeVisible();
 
-  await editor.locator('p').first().click();
-  await expect(editor).toBeFocused();
-  await page.keyboard.press('Home');
-  for (let i = 0; i < 12; i += 1) {
-    await page.keyboard.press('Shift+ArrowRight');
-  }
+  await selectCommentText(editor);
   await page.keyboard.press('ControlOrMeta+Shift+m');
   const composer = page.locator('.inkio-comment-composer');
   await expect(composer).toBeVisible();
@@ -376,9 +379,11 @@ test('next app router example hides a comment thread while its text is deleted',
   await composer.locator('.inkio-comment-composer-submit').click();
   const thread = page.locator('.inkio-comment-thread');
   await expect(thread).toHaveCount(1);
+  await expect(page.locator('.inkio-comment-thread-quote')).toHaveText('This example');
 
   await page.locator('.inkio-comment-thread-quote').click();
   await expect(editor).toBeFocused();
+  await expect.poll(() => editor.evaluate(() => window.getSelection()?.toString())).toBe('This example');
   await page.keyboard.press('Backspace');
   await expect(thread).toHaveCount(0);
 
