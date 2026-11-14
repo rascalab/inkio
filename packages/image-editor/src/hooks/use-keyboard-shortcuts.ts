@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
 import { useImageEditor } from './use-image-editor';
 
-export function useKeyboardShortcuts() {
+export function useKeyboardShortcuts(enabled = true) {
   const { undo, redo, canUndo, canRedo, state, dispatch } = useImageEditor();
 
   useEffect(() => {
+    if (!enabled) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.isComposing) return;
       const target = e.target as HTMLElement | null;
@@ -62,6 +63,7 @@ export function useKeyboardShortcuts() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
+    enabled,
     undo,
     redo,
     canUndo,

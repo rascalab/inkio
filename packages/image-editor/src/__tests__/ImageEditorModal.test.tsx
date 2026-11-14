@@ -3,13 +3,22 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImageEditorModal } from '../ImageEditorModal';
+import type { ImageEditorProps } from '../types';
+
+let latestEditorProps: ImageEditorProps | undefined;
+
+function editorProps(): ImageEditorProps {
+  if (!latestEditorProps) throw new Error('Image editor has not rendered');
+  return latestEditorProps;
+}
 
 const { imageEditorSpy } = vi.hoisted(() => ({
   imageEditorSpy: vi.fn(),
 }));
 
 vi.mock('../ImageEditor', () => ({
-  ImageEditor: (props: unknown) => {
+  ImageEditor: (props: ImageEditorProps) => {
+    latestEditorProps = props;
     imageEditorSpy(props);
     return <div data-testid="inkio-ie-modal-image-editor" />;
   },
@@ -18,6 +27,7 @@ vi.mock('../ImageEditor', () => ({
 describe('ImageEditorModal locale merging', () => {
   beforeEach(() => {
     imageEditorSpy.mockReset();
+    latestEditorProps = undefined;
   });
 
   afterEach(() => {
@@ -135,5 +145,72 @@ describe('ImageEditorModal locale merging', () => {
     fireEvent.click(screen.getByTestId('inkio-ie-discard-confirm-ok'));
     expect(onClose).toHaveBeenCalledTimes(1);
     confirmSpy.mockRestore();
+  });
+
+  it('closes an unchanged image without uploading it', async () => {
+    const onSave = vi.fn();
+    const onClose = vi.fn();
+    render(<ImageEditorModal isOpen imageSrc="/demo.png" onSave={onSave} onClose={onClose} />);
+
+    await act(async () => { await editorProps().onSave('data:image/png;base64,unchanged'); });
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts clean when a persistent modal is reopened after discarding edits', async () => {
+    const onSave = vi.fn();
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <ImageEditorModal isOpen imageSrc="/demo.png" onSave={onSave} onClose={onClose} />,
+    );
+    act(() => { editorProps().onDirtyChange?.(true); });
+    rerender(<ImageEditorModal isOpen={false} imageSrc="/demo.png" onSave={onSave} onClose={onClose} />);
+    rerender(<ImageEditorModal isOpen imageSrc="/demo.png" onSave={onSave} onClose={onClose} />);
+
+    await act(async () => { await editorProps().onSave('data:image/png;base64,unchanged'); });
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits for the upload and prevents closing while it is pending', async () => {
+    let finishSave: () => void = () => { throw new Error('Save has not started'); };
+    const upload = new Promise<void>((resolve) => { finishSave = resolve; });
+    const onSave = vi.fn(() => upload);
+    const onClose = vi.fn();
+    render(<ImageEditorModal isOpen imageSrc="/demo.png" onSave={onSave} onClose={onClose} />);
+    act(() => { editorProps().onDirtyChange?.(true); });
+    act(() => { editorProps().onCancel(); });
+    let saving: void | Promise<void>;
+
+    act(() => { saving = editorProps().onSave('data:image/png;base64,edited'); });
+    act(() => { editorProps().onCancel(); });
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('inkio-ie-discard-confirm')).toBeNull();
+    await act(async () => { finishSave(); await saving; });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a failed save open and permits retrying the same edit', async () => {
+    const error = new Error('Upload rejected');
+    const failure = Promise.reject(error);
+    void failure.catch(() => {});
+    const onSave = vi.fn().mockReturnValueOnce(failure).mockResolvedValueOnce(undefined);
+    const onClose = vi.fn();
+    render(<ImageEditorModal isOpen imageSrc="/demo.png" onSave={onSave} onClose={onClose} />);
+    act(() => { editorProps().onDirtyChange?.(true); });
+
+    await act(async () => {
+      await expect(editorProps().onSave('data:image/png;base64,edited')).rejects.toBe(error);
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId('inkio-ie-modal-image-editor')).toBeTruthy();
+    await act(async () => { await editorProps().onSave('data:image/png;base64,edited'); });
+    expect(onSave).toHaveBeenCalledTimes(2);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

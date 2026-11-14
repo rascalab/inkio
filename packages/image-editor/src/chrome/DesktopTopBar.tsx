@@ -30,6 +30,7 @@ export function DesktopTopBar({
         type="button"
         className="inkio-ie-topbar-btn"
         onClick={onClose}
+        disabled={isSaving}
         title={locale.cancel}
         aria-label={locale.cancel}
         data-testid="inkio-ie-close"
@@ -41,7 +42,7 @@ export function DesktopTopBar({
         type="button"
         className="inkio-ie-topbar-btn"
         onClick={onUndo}
-        disabled={!canUndo}
+        disabled={!canUndo || isSaving}
         title={locale.undo}
         aria-label={locale.undo}
         data-testid="inkio-ie-undo"
@@ -52,7 +53,7 @@ export function DesktopTopBar({
         type="button"
         className="inkio-ie-topbar-btn"
         onClick={onRedo}
-        disabled={!canRedo}
+        disabled={!canRedo || isSaving}
         title={locale.redo}
         aria-label={locale.redo}
         data-testid="inkio-ie-redo"

@@ -296,8 +296,21 @@ export function imageEditorReducer(
         pendingCrop: null,
       };
 
-    case 'SET_PENDING_CROP':
-      return { ...state, pendingCrop: action.crop };
+    case 'SET_PENDING_CROP': {
+      if (!action.crop) return { ...state, pendingCrop: null };
+      const crop = { ...action.crop };
+      const keys = ['x', 'y', 'width', 'height'] as const;
+      // Viewport scaling can turn 120 into 119.99999999999999. Keep that
+      // roundoff out of image coordinates without rounding real subpixel edits.
+      for (const key of keys) {
+        const integer = Math.round(crop[key]);
+        if (Math.abs(crop[key] - integer) <= Number.EPSILON * Math.max(1, Math.abs(crop[key])) * 16) {
+          crop[key] = integer;
+        }
+      }
+      if (state.pendingCrop && keys.every((key) => state.pendingCrop?.[key] === crop[key])) return state;
+      return { ...state, pendingCrop: crop };
+    }
 
     case 'ROTATE_CW':
       return {

@@ -8,13 +8,14 @@ import { getSelectedAnnotation } from '../utils/annotation-types';
 import { loadImage } from '../utils/image-loader';
 import { isResizeTool, normalizeTool } from '../utils/tooling';
 import { areVisualRefsEqual, getVisualRefs, nextVisualVersion, type VisualRefs } from '../utils/visual-state';
+import { getTransformedDimensions } from '../utils/geometry';
 
 interface UseImageEditorSessionOptions {
   src: string;
   locale: ImageEditorLocale;
   outputFormat: 'png' | 'jpeg' | 'webp';
   outputQuality: number;
-  onSave: (dataUrl: string) => void;
+  onSave: (dataUrl: string) => void | Promise<void>;
   onDirtyChange?: (dirty: boolean) => void;
   viewportKind: ViewportKind;
 }
@@ -31,6 +32,8 @@ export function useImageEditorSession({
   const { state, dispatch, undo, redo, canUndo, canRedo } = useImageEditor();
   const { exportToDataURL } = useCanvasExport();
   const [isSaving, setIsSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [saveError, setSaveError] = useState(false);
   const [baseline, setBaseline] = useState<{ version: number; refs: VisualRefs } | null>(null);
   const loadErrorRef = useRef(locale.error);
 
@@ -55,13 +58,14 @@ export function useImageEditorSession({
     }
   }, []);
 
-  useKeyboardShortcuts();
+  useKeyboardShortcuts(!isSaving);
 
   useEffect(() => {
     loadErrorRef.current = locale.error;
   }, [locale.error]);
 
   useEffect(() => {
+    setSaveError(false);
     dispatch({ type: 'SET_LOADING', isLoading: true });
     dispatch({ type: 'SET_ERROR', error: null });
 
@@ -119,6 +123,15 @@ export function useImageEditorSession({
       return false;
     }
 
+    if (isResizeTool(state.activeTool) && state.pendingCrop) {
+      const appliedSize = getTransformedDimensions(
+        state.originalWidth, state.originalHeight, state.transform, state.outputSize,
+      );
+      if (state.resizeOptions.width !== appliedSize.width || state.resizeOptions.height !== appliedSize.height) {
+        return true;
+      }
+    }
+
     // Fast path: undo back to the exact baseline object restores identical
     // refs even though the version counter moved on.
     if (areVisualRefsEqual(getVisualRefs(state), baseline.refs)) {
@@ -165,10 +178,11 @@ export function useImageEditorSession({
   );
 
   const handleSave = useCallback(async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setIsSaving(true);
-    // Capture before dispatch: versionRef is read after the export await
-    // below, by which time the commit render already bumped it — adding +1
-    // then would double-count and pin dirty forever.
+    setSaveError(false);
+    // Capture the version of the draft represented by the exported bytes.
     const saveBaseVersion = versionRef.current;
 
     try {
@@ -186,14 +200,14 @@ export function useImageEditorSession({
             }
           : state;
 
+      const dataUrl = await exportToDataURL(outputFormat, outputQuality, exportState);
+      await onSave(dataUrl);
+      // Failed persistence must leave the crop/resize draft intact for retry.
       if (isResizeSessionActive) {
         dispatch({ type: 'COMMIT_RESIZE_SESSION' });
       } else if (state.pendingCrop) {
         dispatch({ type: 'APPLY_CROP' });
       }
-
-      const dataUrl = await exportToDataURL(outputFormat, outputQuality, exportState);
-      onSave(dataUrl);
       // The commit above bumps the version by exactly one on the next render
       // (COMMIT/APPLY always mint fresh transform/outputSize refs), so the
       // post-save baseline anticipates the pre-dispatch version plus one.
@@ -201,9 +215,10 @@ export function useImageEditorSession({
       // in the exported bytes.
       resetDirtyBaseline(exportState, saveBaseVersion + (isResizeSessionActive || state.pendingCrop ? 1 : 0));
     } catch (err) {
-      dispatch({ type: 'SET_ERROR', error: locale.error });
-      console.error('[ImageEditor] Export failed:', err);
+      setSaveError(true);
+      console.error('[ImageEditor] Save failed:', err);
     } finally {
+      savingRef.current = false;
       setIsSaving(false);
     }
   }, [dispatch, exportToDataURL, locale.error, onSave, outputFormat, outputQuality, resetDirtyBaseline, state]);
@@ -216,6 +231,7 @@ export function useImageEditorSession({
     canUndo,
     canRedo,
     isSaving,
+    saveError,
     isDirty,
     selectedAnnotation,
     controls,

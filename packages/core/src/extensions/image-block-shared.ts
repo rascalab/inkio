@@ -14,7 +14,8 @@ export const UPLOAD_PLACEHOLDER_PREFIX = '__inkio_upload_';
 export interface ImageEditorComponentProps {
   isOpen: boolean;
   imageSrc: string;
-  onSave: (editedImageData: string) => void;
+  /** Reject to keep the image editor open when persistence fails. */
+  onSave: (editedImageData: string) => void | Promise<void>;
   onClose: () => void;
   /** Resolved theme of the editor that opened it (`theme` prop or a `.dark` ancestor). */
   theme?: 'light' | 'dark';

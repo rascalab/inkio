@@ -318,7 +318,8 @@ export interface ImageEditorLocale {
 
 export interface ImageEditorProps {
   src: string;
-  onSave: (dataUrl: string) => void;
+  /** Awaited before saving completes; reject to preserve edits for retry. */
+  onSave: (dataUrl: string) => void | Promise<void>;
   onCancel: () => void;
   outputFormat?: 'png' | 'jpeg' | 'webp';
   outputQuality?: number;
@@ -333,7 +334,8 @@ export interface ImageEditorProps {
 export interface ImageEditorModalProps {
   isOpen: boolean;
   imageSrc: string;
-  onSave: (editedImageData: string) => void;
+  /** Called only for changed images; the modal closes after this resolves. */
+  onSave: (editedImageData: string) => void | Promise<void>;
   onClose: () => void;
   theme?: 'light' | 'dark';
   imageQuality?: number;

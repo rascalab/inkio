@@ -6,6 +6,15 @@ Versioning is unified across the publishable Inkio packages.
 
 ## [Unreleased]
 
+### Added
+
+- image blocks default to `cleanup: 'immediate'`: an `onDelete(src)` storage adapter cleans files after their last reference in the current document is removed, including uploads whose targets disappeared. Select `cleanup: 'manual'` to manage cleanup in the app. Loading a document, read-only updates and destroying an editor do not delete its files; cleanup failures reach `onError` without rolling back successful edits.
+
+### Fixed
+
+- edited images use the configured image upload callback instead of persisting a data URL directly. The original image stays in the document until upload succeeds; upload limits, URL resolution and error callbacks also apply to edited files.
+- image editing waits for asynchronous saves before closing. Failed saves keep the edits for retry, unchanged images skip the upload, and edited files have distinct names instead of all using `edited-image.png`.
+
 ## [0.0.8] - 2026-11-06
 
 See [MIGRATION.md](./MIGRATION.md#007--008) for behavior changes to check.

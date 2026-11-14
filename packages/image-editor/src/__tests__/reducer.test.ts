@@ -150,6 +150,25 @@ describe('imageEditorReducer', () => {
       expect(next.pendingCrop).toEqual(cropRect);
     });
 
+    it('ignores crop coordinate roundoff from a viewport round trip', () => {
+      const state = { ...initialState, pendingCrop: { x: 0, y: 0, width: 120, height: 80 } };
+
+      const next = imageEditorReducer(state, {
+        type: 'SET_PENDING_CROP',
+        crop: { x: 0, y: 0, width: 119.99999999999999, height: 79.99999999999999 },
+      });
+
+      expect(next).toBe(state);
+    });
+
+    it('preserves real subpixel crop coordinates', () => {
+      const crop = { x: 0.25, y: 0.5, width: 119.5, height: 79.75 };
+
+      const next = imageEditorReducer(initialState, { type: 'SET_PENDING_CROP', crop });
+
+      expect(next.pendingCrop).toEqual(crop);
+    });
+
     it('SET_PENDING_CROP with null clears pendingCrop', () => {
       const withCrop = { ...initialState, pendingCrop: cropRect };
       const next = imageEditorReducer(withCrop, { type: 'SET_PENDING_CROP', crop: null });

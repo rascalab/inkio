@@ -165,7 +165,10 @@ export function Editor({
     };
 
     // imageBlock: merge onImageUpload into imageBlock options
-    const mergedImageBlock = mergeImageBlockOptions(input.imageBlock, { onUpload: input.onImageUpload });
+    const mergedImageBlock = mergeImageBlockOptions(input.imageBlock, {
+      onUpload: input.onImageUpload,
+      onError: input.onError,
+    });
     if (mergedImageBlock) {
       opts.imageBlock = mergedImageBlock;
     }

@@ -237,7 +237,7 @@ export function ImageEditorE2EHarness() {
             Square crop preset
           </button>
           <span data-testid="image-editor-e2e-open-state">Modal: {isOpen ? 'open' : 'closed'}</span>
-          <span data-testid="image-editor-e2e-fixture-state">
+          <span data-testid="image-editor-e2e-fixture-state" data-src={imageSrc ?? undefined}>
             Fixture: {imageSrc ? 'ready' : 'loading'}
           </span>
         </div>

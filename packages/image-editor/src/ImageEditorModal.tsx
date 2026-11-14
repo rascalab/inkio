@@ -1,7 +1,7 @@
 'use client';
 
 import * as Dialog from '@radix-ui/react-dialog';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStableOptions } from '@inkio/core';
 import { ImageEditor } from './ImageEditor';
 import type { ImageEditorLocale, ImageEditorModalProps } from './types';
@@ -62,13 +62,21 @@ export function ImageEditorModal({
     [localeOverrides, ui.messages.imageEditor],
   );
   const [isDirty, setIsDirty] = useState(false);
+  const savingRef = useRef(false);
   // Non-blocking close confirmation: when there are unsaved edits, closing
   // surfaces an inline confirm card instead of window.confirm (which blocks
   // the main thread and is suppressed in some embedded contexts).
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const portalTheme = theme ?? resolvePortalTheme();
 
+  useEffect(() => {
+    if (isOpen) return;
+    setIsDirty(false);
+    setConfirmDiscard(false);
+  }, [isOpen]);
+
   const requestClose = useCallback(() => {
+    if (savingRef.current) return;
     if (isDirty && !confirmDiscard) {
       setConfirmDiscard(true);
       return;
@@ -140,9 +148,20 @@ export function ImageEditorModal({
             )}
             <ImageEditor
               src={imageSrc}
-              onSave={(dataUrl) => {
-                onSave(dataUrl);
-                onClose();
+              onSave={async (dataUrl) => {
+                if (savingRef.current) return;
+                setConfirmDiscard(false);
+                if (!isDirty) {
+                  onClose();
+                  return;
+                }
+                savingRef.current = true;
+                try {
+                  await onSave(dataUrl);
+                  onClose();
+                } finally {
+                  savingRef.current = false;
+                }
               }}
               onCancel={requestClose}
               outputFormat={imageFormat}

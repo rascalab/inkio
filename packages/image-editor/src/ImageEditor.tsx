@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from 'react';
 import { MobileCommandBar } from './chrome/MobileCommandBar';
 import { MobileToolTray } from './chrome/MobileToolTray';
 import { DesktopTopBar } from './chrome/DesktopTopBar';
@@ -23,7 +23,7 @@ const PREVIEW_ZOOM_STEP = 0.2;
 
 interface InnerEditorProps {
   src: string;
-  onSave: (dataUrl: string) => void;
+  onSave: (dataUrl: string) => void | Promise<void>;
   onCancel: () => void;
   onDirtyChange?: (dirty: boolean) => void;
   outputFormat: 'png' | 'jpeg' | 'webp';
@@ -54,6 +54,7 @@ function InnerEditor({
     canUndo,
     canRedo,
     isSaving,
+    saveError,
     isDirty,
     selectedAnnotation,
     controls,
@@ -99,10 +100,20 @@ function InnerEditor({
     setPreviewZoom(1);
   }, [state.originalImage]);
 
+  const preventWhileSaving = (event: SyntheticEvent) => {
+    if (!isSaving) return;
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
   return (
     <div
       ref={rootRef}
       className="inkio-ie-root"
+      aria-busy={isSaving}
+      onClickCapture={preventWhileSaving}
+      onPointerDownCapture={preventWhileSaving}
+      onKeyDownCapture={preventWhileSaving}
       data-testid="inkio-ie-root"
       data-viewport-kind={viewportKind}
       data-controls-open={isControlsVisible ? 'true' : 'false'}
@@ -178,6 +189,9 @@ function InnerEditor({
             />
           )}
           <div className="inkio-ie-stage-viewport" ref={stageViewportRef}>
+            {saveError && (
+              <div className="inkio-ie-save-error" role="alert">{locale.error}</div>
+            )}
             {state.isLoading && (
               <div className="inkio-ie-loading-overlay">
                 <div className="inkio-ie-spinner" />

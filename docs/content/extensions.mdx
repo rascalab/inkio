@@ -218,13 +218,18 @@ export function Page() {
   return (
     <Editor
       onImageUpload={async (file) => URL.createObjectURL(file)}
-      imageBlock={{ imageEditor: ImageEditorModal }}
+      imageBlock={{
+        imageEditor: ImageEditorModal,
+        onDelete: (src) => URL.revokeObjectURL(src),
+      }}
     />
   );
 }
 ```
 
 자세한 내용은 [이미지 에디터 문서](./image-editor)를 참고하세요.
+`imageBlock.cleanup`의 기본값은 `'immediate'`입니다. 실제 파일 삭제는 `onDelete`로
+연결하며, 앱에서 정리 시점을 관리하려면 `cleanup: 'manual'`을 지정하세요.
 
 ## TocBlock (인라인 목차)
 

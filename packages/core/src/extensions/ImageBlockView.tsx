@@ -9,7 +9,15 @@ import {
   UPLOAD_PLACEHOLDER_PREFIX,
   type ImageEditorComponentProps,
 } from './image-block-shared';
+import {
+  reportImageUploadError,
+  uploadImageFile,
+  getImageValidationError,
+  type ImageUploadOptions,
+} from './image-block-upload';
 import { isSafeUrl } from '../utils/url-safety';
+import { createId } from '../utils/create-id';
+import { queueImageCleanup } from './image-block-cleanup';
 import { isDarkTheme } from './CodeBlock/hljs-theme';
 
 /** The opening editor's theme; the modal portals out of it, so it cannot inherit. */
@@ -36,7 +44,8 @@ function ImageBlockViewInner(props: NodeViewProps) {
     spinner: Loader2Icon,
     edit: PencilIcon,
   } = useMemo(() => editorIcons(editor), [editor, uiRevision]);
-  const ImageEditorComponent = (extension?.options as { imageEditor?: React.ComponentType<ImageEditorComponentProps> } | undefined)?.imageEditor;
+  const options: ImageUploadOptions & { imageEditor?: React.ComponentType<ImageEditorComponentProps> } = extension?.options ?? {};
+  const ImageEditorComponent = options.imageEditor;
   // Track editability via subscription (not render-time read) so the memo
   // below stays exact: same value bails out of setState on every keystroke,
   // and only a real setEditable flip re-renders.
@@ -56,6 +65,12 @@ function ImageBlockViewInner(props: NodeViewProps) {
   const [resizing, setResizing] = useState(false);
   const [currentWidth, setCurrentWidth] = useState(parseWidthPercent(node.attrs.width));
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const savingRef = useRef(false);
+  const editIdRef = useRef<string | null>(null);
+  const mountedRef = useRef(false);
+  const sourceRef = useRef(node.attrs.src);
+  sourceRef.current = node.attrs.src;
   const [isMounted, setIsMounted] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const cleanupRef = useRef<(() => void) | null>(null);
@@ -109,11 +124,53 @@ function ImageBlockViewInner(props: NodeViewProps) {
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     setIsMounted(true);
     return () => {
+      mountedRef.current = false;
       cleanupRef.current?.();
     };
   }, []);
+
+  const handleImageSave = async (editedImageData: string) => {
+    if (savingRef.current || typeof editedImageData !== 'string' || !isSafeUrl(editedImageData)) return;
+    if (!options.onUpload || !/^data:/i.test(editedImageData)) {
+      updateAttributes({ src: editedImageData });
+      setIsEditorOpen(false);
+      return;
+    }
+
+    savingRef.current = true;
+    setIsSaving(true);
+    const originalSrc = node.attrs.src;
+    let errorSource = 'imageBlock.validation';
+    try {
+      const match = /^data:([^;,]+);base64,([\s\S]*)$/i.exec(editedImageData);
+      if (!match) throw new Error('Invalid edited image data.');
+      const bytes = Uint8Array.from(atob(match[2]), (char) => char.charCodeAt(0));
+      const mime = match[1].toLowerCase();
+      editIdRef.current ??= createId('image');
+      const file = new File([bytes], `edited-${editIdRef.current}.${mime.slice('image/'.length)}`, { type: mime });
+      const validationError = await getImageValidationError(file, options);
+      if (validationError) throw validationError;
+      errorSource = 'imageBlock.upload';
+      const attrs = await uploadImageFile(file, options);
+      // Node views can disappear or receive a different source while an upload is pending.
+      if (mountedRef.current && !editor.isDestroyed && sourceRef.current === originalSrc) {
+        updateAttributes(attrs);
+        editIdRef.current = null;
+        setIsEditorOpen(false);
+      } else if (attrs.src) {
+        queueImageCleanup(editor, attrs.src);
+      }
+    } catch (error) {
+      reportImageUploadError(options, error, errorSource);
+      throw error;
+    } finally {
+      savingRef.current = false;
+      if (mountedRef.current) setIsSaving(false);
+    }
+  };
 
   const handleResizeStart = useCallback(
     (e: React.MouseEvent) => {
@@ -162,8 +219,8 @@ function ImageBlockViewInner(props: NodeViewProps) {
 
   // A placeholder `src` is a sentinel string, not a real URL. Rendering it as
   // an `<img src>` would make the browser fetch a bogus relative path.
-  const isUploading =
-    typeof node.attrs.src === 'string' && node.attrs.src.startsWith(UPLOAD_PLACEHOLDER_PREFIX);
+  const isUploading = isSaving ||
+    (typeof node.attrs.src === 'string' && node.attrs.src.startsWith(UPLOAD_PLACEHOLDER_PREFIX));
   // Mirror the renderHTML fallback: never hand an unsafe persisted src to
   // the DOM (or to the third-party editor component below), even if it
   // arrived via a writer that predates the guards.
@@ -276,15 +333,12 @@ function ImageBlockViewInner(props: NodeViewProps) {
           <ImageEditorComponent
             isOpen={isEditorOpen}
             imageSrc={safeSrc ?? ''}
-            onSave={(editedImageData: string) => {
-              // Same boundary as setImageBlock/parseHTML: the image editor
-              // component may be third-party, so validate before persisting.
-              if (typeof editedImageData === 'string' && isSafeUrl(editedImageData)) {
-                updateAttributes({ src: editedImageData });
-              }
+            onSave={handleImageSave}
+            onClose={() => {
+              if (savingRef.current) return;
+              editIdRef.current = null;
               setIsEditorOpen(false);
             }}
-            onClose={() => setIsEditorOpen(false)}
             theme={editorTheme(editor)}
             locale={editorLocale(editor)}
           />

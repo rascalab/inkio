@@ -1,10 +1,16 @@
-import { mergeAttributes, Node } from '@tiptap/core';
+import { mergeAttributes, Node, type Editor } from '@tiptap/core';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
 import { Plugin, PluginKey, Selection } from '@tiptap/pm/state';
-import { toError, type InkioErrorHandler } from '../errors';
 import { isSafeUrl } from '../utils/url-safety';
+import {
+  reportImageUploadError,
+  uploadImageFile,
+  getImageValidationError,
+  type ImageUploadOptions,
+} from './image-block-upload';
+import { createImageCleanupPlugin, queueImageCleanup, type ImageCleanupOptions } from './image-block-cleanup';
 import {
   IMAGE_BLOCK_MAX_WIDTH_PERCENT,
   IMAGE_BLOCK_MIN_WIDTH_PERCENT,
@@ -19,9 +25,7 @@ export {
   UPLOAD_PLACEHOLDER_PREFIX,
 } from './image-block-shared';
 export type { ImageEditorComponent, ImageEditorComponentProps } from './image-block-shared';
-
-type ImageUploadResult = string | Record<string, any>;
-type ImageAlign = 'left' | 'center' | 'right';
+export type { ImageUploadContext } from './image-block-upload';
 
 
 /**
@@ -37,121 +41,10 @@ export function clampImageBlockWidthPercent(width: number): number | null {
   );
 }
 
-/**
- * Per-upload correlation context. `blockId` is the transient placeholder id
- * for this upload, so adapter authors can scope concurrent uploads.
- */
-export interface ImageUploadContext {
-  blockId?: string;
-}
-type ImageNodeAttributes = {
-  src: string;
-  alt?: string;
-  title?: string;
-  width?: string | number;
-  align?: ImageAlign;
-  caption?: string;
-};
-
-const KNOWN_IMAGE_ATTR_KEYS = ['src', 'alt', 'title', 'width', 'align', 'caption'] as const;
-
-
-function toImageNodeAttributes(result: ImageUploadResult, fallbackAlt?: string): Partial<ImageNodeAttributes> {
-  if (typeof result === 'string') {
-    return {
-      src: result,
-      alt: fallbackAlt,
-    };
-  }
-
-  const attrs: Partial<ImageNodeAttributes> = {};
-  for (const key of KNOWN_IMAGE_ATTR_KEYS) {
-    if (!(key in result)) {
-      continue;
-    }
-
-    const value = result[key];
-    if (key === 'src' && typeof value === 'string') {
-      attrs.src = value;
-      continue;
-    }
-    if (key === 'alt' && typeof value === 'string') {
-      attrs.alt = value;
-      continue;
-    }
-    if (key === 'title' && typeof value === 'string') {
-      attrs.title = value;
-      continue;
-    }
-    if (key === 'width' && (typeof value === 'string' || typeof value === 'number')) {
-      attrs.width = value;
-      continue;
-    }
-    if (key === 'align' && (value === 'left' || value === 'center' || value === 'right')) {
-      attrs.align = value;
-      continue;
-    }
-    if (key === 'caption' && typeof value === 'string') {
-      attrs.caption = value;
-    }
-  }
-
-  if (!attrs.alt && fallbackAlt) {
-    attrs.alt = fallbackAlt;
-  }
-
-  return attrs;
-}
-
-export interface ImageBlockOptions {
+export interface ImageBlockOptions extends ImageUploadOptions, ImageCleanupOptions {
   HTMLAttributes: Record<string, any>;
-  /** Callback to handle file upload, should return the URL of the uploaded image */
-  onUpload?: (file: File, context?: ImageUploadContext) => Promise<ImageUploadResult>;
-  /** Optional callback to resolve a persisted URL into a public URL */
-  resolveFileUrl?: (url: string) => Promise<string>;
-  /** Allowed MIME types for image upload */
-  allowedMimeTypes?: string[];
-  /** Maximum file size in bytes */
-  maxFileSize?: number;
-  /** Callback for upload errors */
-  onUploadError?: (error: Error) => void;
-  /** Generic extension-level error callback */
-  onError?: InkioErrorHandler;
   /** Optional image editor component. When provided, an edit button appears on the image toolbar. */
   imageEditor?: ImageEditorComponent;
-}
-
-/**
- * Best-effort content sniffing for uploaded files.
- * `File.type` is client-controlled, so a `.png` name can still carry HTML/SVG
- * script content. Rejects files whose leading bytes match executable markups
- * (HTML/SVG/XML prologues, scripts) or non-image containers (PDF, MZ).
- * Fail-open: when bytes can't be read (or the file is empty), returns true so
- * existing flows and tests keep working; MIME allowlist stays authoritative.
- */
-const EXECUTABLE_PREFIXES = [
-  '<!doctype', '<html', '<head', '<body', '<script', '<svg', '<?xml', '<!',
-  '%pdf', 'mz',
-];
-
-async function sniffImageContent(file: File): Promise<boolean> {
-  try {
-    const slice = typeof file.slice === 'function' ? file.slice(0, 64) : file;
-    const buffer = await slice.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-    if (bytes.length === 0) return true;
-    // Strip leading NUL/control bytes as well as whitespace: trimStart()
-    // alone lets `\0\0<svg` sail past the prefix check below.
-    const head = Array.from(bytes.slice(0, 64))
-      .map((b) => String.fromCharCode(b))
-      .join('')
-      .replace(/^[\0\x01-\x08\x0B\x0C\x0E-\x1F\x7F\s]+/, '')
-      .toLowerCase();
-    if (!head) return true;
-    return !EXECUTABLE_PREFIXES.some((prefix) => head.startsWith(prefix));
-  } catch {
-    return true;
-  }
 }
 
 /**
@@ -176,8 +69,7 @@ function insertImageNode(view: EditorView, pos: number, node: ProseMirrorNode) {
 }
 
 /** Shared upload helpers — used by both addCommands and addProseMirrorPlugins. */
-function createImageUploadHelpers(options: ImageBlockOptions) {
-  const { onUpload, resolveFileUrl, allowedMimeTypes, maxFileSize, onUploadError, onError } = options;
+function createImageUploadHelpers(options: ImageBlockOptions, editor: Editor) {
 
   /**
    * Single-walk placeholder lookup. Upload completion and upload failure both
@@ -198,29 +90,14 @@ function createImageUploadHelpers(options: ImageBlockOptions) {
     });
     return placeholderPos;
   };
-  const reportUploadError = (error: unknown, source: string, recoverable = true) => {
-    const normalizedError = toError(error);
-    if (onUploadError) {
-      onUploadError(normalizedError);
-      return;
-    }
-    onError?.(normalizedError, { source, recoverable });
-  };
-
   /** Resolves to the position right after the image, or null when none was inserted. */
   const processImageFile = async (file: File, view: EditorView, pos: number): Promise<number | null> => {
-    if (allowedMimeTypes && !allowedMimeTypes.includes(file.type)) {
-      reportUploadError(new Error(`File type ${file.type} is not allowed.`), 'imageBlock.validation');
+    const validationError = await getImageValidationError(file, options);
+    if (validationError) {
+      reportImageUploadError(options, validationError, 'imageBlock.validation');
       return null;
     }
-    if (maxFileSize && file.size > maxFileSize) {
-      reportUploadError(new Error(`File size exceeds maximum allowed size.`), 'imageBlock.validation');
-      return null;
-    }
-    if (!(await sniffImageContent(file))) {
-      reportUploadError(new Error(`File content is not a supported image.`), 'imageBlock.validation');
-      return null;
-    }
+    if (editor.isDestroyed) return null;
 
     const placeholderSrc = `${UPLOAD_PLACEHOLDER_PREFIX}${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
@@ -233,34 +110,16 @@ function createImageUploadHelpers(options: ImageBlockOptions) {
       const clampedPos = Math.max(0, Math.min(pos, view.state.doc.content.size));
       insertImageNode(view, clampedPos, placeholderNode);
 
-      let attrs: Partial<ImageNodeAttributes>;
-      if (onUpload) {
-        const uploadResult = await onUpload(file, { blockId: placeholderSrc });
-        attrs = toImageNodeAttributes(uploadResult, file.name);
-      } else {
-        const src = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = () => reject(new Error('Failed to read file'));
-          reader.readAsDataURL(file);
-        });
-        attrs = { src, alt: file.name };
-      }
-      if (!attrs.src || typeof attrs.src !== 'string' || !isSafeUrl(attrs.src)) {
-        throw new Error('Invalid upload result.');
-      }
-      if (resolveFileUrl) {
-        const resolved = await resolveFileUrl(attrs.src);
-        // A custom resolver must not smuggle javascript:/data: URLs into the doc.
-        if (typeof resolved !== 'string' || !isSafeUrl(resolved)) {
-          throw new Error('Invalid resolved file URL.');
-        }
-        attrs.src = resolved;
-      }
+      const attrs = await uploadImageFile(file, options, { blockId: placeholderSrc }, file.name);
 
+      if (editor.isDestroyed) {
+        if (attrs.src) queueImageCleanup(editor, attrs.src);
+        return null;
+      }
       const placeholderPos = findPlaceholderPos(view.state, placeholderSrc);
 
       if (placeholderPos === -1) {
+        if (attrs.src) queueImageCleanup(editor, attrs.src);
         return null;
       }
 
@@ -273,7 +132,7 @@ function createImageUploadHelpers(options: ImageBlockOptions) {
       if (placeholderPos !== -1) {
         view.dispatch(view.state.tr.delete(placeholderPos, placeholderPos + 1));
       }
-      reportUploadError(error, 'imageBlock.upload');
+      reportImageUploadError(options, error, 'imageBlock.upload');
       return null;
     }
   };
@@ -323,6 +182,8 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
       onUploadError: undefined,
       onError: undefined,
       imageEditor: undefined,
+      cleanup: 'immediate',
+      onDelete: undefined,
     };
   },
 
@@ -465,7 +326,7 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
       uploadImageBlock:
         (files, pos) =>
           ({ editor }) => {
-            const { processImageFiles } = createImageUploadHelpers(this.options);
+            const { processImageFiles } = createImageUploadHelpers(this.options, this.editor);
             const startPos = pos ?? editor.state.selection.from;
             // Defer placeholder insertion until after Tiptap finishes the command transaction.
             queueMicrotask(() => {
@@ -485,7 +346,8 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
   },
 
   addProseMirrorPlugins() {
-    const { processImageFiles } = createImageUploadHelpers(this.options);
+    const { processImageFiles } = createImageUploadHelpers(this.options, this.editor);
+    const cleanupPlugin = createImageCleanupPlugin(this.editor, this.options);
 
     // Helper to extract image files from data transfer
     const getImageFilesFromDataTransfer = (dataTransfer: DataTransfer): File[] => {
@@ -504,6 +366,7 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
     };
 
     return [
+      ...(cleanupPlugin ? [cleanupPlugin] : []),
       new Plugin({
         key: imageBlockPluginKey,
         props: {

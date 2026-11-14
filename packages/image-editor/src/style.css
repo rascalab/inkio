@@ -1484,6 +1484,20 @@
   transform: translateY(-50%);
 }
 
+.inkio-ie-save-error {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  max-width: calc(100% - 32px);
+  padding: 10px 16px;
+  border-radius: var(--inkio-ie-radius);
+  background: var(--inkio-ie-surface-solid);
+  color: var(--inkio-ie-text);
+  pointer-events: none;
+}
+
 .inkio-ie-loading-overlay,
 .inkio-ie-error-overlay {
   position: absolute;

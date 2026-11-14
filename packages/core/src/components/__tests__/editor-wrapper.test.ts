@@ -23,4 +23,14 @@ describe('editor wrapper mappers', () => {
     });
     expect(mergeImageBlockOptions(undefined, { onUpload })).toEqual({ onUpload });
   });
+
+  it('preserves image cleanup options when merging preset upload handlers', () => {
+    const onUpload = async () => 'src';
+    const onDelete = () => {};
+    expect(mergeImageBlockOptions({ cleanup: 'manual', onDelete }, { onUpload })).toEqual({
+      cleanup: 'manual',
+      onDelete,
+      onUpload,
+    });
+  });
 });

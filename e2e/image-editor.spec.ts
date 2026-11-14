@@ -12,6 +12,33 @@ async function waitForHarness(page: Page) {
   await expect(page.getByTestId('inkio-ie-stage-frame')).toBeVisible();
 }
 
+async function expectImagePixelsChanged(page: Page, originalSrc: string | null, editedSrc: string | null) {
+  const comparison = await page.evaluate(async ({ originalSrc, editedSrc }) => {
+    const readPixels = async (src: string | null) => {
+      if (!src) throw new Error('Image source is missing.');
+      const image = new Image();
+      image.src = src;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('No 2d context.');
+      context.drawImage(image, 0, 0);
+      return context.getImageData(0, 0, canvas.width, canvas.height);
+    };
+    const [original, edited] = await Promise.all([readPixels(originalSrc), readPixels(editedSrc)]);
+    return {
+      sameDimensions: original.width === edited.width && original.height === edited.height,
+      // Ignore small differences introduced by decoding and re-encoding PNG pixels.
+      changed: original.data.some((value, index) => Math.abs(value - edited.data[index]) > 8),
+    };
+  }, { originalSrc, editedSrc });
+
+  expect(comparison.sameDimensions).toBe(true);
+  expect(comparison.changed).toBe(true);
+}
+
 async function getStageFrameBox(page: Page) {
   const box = await page.getByTestId('inkio-ie-stage-frame').boundingBox();
   if (!box) {
@@ -263,15 +290,8 @@ test('finetune brightness brightens the saved image', async ({ page }) => {
     img.src = url ?? '';
   }), src);
 
-  await triggerButton(page, 'inkio-ie-save');
-  await expect(page.locator('.image-editor-e2e-saved-image')).toBeVisible();
-  const plainSrc = await page.locator('.image-editor-e2e-saved-image').last().getAttribute('src');
+  const plainSrc = await page.getByTestId('image-editor-e2e-fixture-state').getAttribute('data-src');
   const plainLuminance = await luminance(plainSrc);
-
-  // Saving closes the modal — reopen it for the finetune pass.
-  await triggerButton(page, 'image-editor-e2e-open');
-  await expect(page.getByTestId('inkio-ie-modal-content')).toBeVisible();
-  await expect(page.getByTestId('inkio-ie-stage-frame')).toBeVisible();
 
   await triggerButton(page, 'inkio-ie-tool-filter');
   // NOTE: real keyboard interaction with range inputs crashes headless
@@ -287,6 +307,7 @@ test('finetune brightness brightens the saved image', async ({ page }) => {
   await expect(page.getByTestId('inkio-ie-finetune-brightness-number')).toHaveValue('0.5');
   await triggerButton(page, 'inkio-ie-save');
   const savedImage = page.locator('.image-editor-e2e-saved-image').last();
+  await expect(savedImage).toBeVisible();
   await expect
     .poll(async () => savedImage.getAttribute('src'), { timeout: 10000 })
     .not.toBe(plainSrc);
@@ -305,13 +326,7 @@ test('redact tool pixelates a region in the saved image', async ({ page }) => {
   });
   await waitForHarness(page);
 
-  await triggerButton(page, 'inkio-ie-save');
-  await expect(page.locator('.image-editor-e2e-saved-image')).toBeVisible();
-  const plainSrc = await page.locator('.image-editor-e2e-saved-image').last().getAttribute('src');
-
-  await triggerButton(page, 'image-editor-e2e-open');
-  await expect(page.getByTestId('inkio-ie-modal-content')).toBeVisible();
-  await expect(page.getByTestId('inkio-ie-stage-frame')).toBeVisible();
+  const plainSrc = await page.getByTestId('image-editor-e2e-fixture-state').getAttribute('data-src');
 
   await triggerButton(page, 'inkio-ie-tool-redact');
   await expect(page.getByTestId('inkio-ie-util-panel-controls')).toHaveAttribute('data-panel', 'redact');
@@ -321,12 +336,14 @@ test('redact tool pixelates a region in the saved image', async ({ page }) => {
 
   await triggerButton(page, 'inkio-ie-save');
   const redactedImage = page.locator('.image-editor-e2e-saved-image').last();
+  await expect(redactedImage).toBeVisible();
   await expect
     .poll(async () => redactedImage.getAttribute('src'), { timeout: 10000 })
     .not.toBe(plainSrc);
   const redactedSrc = await redactedImage.getAttribute('src');
   expect(redactedSrc).toMatch(/^data:image\/png;base64,/);
   expect(redactedSrc).not.toBe(plainSrc);
+  await expectImagePixelsChanged(page, plainSrc, redactedSrc);
   expect(pageErrors).toEqual([]);
 });
 
@@ -337,13 +354,7 @@ test('sticker tool places an emoji in the saved image', async ({ page }) => {
   });
   await waitForHarness(page);
 
-  await triggerButton(page, 'inkio-ie-save');
-  await expect(page.locator('.image-editor-e2e-saved-image')).toBeVisible();
-  const plainSrc = await page.locator('.image-editor-e2e-saved-image').last().getAttribute('src');
-
-  await triggerButton(page, 'image-editor-e2e-open');
-  await expect(page.getByTestId('inkio-ie-modal-content')).toBeVisible();
-  await expect(page.getByTestId('inkio-ie-stage-frame')).toBeVisible();
+  const plainSrc = await page.getByTestId('image-editor-e2e-fixture-state').getAttribute('data-src');
 
   await triggerButton(page, 'inkio-ie-tool-sticker');
   await expect(page.getByTestId('inkio-ie-util-panel-controls')).toHaveAttribute('data-panel', 'sticker');
@@ -353,12 +364,14 @@ test('sticker tool places an emoji in the saved image', async ({ page }) => {
 
   await triggerButton(page, 'inkio-ie-save');
   const stickerImage = page.locator('.image-editor-e2e-saved-image').last();
+  await expect(stickerImage).toBeVisible();
   await expect
     .poll(async () => stickerImage.getAttribute('src'), { timeout: 10000 })
     .not.toBe(plainSrc);
   const stickerSrc = await stickerImage.getAttribute('src');
   expect(stickerSrc).toMatch(/^data:image\/png;base64,/);
   expect(stickerSrc).not.toBe(plainSrc);
+  await expectImagePixelsChanged(page, plainSrc, stickerSrc);
   expect(pageErrors).toEqual([]);
 });
 
