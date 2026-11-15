@@ -30,33 +30,37 @@ export function RedactAnnotationShape({ image, ...props }: Props) {
   const shapeRef = handlers.ref;
   const recacheFrame = useRef(0);
 
-  // The cropped source region is re-cached whenever geometry or mode changes.
-  // Resize drags fire every mousemove, but cache() re-rasters pixels, so
-  // coalesce to at most one recalculation per frame (latest values win).
+  // Sample the live node geometry during a gesture, without committing history.
+  // Re-rasterizing filters is coalesced to one update per animation frame.
   useEffect(() => {
     const node = shapeRef.current;
     if (!node) return;
-    if (recacheFrame.current) {
-      cancelAnimationFrame(recacheFrame.current);
-    }
-    recacheFrame.current = requestAnimationFrame(() => {
-      recacheFrame.current = 0;
-      const current = shapeRef.current;
-      if (!current) return;
-      if (annotation.mode === 'blur') {
-        current.blurRadius(Math.max(0.5, annotation.strength * 0.75));
-      } else {
-        current.pixelSize(Math.max(2, Math.round(annotation.strength)));
-      }
-      current.filters(redactFilters(annotation.mode));
-      current.cache();
-      current.getLayer()?.batchDraw();
-    });
-    return () => {
-      if (recacheFrame.current) {
-        cancelAnimationFrame(recacheFrame.current);
+    const recache = () => {
+      if (recacheFrame.current) return;
+      recacheFrame.current = requestAnimationFrame(() => {
         recacheFrame.current = 0;
-      }
+        node.crop({
+          x: node.x() / scale,
+          y: node.y() / scale,
+          width: Math.max(1, node.width() * node.scaleX() / scale),
+          height: Math.max(1, node.height() * node.scaleY() / scale),
+        });
+        if (annotation.mode === 'blur') {
+          node.blurRadius(Math.max(0.5, annotation.strength * 0.75));
+        } else {
+          node.pixelSize(Math.max(2, Math.round(annotation.strength)));
+        }
+        node.filters(redactFilters(annotation.mode));
+        node.cache();
+        node.getLayer()?.batchDraw();
+      });
+    };
+    recache();
+    node.on('dragmove.redact transform.redact', recache);
+    return () => {
+      node.off('.redact');
+      cancelAnimationFrame(recacheFrame.current);
+      recacheFrame.current = 0;
     };
   }, [annotation.mode, annotation.strength, annotation.x, annotation.y, annotation.width, annotation.height, image, scale]);
 

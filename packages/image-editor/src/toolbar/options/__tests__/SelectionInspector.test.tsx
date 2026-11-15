@@ -7,6 +7,8 @@ import { DEFAULT_LOCALE } from '../../../constants';
 import { DrawOptionsPanel } from '../DrawOptionsPanel';
 import { ShapeOptionsPanel } from '../ShapeOptionsPanel';
 import { TextOptionsPanel } from '../TextOptionsPanel';
+import { CanvasTextEditor } from '../../../canvas/CanvasTextEditor';
+import type { TextAnnotationData } from '../../../types';
 import { resolveControlsModel } from '../../../utils/controls-model';
 
 afterEach(() => {
@@ -105,7 +107,8 @@ describe('image editor selection-first inspector', () => {
       </ImageEditorContext.Provider>,
     );
 
-    const brushSlider = screen.getAllByLabelText(/Brush size/i)[0];
+    fireEvent.click(screen.getByTestId('inkio-ie-draw-brush-size-range-trigger'));
+    const brushSlider = screen.getByTestId('inkio-ie-draw-brush-size-range');
     fireEvent.change(brushSlider, { target: { value: '12' } });
     fireEvent.pointerUp(brushSlider, { target: { value: '12' } });
 
@@ -206,7 +209,8 @@ describe('image editor selection-first inspector', () => {
       </ImageEditorContext.Provider>,
     );
 
-    const fontSizeSlider = screen.getAllByLabelText(/Font size/i)[0];
+    fireEvent.click(screen.getByTestId('inkio-ie-text-font-size-range-trigger'));
+    const fontSizeSlider = screen.getByTestId('inkio-ie-text-font-size-range');
     fireEvent.change(fontSizeSlider, { target: { value: '48' } });
     fireEvent.pointerUp(fontSizeSlider, { target: { value: '48' } });
 
@@ -222,9 +226,9 @@ describe('image editor selection-first inspector', () => {
     });
   });
 
-  it('edits selected text content from the bottom panel', () => {
+  it('edits selected text content directly on the canvas', () => {
     const dispatch = vi.fn();
-    const context = createContextValue({
+    const annotation: TextAnnotationData = {
       id: 'text-1',
       type: 'text',
       x: 16,
@@ -237,11 +241,18 @@ describe('image editor selection-first inspector', () => {
       rotation: 0,
       width: 160,
       height: 96,
-    }, dispatch);
+    };
+    const context = createContextValue(annotation, dispatch);
 
     render(
       <ImageEditorContext.Provider value={context}>
-        <TextOptionsPanel />
+        <CanvasTextEditor
+          annotation={annotation}
+          stage={null}
+          displayWidth={560}
+          displayHeight={360}
+          onComplete={vi.fn()}
+        />
       </ImageEditorContext.Provider>,
     );
 
@@ -252,7 +263,7 @@ describe('image editor selection-first inspector', () => {
     expect(dispatch).toHaveBeenCalledWith({
       type: 'UPDATE_ANNOTATION',
       id: 'text-1',
-      updates: { text: 'Updated heading' },
+      updates: { text: 'Updated heading', height: 96 },
     });
     expect(dispatch).toHaveBeenCalledWith({
       type: 'UPDATE_ANNOTATION_COMMIT',

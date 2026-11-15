@@ -1,6 +1,6 @@
 import Konva from 'konva';
 import type { ImageEditorState, Annotation } from '../types';
-import { getTransformedDimensions, getBaseDisplayDimensions } from './geometry';
+import { getAnnotationScale, getTransformedDimensions, getBaseDisplayDimensions } from './geometry';
 import { getTextAnnotationHeight, resolveTextFontSizePx, TEXT_DEFAULT_FONT_FAMILY } from './text-metrics';
 import { applyImageFilter, resolveEffectiveFilter } from './filters';
 import { clampNumber } from './math';
@@ -311,13 +311,11 @@ export async function exportCanvas(
     // With crop, offset by crop origin and scale to output size.
     const cropX = exportCrop?.x ?? 0;
     const cropY = exportCrop?.y ?? 0;
-    const srcW = exportCrop?.width ?? state.originalWidth;
-    const srcH = exportCrop?.height ?? state.originalHeight;
-    const rawAnnScale = Math.min(
-      srcW > 0 ? baseW / srcW : Number.POSITIVE_INFINITY,
-      srcH > 0 ? baseH / srcH : Number.POSITIVE_INFINITY,
+    const annotationScale = getAnnotationScale(
+      { ...state.transform, crop: exportCrop },
+      state.originalWidth, state.originalHeight, outW, outH,
     );
-    const annScale = Number.isFinite(rawAnnScale) && rawAnnScale > 0 ? rawAnnScale : 1;
+    const annScale = annotationScale.x;
 
     const rotation = state.transform.rotation ?? 0;
     const flipX = state.transform.flipX ? -1 : 1;
@@ -337,7 +335,8 @@ export async function exportCanvas(
 
     const annotationGroup = new Konva.Group({
       x: -cropX * annScale,
-      y: -cropY * annScale,
+      y: -cropY * annotationScale.y,
+      scaleY: annotationScale.y / annScale,
     });
     transformGroup.add(annotationGroup);
     layer.add(transformGroup);

@@ -55,6 +55,7 @@ export function DrawOptionsPanel() {
       </PanelSection>
       <PanelSection>
         <SliderRow
+          presentation="popover"
           label={locale.brushSize}
           valueLabel={String(strokeWidth)}
           min={1}
@@ -93,6 +94,7 @@ export function DrawOptionsPanel() {
         }}
       />
       <SliderRow
+        presentation="popover"
         label={locale.opacity}
         valueLabel={`${Math.round(opacity * 100)}%`}
         min={0}

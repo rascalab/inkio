@@ -15,16 +15,8 @@ export function getTransformedDimensions(
   transform: Transform,
   outputSize: OutputSize | null,
 ): { width: number; height: number } {
-  let w = outputSize ? outputSize.width : originalWidth;
-  let h = outputSize ? outputSize.height : originalHeight;
-
-  if (transform.crop) {
-    // Guard zero originals (image not loaded yet): 0/0 would poison layout with NaN.
-    const scaleX = safeDiv(w, originalWidth, 1);
-    const scaleY = safeDiv(h, originalHeight, 1);
-    w = transform.crop.width * scaleX;
-    h = transform.crop.height * scaleY;
-  }
+  const w = outputSize?.width ?? transform.crop?.width ?? originalWidth;
+  const h = outputSize?.height ?? transform.crop?.height ?? originalHeight;
 
   if (isQuarterTurn(transform.rotation)) {
     return { width: h, height: w };
@@ -55,9 +47,8 @@ export function getBaseDisplayDimensions(
 }
 
 /**
- * Display pixels per image-space unit used to render annotations. Shared by
- * DesignLayer and the imperative live-stroke preview in EditorCanvas so both
- * draw at exactly the same scale.
+ * Per-axis display pixels per original-image unit. Shapes use the X scale
+ * locally; their shared parent supplies the remaining Y stretch.
  */
 export function getAnnotationScale(
   transform: Transform,
@@ -65,17 +56,16 @@ export function getAnnotationScale(
   originalHeight: number,
   displayWidth: number,
   displayHeight: number,
-): number {
+): { x: number; y: number } {
   const srcW = transform.crop?.width ?? originalWidth;
   const srcH = transform.crop?.height ?? originalHeight;
   const { width: baseDisplayWidth, height: baseDisplayHeight } = getBaseDisplayDimensions(
     displayWidth, displayHeight, transform.rotation ?? 0,
   );
-  const raw = Math.min(
-    srcW > 0 ? baseDisplayWidth / srcW : Number.POSITIVE_INFINITY,
-    srcH > 0 ? baseDisplayHeight / srcH : Number.POSITIVE_INFINITY,
-  );
-  return Number.isFinite(raw) && raw > 0 ? raw : 1;
+  return {
+    x: srcW > 0 && baseDisplayWidth > 0 ? baseDisplayWidth / srcW : 1,
+    y: srcH > 0 && baseDisplayHeight > 0 ? baseDisplayHeight / srcH : 1,
+  };
 }
 
 /** Map a point from canvas display space to original image space */
@@ -97,15 +87,11 @@ export function canvasSpaceToImageSpace(
   let ly = cy - displayHeight / 2;
 
   // 2. Inverse rotation
-  const rad = (-transform.rotation * Math.PI) / 180;
-  const cos = Math.cos(rad);
-  const sin = Math.sin(rad);
-  const rx = lx * cos - ly * sin;
-  const ry = lx * sin + ly * cos;
+  const rotated = rotateVector(lx, ly, -transform.rotation);
 
   // 3. Inverse flip
-  lx = rx * (transform.flipX ? -1 : 1);
-  ly = ry * (transform.flipY ? -1 : 1);
+  lx = rotated.x * (transform.flipX ? -1 : 1);
+  ly = rotated.y * (transform.flipY ? -1 : 1);
 
   // 4. Un-center (base display space)
   lx += baseW / 2;
@@ -147,16 +133,12 @@ export function imageSpaceToCanvasSpace(
   ly = ly * (transform.flipY ? -1 : 1);
 
   // 4. Forward rotation
-  const rad = (transform.rotation * Math.PI) / 180;
-  const cos = Math.cos(rad);
-  const sin = Math.sin(rad);
-  const rx = lx * cos - ly * sin;
-  const ry = lx * sin + ly * cos;
+  const rotated = rotateVector(lx, ly, transform.rotation);
 
   // 5. Un-center in stage space
   return {
-    x: rx + displayWidth / 2,
-    y: ry + displayHeight / 2,
+    x: rotated.x + displayWidth / 2,
+    y: rotated.y + displayHeight / 2,
   };
 }
 
@@ -188,27 +170,34 @@ export function transformPoint(
 
   if (inverse) {
     // Un-rotate then un-flip
-    const rad = (-rotation * Math.PI) / 180;
-    const cos = Math.cos(rad);
-    const sin = Math.sin(rad);
-    const rx = lx * cos - ly * sin;
-    const ry = lx * sin + ly * cos;
-    lx = rx * (flipX ? -1 : 1);
-    ly = ry * (flipY ? -1 : 1);
+    const rotated = rotateVector(lx, ly, -rotation);
+    lx = rotated.x * (flipX ? -1 : 1);
+    ly = rotated.y * (flipY ? -1 : 1);
   } else {
     // Flip then rotate
     lx = lx * (flipX ? -1 : 1);
     ly = ly * (flipY ? -1 : 1);
-    const rad = (rotation * Math.PI) / 180;
-    const cos = Math.cos(rad);
-    const sin = Math.sin(rad);
-    const rx = lx * cos - ly * sin;
-    const ry = lx * sin + ly * cos;
-    lx = rx;
-    ly = ry;
+    const rotated = rotateVector(lx, ly, rotation);
+    lx = rotated.x;
+    ly = rotated.y;
   }
 
   return { x: lx + (inverse ? cx : swappedCx), y: ly + (inverse ? cy : swappedCy) };
+}
+
+function rotateVector(x: number, y: number, rotation: number): { x: number; y: number } {
+  switch (((rotation % 360) + 360) % 360) {
+    case 0: return { x, y };
+    case 90: return { x: -y, y: x };
+    case 180: return { x: -x, y: -y };
+    case 270: return { x: y, y: -x };
+    default: {
+      const radians = rotation * Math.PI / 180;
+      const cos = Math.cos(radians);
+      const sin = Math.sin(radians);
+      return { x: x * cos - y * sin, y: x * sin + y * cos };
+    }
+  }
 }
 
 /**

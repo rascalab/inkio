@@ -16,6 +16,8 @@ interface AnnotationRendererProps {
   onSelect: (id: string) => void;
   onChange: (id: string, updates: Partial<Annotation>) => void;
   scale: number;
+  editingTextId?: string;
+  onEditText?: (id: string) => void;
 }
 
 export function AnnotationRenderer({
@@ -24,6 +26,8 @@ export function AnnotationRenderer({
   onSelect,
   onChange,
   scale,
+  editingTextId,
+  onEditText,
 }: AnnotationRendererProps) {
   const commonProps = { onSelect, onChange, scale };
 
@@ -37,7 +41,14 @@ export function AnnotationRenderer({
     case 'line':
       return <LineAnnotationShape annotation={annotation} {...commonProps} />;
     case 'text':
-      return <TextAnnotationShape annotation={annotation} {...commonProps} />;
+      return (
+        <TextAnnotationShape
+          annotation={annotation}
+          {...commonProps}
+          isEditing={editingTextId === annotation.id}
+          onEdit={onEditText}
+        />
+      );
     case 'freedraw':
       return <FreeDrawAnnotationShape annotation={annotation} {...commonProps} />;
     case 'redact':

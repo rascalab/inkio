@@ -130,6 +130,7 @@ function readDebugState(): ImageEditorDebugState {
 
 export function ImageEditorE2EHarness() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [locale, setLocale] = useState<'en' | 'ko'>('en');
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [savedImage, setSavedImage] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -210,6 +211,41 @@ export function ImageEditorE2EHarness() {
 
       <section className="demo-card image-editor-e2e-controls">
         <div className="image-editor-e2e-control-row">
+          <label style={{ minWidth: 0, maxWidth: '100%' }}>
+            Photo fixture
+            <input
+              type="file"
+              style={{ maxWidth: '100%' }}
+              accept="image/*"
+              data-testid="image-editor-e2e-photo-input"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                  if (typeof reader.result !== 'string') return;
+                  setImageSrc(reader.result);
+                  setSavedImage(null);
+                  setIsOpen(true);
+                };
+                reader.readAsDataURL(file);
+              }}
+            />
+          </label>
+          <label>
+            Language
+            <select
+              value={locale}
+              data-testid="image-editor-e2e-locale"
+              onChange={(event) => {
+                const value = event.target.value;
+                if (value === 'en' || value === 'ko') setLocale(value);
+              }}
+            >
+              <option value="en">English</option>
+              <option value="ko">Korean</option>
+            </select>
+          </label>
           <button
             type="button"
             className="image-editor-e2e-button"
@@ -306,6 +342,7 @@ export function ImageEditorE2EHarness() {
           }}
           onClose={() => setIsOpen(false)}
           theme={theme}
+          locale={locale}
         />
       )}
     </main>

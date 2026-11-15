@@ -130,6 +130,7 @@ describe('ImageEditorModal locale merging', () => {
     expect(confirmSpy).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByTestId('inkio-ie-discard-confirm')).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByTestId('inkio-ie-discard-confirm-cancel'));
 
     // Cancel keeps the editor open.
     fireEvent.click(screen.getByTestId('inkio-ie-discard-confirm-cancel'));

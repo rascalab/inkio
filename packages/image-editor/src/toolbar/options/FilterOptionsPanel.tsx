@@ -2,6 +2,7 @@ import { useImageEditor } from '../../hooks/use-image-editor';
 import type { FinetuneOptions } from '../../types';
 import { PanelPrimaryButton, PanelSection, SliderRow, ToolPanel } from '../control-groups';
 import { FilterThumbnails } from './FilterThumbnails';
+import { OptionPopover } from '../OptionPopover';
 
 function formatSigned(value: number): string {
   const rounded = Math.round(value * 100) / 100;
@@ -16,20 +17,12 @@ export function FilterOptionsPanel() {
   };
 
   return (
-    <ToolPanel
-      title={locale.filter}
-      actions={(
-        <PanelPrimaryButton
-          label={locale.resetFinetune}
-          testId="inkio-ie-finetune-reset"
-          onClick={() => dispatch({ type: 'RESET_FINETUNE' })}
-        />
-      )}
-    >
+    <ToolPanel title={locale.filter}>
       <PanelSection>
         <FilterThumbnails />
       </PanelSection>
       <PanelSection label={locale.finetune}>
+        <OptionPopover label={locale.finetune} testId="inkio-ie-finetune-trigger">
         <div className="inkio-ie-slider-grid">
           <SliderRow
             label={locale.brightness}
@@ -80,6 +73,12 @@ export function FilterOptionsPanel() {
             numberTestId="inkio-ie-finetune-clarity-number"
           />
         </div>
+        <PanelPrimaryButton
+          label={locale.resetFinetune}
+          testId="inkio-ie-finetune-reset"
+          onClick={() => dispatch({ type: 'RESET_FINETUNE' })}
+        />
+        </OptionPopover>
       </PanelSection>
     </ToolPanel>
   );

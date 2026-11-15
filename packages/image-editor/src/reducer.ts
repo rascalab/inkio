@@ -25,7 +25,7 @@ import {
 } from './constants';
 import { DEFAULT_FINETUNE } from './utils/filters';
 import { getDefaultCropRect } from './utils/crop';
-import { getTransformedDimensions } from './utils/geometry';
+import { getBaseDisplayDimensions, getTransformedDimensions, isQuarterTurn } from './utils/geometry';
 
 export type ImageEditorAction =
   | { type: 'SET_IMAGE'; image: HTMLImageElement; width: number; height: number }
@@ -38,13 +38,13 @@ export type ImageEditorAction =
   | { type: 'SET_SHAPE_OPTIONS'; options: Partial<ShapeOptions> }
   | { type: 'SET_TEXT_OPTIONS'; options: Partial<TextOptions> }
   | { type: 'SET_CROP_OPTIONS'; options: Partial<CropOptionsState> }
-  | { type: 'SET_RESIZE_OPTIONS'; options: Partial<ResizeOptionsState> }
+  | { type: 'SET_RESIZE_OPTIONS'; options: Partial<ResizeOptionsState>; apply?: boolean }
   | { type: 'SET_FILTER'; filter: FilterPresetId }
   | { type: 'SET_FINETUNE'; finetune: Partial<FinetuneOptions> }
   | { type: 'RESET_FINETUNE' }
   | { type: 'SET_REDACT_OPTIONS'; options: Partial<RedactOptions> }
   | { type: 'SET_STICKER_OPTIONS'; options: Partial<StickerOptions> }
-  | { type: 'ADD_ANNOTATION'; annotation: Annotation }
+  | { type: 'ADD_ANNOTATION'; annotation: Annotation; preview?: boolean; select?: boolean }
   | { type: 'UPDATE_ANNOTATION'; id: string; updates: Partial<Annotation> }
   | { type: 'UPDATE_ANNOTATION_COMMIT'; id: string; updates: Partial<Annotation> }
   | { type: 'APPEND_ANNOTATION_POINTS'; id: string; points: number[] }
@@ -139,8 +139,12 @@ export function imageEditorReducer(
     case 'START_RESIZE_SESSION': {
       const appliedCrop = state.transform.crop;
       const appliedSize = getAppliedResizeSize(state);
+      const ratio = state.cropOptions.aspectRatio;
       const seededCrop = appliedCrop
-        ?? getDefaultCropRect(appliedSize.width, appliedSize.height, state.cropOptions.aspectRatio);
+        ?? getDefaultCropRect(
+          state.originalWidth, state.originalHeight,
+          ratio && isQuarterTurn(state.transform.rotation) ? 1 / ratio : ratio,
+        );
 
       return {
         ...state,
@@ -154,15 +158,7 @@ export function imageEditorReducer(
     }
 
     case 'COMMIT_RESIZE_SESSION':
-      return {
-        ...state,
-        transform: { ...state.transform, crop: state.pendingCrop },
-        outputSize: {
-          width: state.resizeOptions.width,
-          height: state.resizeOptions.height,
-        },
-        pendingCrop: null,
-      };
+      return commitResizeSession(state);
 
     case 'DISCARD_RESIZE_SESSION': {
       const appliedSize = getAppliedResizeSize(state);
@@ -190,8 +186,8 @@ export function imageEditorReducer(
         null,
       );
       const resetCrop = getDefaultCropRect(
-        resetSize.width,
-        resetSize.height,
+        state.originalWidth,
+        state.originalHeight,
         resetCropOptions.aspectRatio,
       );
 
@@ -221,8 +217,10 @@ export function imageEditorReducer(
     case 'SET_CROP_OPTIONS':
       return { ...state, cropOptions: { ...state.cropOptions, ...action.options } };
 
-    case 'SET_RESIZE_OPTIONS':
-      return { ...state, resizeOptions: { ...state.resizeOptions, ...action.options } };
+    case 'SET_RESIZE_OPTIONS': {
+      const next = { ...state, resizeOptions: { ...state.resizeOptions, ...action.options } };
+      return action.apply ? commitResizeSession(next) : next;
+    }
 
     case 'SET_FILTER':
       return { ...state, filter: action.filter };
@@ -240,7 +238,11 @@ export function imageEditorReducer(
       return { ...state, stickerOptions: { ...state.stickerOptions, ...action.options } };
 
     case 'ADD_ANNOTATION':
-      return { ...state, annotations: [...state.annotations, action.annotation] };
+      return {
+        ...state,
+        annotations: [...state.annotations, action.annotation],
+        selectedAnnotationId: action.select ? action.annotation.id : state.selectedAnnotationId,
+      };
 
     case 'UPDATE_ANNOTATION':
     case 'UPDATE_ANNOTATION_COMMIT': {
@@ -309,7 +311,15 @@ export function imageEditorReducer(
         }
       }
       if (state.pendingCrop && keys.every((key) => state.pendingCrop?.[key] === crop[key])) return state;
-      return { ...state, pendingCrop: crop };
+      const source = state.transform.crop ?? { width: state.originalWidth, height: state.originalHeight };
+      const width = Math.max(1, Math.round(crop.width * (state.outputSize ? state.outputSize.width / source.width : 1)));
+      const height = Math.max(1, Math.round(crop.height * (state.outputSize ? state.outputSize.height / source.height : 1)));
+      const size = getBaseDisplayDimensions(width, height, state.transform.rotation);
+      return {
+        ...state,
+        pendingCrop: crop,
+        resizeOptions: { ...state.resizeOptions, ...size },
+      };
     }
 
     case 'ROTATE_CW':
@@ -407,6 +417,8 @@ export interface UndoableEditorState {
   present: ImageEditorState;
   past: ImageEditorState[];
   future: ImageEditorState[];
+  /** Scene before the current annotation or dimension-edit gesture. */
+  previewState?: ImageEditorState;
 }
 
 export type UndoableAction =
@@ -430,41 +442,78 @@ export function undoableReducer(
   const cap = Number.isFinite(maxUndoSteps)
     ? Math.max(1, Math.min(Math.floor(maxUndoSteps), 100))
     : 30;
+  const { previewState, ...committedState } = state;
+  const isPreview = action.type === 'UPDATE_ANNOTATION'
+    || (action.type === 'SET_RESIZE_OPTIONS' && action.apply);
+  if (
+    previewState && action.type === 'DELETE_ANNOTATION'
+    && !previewState.annotations.some((annotation) => annotation.id === action.id)
+  ) {
+    return { present: previewState, past: state.past, future: state.future };
+  }
+  const committed = previewState && !isPreview
+    ? { ...committedState, past: [...state.past, previewState].slice(-cap) }
+    : state;
   if (action.type === 'UNDO') {
-    if (state.past.length === 0) return state;
-    const previous = state.past[state.past.length - 1];
+    if (committed.past.length === 0) return committed;
+    const previous = committed.past[committed.past.length - 1];
     return {
       present: previous,
-      past: state.past.slice(0, -1),
-      future: [state.present, ...state.future],
+      past: committed.past.slice(0, -1),
+      future: [committed.present, ...committed.future],
     };
   }
 
   if (action.type === 'REDO') {
-    if (state.future.length === 0) return state;
-    const next = state.future[0];
+    if (committed.future.length === 0) return committed;
+    const next = committed.future[0];
     return {
       present: next,
-      past: [...state.past, state.present].slice(-cap),
-      future: state.future.slice(1),
+      past: [...committed.past, committed.present].slice(-cap),
+      future: committed.future.slice(1),
     };
   }
 
-  const nextPresent = imageEditorReducer(state.present, action);
+  const nextPresent = imageEditorReducer(committed.present, action);
+
+  if (action.type === 'ADD_ANNOTATION' && action.preview) {
+    return {
+      ...committed,
+      present: nextPresent,
+      previewState: committed.present,
+      future: [],
+    };
+  }
+
+  if (isPreview) {
+    if (nextPresent === state.present) return state;
+    return {
+      ...state,
+      present: nextPresent,
+      previewState: previewState ?? state.present,
+      future: [],
+    };
+  }
+
+  if ((action.type === 'UPDATE_ANNOTATION_COMMIT' || action.type === 'COMMIT_RESIZE_SESSION') && previewState) {
+    // The final event often repeats the preview's value. Its checkpoint is
+    // the scene before the gesture, not the already-previewed scene.
+    return { ...committed, present: nextPresent, future: [] };
+  }
 
   if (action.type === 'SET_FINETUNE' || action.type === 'RESET_FINETUNE') {
-    if (nextPresent === state.present) return state;
+    if (nextPresent === committed.present) return committed;
     // Coalesce a finetune episode into one undo step: slider drags fire
     // per tick, and pushing each would both spam history and evict older
     // meaningful entries. When the only difference to the last checkpoint
     // is finetune values, keep the earlier checkpoint.
-    const lastCheckpoint = state.past[state.past.length - 1];
-    if (lastCheckpoint && statesDifferOnlyInFinetune(lastCheckpoint, state.present)) {
-      return { present: nextPresent, past: state.past, future: [] };
+    const lastCheckpoint = committed.past[committed.past.length - 1];
+    if (lastCheckpoint && statesDifferOnlyInFinetune(lastCheckpoint, committed.present)) {
+      return { present: nextPresent, past: committed.past, future: [] };
     }
     return {
       present: nextPresent,
-      past: [...state.past, state.present].slice(-cap),
+      past: [...committed.past, committed.present].slice(-cap),
       future: [],
     };
   }
@@ -473,15 +522,15 @@ export function undoableReducer(
     // Skip no-op undoable actions (e.g. BRING_FORWARD on the top item
     // returns the identical state): pushing them wastes a history slot
     // and breaks redo expectations.
-    if (nextPresent === state.present) return state;
+    if (nextPresent === committed.present) return committed;
     return {
       present: nextPresent,
-      past: [...state.past, state.present].slice(-cap),
+      past: [...committed.past, committed.present].slice(-cap),
       future: [],
     };
   }
 
-  return nextPresent === state.present ? state : { ...state, present: nextPresent };
+  return nextPresent === committed.present ? committed : { ...committed, present: nextPresent };
 }
 
 /** True when two states differ only in finetune values (same scene). */
@@ -512,10 +561,24 @@ function moveAnnotation(
 }
 
 function getAppliedResizeSize(state: ImageEditorState): OutputSize {
-  return getTransformedDimensions(
+  const size = getTransformedDimensions(
     state.originalWidth,
     state.originalHeight,
     state.transform,
     state.outputSize,
   );
+  return { width: Math.round(size.width), height: Math.round(size.height) };
+}
+
+/** Project the same crop and final integer dimensions for preview and saving. */
+export function commitResizeSession(state: ImageEditorState): ImageEditorState {
+  const width = Math.max(1, Math.round(state.resizeOptions.width));
+  const height = Math.max(1, Math.round(state.resizeOptions.height));
+  return {
+    ...state,
+    transform: { ...state.transform, crop: state.pendingCrop ?? state.transform.crop },
+    outputSize: getBaseDisplayDimensions(width, height, state.transform.rotation),
+    resizeOptions: { ...state.resizeOptions, width, height },
+    pendingCrop: null,
+  };
 }

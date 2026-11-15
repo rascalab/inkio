@@ -31,11 +31,13 @@ export function MobileToolTray({
             type="button"
             className={`inkio-ie-mobile-tool-btn${activeTool === tool ? ' is-active' : ''}`}
             aria-label={label}
+            aria-pressed={activeTool === tool}
             title={label}
             data-testid={`inkio-ie-tool-${tool}`}
             onClick={() => onToolChange(tool)}
           >
             <Icon size={18} />
+            <span className="inkio-ie-toolbar-btn-label">{label}</span>
           </button>
         );
       })}

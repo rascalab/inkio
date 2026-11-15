@@ -48,7 +48,22 @@ export function EditorToolbar({
   onToolChange,
 }: EditorToolbarProps) {
   return (
-    <div className="inkio-ie-toolbar">
+    <div
+      className="inkio-ie-toolbar"
+      role="toolbar"
+      aria-label={locale.toolsLabel ?? 'Image editor tools'}
+      aria-orientation="vertical"
+      onKeyDown={(event) => {
+        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+        const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+        const current = buttons.findIndex((button) => button === document.activeElement);
+        const next = event.key === 'Home' ? 0
+          : event.key === 'End' ? buttons.length - 1
+            : (current + (event.key === 'ArrowDown' ? 1 : buttons.length - 1)) % buttons.length;
+        event.preventDefault();
+        buttons[next]?.focus();
+      }}
+    >
       <div
         className="inkio-ie-toolbar-group inkio-ie-toolbar-group--tools"
         data-testid="inkio-ie-toolbar-tools"

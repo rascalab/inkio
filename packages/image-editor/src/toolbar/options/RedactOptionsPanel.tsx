@@ -57,6 +57,7 @@ export function RedactOptionsPanel() {
       </PanelSection>
       <PanelSection label={locale.strength}>
         <SliderRow
+          presentation="popover"
           label={locale.strength}
           valueLabel={String(Math.round(strength))}
           min={2}

@@ -1,5 +1,4 @@
 
-import { useEffect, useState } from 'react';
 import { useImageEditor } from '../../hooks/use-image-editor';
 import { COLOR_PRESETS } from '../../color-presets';
 import type { TextAnnotationData } from '../../types';
@@ -31,7 +30,6 @@ export function TextOptionsPanel() {
   const { textOptions } = state;
   const selectedAnnotation = getSelectedAnnotation(state.annotations, state.selectedAnnotationId);
   const selectedText = isTextAnnotation(selectedAnnotation) ? selectedAnnotation : null;
-  const [textDraft, setTextDraft] = useState(selectedText?.text ?? '');
 
   const fontStyle = selectedText?.fontStyle ?? textOptions.fontStyle;
   const fontSize = selectedText?.fontSize ?? textOptions.fontSize;
@@ -39,10 +37,6 @@ export function TextOptionsPanel() {
   const color = selectedText?.fill ?? textOptions.color;
   const isBold = fontStyle.includes('bold');
   const isItalic = fontStyle.includes('italic');
-
-  useEffect(() => {
-    setTextDraft(selectedText?.text ?? '');
-  }, [selectedText?.id, selectedText?.text]);
 
   const updateSelectedPreview = (updates: Partial<TextAnnotationData>) => {
     if (!selectedText) {
@@ -82,47 +76,8 @@ export function TextOptionsPanel() {
     dispatch({ type: 'SET_TEXT_OPTIONS', options: { fontStyle: style } });
   };
 
-  const previewTextContent = (text: string) => {
-    if (!selectedText) {
-      return;
-    }
-
-    dispatch({
-      type: 'UPDATE_ANNOTATION',
-      id: selectedText.id,
-      updates: { text },
-    });
-  };
-
-  const commitTextContent = (text: string) => {
-    if (!selectedText) {
-      return;
-    }
-
-    updateSelectedCommit({ text });
-  };
-
   return (
     <ToolPanel title={selectedText ? locale.selectedText : locale.textDefaults}>
-      {selectedText && (
-        <PanelSection label={locale.textContent}>
-          <textarea
-            data-testid="inkio-ie-text-content-input"
-            className="inkio-ie-textarea"
-            rows={3}
-            value={textDraft}
-            onChange={(event) => {
-              const nextText = event.target.value;
-              setTextDraft(nextText);
-              previewTextContent(nextText);
-            }}
-            onBlur={(event) => {
-              commitTextContent(event.target.value);
-            }}
-          />
-        </PanelSection>
-      )}
-
       <PanelSection label={locale.color}>
         <ColorField
           label={locale.color}
@@ -162,6 +117,7 @@ export function TextOptionsPanel() {
         <div className="inkio-ie-font-row">
           <div className="inkio-ie-font-size">
             <SliderRow
+              presentation="popover"
               label={locale.fontSize}
               valueLabel={`${fontSize}px`}
               min={8}

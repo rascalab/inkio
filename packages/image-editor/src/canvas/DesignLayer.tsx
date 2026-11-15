@@ -16,6 +16,8 @@ interface DesignLayerProps {
   displayHeight: number;
   onSelectAnnotation: (id: string) => void;
   onChangeAnnotation: (id: string, updates: Partial<Annotation>) => void;
+  editingTextId?: string;
+  onEditText?: (id: string) => void;
 }
 
 const MemoizedAnnotationRenderer = memo(AnnotationRenderer);
@@ -30,6 +32,8 @@ function DesignLayerInner({
   displayHeight,
   onSelectAnnotation,
   onChangeAnnotation,
+  editingTextId,
+  onEditText,
 }: DesignLayerProps) {
   const cropX = transform.crop?.x ?? 0;
   const cropY = transform.crop?.y ?? 0;
@@ -37,13 +41,14 @@ function DesignLayerInner({
   const { width: baseDisplayWidth, height: baseDisplayHeight } = getBaseDisplayDimensions(
     displayWidth, displayHeight, rotation,
   );
-  const annScale = getAnnotationScale(
+  const annotationScale = getAnnotationScale(
     transform,
     state.originalWidth,
     state.originalHeight,
     displayWidth,
     displayHeight,
   );
+  const annScale = annotationScale.x;
 
   const flipX = transform.flipX ? -1 : 1;
   const flipY = transform.flipY ? -1 : 1;
@@ -66,6 +71,7 @@ function DesignLayerInner({
       }
       const bounds = getAnnotationDisplayBounds(ann, {
         annotationScale: annScale,
+        annotationScaleY: annotationScale.y,
         cropX,
         cropY,
         displayWidth,
@@ -90,6 +96,7 @@ function DesignLayerInner({
     transform.flipX,
     transform.flipY,
     annScale,
+    annotationScale.y,
     cropX,
     cropY,
     displayWidth,
@@ -120,7 +127,8 @@ function DesignLayerInner({
       >
         <Group
           x={-cropX * annScale}
-          y={-cropY * annScale}
+          y={-cropY * annotationScale.y}
+          scaleY={annotationScale.y / annScale}
         >
           {state.annotations.map((ann) => (
             <Group key={ann.id} visible={visibility.get(ann.id) !== false}>
@@ -130,6 +138,8 @@ function DesignLayerInner({
                 onSelect={onSelectAnnotation}
                 onChange={onChangeAnnotation}
                 scale={annScale}
+                editingTextId={editingTextId}
+                onEditText={onEditText}
               />
             </Group>
           ))}

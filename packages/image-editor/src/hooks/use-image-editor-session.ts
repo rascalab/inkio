@@ -9,6 +9,7 @@ import { loadImage } from '../utils/image-loader';
 import { isResizeTool, normalizeTool } from '../utils/tooling';
 import { areVisualRefsEqual, getVisualRefs, nextVisualVersion, type VisualRefs } from '../utils/visual-state';
 import { getTransformedDimensions } from '../utils/geometry';
+import { commitResizeSession } from '../reducer';
 
 interface UseImageEditorSessionOptions {
   src: string;
@@ -100,12 +101,8 @@ export function useImageEditorSession({
       return;
     }
 
-    if (state.pendingCrop !== null) {
-      return;
-    }
-
     dispatch({ type: 'START_RESIZE_SESSION' });
-  }, [dispatch, state.activeTool, state.originalHeight, state.originalWidth, state.pendingCrop]);
+  }, [dispatch, state.activeTool, state.originalHeight, state.originalWidth]);
 
   useEffect(() => {
     if (!state.originalImage) {
@@ -164,6 +161,9 @@ export function useImageEditorSession({
       const currentTool = normalizeTool(state.activeTool);
 
       if (currentTool === nextTool) {
+        if (isResizeTool(state.activeTool) && state.pendingCrop === null) {
+          dispatch({ type: 'START_RESIZE_SESSION' });
+        }
         return; // No-op: don't toggle off the active tool
       }
 
@@ -174,7 +174,7 @@ export function useImageEditorSession({
       dispatch({ type: 'SELECT_ANNOTATION', id: null });
       dispatch({ type: 'SET_TOOL', tool: nextTool });
     },
-    [dispatch, state.activeTool],
+    [dispatch, state.activeTool, state.pendingCrop],
   );
 
   const handleSave = useCallback(async () => {
@@ -188,7 +188,7 @@ export function useImageEditorSession({
     try {
       const isResizeSessionActive = isResizeTool(state.activeTool);
       const exportState = isResizeSessionActive
-        ? buildResizeSessionExportState(state)
+        ? commitResizeSession(state)
         : state.pendingCrop
           ? {
               ...state,
@@ -237,20 +237,5 @@ export function useImageEditorSession({
     controls,
     handleToolChange,
     handleSave,
-  };
-}
-
-function buildResizeSessionExportState(state: ImageEditorState): ImageEditorState {
-  return {
-    ...state,
-    transform: {
-      ...state.transform,
-      crop: state.pendingCrop ?? state.transform.crop,
-    },
-    outputSize: {
-      width: state.resizeOptions.width,
-      height: state.resizeOptions.height,
-    },
-    pendingCrop: null,
   };
 }

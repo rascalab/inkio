@@ -262,15 +262,19 @@ describe('useImageEditorSession', () => {
       fireEvent.click(screen.getByTestId('open-resize'));
       await waitFor(() => { expect(screen.getByTestId('has-crop-draft').textContent).toBe('true'); });
       fireEvent.click(screen.getByTestId('crop-draft'));
+      const draftSize = screen.getByTestId('resize-draft-size').textContent;
+      expect(draftSize).toBe('320x240');
 
       await act(async () => { fireEvent.click(screen.getByTestId('save')); });
 
-      expect(screen.getByTestId('resize-draft-size').textContent).toBe('640x480');
+      expect(screen.getByTestId('resize-draft-size').textContent).toBe(draftSize);
+      expect(screen.getByTestId('has-crop-draft').textContent).toBe('true');
       expect(screen.getByTestId('has-save-error').textContent).toBe('true');
       expect(screen.getByTestId('is-dirty').textContent).toBe('true');
       await act(async () => { fireEvent.click(screen.getByTestId('save')); });
       expect(onSave).toHaveBeenCalledTimes(2);
       expect(screen.getByTestId('is-dirty').textContent).toBe('false');
+      expect(screen.getByTestId('has-crop-draft').textContent).toBe('false');
     } finally {
       consoleError.mockRestore();
     }

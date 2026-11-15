@@ -113,6 +113,7 @@ export function ShapeOptionsPanel() {
           }}
         />
         <SliderRow
+          presentation="popover"
           label={locale.strokeWidth}
           valueLabel={String(strokeWidth)}
           min={1}

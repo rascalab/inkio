@@ -1,4 +1,4 @@
-import { useRef, useCallback, useLayoutEffect, useState } from 'react';
+import { useRef, useCallback } from 'react';
 import { Group, Rect, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { TextAnnotationData, Annotation } from '../types';
@@ -19,6 +19,8 @@ interface Props {
   onSelect: (id: string) => void;
   onChange: (id: string, updates: Partial<Annotation>) => void;
   scale: number;
+  isEditing?: boolean;
+  onEdit?: (id: string) => void;
 }
 
 export function TextAnnotationShape({
@@ -26,9 +28,10 @@ export function TextAnnotationShape({
   onSelect,
   onChange,
   scale,
+  isEditing = false,
+  onEdit,
 }: Props) {
   const groupRef = useRef<Konva.Group>(null);
-  const textRef = useRef<Konva.Text>(null);
 
   const scaledX = annotation.x * scale;
   const scaledY = annotation.y * scale;
@@ -38,28 +41,6 @@ export function TextAnnotationShape({
   const handleClick = useCallback(() => {
     onSelect(annotation.id);
   }, [annotation.id, onSelect]);
-
-  // Measure the painted text after commit so the hit region matches what
-  // Konva actually draws; reading the ref during render freezes the first
-  // (null) measurement forever. Re-measures whenever the text inputs change.
-  const [measuredHeight, setMeasuredHeight] = useState<number | null>(null);
-  useLayoutEffect(() => {
-    const node = textRef.current;
-    if (!node) {
-      setMeasuredHeight(null);
-      return;
-    }
-    const height = node.height();
-    setMeasuredHeight((prev) => (prev === height ? prev : height));
-  }, [
-    annotation.text,
-    annotation.fontSize,
-    annotation.fontFamily,
-    annotation.fontStyle,
-    scaledWidth,
-    scaledFontSize,
-  ]);
-  const textHeight = Math.max(scaledHeight, measuredHeight ?? scaledFontSize * 1.4 + 4);
 
   // Placeholder ghost: derive translucency through the color pipeline so
   // non-hex fills (named colors, transparent, short hex) stay valid.
@@ -77,43 +58,55 @@ export function TextAnnotationShape({
       x={scaledX}
       y={scaledY}
       rotation={annotation.rotation}
-      draggable
+      draggable={!isEditing}
       onMouseEnter={handleCursorPointer}
       onMouseLeave={handleCursorDefault}
       onClick={handleClick}
       onTap={handleClick}
+      onDblClick={() => onEdit?.(annotation.id)}
+      onDblTap={() => onEdit?.(annotation.id)}
       onDragEnd={(e) => {
         onChange(annotation.id, {
           x: e.target.x() / scale,
           y: e.target.y() / scale,
         });
       }}
+      onTransform={() => {
+        const group = groupRef.current;
+        if (!group) return;
+        const text = group.findOne<Konva.Text>('Text');
+        if (!text) return;
+        const size = {
+          width: Math.max(TEXT_MIN_WIDTH * scale, text.width() * group.scaleX()),
+          height: Math.max(TEXT_MIN_HEIGHT * scale, text.height() * group.scaleY()),
+        };
+        text.setAttrs(size);
+        group.findOne<Konva.Rect>('Rect')?.setAttrs(size);
+        group.scale({ x: 1, y: 1 });
+        group.getStage()?.findOne<Konva.Transformer>('Transformer')?.forceUpdate();
+      }}
       onTransformEnd={() => {
         const group = groupRef.current;
         if (!group) return;
-
-        const nextWidth = Math.max(TEXT_MIN_WIDTH, (scaledWidth * group.scaleX()) / scale);
-        const nextHeight = Math.max(TEXT_MIN_HEIGHT, (scaledHeight * group.scaleY()) / scale);
-
+        const text = group.findOne<Konva.Text>('Text');
+        if (!text) return;
         onChange(annotation.id, {
           x: group.x() / scale,
           y: group.y() / scale,
           rotation: group.rotation(),
-          width: nextWidth,
-          height: nextHeight,
+          width: text.width() / scale,
+          height: text.height() / scale,
         });
-        group.scaleX(1);
-        group.scaleY(1);
       }}
     >
       {/* Invisible hit region so clicks are caught by the Group */}
       <Rect
         width={scaledWidth}
-        height={textHeight}
+        height={scaledHeight}
         fill="transparent"
       />
       <Text
-        ref={textRef}
+        visible={!isEditing}
         text={annotation.text || 'Text'}
         fontSize={scaledFontSize}
         fontFamily={annotation.fontFamily || TEXT_DEFAULT_FONT_FAMILY}

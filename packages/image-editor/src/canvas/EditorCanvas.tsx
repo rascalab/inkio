@@ -14,6 +14,7 @@ import { DesignLayer } from './DesignLayer';
 import { TransformersLayer } from './TransformersLayer';
 import { CropOverlay } from './CropOverlay';
 import { SelectionActionsOverlay } from './SelectionActionsOverlay';
+import { CanvasTextEditor } from './CanvasTextEditor';
 import type {
   Annotation,
   CropRect,
@@ -33,8 +34,8 @@ import {
   getTransformedDimensions,
   canvasSpaceToImageSpace,
   clampToRect,
+  transformRect,
 } from '../utils/geometry';
-import { getDefaultCropRect } from '../utils/crop';
 import { isTransformerInteraction } from '../utils/konva-targets';
 import { TEXT_MIN_WIDTH } from '../utils/text-metrics';
 import { clampNumber } from '../utils/math';
@@ -68,7 +69,7 @@ export function EditorCanvas({
   previewZoom,
   onPreviewZoomChange,
 }: EditorCanvasProps) {
-  const { state, dispatch } = useImageEditor();
+  const { state, dispatch, locale } = useImageEditor();
   const stageRef = useRef<Konva.Stage>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
 
@@ -92,12 +93,13 @@ export function EditorCanvas({
     panX: number;
     panY: number;
   } | null>(null);
-  const cropPendingSignatureRef = useRef<string | null>(null);
   const annotationsRef = useRef(state.annotations);
   annotationsRef.current = state.annotations;
 
   const [stageSize, setStageSize] = useState({ width: containerWidth, height: containerHeight });
   const [cropViewport, setCropViewport] = useState<CropViewportState>({ zoom: 1, panX: 0, panY: 0 });
+  const [cropViewportProjection, setCropViewportProjection] = useState<string | null>(null);
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
 
   // Drop pending drawing batches on unmount so the rAF callback never
   // dispatches into a torn-down editor session.
@@ -115,7 +117,8 @@ export function EditorCanvas({
     };
   }, []);
 
-  const isCropMode = state.activeTool === 'resize' || state.activeTool === 'crop';
+  const isCropMode = (state.activeTool === 'resize' || state.activeTool === 'crop')
+    && state.pendingCrop !== null;
   const renderedTransform = useMemo(
     () => (isCropMode ? { ...state.transform, crop: null } : state.transform),
     [isCropMode, state.transform],
@@ -128,42 +131,27 @@ export function EditorCanvas({
     state.outputSize,
   );
 
-  // Session bounds always span the full original: constraining them to a
-  // previous crop would lock re-edits inside it (no zoom-out past the old
-  // crop, no expansion). The pending selection still seeds from the applied
-  // crop below, so re-entry starts on the current selection with the whole
-  // image reachable.
+  // Crop gestures use the rotated full-image viewport. Persisted crop
+  // rectangles remain in original-image coordinates in both directions.
   const cropSessionBounds = useMemo(
-    () =>
-      state.transform.crop
-        ? {
-          x: 0,
-          y: 0,
-          width: state.originalWidth,
-          height: state.originalHeight,
-        }
-        : {
-          x: 0,
-          y: 0,
-          width: workingDimensions.width,
-          height: workingDimensions.height,
-        },
-    [
-      state.transform.crop,
-      state.originalWidth,
-      state.originalHeight,
-      workingDimensions.height,
-      workingDimensions.width,
-    ],
+    () => ({
+      x: 0, y: 0,
+      ...getTransformedDimensions(
+        state.originalWidth, state.originalHeight, { ...state.transform, crop: null }, null,
+      ),
+    }),
+    [state.originalWidth, state.originalHeight, state.transform],
   );
-
-  const cropAspectRatio =
-    state.cropOptions.aspectRatio
-    ?? (state.pendingCrop && state.pendingCrop.height > 0
-      ? state.pendingCrop.width / state.pendingCrop.height
-      : cropSessionBounds.width > 0 && cropSessionBounds.height > 0
-        ? cropSessionBounds.width / cropSessionBounds.height
-        : 1);
+  const sourceCrop = state.pendingCrop ?? state.transform.crop ?? {
+    x: 0, y: 0, width: state.originalWidth, height: state.originalHeight,
+  };
+  const targetCrop = transformRect(
+    sourceCrop, state.originalWidth, state.originalHeight,
+    state.transform.rotation, state.transform.flipX, state.transform.flipY,
+  );
+  const targetCropSignature = serializeCrop(sourceCrop);
+  const cropAspectRatio = state.cropOptions.aspectRatio
+    ?? (targetCrop.height > 0 ? targetCrop.width / targetCrop.height : 1);
 
   const cropFitScale =
     cropSessionBounds.width > 0 && cropSessionBounds.height > 0
@@ -197,6 +185,31 @@ export function EditorCanvas({
     )
     : 1;
 
+  const projection = cropFrame
+    ? [
+      stageSize.width,
+      stageSize.height,
+      cropFitScale,
+      cropMinZoom,
+      serializeCrop(cropSessionBounds),
+      serializeCrop(cropFrame),
+      serializeCrop(targetCrop),
+    ].join('|')
+    : null;
+
+  // A crop is stored in image coordinates. Reproject it before committing a
+  // render with new layout geometry, so the old viewport cannot overwrite it.
+  if (projection !== cropViewportProjection) {
+    setCropViewportProjection(projection);
+    if (cropFrame) {
+      const next = buildCropViewportFromCrop(
+        cropSessionBounds, targetCrop, cropFrame,
+        stageSize.width, stageSize.height, cropFitScale, cropMinZoom,
+      );
+      setCropViewport(next);
+    }
+  }
+
   const resolvedCropViewport = cropFrame
     ? clampCropViewport(cropViewport, cropFrame, cropSessionBounds, stageSize.width, stageSize.height, cropFitScale, cropMinZoom)
     : cropViewport;
@@ -220,15 +233,17 @@ export function EditorCanvas({
 
   // Same scale DesignLayer renders annotations with (used by the live
   // freedraw preview, which bypasses React while a stroke is in progress).
-  const liveAnnotationScale = getAnnotationScale(
+  const annotationScale = getAnnotationScale(
     renderedTransform,
     state.originalWidth,
     state.originalHeight,
     displayWidth,
     displayHeight,
   );
-  const cropX = isCropMode ? cropSessionBounds.x : (state.transform.crop?.x ?? 0);
-  const cropY = isCropMode ? cropSessionBounds.y : (state.transform.crop?.y ?? 0);
+  const liveAnnotationScale = annotationScale.x;
+  const editingAnnotation = state.annotations.find((annotation) => annotation.id === editingTextId);
+  const editingText = !isCropMode && editingAnnotation?.type === 'text'
+    && state.selectedAnnotationId === editingTextId ? editingAnnotation : null;
   const visibleSelectedAnnotationId = isCropMode ? null : state.selectedAnnotationId;
 
   useEffect(() => {
@@ -236,54 +251,6 @@ export function EditorCanvas({
       setStageSize({ width: containerWidth, height: containerHeight });
     }
   }, [containerHeight, containerWidth]);
-
-  useEffect(() => {
-    if (!isCropMode || !cropFrame || cropSessionBounds.width <= 0 || cropSessionBounds.height <= 0) {
-      return;
-    }
-
-    const targetCrop = state.pendingCrop
-      ?? state.transform.crop
-      ?? getDefaultCropRect(
-        cropSessionBounds.width,
-        cropSessionBounds.height,
-        state.cropOptions.aspectRatio,
-      );
-    const targetSignature = serializeCrop(targetCrop);
-    if (cropPendingSignatureRef.current === targetSignature) {
-      return;
-    }
-
-    cropPendingSignatureRef.current = targetSignature;
-
-    setCropViewport((previous) => {
-      const nextViewport = buildCropViewportFromCrop(
-        cropSessionBounds,
-        targetCrop,
-        cropFrame,
-        stageSize.width,
-        stageSize.height,
-        cropFitScale,
-        cropMinZoom,
-      );
-
-      return areCropViewportsEqual(previous, nextViewport) ? previous : nextViewport;
-    });
-  }, [
-    cropFitScale,
-    cropFrame,
-    cropMinZoom,
-    cropSessionBounds.height,
-    cropSessionBounds.width,
-    cropSessionBounds.x,
-    cropSessionBounds.y,
-    isCropMode,
-    stageSize.height,
-    stageSize.width,
-    state.cropOptions.aspectRatio,
-    state.pendingCrop,
-    state.transform.crop,
-  ]);
 
   const updateCropViewport = useCallback((recipe: (previous: CropViewportState) => CropViewportState) => {
     setCropViewport((previous) => {
@@ -317,7 +284,7 @@ export function EditorCanvas({
       return;
     }
 
-    const nextCrop = getCropRectFromViewport(
+    const viewportCrop = getCropRectFromViewport(
       cropSessionBounds,
       cropFrame,
       stageSize.width,
@@ -325,12 +292,15 @@ export function EditorCanvas({
       cropFitScale,
       resolvedCropViewport,
     );
+    const nextCrop = transformRect(
+      viewportCrop, state.originalWidth, state.originalHeight,
+      state.transform.rotation, state.transform.flipX, state.transform.flipY, true,
+    );
     const nextSignature = serializeCrop(nextCrop);
-    if (cropPendingSignatureRef.current === nextSignature) {
+    if (targetCropSignature === nextSignature) {
       return;
     }
 
-    cropPendingSignatureRef.current = nextSignature;
     dispatch({ type: 'SET_PENDING_CROP', crop: nextCrop });
   }, [
     cropFitScale,
@@ -346,6 +316,7 @@ export function EditorCanvas({
     state.transform.flipY,
     stageSize.height,
     stageSize.width,
+    targetCropSignature,
   ]);
 
   const zoomCropViewportAt = useCallback((factor: number, anchorX: number, anchorY: number) => {
@@ -537,9 +508,8 @@ export function EditorCanvas({
         width,
         height,
       };
-      dispatch({ type: 'ADD_ANNOTATION', annotation });
-      dispatch({ type: 'SELECT_ANNOTATION', id });
-      dispatch({ type: 'SET_TOOL', tool: 'text', preserveSelection: true });
+      dispatch({ type: 'ADD_ANNOTATION', annotation, preview: true, select: true });
+      setEditingTextId(id);
 
       resetDrawing();
       return;
@@ -552,8 +522,7 @@ export function EditorCanvas({
       cancelAnimationFrame(rafId.current);
       rafId.current = 0;
     }
-    // Commit the whole freedraw stroke in one reducer update (a single
-    // array spread), leaving the ADD_ANNOTATION as the only undo step.
+    // Commit the whole stroke and its preview creation as one undo step.
     if (freedrawPoints.current.length > 0 && currentAnnotationId.current) {
       const flushId = currentAnnotationId.current;
       const stroke = freedrawPoints.current;
@@ -666,7 +635,7 @@ export function EditorCanvas({
         mode: redactOptions.mode,
         strength: redactOptions.strength,
       };
-      dispatch({ type: 'ADD_ANNOTATION', annotation });
+      dispatch({ type: 'ADD_ANNOTATION', annotation, preview: true });
     } else if (activeTool === 'draw') {
       const annotation: FreeDrawAnnotation = {
         id,
@@ -680,7 +649,7 @@ export function EditorCanvas({
       liveStrokeScale.current = liveAnnotationScale;
       liveStrokeDisplayPoints.current = [pos.x * liveAnnotationScale, pos.y * liveAnnotationScale];
       liveStrokeNode.current = null;
-      dispatch({ type: 'ADD_ANNOTATION', annotation });
+      dispatch({ type: 'ADD_ANNOTATION', annotation, preview: true });
     } else if (activeTool === 'shape') {
       const { shapeType } = shapeOptions;
       if (shapeType === 'rect') {
@@ -696,7 +665,7 @@ export function EditorCanvas({
           strokeWidth: shapeOptions.strokeWidth,
           rotation: 0,
         };
-        dispatch({ type: 'ADD_ANNOTATION', annotation });
+        dispatch({ type: 'ADD_ANNOTATION', annotation, preview: true });
       } else if (shapeType === 'ellipse') {
         const annotation: EllipseAnnotation = {
           id,
@@ -710,7 +679,7 @@ export function EditorCanvas({
           strokeWidth: shapeOptions.strokeWidth,
           rotation: 0,
         };
-        dispatch({ type: 'ADD_ANNOTATION', annotation });
+        dispatch({ type: 'ADD_ANNOTATION', annotation, preview: true });
       } else if (shapeType === 'arrow') {
         const annotation: ArrowAnnotation = {
           id,
@@ -719,7 +688,7 @@ export function EditorCanvas({
           stroke: shapeOptions.stroke,
           strokeWidth: shapeOptions.strokeWidth,
         };
-        dispatch({ type: 'ADD_ANNOTATION', annotation });
+        dispatch({ type: 'ADD_ANNOTATION', annotation, preview: true });
       } else if (shapeType === 'line') {
         const annotation: LineAnnotation = {
           id,
@@ -728,7 +697,7 @@ export function EditorCanvas({
           stroke: shapeOptions.stroke,
           strokeWidth: shapeOptions.strokeWidth,
         };
-        dispatch({ type: 'ADD_ANNOTATION', annotation });
+        dispatch({ type: 'ADD_ANNOTATION', annotation, preview: true });
       }
     }
   }, [
@@ -848,8 +817,8 @@ export function EditorCanvas({
   // Stable reference so memo(DesignLayer) can skip re-renders when only
   // unrelated state (tool, zoom, selection) changes.
   const handleChangeAnnotation = useCallback((id: string, updates: Partial<Annotation>) => {
-    dispatch({ type: 'UPDATE_ANNOTATION_COMMIT', id, updates });
-  }, [dispatch]);
+    dispatch({ type: editingText?.id === id ? 'UPDATE_ANNOTATION' : 'UPDATE_ANNOTATION_COMMIT', id, updates });
+  }, [dispatch, editingText?.id]);
 
   const isDrawGestureTool =
     state.activeTool === 'draw' || state.activeTool === 'shape' || state.activeTool === 'redact';
@@ -928,6 +897,22 @@ export function EditorCanvas({
       ref={workspaceRef}
       className="inkio-ie-canvas-workspace"
       data-testid="inkio-ie-canvas-workspace"
+      tabIndex={0}
+      role="group"
+      aria-label={locale.dialogTitle}
+      onMouseDown={(event) => {
+        if (editingText && stageRef.current?.findOne<Konva.Transformer>('Transformer')?.isTransforming()) {
+          event.preventDefault();
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget || event.key !== 'Enter') return;
+        const selected = state.annotations.find((annotation) => annotation.id === state.selectedAnnotationId);
+        if (selected?.type !== 'text') return;
+        event.preventDefault();
+        event.stopPropagation();
+        setEditingTextId(selected.id);
+      }}
       style={{
         position: 'relative',
         width: stageSize.width,
@@ -964,27 +949,32 @@ export function EditorCanvas({
               displayHeight={displayHeight}
               onSelectAnnotation={handleSelectAnnotation}
               onChangeAnnotation={handleChangeAnnotation}
+              editingTextId={editingText?.id}
+              onEditText={setEditingTextId}
             />
             <TransformersLayer
               selectedAnnotationId={visibleSelectedAnnotationId}
               stageRef={stageRef}
             />
           </Stage>
+          {editingText && (
+            <CanvasTextEditor
+              annotation={editingText}
+              stage={stageRef.current}
+              displayWidth={displayWidth}
+              displayHeight={displayHeight}
+              onComplete={() => setEditingTextId(null)}
+            />
+          )}
         </div>
 
-        <SelectionActionsOverlay
+        {!editingText && <SelectionActionsOverlay
+          stage={stageRef.current}
           containerWidth={stageSize.width}
           containerHeight={stageSize.height}
-          displayWidth={displayWidth}
-          displayHeight={displayHeight}
-          annotationScale={scaleToFit}
-          cropX={cropX}
-          cropY={cropY}
           offsetX={offsetX}
           offsetY={offsetY}
-          originalWidth={state.originalWidth}
-          originalHeight={state.originalHeight}
-        />
+        />}
 
         {isCropMode && cropFrame && (
           <>

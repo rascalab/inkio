@@ -21,7 +21,7 @@ export function ToolOptionsPanel({ panel, viewportKind }: ToolControlsProps) {
       data-panel={panel}
       data-viewport-kind={viewportKind}
     >
-      {panel === 'resize' && <ResizeOptions />}
+      {panel === 'resize' && <ResizeOptions viewportKind={viewportKind} />}
       {panel === 'draw' && <DrawOptionsPanel />}
       {panel === 'shape' && <ShapeOptionsPanel />}
       {panel === 'text' && <TextOptionsPanel />}

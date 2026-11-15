@@ -1,137 +1,71 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useRef } from 'react';
+import type Konva from 'konva';
 import { useImageEditor } from '../hooks/use-image-editor';
-import { getSelectedAnnotation } from '../utils/annotation-types';
-import { getAnnotationDisplayBounds } from '../utils/annotation-bounds';
 import { clampNumber } from '../utils/math';
 
 interface SelectionActionsOverlayProps {
-  containerWidth: number;
-  containerHeight: number;
-  displayWidth: number;
-  displayHeight: number;
-  annotationScale: number;
-  cropX: number;
-  cropY: number;
-  offsetX: number;
-  offsetY: number;
-  originalWidth: number;
-  originalHeight: number;
+  readonly stage: Konva.Stage | null;
+  readonly containerWidth: number;
+  readonly containerHeight: number;
+  readonly offsetX: number;
+  readonly offsetY: number;
 }
 
-const SELECTION_ACTIONS_EDGE_GUTTER = 16;
-const SELECTION_ACTIONS_MIN_TOP = 88;
-
 export function SelectionActionsOverlay({
+  stage,
   containerWidth,
   containerHeight,
-  displayWidth,
-  displayHeight,
-  annotationScale,
-  cropX,
-  cropY,
   offsetX,
   offsetY,
-  originalWidth,
-  originalHeight,
 }: SelectionActionsOverlayProps) {
   const { state, dispatch, locale } = useImageEditor();
   const overlayRef = useRef<HTMLDivElement>(null);
-  const [overlaySize, setOverlaySize] = useState({ width: 0, height: 0 });
-  const annotation = useMemo(
-    () => getSelectedAnnotation(state.annotations, state.selectedAnnotationId),
-    [state.annotations, state.selectedAnnotationId],
-  );
 
-  const bounds = useMemo(() => {
-    if (!annotation) {
-      return null;
-    }
+  useLayoutEffect(() => {
+    const overlay = overlayRef.current;
+    const node = stage?.findOne((candidate: Konva.Node) => candidate.id() === state.selectedAnnotationId);
+    if (!overlay || !node) return;
+    const sync = () => {
+      const bounds = node.getClientRect();
+      const width = overlay.offsetWidth;
+      const height = overlay.offsetHeight;
+      overlay.style.left = `${clampNumber(
+        offsetX + bounds.x + bounds.width / 2,
+        16 + width / 2,
+        Math.max(16 + width / 2, containerWidth - 16 - width / 2),
+      )}px`;
+      overlay.style.top = `${clampNumber(
+        offsetY + Math.max(12, bounds.y - 12),
+        Math.max(88, height + 16),
+        Math.max(88, containerHeight - 16),
+      )}px`;
+    };
+    sync();
+    node.on('dragmove.selectionActions transform.selectionActions', sync);
+    return () => { node.off('.selectionActions'); };
+  }, [stage, state.selectedAnnotationId, state.annotations, state.transform,
+    containerWidth, containerHeight, offsetX, offsetY, locale.deleteLabel]);
 
-    return getAnnotationDisplayBounds(annotation, {
-      annotationScale,
-      cropX,
-      cropY,
-      displayWidth,
-      displayHeight,
-      originalWidth,
-      originalHeight,
-      rotation: state.transform.rotation,
-      flipX: state.transform.flipX,
-      flipY: state.transform.flipY,
-    });
-  }, [
-    annotation,
-    annotationScale,
-    cropX,
-    cropY,
-    displayHeight,
-    displayWidth,
-    originalWidth,
-    originalHeight,
-    state.transform.flipX,
-    state.transform.flipY,
-    state.transform.rotation,
-  ]);
-
-  // Measure after paint (rAF) instead of useLayoutEffect: avoids the SSR
-  // "useLayoutEffect does nothing on the server" warning and the first-frame
-  // jump from the 92x50 estimate. The epsilon guard prevents update loops.
-  const boundsKey = bounds ? `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}` : null;
-  useEffect(() => {
-    if (!annotation || !overlayRef.current) {
-      return;
-    }
-
-    const frame = requestAnimationFrame(() => {
-      const rect = overlayRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      setOverlaySize((current) => (
-        Math.abs(current.width - rect.width) < 0.5 && Math.abs(current.height - rect.height) < 0.5
-          ? current
-          : { width: rect.width, height: rect.height }
-      ));
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [annotation?.id, locale.deleteLabel, boundsKey]);
-
-  if (!annotation || !bounds) {
-    return null;
-  }
-
-  const estimatedWidth = overlaySize.width || 92;
-  const estimatedHeight = overlaySize.height || 50;
-  const rawLeft = offsetX + bounds.x + (bounds.width / 2);
-  const rawTop = offsetY + Math.max(12, bounds.y - 12);
-  const clampedLeft = clampNumber(
-    rawLeft,
-    SELECTION_ACTIONS_EDGE_GUTTER + (estimatedWidth / 2),
-    Math.max(SELECTION_ACTIONS_EDGE_GUTTER + (estimatedWidth / 2), containerWidth - SELECTION_ACTIONS_EDGE_GUTTER - (estimatedWidth / 2)),
-  );
-  const clampedTop = clampNumber(
-    rawTop,
-    Math.max(SELECTION_ACTIONS_MIN_TOP, estimatedHeight + SELECTION_ACTIONS_EDGE_GUTTER),
-    Math.max(SELECTION_ACTIONS_MIN_TOP, containerHeight - SELECTION_ACTIONS_EDGE_GUTTER),
-  );
+  if (!state.selectedAnnotationId) return null;
 
   return (
     <div
       ref={overlayRef}
       className="inkio-ie-selection-actions"
       data-testid="inkio-ie-selection-actions"
-      style={{
-        left: `${clampedLeft}px`,
-        top: `${clampedTop}px`,
-      }}
     >
       <button
         type="button"
         className="inkio-ie-selection-action-btn is-danger"
         data-testid="inkio-ie-selection-delete"
-        onClick={() => dispatch({ type: 'DELETE_ANNOTATION', id: annotation.id })}
+        onClick={() => {
+          if (state.selectedAnnotationId) {
+            dispatch({ type: 'DELETE_ANNOTATION', id: state.selectedAnnotationId });
+          }
+        }}
       >
         {locale.deleteLabel ?? 'Delete'}
       </button>
     </div>
   );
 }
-

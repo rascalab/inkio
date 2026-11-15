@@ -16,6 +16,19 @@ const baseOptions = {
 };
 
 describe('getAnnotationDisplayBounds', () => {
+  it('keeps selection bounds on the image after unequal-axis resizing', () => {
+    const annotation: Annotation = {
+      id: 'resized', type: 'rect', x: 50, y: 50, width: 10, height: 10,
+      fill: '#ef4444', stroke: 'transparent', strokeWidth: 0, rotation: 0,
+    };
+    expect(getAnnotationDisplayBounds(annotation, {
+      ...baseOptions,
+      originalWidth: 100, originalHeight: 100,
+      displayWidth: 200, displayHeight: 100,
+      annotationScale: 2, annotationScaleY: 1,
+    })).toEqual({ x: 100, y: 50, width: 20, height: 10 });
+  });
+
   it('ignores a trailing lone coordinate instead of producing NaN', () => {
     const annotation = {
       id: 'a',

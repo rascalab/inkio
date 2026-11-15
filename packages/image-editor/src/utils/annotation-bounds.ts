@@ -35,6 +35,7 @@ export function isDisplayBoundsOutsideViewport(
 
 interface DisplayProjectionOptions {
   annotationScale: number;
+  annotationScaleY?: number;
   cropX: number;
   cropY: number;
   displayWidth: number;
@@ -52,16 +53,13 @@ export function getAnnotationDisplayBounds(
 ): AnnotationDisplayBounds {
   const corners = getAnnotationCorners(annotation);
 
-  // Mirror the DesignLayer group chain exactly: annotations render at
-  // image-space coords times the uniform annotationScale (NOT a per-axis
-  // display/original stretch), shifted by the crop origin, then centered on
-  // the unrotated base, flipped, rotated, and centered on the stage.
-  // Routing through imageSpaceToCanvasSpace instead divided by the full
-  // original dims, drifting bounds whenever a crop is active.
+  // Match the image projection, including different horizontal and vertical
+  // resize scales, before applying the shared flip and rotation.
   const scale =
     Number.isFinite(options.annotationScale) && options.annotationScale > 0
       ? options.annotationScale
       : 1;
+  const scaleY = options.annotationScaleY ?? scale;
   const { width: baseW, height: baseH } = getBaseDisplayDimensions(
     options.displayWidth,
     options.displayHeight,
@@ -73,7 +71,7 @@ export function getAnnotationDisplayBounds(
 
   const projected = corners.map((corner) => {
     let lx = (corner.x - options.cropX) * scale - baseW / 2;
-    let ly = (corner.y - options.cropY) * scale - baseH / 2;
+    let ly = (corner.y - options.cropY) * scaleY - baseH / 2;
     lx *= options.flipX ? -1 : 1;
     ly *= options.flipY ? -1 : 1;
     return {

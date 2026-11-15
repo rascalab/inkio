@@ -63,6 +63,7 @@ export function ImageEditorModal({
   );
   const [isDirty, setIsDirty] = useState(false);
   const savingRef = useRef(false);
+  const contentRef = useRef<HTMLDivElement>(null);
   // Non-blocking close confirmation: when there are unsaved edits, closing
   // surfaces an inline confirm card instead of window.confirm (which blocks
   // the main thread and is suppressed in some embedded contexts).
@@ -86,8 +87,12 @@ export function ImageEditorModal({
     onClose();
   }, [isDirty, confirmDiscard, onClose]);
 
-  const handleEscape = useCallback((event: { preventDefault: () => void }) => {
+  const handleEscape = useCallback((event: KeyboardEvent) => {
+    if (event.defaultPrevented) return;
     event.preventDefault();
+    // Radix receives Escape before the editor's popover listener. Let that
+    // listener dismiss the nested control without closing the image editor.
+    if (contentRef.current?.querySelector('.inkio-ie-option-popover, .inkio-ie-canvas-text-editor')) return;
     // While the confirm card is open, Escape dismisses it — not the modal.
     if (confirmDiscard) {
       setConfirmDiscard(false);
@@ -103,6 +108,7 @@ export function ImageEditorModal({
         <div className={`inkio inkio-ie-portal-theme ${portalTheme}`} style={{ colorScheme: portalTheme }}>
           <Dialog.Overlay className="inkio-ie-modal-overlay" data-testid="inkio-ie-modal-overlay" />
           <Dialog.Content
+            ref={contentRef}
             className={`inkio-ie-modal-content${portalTheme === 'dark' ? ' dark' : ''}`}
             data-testid="inkio-ie-modal-content"
             aria-describedby={undefined}
@@ -131,7 +137,6 @@ export function ImageEditorModal({
                       setConfirmDiscard(false);
                       onClose();
                     }}
-                    autoFocus
                   >
                     {resolvedImageEditorLocale.discardChanges ?? 'Discard changes'}
                   </button>
@@ -140,6 +145,7 @@ export function ImageEditorModal({
                     className="inkio-ie-discard-confirm-btn"
                     data-testid="inkio-ie-discard-confirm-cancel"
                     onClick={() => setConfirmDiscard(false)}
+                    autoFocus
                   >
                     {resolvedImageEditorLocale.cancel ?? 'Cancel'}
                   </button>

@@ -139,6 +139,12 @@ describe('geometry helpers', () => {
     expect(back.height).toBeCloseTo(rect.height, 4);
   });
 
+  it('preserves exact image boundaries through quarter-turn crop projection', () => {
+    const rect = { x: 0, y: 0, width: 560, height: 360 };
+    const forward = transformRect(rect, 560, 360, 90, false, false);
+    expect(transformRect(forward, 560, 360, 90, false, false, true)).toEqual(rect);
+  });
+
   it('treats non-normalized quarter turns consistently', () => {
     const base: Transform = { rotation: 90, flipX: false, flipY: false, crop: null };
     const wide: Transform = { rotation: 450, flipX: false, flipY: false, crop: null };

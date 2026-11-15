@@ -19,7 +19,10 @@ const BUDGETS = {
   // 240k -> 244k: audit rounds 3-4 fixes (filter/finetune visual tracking,
   // NaN-guard branches, crop full-session bounds, mount guards). Measured
   // +6.1k over the pre-fix tree (236091 -> 242235). Deliberate.
-  'image-editor': 244_000,
+  // 244k -> 252k: native on-canvas text editing with multiline/IME support,
+  // live integer resize input, and shared per-axis preview/export projection.
+  // Deliberate feature increase; no additional runtime dependency.
+  'image-editor': 252_000,
   // collab ships provider + hooks only; yjs/@hocuspocus stay external (measured ~16k).
   'collab': 30_000,
 };

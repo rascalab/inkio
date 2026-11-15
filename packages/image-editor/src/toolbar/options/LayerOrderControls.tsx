@@ -1,5 +1,6 @@
 import { useImageEditor } from '../../hooks/use-image-editor';
 import { LayerOrderRow, PanelSection } from '../control-groups';
+import { OptionPopover } from '../OptionPopover';
 
 interface LayerOrderControlsProps {
   annotationId: string | null;
@@ -21,6 +22,7 @@ export function LayerOrderControls({ annotationId }: LayerOrderControlsProps) {
 
   return (
     <PanelSection label={locale.layerOrder}>
+      <OptionPopover label={locale.layerOrder} testId="inkio-ie-layer-trigger">
       <LayerOrderRow
         label={locale.layerOrder}
         items={[
@@ -54,6 +56,7 @@ export function LayerOrderControls({ annotationId }: LayerOrderControlsProps) {
           },
         ]}
       />
+      </OptionPopover>
     </PanelSection>
   );
 }

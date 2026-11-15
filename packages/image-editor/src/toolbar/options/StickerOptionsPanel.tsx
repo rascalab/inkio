@@ -2,6 +2,7 @@ import { useImageEditor } from '../../hooks/use-image-editor';
 import { STICKER_EMOJIS } from '../../constants';
 import { PanelSection, ToolPanel } from '../control-groups';
 import { LayerOrderControls } from './LayerOrderControls';
+import { OptionPopover } from '../OptionPopover';
 
 export function StickerOptionsPanel() {
   const { state, dispatch, locale } = useImageEditor();
@@ -9,6 +10,11 @@ export function StickerOptionsPanel() {
   return (
     <ToolPanel title={locale.sticker ?? locale.emoji}>
       <PanelSection>
+        <OptionPopover
+          label={locale.sticker ?? locale.emoji}
+          summary={<>{state.stickerOptions.emoji}<span>{locale.sticker ?? locale.emoji}</span></>}
+          testId="inkio-ie-sticker-picker-trigger"
+        >
         <div className="inkio-ie-emoji-grid" role="group" aria-label={locale.emoji}>
           {STICKER_EMOJIS.map((emoji) => {
             const active = state.stickerOptions.emoji === emoji;
@@ -26,6 +32,7 @@ export function StickerOptionsPanel() {
             );
           })}
         </div>
+        </OptionPopover>
       </PanelSection>
       <LayerOrderControls
         annotationId={

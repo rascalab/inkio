@@ -3,7 +3,7 @@
   background:
     linear-gradient(135deg, rgba(245, 158, 11, 0.09), transparent 38%),
     linear-gradient(180deg, #fff8ef 0%, #f4efe6 100%);
-  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  font-family: system-ui, sans-serif;
 }
 
 * {

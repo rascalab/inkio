@@ -3,6 +3,7 @@ import { UNDOABLE_ACTIONS, imageEditorReducer, initialState, makeInitialUndoable
 import type { RectAnnotation, TextAnnotationData, ToolType } from '../types';
 import { COLOR_PRESETS } from '../color-presets';
 import { getDefaultCropRect } from '../utils/crop';
+import { getTransformedDimensions } from '../utils/geometry';
 
 function makeRect(id: string): RectAnnotation {
   return {
@@ -210,17 +211,68 @@ describe('imageEditorReducer', () => {
       const next = imageEditorReducer(state, { type: 'COMMIT_RESIZE_SESSION' });
       expect(next.transform.crop).toEqual({ x: 100, y: 0, width: 360, height: 360 });
       expect(next.outputSize).toEqual({ width: 420, height: 420 });
+      expect(getTransformedDimensions(560, 360, next.transform, next.outputSize)).toEqual({
+        width: 420, height: 420,
+      });
       expect(next.pendingCrop).toBeNull();
     });
 
-    it('RESET_RESIZE_SESSION clears crop, clears output size, and reseeds full bounds', () => {
+    it('previews integer dimensions immediately and keeps one undo step for the edit', () => {
+      const initial = makeInitialUndoableState();
+      const state = {
+        ...initial,
+        present: {
+          ...initial.present,
+          originalWidth: 560,
+          originalHeight: 360,
+          pendingCrop: { x: 100, y: 0, width: 360, height: 360 },
+        },
+      };
+      let next = undoableReducer(state, {
+        type: 'SET_RESIZE_OPTIONS', options: { width: 210.6, height: 140.4 }, apply: true,
+      }, 30);
+      expect(next.present.outputSize).toEqual({ width: 211, height: 140 });
+      next = undoableReducer(next, {
+        type: 'SET_RESIZE_OPTIONS', options: { width: 300, height: 200 }, apply: true,
+      }, 30);
+      next = undoableReducer(next, { type: 'COMMIT_RESIZE_SESSION' }, 30);
+      expect(next.past).toHaveLength(1);
+      expect(next.present.transform.crop).toEqual({ x: 100, y: 0, width: 360, height: 360 });
+      expect(next.present.outputSize).toEqual({ width: 300, height: 200 });
+      expect(undoableReducer(next, { type: 'UNDO' }, 30).present).toEqual(state.present);
+    });
+
+    it('uses image coordinates when cropping a resized quarter-turned image', () => {
+      const state = {
+        ...initialState,
+        originalWidth: 560,
+        originalHeight: 360,
+        transform: { rotation: 90, flipX: false, flipY: false, crop: null },
+        outputSize: { width: 280, height: 180 },
+      };
+      const started = imageEditorReducer(state, { type: 'START_RESIZE_SESSION' });
+      expect(started.pendingCrop).toEqual({ x: 0, y: 0, width: 560, height: 360 });
+      const cropped = imageEditorReducer(started, {
+        type: 'SET_PENDING_CROP', crop: { x: 100, y: 0, width: 360, height: 360 },
+      });
+      expect(cropped.resizeOptions).toMatchObject({ width: 180, height: 180 });
+      const resized = imageEditorReducer({
+        ...cropped,
+        resizeOptions: { ...cropped.resizeOptions, width: 200, height: 100 },
+      }, { type: 'COMMIT_RESIZE_SESSION' });
+      expect(getTransformedDimensions(560, 360, resized.transform, resized.outputSize)).toEqual({
+        width: 200, height: 100,
+      });
+    });
+
+    it.each([0, 90, 180, 270])('RESET_RESIZE_SESSION restores full source bounds after rotation %i', (rotation) => {
       const state = {
         ...initialState,
         originalWidth: 560,
         originalHeight: 360,
         cropOptions: { aspectRatio: 1 },
         transform: {
-          rotation: 0,
+          rotation,
           flipX: false,
           flipY: false,
           crop: { x: 100, y: 0, width: 360, height: 360 },
@@ -234,10 +286,32 @@ describe('imageEditorReducer', () => {
       expect(next.outputSize).toBeNull();
       expect(next.cropOptions.aspectRatio).toBeNull();
       expect(next.pendingCrop).toEqual({ x: 0, y: 0, width: 560, height: 360 });
+      const size = rotation === 90 || rotation === 270
+        ? { width: 360, height: 560 } : { width: 560, height: 360 };
+      expect(next.resizeOptions).toMatchObject(size);
+      const committed = imageEditorReducer(next, { type: 'COMMIT_RESIZE_SESSION' });
+      expect(getTransformedDimensions(560, 360, committed.transform, committed.outputSize)).toEqual(size);
     });
   });
 
   describe('ADD_ANNOTATION', () => {
+    it('selects new text without ending its creation gesture before typing', () => {
+      const state = makeInitialUndoableState();
+      let next = undoableReducer(state, {
+        type: 'ADD_ANNOTATION', annotation: { ...makeText('typing'), text: '' },
+        preview: true, select: true,
+      }, 30);
+      expect(next.present.selectedAnnotationId).toBe('typing');
+      next = undoableReducer(next, {
+        type: 'UPDATE_ANNOTATION', id: 'typing', updates: { text: 'Typed on canvas' },
+      }, 30);
+      next = undoableReducer(next, {
+        type: 'UPDATE_ANNOTATION_COMMIT', id: 'typing', updates: { text: 'Typed on canvas' },
+      }, 30);
+      expect(next.past).toHaveLength(1);
+      expect(undoableReducer(next, { type: 'UNDO' }, 30).present.annotations).toEqual([]);
+    });
+
     it('appends annotation to the array', () => {
       const ann = makeRect('r1');
       const next = imageEditorReducer(initialState, { type: 'ADD_ANNOTATION', annotation: ann });
@@ -551,6 +625,69 @@ describe('imageEditorReducer', () => {
       const next = imageEditorReducer(tuned, { type: 'RESET_FINETUNE' });
       expect(next.finetune).toEqual({ brightness: 0, contrast: 0, saturation: 0, clarity: 0 });
     });
+  });
+});
+
+describe('annotation preview history', () => {
+  it('keeps drawing a new shape as one creation step', () => {
+    let state = undoableReducer(makeInitialUndoableState(), {
+      type: 'ADD_ANNOTATION', annotation: { ...makeRect('r1'), width: 0, height: 0 }, preview: true,
+    }, 30);
+    state = undoableReducer(state, { type: 'UPDATE_ANNOTATION', id: 'r1', updates: { width: 100, height: 50 } }, 30);
+    state = undoableReducer(state, { type: 'SELECT_ANNOTATION', id: 'r1' }, 30);
+
+    state = undoableReducer(state, { type: 'UNDO' }, 30);
+    expect(state.present.annotations).toEqual([]);
+    state = undoableReducer(state, { type: 'REDO' }, 30);
+    expect(state.present.annotations).toEqual([makeRect('r1')]);
+  });
+
+  it('does not leave an undo entry for a discarded tiny shape', () => {
+    let state = undoableReducer(makeInitialUndoableState(), {
+      type: 'ADD_ANNOTATION', annotation: { ...makeRect('r1'), width: 0, height: 0 }, preview: true,
+    }, 30);
+    state = undoableReducer(state, { type: 'UPDATE_ANNOTATION', id: 'r1', updates: { width: 1, height: 1 } }, 30);
+    state = undoableReducer(state, { type: 'DELETE_ANNOTATION', id: 'r1' }, 30);
+
+    expect(state.present.annotations).toEqual([]);
+    expect(state.past).toEqual([]);
+  });
+
+  it('undoes a committed slider gesture without removing the annotation, and redoes it', () => {
+    let state = undoableReducer(makeInitialUndoableState(), { type: 'ADD_ANNOTATION', annotation: makeRect('r1') }, 30);
+    state = undoableReducer(state, { type: 'UPDATE_ANNOTATION', id: 'r1', updates: { strokeWidth: 8 } }, 30);
+    state = undoableReducer(state, { type: 'UPDATE_ANNOTATION', id: 'r1', updates: { strokeWidth: 15 } }, 30);
+    state = undoableReducer(state, { type: 'UPDATE_ANNOTATION_COMMIT', id: 'r1', updates: { strokeWidth: 15 } }, 30);
+
+    state = undoableReducer(state, { type: 'UNDO' }, 30);
+    expect(state.present.annotations).toEqual([makeRect('r1')]);
+    state = undoableReducer(state, { type: 'REDO' }, 30);
+    expect(state.present.annotations).toEqual([{ ...makeRect('r1'), strokeWidth: 15 }]);
+  });
+
+  it('keeps separate gestures as separate undo steps', () => {
+    let state = undoableReducer(makeInitialUndoableState(), { type: 'ADD_ANNOTATION', annotation: makeRect('r1') }, 30);
+    for (const width of [8, 15]) {
+      state = undoableReducer(state, { type: 'UPDATE_ANNOTATION', id: 'r1', updates: { strokeWidth: width } }, 30);
+      state = undoableReducer(state, { type: 'UPDATE_ANNOTATION_COMMIT', id: 'r1', updates: { strokeWidth: width } }, 30);
+    }
+
+    state = undoableReducer(state, { type: 'UNDO' }, 30);
+    expect(state.present.annotations).toEqual([{ ...makeRect('r1'), strokeWidth: 8 }]);
+    state = undoableReducer(state, { type: 'UNDO' }, 30);
+    expect(state.present.annotations).toEqual([makeRect('r1')]);
+  });
+
+  it('preserves an unfinished text edit as an undo step when another action follows', () => {
+    let state = undoableReducer(makeInitialUndoableState(), { type: 'ADD_ANNOTATION', annotation: makeText('t1') }, 30);
+    state = undoableReducer(state, { type: 'UPDATE_ANNOTATION', id: 't1', updates: { text: 'Edited text' } }, 30);
+    state = undoableReducer(state, { type: 'ROTATE_CW' }, 30);
+
+    state = undoableReducer(state, { type: 'UNDO' }, 30);
+    expect(state.present.transform.rotation).toBe(0);
+    expect(state.present.annotations).toEqual([{ ...makeText('t1'), text: 'Edited text' }]);
+    state = undoableReducer(state, { type: 'UNDO' }, 30);
+    expect(state.present.annotations).toEqual([makeText('t1')]);
   });
 });
 

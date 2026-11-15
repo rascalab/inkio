@@ -1,12 +1,9 @@
-import { useId } from 'react';
+import { useId, useRef, useState } from 'react';
 import { BoldIcon, CloseIcon, ItalicIcon, LockIcon, UnlockIcon } from '../icons';
 import { ColorPickerButton } from './ColorPickerButton';
+import { OptionPopover } from './OptionPopover';
 
-/**
- * Pintura-style inspector primitives. Each tool renders ONE ToolPanel with
- * labeled sections — never a strip of cards — so the util panel stays
- * compact and scannable. All data-testids are preserved for e2e.
- */
+/** Shared labeled controls for the contextual tool options. */
 
 interface ToolPanelProps {
   title: string;
@@ -16,7 +13,7 @@ interface ToolPanelProps {
 
 export function ToolPanel({ title, actions, children }: ToolPanelProps) {
   return (
-    <section className="inkio-ie-tool-panel">
+    <section className="inkio-ie-tool-panel" aria-label={title}>
       <header className="inkio-ie-tool-panel-header">
         <span className="inkio-ie-tool-panel-title">{title}</span>
         {actions && <span className="inkio-ie-tool-panel-actions">{actions}</span>}
@@ -72,6 +69,7 @@ export function SegmentedControl({ items, label }: { items: SegmentedItem[]; lab
 }
 
 interface SliderRowProps {
+  presentation?: 'inline' | 'popover';
   label: string;
   valueLabel: string;
   min: number;
@@ -86,6 +84,7 @@ interface SliderRowProps {
 }
 
 export function SliderRow({
+  presentation = 'inline',
   label,
   valueLabel,
   min,
@@ -100,11 +99,10 @@ export function SliderRow({
 }: SliderRowProps) {
   const inputId = useId();
 
-  return (
+  const control = (
     <div className="inkio-ie-slider-row">
       <label htmlFor={inputId} className="inkio-ie-slider-label">
         <span>{label}</span>
-        <span className="inkio-ie-slider-value">{valueLabel}</span>
       </label>
       <div className="inkio-ie-slider-control">
         <input
@@ -116,6 +114,7 @@ export function SliderRow({
           max={max}
           step={step}
           value={value}
+          aria-valuetext={valueLabel}
           onChange={(event) => onPreviewChange(Number(event.target.value))}
           onPointerUp={(event) => onCommitChange?.(Number((event.target as HTMLInputElement).value))}
           onKeyUp={(event) => onCommitChange?.(Number((event.target as HTMLInputElement).value))}
@@ -141,6 +140,16 @@ export function SliderRow({
       </div>
     </div>
   );
+
+  return presentation === 'popover' ? (
+    <OptionPopover
+      label={`${label}: ${valueLabel}`}
+      summary={<>{label}<span className="inkio-ie-option-value">{valueLabel}</span></>}
+      testId={rangeTestId ? `${rangeTestId}-trigger` : undefined}
+    >
+      {control}
+    </OptionPopover>
+  ) : control;
 }
 
 interface ColorFieldProps {
@@ -228,6 +237,8 @@ interface DimensionsFieldProps {
   onWidthChange: (value: number) => void;
   onHeightChange: (value: number) => void;
   onToggleLock: () => void;
+  onFocus?: () => void;
+  onCommit?: () => void;
   widthTestId?: string;
   heightTestId?: string;
   lockTestId?: string;
@@ -238,12 +249,20 @@ function DimensionInput({
   value,
   testId,
   onChange,
+  onFocus,
+  onCommit,
 }: {
   label: string;
   value: number;
   testId?: string;
   onChange: (value: number) => void;
+  onFocus?: () => void;
+  onCommit?: () => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const changedRef = useRef(false);
+
   return (
     <label className="inkio-ie-field">
       <span className="inkio-ie-field-label">{label}</span>
@@ -252,14 +271,32 @@ function DimensionInput({
         className="inkio-ie-field-input"
         data-testid={testId}
         min={1}
-        value={value}
+        step={1}
+        value={editing ? draft : Math.round(value)}
+        onFocus={() => {
+          onFocus?.();
+          setDraft(String(Math.round(value)));
+          setEditing(true);
+          changedRef.current = false;
+        }}
         onChange={(event) => {
-          const nextValue = Number.parseInt(event.target.value, 10);
-          if (Number.isNaN(nextValue) || nextValue <= 0) {
+          const text = event.target.value;
+          setDraft(text);
+          const nextValue = Number(text);
+          if (!text || !Number.isFinite(nextValue) || nextValue <= 0) {
             return;
           }
-
-          onChange(nextValue);
+          changedRef.current = true;
+          onChange(Math.round(nextValue));
+        }}
+        onBlur={() => {
+          setEditing(false);
+          if (changedRef.current) onCommit?.();
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter') return;
+          event.preventDefault();
+          event.currentTarget.blur();
         }}
       />
     </label>
@@ -276,14 +313,16 @@ export function DimensionsField({
   onWidthChange,
   onHeightChange,
   onToggleLock,
+  onFocus,
+  onCommit,
   widthTestId,
   heightTestId,
   lockTestId,
 }: DimensionsFieldProps) {
   return (
     <div className="inkio-ie-field-row">
-      <DimensionInput label={widthLabel} value={width} testId={widthTestId} onChange={onWidthChange} />
-      <DimensionInput label={heightLabel} value={height} testId={heightTestId} onChange={onHeightChange} />
+      <DimensionInput label={widthLabel} value={width} testId={widthTestId} onChange={onWidthChange} onFocus={onFocus} onCommit={onCommit} />
+      <DimensionInput label={heightLabel} value={height} testId={heightTestId} onChange={onHeightChange} onFocus={onFocus} onCommit={onCommit} />
       <button
         type="button"
         className={`inkio-ie-inline-toggle${lockAspectRatio ? ' is-active' : ''}`}
