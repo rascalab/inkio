@@ -219,22 +219,28 @@
 }
 
 .lp-demo-preview .lp-demo-tasks > li {
-  list-style: none;
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  align-items: start;
+  gap: .5rem;
 }
 
 .lp-demo-check {
-  display: inline-grid;
-  position: relative;
-  top: -.075em;
-  width: 1rem;
-  aspect-ratio: 1;
-  margin-inline-end: .25rem;
-  place-content: center;
+  display: grid;
+  block-size: 1lh;
+  place-items: center;
+}
+
+.lp-demo-check > span {
+  display: grid;
+  inline-size: 1rem;
+  block-size: 1rem;
+  place-items: center;
   border: 1px solid var(--site-faint);
   border-radius: .2rem;
   color: var(--site-accent);
   font-size: .75rem;
-  vertical-align: middle;
+  line-height: 1;
 }
 
 .lp-demo-start,

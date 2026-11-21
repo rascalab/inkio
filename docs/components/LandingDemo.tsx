@@ -94,7 +94,10 @@ export default function LandingDemo() {
               <p>항목을 체크하거나 <code>/</code>를 입력해 새 블록을 추가해 보세요.</p>
               <ul className="lp-demo-tasks">
                 {DEMO_TASKS.map(({ checked, text }) => (
-                  <li key={text}><span className="lp-demo-check" aria-hidden="true">{checked ? '✓' : ''}</span> {text}</li>
+                  <li key={text}>
+                    <span className="lp-demo-check" aria-hidden="true"><span>{checked ? '✓' : ''}</span></span>
+                    <span>{text}</span>
+                  </li>
                 ))}
               </ul>
               <pre><code>{DEMO_CODE}</code></pre>
