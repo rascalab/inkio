@@ -1,5 +1,6 @@
 import type { JSONContent } from '@tiptap/core';
-import type { Schema } from '@tiptap/pm/model';
+import { Fragment, Node as ProseMirrorNode, type Schema } from '@tiptap/pm/model';
+import { normalizeJsonTables } from './table-bounds';
 
 /** What a node with no place in this schema still has to say. */
 function textOf(node: JSONContent): string | null {
@@ -49,6 +50,9 @@ function cleanNode(node: JSONContent, schema: Schema, inline: boolean, unknown: 
  */
 export function dropUnknownContent<T extends string | JSONContent | undefined>(content: T, schema: Schema): T {
   if (!content || typeof content !== 'object') return content;
+  if (content instanceof ProseMirrorNode || content instanceof Fragment) return content;
+  const checkTables = schema.nodes.table?.spec.tableRole === 'table';
+  if (Array.isArray(content)) return checkTables ? normalizeJsonTables(content) : content;
   const unknown = new Set<string>();
   let cleaned: JSONContent | undefined;
   try {
@@ -57,7 +61,10 @@ export function dropUnknownContent<T extends string | JSONContent | undefined>(c
     // Nested too deep to walk. Opening must not throw: Tiptap reports it instead.
     return content;
   }
-  if (unknown.size === 0 || !cleaned) return content;
-  console.warn(`[inkio] This editor has no extension for: ${[...unknown].join(', ')}. They were left out of the document.`);
-  return cleaned as T;
+  let result = content;
+  if (unknown.size > 0 && cleaned) {
+    console.warn(`[inkio] This editor has no extension for: ${[...unknown].join(', ')}. They were left out of the document.`);
+    result = cleaned as T & JSONContent;
+  }
+  return checkTables ? normalizeJsonTables(result) : result;
 }

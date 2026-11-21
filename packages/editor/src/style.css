@@ -301,47 +301,129 @@
 
 .inkio-block-handle {
   position: fixed;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
+  padding: 0;
+  border: 0;
+  border-radius: var(--inkio-radius-sm, 4px);
+  background: transparent;
+  color: var(--inkio-text-muted, #62666f);
   cursor: grab;
-  pointer-events: auto;
-  border-radius: var(--inkio-radius-sm);
-  color: var(--inkio-text-muted);
+  visibility: hidden;
+  pointer-events: none;
   opacity: 0;
   transition:
     opacity var(--inkio-transition-fast),
     background-color var(--inkio-transition-fast),
     color var(--inkio-transition-fast);
-  z-index: var(--inkio-layer-overlay);
+  z-index: var(--inkio-layer-overlay, 140);
   user-select: none;
   -webkit-user-select: none;
+  touch-action: none;
+  -webkit-touch-callout: none;
+}
+
+.inkio-block-handle.visible {
+  visibility: visible;
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.inkio-block-handle.visible.is-touch-dragging {
+  /* Keep the element mounted and captured, but let the preview represent the drag. */
+  opacity: 0;
+  pointer-events: none;
+  transition: none;
 }
 
 .inkio-block-handle svg {
   display: block;
   flex-shrink: 0;
+  pointer-events: none;
 }
 
-.inkio-block-handle:hover {
-  background-color: var(--inkio-bg-muted);
-  color: var(--inkio-text);
-  opacity: 1;
+.inkio-block-handle-dots {
+  fill: currentColor;
 }
 
-.inkio-block-handle:active {
+.inkio-block-handle:is(:hover, :focus-visible) {
+  background-color: var(--inkio-bg-muted, #f0f0f3);
+  color: var(--inkio-text, #34373e);
+}
+
+.inkio-block-handle:focus-visible {
+  outline: 2px solid var(--inkio-border-focus, #0090ff);
+  outline-offset: 1px;
+}
+
+.inkio-block-handle:is(:active, .is-dragging) {
   cursor: grabbing;
-  background-color: var(--inkio-border);
+  background-color: var(--inkio-border, #d9d9e0);
 }
 
-.inkio-block-handle.visible {
-  opacity: 0.5;
+.inkio .inkio-content.inkio-block-pickup .ProseMirror-selectednode {
+  opacity: 0.3;
+  outline: 1px dashed var(--inkio-text-muted);
+  outline-offset: 2px;
 }
 
-.inkio-block-handle.visible:hover {
-  opacity: 1;
+.inkio-block-drop-marker {
+  position: fixed;
+  height: 2px;
+  translate: 0 -50%;
+  border-radius: 1px;
+  background: var(--inkio-border-focus, #0090ff);
+  pointer-events: none;
+  z-index: var(--inkio-layer-overlay, 140);
+}
+
+.inkio-block-drag-preview {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: calc(var(--inkio-layer-overlay, 140) + 1);
+  box-sizing: border-box;
+  width: max-content;
+  max-width: calc(100vw - 8px);
+  max-height: min(16rem, 40vh);
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  padding: 12px 16px;
+  background: var(--inkio-bg);
+  color: var(--inkio-text);
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-md);
+  box-shadow: var(--inkio-shadow-lg);
+}
+
+.inkio-block-drag-preview[data-drag-mode="native"] {
+  /* Still rendered for the browser's drag bitmap, but never shown on the page. */
+  left: -10000px;
+}
+
+.inkio .inkio-block-drag-preview-content {
+  box-sizing: border-box;
+  min-height: 0;
+  padding: 0;
+}
+
+.inkio .inkio-block-drag-preview-content > * {
+  margin-block: 0;
+}
+
+.inkio .inkio-block-drag-preview-content img {
+  max-width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inkio-block-handle {
+    transition: none;
+  }
 }
 
 /* ============================
@@ -357,6 +439,10 @@
   box-shadow: var(--inkio-shadow-lg);
   padding: 0.375rem;
   width: 220px;
+  box-sizing: border-box;
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   z-index: var(--inkio-layer-popover);
   font-family: inherit;
 }
@@ -375,6 +461,12 @@
   font-size: 0.875rem;
   color: var(--inkio-text);
   line-height: 1.4;
+}
+
+@media (pointer: coarse) {
+  .inkio-block-handle-action-item {
+    min-height: 44px;
+  }
 }
 
 .inkio-block-handle-action-item:hover,
@@ -490,7 +582,7 @@
   padding: 0 0.375rem;
   border-radius: 9999px;
   background: var(--inkio-primary);
-  color: var(--inkio-bg);
+  color: var(--inkio-text-on-primary);
   font-size: 0.6875rem;
   font-weight: 600;
 }
@@ -693,7 +785,7 @@
   border: none;
   border-radius: var(--inkio-radius);
   background: var(--inkio-primary);
-  color: var(--inkio-bg);
+  color: var(--inkio-text-on-primary);
   font-size: 0.875rem;
   cursor: pointer;
   display: flex;
@@ -759,7 +851,7 @@
    ============================ */
 
 .inkio-comment-composer {
-  width: 320px;
+  width: min(320px, calc(100vw - 16px));
   animation: inkio-composer-in 0.15s ease-out;
 }
 
@@ -834,7 +926,7 @@
   border: none;
   border-radius: var(--inkio-radius);
   background: var(--inkio-primary);
-  color: var(--inkio-bg);
+  color: var(--inkio-text-on-primary);
   font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
@@ -855,7 +947,8 @@
    ============================ */
 
 .inkio-thread-popover {
-  width: 340px;
+  width: min(340px, calc(100vw - 16px));
+  box-sizing: border-box;
   max-height: 400px;
   display: flex;
   flex-direction: column;

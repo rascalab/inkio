@@ -3,31 +3,39 @@ import type { Schema } from '@tiptap/pm/model';
 import { prosemirrorJSONToYXmlFragment } from '@tiptap/y-tiptap';
 import * as Y from 'yjs';
 
-/**
- * Fixed author for seed content. Every client that seeds the same content
- * produces byte-identical Yjs structs under this id, and Yjs merges
- * identical structs as one — so concurrent seeding cannot duplicate text.
- */
-export const SEED_CLIENT_ID = 0;
+// Standard Yjs peers choose random 32-bit IDs; reserve a separate range
+// for deterministic, 52-bit seed fingerprints.
+const SEED_ID_PREFIX = 2 ** 52;
+const SEED_ID_MASK = (1n << 52n) - 1n;
 
 export const DEFAULT_COLLAB_FIELD = 'default';
 
 /**
- * Encode `content` as a deterministic Yjs update for the editor fragment.
- * HTML strings need a DOM to parse; pass JSON when seeding on a server.
+ * Encode a deterministic update. Identical ProseMirror content produces
+ * the same seed author. Use the same schema, field and seed for every
+ * client of a room. HTML strings need a DOM; use JSON on the server.
  */
 export function createSeedUpdate(
   schema: Schema,
   content: Content,
   field: string = DEFAULT_COLLAB_FIELD,
 ): Uint8Array {
-  const seedDoc = new Y.Doc();
-  seedDoc.clientID = SEED_CLIENT_ID;
-  const node = createDocument(content, schema);
-  prosemirrorJSONToYXmlFragment(schema, node.toJSON(), seedDoc.getXmlFragment(field));
-  const update = Y.encodeStateAsUpdate(seedDoc);
-  seedDoc.destroy();
-  return update;
+  const json = createDocument(content, schema, undefined, { errorOnInvalidContent: true }).toJSON();
+  function encode(clientId: number): Uint8Array {
+    const seed = new Y.Doc();
+    try {
+      seed.clientID = clientId;
+      prosemirrorJSONToYXmlFragment(schema, json, seed.getXmlFragment(field));
+      return Y.encodeStateAsUpdate(seed);
+    } finally {
+      seed.destroy();
+    }
+  }
+  let hash = 0xcbf29ce484222325n;
+  for (const byte of encode(0)) {
+    hash = BigInt.asUintN(64, (hash ^ BigInt(byte)) * 0x100000001b3n);
+  }
+  return encode(SEED_ID_PREFIX + Number(hash & SEED_ID_MASK));
 }
 
 /**

@@ -74,6 +74,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Audit locked dependencies
+        run: pnpm security:audit
+
       - name: Fast verify
         run: pnpm verify
         env:
@@ -145,7 +148,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium firefox
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
 
       - name: E2E smoke (chromium)
         run: pnpm e2e:verify
@@ -154,6 +157,11 @@ jobs:
 
       - name: E2E smoke (firefox)
         run: pnpm exec playwright test --project=firefox
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+      - name: E2E image workbench (webkit)
+        run: pnpm exec playwright test --project=webkit
         env:
           NEXT_TELEMETRY_DISABLED: '1'
 
@@ -171,7 +179,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 22
           cache: pnpm
 
       - name: Install dependencies
@@ -186,6 +194,11 @@ jobs:
         run: pnpm package:publint && pnpm package:attw && node scripts/check-budgets.mjs
         env:
           NEXT_TELEMETRY_DISABLED: '1'
+
+      - name: Setup minimum supported Node.js for consumers
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.12.0
 
       - name: Verify package smoke
         run: INKIO_RELEASE_SMOKE_SKIP_PACKAGE_BUILDS=1 pnpm release:smoke

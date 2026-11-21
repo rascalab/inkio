@@ -39,6 +39,7 @@ export type {
   InkioCoreLocaleId,
   InkioCoreMessages,
   InkioErrorHandler,
+  InkioMenuPosition,
   InkioLocaleInput,
   InkioMessageOverrides,
   InkioProviderProps,

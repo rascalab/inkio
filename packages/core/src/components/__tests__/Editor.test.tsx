@@ -6,6 +6,17 @@ import { Editor } from '../Editor';
 import { isEqualStaticContent } from '../../utils/static-content';
 
 describe('Editor component', () => {
+  it('names the editable textbox and updates its label without replacing its content', async () => {
+    const { findByRole, rerender } = render(<Editor content="<p>Hello</p>" locale="ko" />);
+    const textbox = await findByRole('textbox', { name: '문서 편집기' });
+    expect(textbox.getAttribute('aria-multiline')).toBe('true');
+
+    rerender(<Editor ariaLabel="Article body" locale="ko" />);
+    const renamed = await findByRole('textbox', { name: 'Article body' });
+    expect(renamed).toBe(textbox);
+    expect(renamed.textContent).toContain('Hello');
+  });
+
   it('should render without crashing with default props', () => {
     const { container } = render(<Editor />);
     expect(container.querySelector('.inkio-editor')).toBeInTheDocument();

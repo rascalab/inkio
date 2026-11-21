@@ -1,4 +1,4 @@
-import type { CropRect } from '../types';
+import type { CropRect, ImageEditorState } from '../types';
 
 export function getDefaultCropRect(
   width: number,
@@ -42,4 +42,16 @@ export function getDefaultCropRect(
     width,
     height,
   };
+}
+
+/** Draft crops and applied crops both use unrotated source coordinates. */
+export function getEffectivePendingCrop(state: ImageEditorState): CropRect | null {
+  const { pendingCrop: draft, transform: { crop }, originalWidth, originalHeight } = state;
+  if (!draft) return null;
+  return draft.x === (crop?.x ?? 0)
+    && draft.y === (crop?.y ?? 0)
+    && draft.width === (crop?.width ?? originalWidth)
+    && draft.height === (crop?.height ?? originalHeight)
+    ? null
+    : draft;
 }

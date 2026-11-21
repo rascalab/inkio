@@ -1,12 +1,10 @@
 .playground-root {
   --inkio-scroll-offset: var(--nextra-navbar-height, 64px);
   width: 100%;
-  padding: 0 24px 48px;
+  padding: 0 clamp(12px, 3vw, 24px) 48px;
   max-width: none;
   margin: 0;
-  min-height: 100vh;
-  color: var(--inkio-text);
-  transition: background-color 0.2s, color 0.2s;
+  color: var(--site-ink);
 }
 
 .playground-header {
@@ -14,7 +12,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 0;
-  border-bottom: 1px solid var(--inkio-surface-border);
+  border-bottom: 1px solid var(--site-line);
   margin-bottom: 24px;
   flex-wrap: wrap;
   gap: 12px;
@@ -23,20 +21,25 @@
 .playground-header-left {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  min-inline-size: 0;
   gap: 10px;
 }
 
 .playground-header-right {
   display: flex;
   align-items: center;
-  gap: 14px;
+  flex-wrap: wrap;
+  min-inline-size: 0;
+  gap: 8px 14px;
 }
 
 .playground-title {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-weight: 650;
+  letter-spacing: -.04em;
   margin: 0;
-  color: var(--inkio-text-heading);
+  color: var(--site-ink);
 }
 
 .playground-badge {
@@ -53,6 +56,7 @@
 .playground-toggle-label {
   display: flex;
   align-items: center;
+  min-height: 32px;
   gap: 6px;
   font-size: 13px;
   font-weight: 500;
@@ -62,7 +66,7 @@
 }
 
 .playground-toggle-input {
-  accent-color: var(--inkio-primary);
+  accent-color: var(--site-accent);
 }
 
 .playground-main {
@@ -81,13 +85,31 @@
   display: none;
 }
 
+.playground-pane:focus-visible,
+.playground-json:focus-visible {
+  outline: 2px solid var(--inkio-primary);
+  outline-offset: 2px;
+}
+
 .playground-section {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
+.playground-section-heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.playground-editor-frame {
+  position: relative;
+}
+
 .playground-section-label {
+  margin: 0;
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
@@ -97,11 +119,9 @@
 
 .playground-json {
   padding: 16px;
-  border-radius: var(--inkio-radius-lg);
-  background: var(--inkio-surface-panel);
-  border: 1px solid var(--inkio-surface-border);
-  box-shadow: var(--inkio-surface-shadow);
-  backdrop-filter: blur(var(--inkio-surface-blur-panel));
+  border-radius: var(--site-radius);
+  background: var(--site-surface);
+  border: 1px solid var(--site-line);
   font-size: 12px;
   line-height: 1.5;
   overflow-x: auto;
@@ -109,6 +129,17 @@
   overflow-y: auto;
   margin: 0;
   color: var(--inkio-text);
+}
+
+.playground-json-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.playground-json-actions .playground-mode-btn {
+  border: 1px solid var(--inkio-surface-border);
 }
 
 .playground-note {
@@ -127,14 +158,13 @@
   display: flex;
   gap: 2px;
   padding: 2px;
-  background: var(--inkio-surface-shell);
-  border: 1px solid var(--inkio-surface-border);
-  border-radius: var(--inkio-radius-md);
-  box-shadow: var(--inkio-surface-shadow);
-  backdrop-filter: blur(var(--inkio-surface-blur-shell));
+  background: var(--site-band);
+  border: 1px solid var(--site-line);
+  border-radius: var(--site-radius);
 }
 
 .playground-mode-btn {
+  min-height: 32px;
   padding: 4px 12px;
   font-size: 12px;
   font-weight: 600;
@@ -143,6 +173,7 @@
   cursor: pointer;
   background: transparent;
   color: var(--inkio-text-muted);
+  white-space: nowrap;
   transition: background 0.15s, color 0.15s;
 }
 
@@ -150,11 +181,9 @@
   color: var(--inkio-text);
 }
 
-.playground-mode-btn.is-active {
-  background: var(--inkio-surface-field);
-  color: var(--inkio-text);
-  box-shadow: var(--inkio-surface-shadow);
-  backdrop-filter: blur(var(--inkio-surface-blur-field));
+.playground-mode-btn:is([aria-selected='true'], [aria-pressed='true']) {
+  background: var(--site-active);
+  color: var(--site-accent);
 }
 
 .playground-mode-btn:focus-visible {
@@ -163,7 +192,6 @@
 }
 
 .playground-mode-badge {
-  margin-left: 8px;
   font-size: 10px;
   font-weight: 500;
   padding: 1px 6px;
@@ -171,6 +199,7 @@
   background: var(--inkio-surface-field);
   color: var(--inkio-text-muted);
   text-transform: none;
+  overflow-wrap: anywhere;
   letter-spacing: normal;
 }
 

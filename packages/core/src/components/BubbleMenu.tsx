@@ -26,6 +26,7 @@ import {
   autoUpdateOverlayPosition,
   computeOverlayPosition,
   fixedOrigin,
+  type InkioMenuPosition,
 } from '../overlay/positioning';
 
 export interface BubbleMenuProps {
@@ -40,6 +41,8 @@ export interface BubbleMenuProps {
   icons?: Partial<InkioIconRegistry>;
   /** Transform the default toolbar actions for the bubble surface. */
   items?: InkioToolbarActionTransform;
+  /** Placement around the current text selection. */
+  position?: InkioMenuPosition;
 }
 
 /** A table's cell selection. By shape: importing the class would tie this to the table extension. */
@@ -53,6 +56,7 @@ export const BubbleMenu = ({
   messages: messageOverrides,
   icons: iconOverrides,
   items,
+  position: menuPosition,
 }: BubbleMenuProps) => {
   const [isVisible, setIsVisible] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -106,7 +110,7 @@ export const BubbleMenu = ({
       height: menuRef.current?.offsetHeight ?? 40,
     };
 
-    const boundaryRect = editor.view.dom.getBoundingClientRect();
+    const boundaryRect = menuPosition?.boundary === 'viewport' ? undefined : editor.view.dom.getBoundingClientRect();
 
     const nextPosition = computeOverlayPosition({
       anchorRect: selectionRect(editor),
@@ -117,13 +121,14 @@ export const BubbleMenu = ({
       padding: 8,
       flip: true,
       shift: true,
+      ...menuPosition,
       boundaryRect,
     });
 
     const origin = fixedOrigin(editor.view.dom);
     setPosition({ top: nextPosition.top - origin.y, left: nextPosition.left - origin.x });
     setIsVisible(true);
-  }, [editor]);
+  }, [editor, menuPosition]);
 
   const requestComment = useCallback(() => {
     if (!editor) {
@@ -157,8 +162,8 @@ export const BubbleMenu = ({
     );
   }, [editor]);
 
-  const handleBlur = useCallback(() => {
-    if (linkPopoverOpenRef.current) {
+  const handleBlur = useCallback(({ event }: { event: FocusEvent }) => {
+    if (linkPopoverOpenRef.current || menuRef.current?.contains(event.relatedTarget as Node | null)) {
       return;
     }
 
@@ -272,6 +277,9 @@ export const BubbleMenu = ({
     <div
       ref={menuRef}
       className={`inkio-floating-overlay ${isVisible ? 'is-visible' : ''} ${className || ''}`}
+      onBlur={(event) => {
+        if (!linkPopoverOpen && !event.currentTarget.contains(event.relatedTarget)) setIsVisible(false);
+      }}
       style={{
         top: position.top,
         left: position.left,
@@ -296,7 +304,9 @@ export const BubbleMenu = ({
                     open={linkPopoverOpen}
                     onOpenChange={(open) => {
                       setLinkPopoverOpen(open);
-                      if (!open) {
+                      if (open) {
+                        setCurrentLinkUrl(String(editor.getAttributes('link').href ?? ''));
+                      } else {
                         setCurrentLinkUrl('');
                         const active = document.activeElement as HTMLElement | null;
                         if (
@@ -309,21 +319,13 @@ export const BubbleMenu = ({
                       }
                     }}
                   >
-                    <Popover.Anchor asChild>
+                    <Popover.Trigger asChild>
                       <button
                         ref={buttonRefSetter(buttonRefs.current, idx)}
                         type="button"
                         tabIndex={rovingTabIndex(idx, focusedIndex)}
                         onFocus={() => setFocusedIndex(idx)}
-                        onMouseDown={(event) => {
-                          event.preventDefault();
-                          if (isDisabled) {
-                            return;
-                          }
-                          const existingUrl = String(editor.getAttributes('link').href ?? '');
-                          setCurrentLinkUrl(existingUrl);
-                          setLinkPopoverOpen(true);
-                        }}
+                        onMouseDown={(event) => event.preventDefault()}
                         className={`inkio-bubble-btn ${isActive ? 'is-active' : ''}`}
                         title={label}
                         aria-label={label}
@@ -331,7 +333,7 @@ export const BubbleMenu = ({
                       >
                         {iconNode}
                       </button>
-                    </Popover.Anchor>
+                    </Popover.Trigger>
                     <Popover.Portal container={portalContainer}>
                       <Popover.Content
                         ref={linkPopoverContentRef}
@@ -371,12 +373,7 @@ export const BubbleMenu = ({
                   ? 'inkio-bubble-btn is-danger'
                   : `inkio-bubble-btn ${isActive ? 'is-active' : ''}`;
 
-              const onMouseDown: React.MouseEventHandler<HTMLButtonElement> = (event) => {
-                event.preventDefault();
-                if (isDisabled) {
-                  return;
-                }
-
+              const run = () => {
                 if (action.id === 'comment') {
                   requestComment();
                   return;
@@ -392,10 +389,12 @@ export const BubbleMenu = ({
                   type="button"
                   tabIndex={rovingTabIndex(idx, focusedIndex)}
                   onFocus={() => setFocusedIndex(idx)}
-                  onMouseDown={onMouseDown}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={run}
                   className={buttonClass}
                   title={label}
                   aria-label={label}
+                  aria-pressed={action.isActive ? isActive : undefined}
                   disabled={isDisabled}
                 >
                   {iconNode}

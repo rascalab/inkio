@@ -3,7 +3,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStableOptions } from '@inkio/core';
-import { ImageEditor } from './ImageEditor';
+import { ImageEditorWorkbench } from './ImageEditor';
 import type { ImageEditorLocale, ImageEditorModalProps } from './types';
 import { useInkioImageEditorUi } from './i18n';
 
@@ -33,11 +33,15 @@ export function ImageEditorModal({
   isOpen,
   imageSrc,
   onSave,
+  onSaveBlob,
+  savePreview,
   onClose,
   theme,
   imageQuality = 0.92,
   imageFormat = 'png',
   tools,
+  defaultTool,
+  toolPlacement,
   locale,
   messages,
   icons,
@@ -77,7 +81,7 @@ export function ImageEditorModal({
   }, [isOpen]);
 
   const requestClose = useCallback(() => {
-    if (savingRef.current) return;
+    if (savingRef.current || contentRef.current?.querySelector('.inkio-ie-root[aria-busy="true"]')) return;
     if (isDirty && !confirmDiscard) {
       setConfirmDiscard(true);
       return;
@@ -100,6 +104,18 @@ export function ImageEditorModal({
     }
     requestClose();
   }, [confirmDiscard, requestClose]);
+
+  async function saveAndClose(save: () => void | Promise<void>) {
+    if (savingRef.current) return;
+    setConfirmDiscard(false);
+    savingRef.current = true;
+    try {
+      await save();
+      onClose();
+    } finally {
+      savingRef.current = false;
+    }
+  }
 
   return (
     <Dialog.Root open={isOpen} onOpenChange={(open) => { if (!open) requestClose(); }}>
@@ -152,27 +168,21 @@ export function ImageEditorModal({
                 </div>
               </div>
             )}
-            <ImageEditor
+            <ImageEditorWorkbench
               src={imageSrc}
-              onSave={async (dataUrl) => {
-                if (savingRef.current) return;
+              onUnchangedSave={() => {
                 setConfirmDiscard(false);
-                if (!isDirty) {
-                  onClose();
-                  return;
-                }
-                savingRef.current = true;
-                try {
-                  await onSave(dataUrl);
-                  onClose();
-                } finally {
-                  savingRef.current = false;
-                }
+                onClose();
               }}
+              onSave={(dataUrl) => saveAndClose(() => onSave(dataUrl))}
+              onSaveBlob={onSaveBlob && ((...output) => saveAndClose(() => onSaveBlob(...output)))}
+              savePreview={savePreview}
               onCancel={requestClose}
               outputFormat={imageFormat}
               outputQuality={imageQuality}
               tools={tools}
+              defaultTool={defaultTool}
+              toolPlacement={toolPlacement}
               locale={resolvedImageEditorLocale}
               className="inkio-ie-modal-editor"
               onDirtyChange={setIsDirty}

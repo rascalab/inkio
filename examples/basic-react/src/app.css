@@ -74,6 +74,32 @@ pre {
   padding: 24px;
 }
 
+.appearance-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-block-end: 0.75rem;
+  font: 600 0.875rem system-ui, sans-serif;
+}
+
+.appearance-picker select {
+  min-height: 2.25rem;
+  padding-inline: 0.5rem;
+  border: 1px solid #8e98a8;
+  border-radius: 0.5rem;
+  background: white;
+  color: #172033;
+}
+
+.inkio.example-theme {
+  --inkio-bg: #fff9eb;
+  --inkio-bg-subtle: #f7edd8;
+  --inkio-border: #b5a584;
+  --inkio-control-active: #ebd9b5;
+}
+
 .json-card {
   margin-top: 20px;
   padding: 20px 24px;

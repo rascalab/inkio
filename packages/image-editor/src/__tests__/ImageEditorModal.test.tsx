@@ -5,9 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImageEditorModal } from '../ImageEditorModal';
 import type { ImageEditorProps } from '../types';
 
-let latestEditorProps: ImageEditorProps | undefined;
+type WorkbenchProps = ImageEditorProps & { onUnchangedSave?: () => void };
+let latestEditorProps: WorkbenchProps | undefined;
 
-function editorProps(): ImageEditorProps {
+function editorProps(): WorkbenchProps {
   if (!latestEditorProps) throw new Error('Image editor has not rendered');
   return latestEditorProps;
 }
@@ -17,7 +18,7 @@ const { imageEditorSpy } = vi.hoisted(() => ({
 }));
 
 vi.mock('../ImageEditor', () => ({
-  ImageEditor: (props: ImageEditorProps) => {
+  ImageEditorWorkbench: (props: WorkbenchProps) => {
     latestEditorProps = props;
     imageEditorSpy(props);
     return <div data-testid="inkio-ie-modal-image-editor" />;
@@ -153,7 +154,7 @@ describe('ImageEditorModal locale merging', () => {
     const onClose = vi.fn();
     render(<ImageEditorModal isOpen imageSrc="/demo.png" onSave={onSave} onClose={onClose} />);
 
-    await act(async () => { await editorProps().onSave('data:image/png;base64,unchanged'); });
+    act(() => { editorProps().onUnchangedSave?.(); });
 
     expect(onSave).not.toHaveBeenCalled();
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -169,7 +170,7 @@ describe('ImageEditorModal locale merging', () => {
     rerender(<ImageEditorModal isOpen={false} imageSrc="/demo.png" onSave={onSave} onClose={onClose} />);
     rerender(<ImageEditorModal isOpen imageSrc="/demo.png" onSave={onSave} onClose={onClose} />);
 
-    await act(async () => { await editorProps().onSave('data:image/png;base64,unchanged'); });
+    act(() => { editorProps().onCancel(); });
 
     expect(onSave).not.toHaveBeenCalled();
     expect(onClose).toHaveBeenCalledTimes(1);

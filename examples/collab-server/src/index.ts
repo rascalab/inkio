@@ -6,7 +6,7 @@ export { attachHocuspocus, shutdownHocuspocus } from './embed';
 export type { AttachHocuspocusOptions } from './embed';
 export { createHttpVerify } from './split';
 export type { HttpVerifyOptions } from './split';
-export { VerifyController } from './nest/verify.controller';
+export { createVerifyApplication } from './nest/verify.controller';
 export type { VerifyRequestBody, VerifyResponseBody } from './nest/verify.controller';
 export { InkioCollabModule, INKIO_HOCUSPOCUS } from './nest/collab.module';
 export type { InkioCollabModuleOptions } from './nest/collab.module';

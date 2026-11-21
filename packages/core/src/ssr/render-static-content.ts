@@ -3,6 +3,17 @@ import { generateHTML } from '@tiptap/html';
 import sanitizeHtml from 'sanitize-html';
 import { getHeadingsFromContent, slugifyHeading, type HeadingItem } from '../headings/headings';
 import { escapeHtml } from '../utils/html';
+import { assertTableSize, clampTableSpan, normalizeJsonTables, TableBounds, TableContentError } from '../utils/table-bounds';
+import {
+  assertStaticHtmlLength,
+  assertStaticJsonBudget,
+  MAX_STATIC_DEPTH,
+  MAX_STATIC_ELEMENTS,
+  MAX_STATIC_HEADINGS,
+  MAX_STATIC_TABLE_SLOTS,
+  StaticContentLimitError,
+  stripHtmlMarkup,
+} from './static-content-bounds';
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] };
 
@@ -44,6 +55,8 @@ export function normalizeInkioContent(
     return content ?? EMPTY_DOC;
   }
 
+  assertStaticHtmlLength(content);
+
   const trimmed = content.trim();
   if (!trimmed) {
     return EMPTY_DOC;
@@ -51,7 +64,7 @@ export function normalizeInkioContent(
 
   // Tag-shaped sequences only: a bare `<` followed by a non-letter (a<3,
   // 1<2) is comparison text, not markup, and must survive.
-  return createParagraphDoc(trimmed.replace(/<!--[\s\S]*?-->|<\/?[a-zA-Z!][^>]*>/g, ' ').replace(/\s+/g, ' ').trim());
+  return createParagraphDoc(stripHtmlMarkup(trimmed).replace(/\s+/g, ' ').trim());
 }
 
 function decodeHtmlEntities(value: string): string {
@@ -65,7 +78,7 @@ function decodeHtmlEntities(value: string): string {
 }
 
 function stripHtml(value: string): string {
-  return decodeHtmlEntities(value.replace(/<!--[\s\S]*?-->|<\/?[a-zA-Z!][^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+  return decodeHtmlEntities(stripHtmlMarkup(value)).replace(/\s+/g, ' ').trim();
 }
 
 function extractHeadingsFromHtml(html: string): HeadingItem[] {
@@ -128,6 +141,8 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
     div: ['data-bookmark-url', 'data-bookmark-title', 'data-bookmark-description', 'data-bookmark-image', 'data-bookmark-favicon', 'data-type'],
     ul: ['data-type'],
     li: ['data-type', 'data-checked'],
+    td: ['colspan', 'rowspan'],
+    th: ['colspan', 'rowspan'],
     figure: ['data-type', 'data-align', 'data-width'],
     h1: ['data-inkio-heading-index'],
     h2: ['data-inkio-heading-index'],
@@ -171,17 +186,97 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
 } as sanitizeHtml.IOptions;
 
 function sanitizeInkioHtml(html: string): string {
-  return html ? sanitizeHtml(html, SANITIZE_OPTIONS) : '';
+  if (!html) return '';
+  assertStaticHtmlLength(html);
+
+  const tables: { bounds: TableBounds; inRow: boolean; columns: number; columnGroupStart: number }[] = [];
+  const taskItems: boolean[] = [];
+  let inTaskItem = false;
+  let slots = 0;
+  let depth = 0;
+  let elements = 0;
+  let headings = 0;
+
+  return sanitizeHtml(html, {
+    ...SANITIZE_OPTIONS,
+    onOpenTag(name, attrs) {
+      if (++depth > MAX_STATIC_DEPTH || ++elements > MAX_STATIC_ELEMENTS ||
+        (/^h[1-6]$/.test(name) && ++headings > MAX_STATIC_HEADINGS)) {
+        throw new StaticContentLimitError();
+      }
+      if (name === 'li') {
+        taskItems.push(inTaskItem);
+        inTaskItem = attrs['data-type'] === 'taskItem';
+      }
+      if (name === 'table') {
+        tables.push({ bounds: new TableBounds(), inRow: false, columns: 0, columnGroupStart: 0 });
+        return;
+      }
+      const table = tables[tables.length - 1];
+      if (!table) return;
+      if (name === 'tr') {
+        table.bounds.startRow();
+        table.inRow = true;
+      } else if (name === 'td' || name === 'th') {
+        if (!table.inRow) {
+          // HTML permits omitted row tags; count that browser-implied row too.
+          table.bounds.startRow();
+          table.inRow = true;
+        }
+        table.bounds.addCell(clampTableSpan(attrs.colspan), clampTableSpan(attrs.rowspan));
+      } else if (name === 'col') {
+        assertTableSize(++table.columns, table.bounds.height);
+      } else if (name === 'colgroup') {
+        table.columnGroupStart = table.columns;
+      }
+    },
+    onCloseTag(name) {
+      depth -= 1;
+      if (name === 'li') inTaskItem = taskItems.pop() ?? false;
+      const table = tables[tables.length - 1];
+      if (!table) return;
+      if (name === 'tr' || name === 'thead' || name === 'tbody' || name === 'tfoot') {
+        table.inRow = false;
+      } else if (name === 'colgroup' && table.columns === table.columnGroupStart) {
+        assertTableSize(++table.columns, table.bounds.height);
+      } else if (name === 'table') {
+        tables.pop();
+        const width = Math.max(table.columns, table.bounds.width);
+        assertTableSize(width, table.bounds.height);
+        slots += width * table.bounds.height;
+        if (slots > MAX_STATIC_TABLE_SLOTS) throw new StaticContentLimitError();
+      }
+    },
+    transformTags: {
+      ...SANITIZE_OPTIONS.transformTags,
+      input: (tagName, attrs) => {
+        if (!inTaskItem || attrs.type?.toLowerCase() !== 'checkbox') {
+          return { tagName: 'inkio-discard-input', attribs: {} };
+        }
+        return { tagName, attribs: { ...attrs, type: 'checkbox', disabled: '' } };
+      },
+      td: normalizeCellSpans,
+      th: normalizeCellSpans,
+    },
+  });
+}
+
+function normalizeCellSpans(tagName: string, attribs: Record<string, string>) {
+  for (const name of ['colspan', 'rowspan'] as const) {
+    if (attribs[name] === undefined) continue;
+    const span = clampTableSpan(attribs[name]);
+    if (span === 1) delete attribs[name];
+    else attribs[name] = String(span);
+  }
+  return { tagName, attribs };
 }
 
 export function renderInkioStaticContent(
   content: string | JSONContent | undefined,
   extensions: Extensions,
 ): StaticContentRenderResult {
-  const json = normalizeInkioContent(content);
-  const jsonHeadings = getHeadingsFromContent(json);
-
   if (typeof content === 'string') {
+    const json = normalizeInkioContent(content);
     const rawHtml = sanitizeInkioHtml(content.trim());
     const headings = extractHeadingsFromHtml(rawHtml);
     return {
@@ -192,16 +287,24 @@ export function renderInkioStaticContent(
     };
   }
 
+  assertStaticJsonBudget(content);
+  let slots = 0;
+  const json = normalizeJsonTables(normalizeInkioContent(content), ({ width, height }) => {
+    slots += width * height;
+    if (slots > MAX_STATIC_TABLE_SLOTS) throw new StaticContentLimitError();
+  });
+
   // generateHTML from @tiptap/html uses happy-dom internally.
   // Text nodes are properly escaped via DOM APIs, but extension renderHTML can
-  // still emit unsafe attrs — always sanitize the output. Never let an invalid
-  // doc crash SSR; fall back to an empty shell instead.
-  let html = '';
+  // still emit unsafe attrs — always sanitize the output. Other malformed
+  // content still falls back to the shell, but limits are reported explicitly.
   try {
+    const jsonHeadings = getHeadingsFromContent(json);
     const raw = isEmptyDoc(json) ? '' : generateHTML(json, extensions);
-    html = raw ? sanitizeInkioHtml(injectHeadingIds(raw, jsonHeadings)) : '';
-  } catch {
+    const html = sanitizeInkioHtml(raw);
+    return { json, html: injectHeadingIds(html, jsonHeadings), headings: jsonHeadings, shellOnly: false };
+  } catch (error) {
+    if (error instanceof StaticContentLimitError || error instanceof TableContentError) throw error;
     return { json: EMPTY_DOC, html: '', headings: [], shellOnly: true };
   }
-  return { json, html, headings: jsonHeadings, shellOnly: false };
 }

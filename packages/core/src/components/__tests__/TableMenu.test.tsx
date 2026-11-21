@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { TableMenu } from '../TableMenu';
 
@@ -90,6 +90,49 @@ describe('TableMenu', () => {
     });
   });
 
+  it('stops measuring an idle active table and reads only the first row of cells', () => {
+    vi.useFakeTimers();
+    try {
+      const { editor, table } = createMockEditor();
+      const firstCellRect = vi.spyOn(table.rows[0].cells[0], 'getBoundingClientRect');
+      const laterCellRect = vi.spyOn(table.rows[1].cells[0], 'getBoundingClientRect');
+      render(<TableMenu editor={editor} />);
+
+      act(() => { vi.advanceTimersToNextFrame(); });
+      const readsAfterSetup = firstCellRect.mock.calls.length;
+      expect(readsAfterSetup).toBeGreaterThan(0);
+      act(() => { vi.advanceTimersToNextFrame(); });
+      act(() => { vi.advanceTimersToNextFrame(); });
+
+      expect(firstCellRect).toHaveBeenCalledTimes(readsAfterSetup);
+      expect(laterCellRect).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('skips cell geometry offscreen and restores controls when scrolled into view', () => {
+    vi.useFakeTimers();
+    try {
+      const { editor, table } = createMockEditor();
+      const tableRect = vi.spyOn(table, 'getBoundingClientRect').mockReturnValue(
+        new DOMRect(0, window.innerHeight + 100, 300, 100),
+      );
+      const cellRect = vi.spyOn(table.rows[0].cells[0], 'getBoundingClientRect');
+      const { queryByRole, getByRole } = render(<TableMenu editor={editor} />);
+
+      expect(queryByRole('button', { name: 'Add column after' })).toBeNull();
+      expect(cellRect).not.toHaveBeenCalled();
+      tableRect.mockReturnValue(new DOMRect(0, 100, 300, 100));
+      fireEvent.scroll(window);
+      act(() => { vi.advanceTimersToNextFrame(); });
+
+      expect(getByRole('button', { name: 'Add column after' })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('inserts a column at the clicked boundary', async () => {
     const { editor, commandSpies } = createMockEditor();
     const { getAllByRole } = render(<TableMenu editor={editor} />);
@@ -122,6 +165,25 @@ describe('TableMenu', () => {
 
     expect(commandSpies.addColumnBefore).toHaveBeenCalledTimes(1);
     expect(commandSpies.addColumnAfter).not.toHaveBeenCalled();
+    expect(editor.view.posAtDOM).toHaveBeenLastCalledWith(table.rows[1].cells[1], 0);
+  });
+
+  it('anchors an interior boundary in a table with no complete unmerged row', async () => {
+    const { editor, table, commandSpies } = createMockEditor();
+    for (let row = 0; row < table.rows.length; row += 1) {
+      const mergeColumn = row === 1 ? 1 : 0;
+      const cells = table.rows[row].cells;
+      table.rows[row].deleteCell(mergeColumn + 1);
+      cells[mergeColumn].colSpan = 2;
+      cells[0].getBoundingClientRect = () => new DOMRect(0, 0, 100 * cells[0].colSpan, 10);
+      cells[1].getBoundingClientRect = () => new DOMRect(100 * cells[0].colSpan, 0, 100 * cells[1].colSpan, 10);
+    }
+    const { getAllByRole } = render(<TableMenu editor={editor} />);
+
+    const columnButtons = await waitFor(() => getAllByRole('button', { name: /Add column/ }));
+    expect(columnButtons).toHaveLength(4);
+    fireEvent.mouseDown(columnButtons[1]);
+    expect(commandSpies.addColumnBefore).toHaveBeenCalledTimes(1);
     expect(editor.view.posAtDOM).toHaveBeenLastCalledWith(table.rows[1].cells[1], 0);
   });
 

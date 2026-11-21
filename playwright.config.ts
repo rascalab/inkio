@@ -28,6 +28,11 @@ export default defineConfig({
       name: 'firefox',
       use: { browserName: 'firefox' },
     },
+    {
+      name: 'webkit',
+      testMatch: '**/image-editor.spec.ts',
+      use: { browserName: 'webkit' },
+    },
   ],
   webServer: [
     {

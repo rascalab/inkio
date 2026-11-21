@@ -16,6 +16,7 @@ import '@inkio/editor/style.css';
 | `content` | `string \| JSONContent` | 초기 문서 (마운트 후 에디터가 상태 소유) |
 | `editable` | `boolean` | 편집 가능 여부 (기본값: `true`) |
 | `placeholder` | `string` | 빈 에디터 placeholder 텍스트 |
+| `ariaLabel` | `string` | 편집 영역의 접근성 이름. 기본값은 현재 로케일의 편집기 이름입니다 |
 | `locale` | `InkioLocaleInput` | 로케일 |
 | `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 부모 환경을 따름) |
 | `tabBehavior` | `'indent' \| 'default'` | Tab 키 동작 (기본값: `'indent'`). `'indent'`는 리스트 항목을 들여쓰고, 코드는 들여쓰며, 표에서는 칸을 옮기고, 그 밖에서는 탭 문자를 입력합니다. Esc로 에디터를 벗어납니다. `'default'`는 브라우저 기본 포커스 이동입니다 |
@@ -30,7 +31,7 @@ import '@inkio/editor/style.css';
 | `onWikiLinkClick` | `(href: string) => void` | 위키 링크 클릭 핸들러 |
 | `wikiLinkItems` | `(params: { query: string }) => WikiLinkItem[] \| Promise<WikiLinkItem[]>` | `[[` 입력 시 페이지 제안. 고른 항목의 `id`가 링크 대상 |
 | `onImageUpload` | `(file: File) => Promise<string \| { src: string }>` | 이미지 업로드 핸들러. 반환 URL은 안전성 검사를 통과해야 저장됩니다 |
-| `imageBlock` | `Partial<ImageBlockOptions>` | ImageBlock 확장 옵션 |
+| `imageBlock` | `Omit<Partial<ImageBlockOptions>, 'onUpload' \| 'HTMLAttributes'>` | 이미지 블록 설정. 업로드는 `onImageUpload`로 연결합니다 |
 | `comment` | `CommentConfig` | 댓글 기능 설정 (미지정 시 꺼짐) |
 | `bookmark` | `false \| { onResolveBookmark? }` | 북마크 기능 설정 |
 | `blockHandle` | `boolean` | 블록 핸들 표시 여부 (읽기 전용에서는 표시·동작하지 않음) |
@@ -40,6 +41,8 @@ import '@inkio/editor/style.css';
 | `toggleList` | `boolean` | 토글 리스트 활성화 여부 |
 | `extensions` | `ExtensionsInput` | 확장 추가/교체 |
 
+한 화면에 에디터가 여러 개면 `ariaLabel`을 각각 다르게 지정하세요. 변경 신호만 필요하면 `onCreate`로 받은 인스턴스의 `update` 이벤트를 구독하세요. `onUpdate`는 전체 JSON을 제공하므로, 대형 문서 미리보기는 구독 쪽에서 `getJSON()` 자체를 지연하는 편이 좋습니다.
+
 **EditorUiOptions:**
 
 | 옵션 | 타입 | 설명 |
@@ -47,9 +50,11 @@ import '@inkio/editor/style.css';
 | `showBubbleMenu` | `boolean` | bubble menu 표시 (기본값: `true`) |
 | `showFloatingMenu` | `boolean` | floating menu 표시 (기본값: `true`) |
 | `showTableMenu` | `boolean` | table menu 표시 (기본값: `true`) |
-| `fill` | `boolean` | 부모 높이를 채움 |
-| `autoresize` | `boolean` | 콘텐츠 높이에 맞게 자동 조절 |
-| `bordered` | `boolean` | 테두리 표시 |
+| `showToolbar` | `boolean` | 고정 툴바 표시 (기본값: `false`) |
+| `toolbar` | `Omit<ToolbarProps, 'editor'>` | 툴바 액션, 추가 JSX, 클래스와 상·하단 위치 |
+| `fill` | `boolean` | 부모 높이를 채우고 본문만 스크롤 (기본값: `false`) |
+| `autoresize` | `boolean` | 콘텐츠 높이에 맞게 자동 조절 (기본값: `false`). `fill`과 함께 지정하면 `fill`이 우선합니다 |
+| `bordered` | `boolean` | 기본 외곽선과 안쪽 여백 (기본값: `true`) |
 | `className` | `string` | 루트 엘리먼트 클래스 |
 | `style` | `React.CSSProperties` | 루트 엘리먼트 스타일 |
 | `messages` | `InkioMessageOverrides` | UI 메시지 오버라이드 |
@@ -90,6 +95,7 @@ import '@inkio/simple/style.css';
 | `content` | `string \| JSONContent` | 초기 문서 (마운트 후 에디터가 상태 소유) |
 | `editable` | `boolean` | 편집 가능 여부 |
 | `placeholder` | `string` | placeholder 텍스트 |
+| `ariaLabel` | `string` | 편집 영역의 접근성 이름 |
 | `locale` | `InkioLocaleInput` | 로케일 |
 | `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 부모 환경을 따름) |
 | `tabBehavior` | `'indent' \| 'default'` | Tab 키 동작 (`'indent'`는 입력, Esc로 에디터를 벗어남. `'default'`는 포커스 이동) |
@@ -97,7 +103,7 @@ import '@inkio/simple/style.css';
 | `onCreate` | `(editor: TiptapEditor) => void` | 에디터 인스턴스 준비 콜백 |
 | `onError` | `InkioErrorHandler` | 에러 핸들러 |
 | `onImageUpload` | `(file: File) => Promise<string \| { src: string }>` | 이미지 업로드 핸들러. 반환 URL은 안전성 검사를 통과해야 저장됩니다 |
-| `imageBlock` | `Partial<ImageBlockOptions>` | ImageBlock 확장 옵션 |
+| `imageBlock` | `Omit<Partial<ImageBlockOptions>, 'onUpload' \| 'HTMLAttributes'>` | 이미지 블록 설정. 업로드는 `onImageUpload`로 연결합니다 |
 | `ui` | `SimpleEditorUiOptions` | UI 옵션 |
 | `extensions` | `ExtensionsInput` | 확장 추가/교체 |
 
@@ -113,9 +119,10 @@ import '@inkio/simple/style.css';
 |------|:---:|:---:|
 | `content` | O | O |
 | `onUpdate`, `onCreate`, `onError` | O | O |
-| `ui.showToolbar` | - (항상 off) | O |
+| `ui.showToolbar` | O (기본 off) | O (기본 on) |
 | `ui.showBubbleMenu` | O (기본 on) | O (기본 off) |
 | `ui.showFloatingMenu` | O (기본 on) | O (기본 off) |
+| `ui.showTableMenu` | O (기본 on) | O (기본 on) |
 | `hashtagItems` | O | - |
 | `mentionItems` | O | - |
 | `slashCommands` | O | - |
@@ -132,7 +139,7 @@ import '@inkio/simple/style.css';
 
 ### @inkio/editor — Viewer
 
-`@inkio/editor`의 Viewer는 댓글(comment) 기능을 지원합니다.
+`@inkio/editor`의 Viewer는 댓글의 조회와 스레드 팝오버를 지원합니다.
 
 Editor와 달리 Viewer는 `content` prop이 바뀌면 새 내용을 다시 그립니다(`@inkio/simple` Viewer도 같습니다).
 읽기 전용이라 덮어쓸 편집 내용이 없기 때문입니다.
@@ -161,13 +168,15 @@ import { Viewer } from '@inkio/editor';
 }
 ```
 
+`onReply`와 `onResolve`는 타입에 있지만 현재 내장 Viewer 팝오버는 읽기 전용이라
+호출하지 않습니다. 댓글을 작성하거나 변경할 화면에는 편집 가능한 `Editor`를 쓰거나,
+앱이 권한을 검사하는 별도 댓글 UI를 연결하세요.
+
 ```tsx
 <Viewer
   content={content}
   comment={{
     getComments: (id) => store.getComment(id),
-    onReply: (id, text) => store.reply(id, text),
-    onResolve: (id) => store.resolve(id),
   }}
 />
 ```
@@ -187,11 +196,11 @@ import { Viewer } from '@inkio/simple';
 | `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 부모 환경을 따름) |
 | `ui` | `{ className?, style?, bordered?, messages?, icons? }` | UI 옵션 |
 | `extensions` | `ExtensionsInput` | 확장 추가/교체 |
+| `onCreate` | `(editor: TiptapEditor) => void` | 읽기 전용 에디터 인스턴스 준비 콜백 |
 
 Viewer에서는 문서 편집 액션이 비활성화됩니다. 콜아웃 색상/아이콘 툴바와
 블록 핸들은 표시되지 않고, 할 일(체크박스)·이미지 컨트롤도 상태를
-바꾸지 않습니다. 댓글(reply/resolve)은 읽기 전용 인터랙션이라 그대로
-동작합니다.
+바꾸지 않습니다. `@inkio/editor`에서 댓글은 조회만 할 수 있습니다.
 
 ### @inkio/core — StaticViewer (읽기 전용 경량 경로)
 
@@ -236,7 +245,7 @@ import { getExtensions } from '@inkio/core';
 const extensions = getExtensions({ tocBlock: false });
 ```
 
-자세한 내용은 [TocBlock 확장](./extensions#tocblock-인라인-목차)을 참고하세요.
+자세한 내용은 [TocBlock 확장](/extensions#tocblock-인라인-목차)을 참고하세요.
 
 ### Option 2: `<ToC>` 컴포넌트 (오버레이 미니맵)
 
@@ -259,11 +268,11 @@ import { ToC } from '@inkio/core';
 
 ```tsx
 import { useState } from 'react';
-import { Editor, ToC } from '@inkio/editor';
+import { Editor, ToC, type TiptapEditor } from '@inkio/editor';
 import '@inkio/editor/style.css';
 
 function MyEditor() {
-  const [editor, setEditor] = useState(null);
+  const [editor, setEditor] = useState<TiptapEditor | null>(null);
   return (
     <div style={{ position: 'relative' }}>
       <Editor onCreate={setEditor} />
@@ -289,8 +298,8 @@ function MyEditor() {
 |------|-----------|------|
 | `@inkio/editor/style.css` | 전체 스타일 (advanced 프리셋 포함) | 일반 사용 |
 | `@inkio/simple/style.css` | core 스타일만 | classic 에디터 |
-| `@inkio/editor/minimal.css` | 구조만 (색상·폰트 없음) | 커스텀 테마 |
-| `@inkio/simple/minimal.css` | 구조만 | 커스텀 테마 |
+| `@inkio/editor/minimal.css` | 공통 토큰·기본 구조. 전체 본문·메뉴 외형과 advanced UI 스타일은 제외 | 직접 스타일링 |
+| `@inkio/simple/minimal.css` | 공통 토큰·기본 구조 | 직접 스타일링 |
 
 ### 조합별 import 매트릭스
 
@@ -298,12 +307,12 @@ function MyEditor() {
 |------|--------|------|
 | `@inkio/simple` 단독 | `simple/style.css` | — |
 | `@inkio/editor` 단독 | `editor/style.css` | advanced 장식 포함 |
-| `core` + `advanced` 직접 조합 | `core/style.css` | 멘션 pill 등 advanced 장식은 `editor/style.css`에만 있음 |
-| `image-editor` (단독·연결 공통) | `image-editor/style.css` | 자체 스타일시트 필수 |
+| `core` + `advanced` 직접 조합 | `core/style.css` 또는 `editor/style.css` 중 하나 | 블록 핸들·멘션 등 advanced 스타일이 필요하면 core까지 포함한 `editor/style.css`를 사용 |
+| `image-editor` (단독·연결 공통) | `@inkio/image-editor/style.css` + 본문 프리셋 CSS 또는 `@inkio/core/minimal.css` | 본문 공통 토큰도 필요 |
 | `collab` (`CollabPresence`) | 불필요 | 인라인 스타일만 사용 |
-| 커스텀 테마 | 각 패키지의 `minimal.css` + `--inkio-*` 토큰 재정의 | 색상·폰트는 직접 정의 |
+| 커스텀 테마 | `style.css` + 토큰 override, 또는 `minimal.css` + 자체 CSS | `minimal.css`는 전체 외형을 대신하지 않습니다 |
 
-`minimal.css`는 레이아웃과 구조적 스타일만 포함합니다. 색상, 폰트, 배경 등은 직접 정의해야 합니다.
+`minimal.css`에도 기본 토큰과 일부 기능 UI 스타일은 들어 있습니다. 기본 외형을 유지하고 색만 바꾸려면 `style.css`를 가져온 뒤 토큰을 덮어쓰세요. 두 파일을 함께 가져올 필요는 없습니다.
 
 ```tsx
 // 일반 사용
@@ -321,15 +330,91 @@ import '@inkio/editor/minimal.css';
 |------|------|------|
 | 문구 | `ui.messages` | 타입별 override, `en*Messages`에서 출발 |
 | 아이콘 | `ui.icons` | `Partial<InkioIconRegistry>`, 일부만 교체 가능. 에디터가 그리는 모든 아이콘에 적용되고, 토글 화살표만 `--inkio-toggle-chevron` CSS 변수로 바꿉니다 |
-| 색상·폰트·간격 | CSS 변수 (`--inkio-*`) | `minimal.css` + 토큰 재정의 |
+| 색상·폰트·간격 | `ui.className`/`ui.style` + CSS 변수 (`--inkio-*`) | `style.css`에서도 토큰을 덮어쓸 수 있습니다. 기본 외형을 빼려면 `minimal.css`를 가져오고 나머지는 직접 스타일링합니다. |
 | 전체 테마 | `theme` prop 또는 CSS | `'light'`/`'dark'`, 미지정 시 부모 추종 |
-| 메뉴 구성 | `ui.show*` + `toolbar`/`bubbleMenu` 세부 옵션 | preset별 기본값 상이 (위 비교표) |
+| 메뉴 표시 | `ui.show*` | 프리셋별 기본값은 위 표 참고. 두 프리셋 모두 기본 툴바를 켤 수 있습니다. |
+| 메뉴 도구·순서 | `toolbar.items`, `bubbleMenu.items`, `floatingMenu.items` | 기본 목록에서 빼기·재정렬·액션 추가. Toolbar/BubbleMenu는 `children`으로 별도 버튼도 받습니다. |
+| 메뉴 배치 | `toolbar.placement`, `bubbleMenu.position`, `floatingMenu.position`, `tableMenu.position` | 고정 툴바는 본문 위·아래, 팝업은 기준점 주변의 방향·정렬·간격 설정 |
+| 본문 외곽·높이 | `ui.bordered`, `ui.fill`, `ui.autoresize` | 메뉴의 내부 DOM과 기본 위치 계산은 프리셋이 소유합니다. |
 | 에디터 동작 | `extensions` 추가/교체 | `ExtensionsInput` 규칙 준수 |
 
 외부에서 값을 바꾸려면: `onCreate`로 받은 인스턴스의
 `editor.commands.setContent()`를 쓰세요 (Editor의 `content` prop은 초기값 전용, Viewer는 `content` 변경을 반영).
 
-바꿀 수 없는 것: `StaticViewer`의 인터랙션 (정적 렌더 전용).
+팝업 `position`은 `placement`, `align`, `offset`, `padding`, `flip`, `shift`,
+`boundary`(`'editor'` 또는 `'viewport'`)를 받습니다. 기준점은 서식 메뉴의
+텍스트 선택, 플로팅 메뉴의 빈 문단 커서, 표 컨텍스트 메뉴를 열 때의 포인터입니다.
+표의 행·열 추가 버튼 위치는 셀 경계를 따릅니다.
+
+```tsx
+<Editor
+  ui={{
+    showToolbar: true,
+    toolbar: { placement: 'bottom' },
+    bubbleMenu: { position: { placement: 'bottom', offset: 12, boundary: 'viewport' } },
+    floatingMenu: { position: { placement: 'right', align: 'start' } },
+    tableMenu: { position: { placement: 'left', offset: 8 } },
+  }}
+/>
+```
+
+팝업의 기준점, 표 메뉴의 동작 목록, 내장 메뉴 마크업은 바뀌지 않습니다.
+그것까지 바꾸려면 기본 메뉴를 끄고, `onCreate`로 받은 인스턴스를 별도로 배치한
+메뉴나 자체 UI에 넘기세요. `StaticViewer`는 정적 렌더 전용입니다.
+
+### 메뉴 액션과 추가 버튼
+
+`items`는 배열이 아니라 `(defaults, { editor, surface }) => nextItems` 함수입니다.
+`defaults`에는 해당 메뉴와 현재 스키마에서 사용 가능한 기본 액션만 들어 있습니다.
+기본과 별도로 JSX를 추가하려면 `ui.toolbar.children` 또는 `ui.bubbleMenu.children`을
+사용하세요. `children`은 메뉴 끝에 추가되며 기본 버튼을 대체하지 않습니다. 커스텀 버튼에는
+접근성 이름과 포커스 동작을 직접 지정하고, 편집에 필요한 명령은 에디터 인스턴스로 실행하세요.
+FloatingMenu에는 `items`만, TableMenu에는 둘 다 없습니다.
+
+```tsx
+<Editor
+  ui={{
+    showToolbar: true,
+    toolbar: {
+      placement: 'bottom',
+      items: (defaults) => defaults.filter(({ id }) => id !== 'link'),
+      children: <button type="button" onClick={() => window.print()}>Print</button>,
+    },
+  }}
+/>
+```
+
+툴바를 아래에 배치하면 링크·색상 팝오버는 위로 열립니다. 터치 화면에서는 글을
+선택해야 열리는 BubbleMenu에 자주 쓰는 액션을 모두 숨기지 말고, 고정 툴바에도 배치하세요.
+
+### CSS 변수와 포털
+
+서식 메뉴와 이미지 에디터는 `--inkio-control-text`, `--inkio-control-hover`,
+`--inkio-control-active`, `--inkio-control-radius`를 공유합니다. 본문 프리셋에서
+`ui={{ className: 'brand-editor' }}`를 지정한 경우 `.inkio.brand-editor`에 변수를
+설정하면 고정 툴바의 링크·색상 팝오버까지 상속됩니다. `document.body`에 포털되는
+이미지 모달과 블록 메뉴(`.inkio-block-handle-portal`), 댓글·멘션·슬래시 등 `body` 아래에
+별도로 열리는 메뉴에는 본문 인스턴스의 클래스나 인라인 변수가 상속되지 않습니다.
+아래처럼 스타일시트를 패키지 CSS보다 나중에 불러오고 포털의 `.inkio`에도 지정하세요.
+다크 모드의 색을 덮어쓸 때는 대응하는 `--inkio-dark-*`도 지정합니다.
+
+```css
+.inkio {
+  --inkio-bg: #fff;
+  --inkio-dark-bg: #18181b;
+  --inkio-control-radius: 8px;
+}
+
+.inkio.inkio-ie-portal-theme {
+  --inkio-layer-modal-backdrop: 400;
+  --inkio-layer-modal-content: 401;
+}
+```
+
+코드 블록의 구문 색상도 각 에디터의 색상 스킴을 따릅니다. `--inkio-syntax-keyword` 등
+구문 토큰을 덮어쓰면 같은 페이지의 다른 에디터에 영향을 주지 않고 바꿀 수 있습니다.
+내장 포털의 기본 라이트·다크 팔레트와 달리, 특정 부모에 지정한 커스텀 CSS 변수는
+`body`로 상속되지 않습니다. 필요한 포털 선택자에도 같은 토큰을 지정하세요.
 
 ## 공통 UI override
 

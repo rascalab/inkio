@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from '@playwright/test';
+import { devices, expect, test, type Locator } from '@playwright/test';
 
 async function selectCommentText(editor: Locator) {
   await editor.locator('p').first().click();
@@ -16,6 +16,15 @@ async function selectCommentText(editor: Locator) {
     selection.addRange(range);
   });
   await expect.poll(() => editor.evaluate(() => window.getSelection()?.toString())).toBe('This example');
+  // ProseMirror consumes selectionchange after the browser selection is set.
+  await expect.poll(() => editor.evaluate((element) => {
+    // Tiptap attaches its editor to the rendered ProseMirror element.
+    const tiptapElement = element as HTMLElement & {
+      editor?: { state: { selection: { from: number; to: number }; doc: { textBetween: (from: number, to: number) => string } } };
+    };
+    const state = tiptapElement.editor?.state;
+    return state?.doc.textBetween(state.selection.from, state.selection.to);
+  })).toBe('This example');
 }
 
 test('next app router example serves editor content in the initial HTML', async ({ page }) => {
@@ -102,7 +111,7 @@ test('next app router example inserts an image from the slash command without a 
     name: 'slash-image.png',
     mimeType: 'image/png',
     buffer: Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9l9lQAAAAASUVORK5CYII=',
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGNgAAIAAAUAAXpeqz8AAAAASUVORK5CYII=',
       'base64',
     ),
   });
@@ -116,11 +125,11 @@ test('next app router example inserts an image from the slash command without a 
   await page.keyboard.type('below the image');
   const lastBlocks = await editor.evaluate((root) => {
     const { content } = (root as unknown as { editor: { getJSON: () => { content: { type: string; content?: unknown[] }[] } } }).editor.getJSON();
-    return content.slice(-2).map((node) => ({ type: node.type, empty: !node.content }));
+    return content.slice(-2);
   });
-  expect(lastBlocks).toEqual([
-    { type: 'imageBlock', empty: true },
-    { type: 'paragraph', empty: false },
+  expect(lastBlocks).toMatchObject([
+    { type: 'imageBlock' },
+    { type: 'paragraph', content: [{ type: 'text', text: 'below the image' }] },
   ]);
 });
 
@@ -678,6 +687,286 @@ test.describe('editor surfaces', () => {
     expect(Math.abs((await bubble.boundingBox())!.y - (await last.boundingBox())!.y)).toBeLessThan(80);
   });
 
+  test('positions built-in menus around their anchors and keeps the bottom toolbar in view', async ({ page }) => {
+    await page.getByLabel('Custom menu layout').check();
+    const editor = blockEditor(page);
+    const toolbar = page.getByRole('toolbar', { name: 'Editor toolbar' });
+    const body = page.locator('.inkio-editor-body');
+    const bottom = (rect: { y: number; height: number }) => rect.y + rect.height;
+    const first = editor.getByText('앞 문단', { exact: true });
+    await first.click({ clickCount: 3 });
+    const bubble = page.getByRole('toolbar', { name: '서식 도구' });
+    await expect(bubble).toBeVisible();
+    await expect.poll(async () => (await bubble.boundingBox())!.y - bottom((await first.boundingBox())!)).toBeGreaterThan(8);
+    expect((await toolbar.boundingBox())!.y).toBeGreaterThanOrEqual(bottom((await body.boundingBox())!) - 1);
+
+    await first.click();
+    await page.keyboard.press('End');
+    await page.keyboard.press('Enter');
+    const floating = page.getByRole('toolbar', { name: '블록 도구' });
+    await expect(floating).toBeVisible();
+    const emptyLine = editor.locator('p').nth(1);
+    await expect.poll(async () => (await floating.boundingBox())!.x - (await emptyLine.boundingBox())!.x).toBeGreaterThan(20);
+
+    await replaceWith(page, '| 이름 | 값 |\n| --- | --- |\n| 기간 | 3~5일 |');
+    const cell = editor.locator('td').last();
+    await cell.scrollIntoViewIfNeeded();
+    const rect = (await cell.boundingBox())!;
+    const x = rect.x + rect.width / 2;
+    await page.mouse.click(x, rect.y + rect.height / 2, { button: 'right' });
+    const tableMenu = page.locator('.inkio-table-context-menu');
+    await expect(tableMenu).toBeVisible();
+    await expect.poll(async () => {
+      const menu = (await tableMenu.boundingBox())!;
+      return x - menu.x - menu.width;
+    }).toBeGreaterThanOrEqual(11);
+  });
+
+  test('shows the picked-up block and insertion point, then clears both on drop', async ({ page }) => {
+    const editor = blockEditor(page);
+    const last = editor.getByText('끝 문단', { exact: true });
+    await last.click();
+    await page.keyboard.press('End');
+    const suffix = ' keeps its original line breaks when it is lifted into a padded drag preview.';
+    await page.keyboard.insertText(suffix);
+    const text = `끝 문단${suffix}`;
+    const source = editor.getByText(text, { exact: true });
+    const target = editor.getByText('앞 문단', { exact: true });
+    const handle = page.getByRole('button', { name: '블록 핸들' });
+    const marker = page.locator('.inkio-block-drop-marker');
+    let lineCounts: number[] | undefined;
+    await page.exposeFunction('recordDragLineCounts', (counts: number[]) => { lineCounts = counts; });
+    await source.evaluate((paragraph) => {
+      document.addEventListener('dragstart', () => {
+        const ghost = document.querySelector('.inkio-block-drag-preview p');
+        if (!ghost) return;
+        const count = (element: Element) => {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          return new Set(Array.from(range.getClientRects(), (rect) => rect.top)).size;
+        };
+        void (window as Window & { recordDragLineCounts: (counts: number[]) => Promise<void> })
+          .recordDragLineCounts([count(paragraph), count(ghost)]);
+      }, { once: true });
+    });
+    await source.hover();
+    await expect(handle).toBeVisible();
+    const grip = (await handle.boundingBox())!;
+    const drop = (await target.boundingBox())!;
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(drop.x + 8, drop.y + 2, { steps: 12 });
+    // A second move delivers dragover after the browser starts native dragging.
+    await page.mouse.move(drop.x + 9, drop.y + 2);
+    await expect(editor).toHaveClass(/inkio-block-pickup/);
+    await expect(source).toHaveCSS('opacity', '0.3');
+    await expect(marker).toBeVisible();
+    await expect.poll(() => lineCounts).toEqual([1, 1]);
+    await page.mouse.up();
+
+    await expect(editor.locator(':scope > p').first()).toHaveText(text);
+    await expect(marker).toHaveCount(0);
+    await expect(editor).not.toHaveClass(/inkio-block-pickup/);
+  });
+
+  test('touch lifts a padded block preview, cancels, and then moves the block once', async ({ browser }) => {
+    const context = await browser.newContext(devices['Pixel 7']);
+    try {
+      const page = await context.newPage();
+      await page.goto('http://localhost:4174/block-e2e');
+      const editor = page.locator('.ProseMirror[contenteditable="true"]');
+      const source = editor.getByText('끝 문단', { exact: true });
+      const target = editor.getByText('앞 문단', { exact: true });
+      const first = editor.locator(':scope > p').first();
+      const handle = page.getByRole('button', { name: '블록 핸들' });
+      const preview = page.locator('.inkio-block-drag-preview');
+      const marker = page.locator('.inkio-block-drop-marker');
+      const cdp = await context.newCDPSession(page);
+      const lift = async () => {
+        await source.tap();
+        await expect(handle).toBeVisible();
+        const grip = (await handle.boundingBox())!;
+        const drop = (await target.boundingBox())!;
+        const x = grip.x + grip.width / 2;
+        const y = grip.y + grip.height / 2;
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+        for (let step = 1; step <= 12; step++) {
+          await cdp.send('Input.dispatchTouchEvent', {
+            type: 'touchMove',
+            touchPoints: [{ x: x + (drop.x + 24 - x) * step / 12, y: y + (drop.y + 2 - y) * step / 12 }],
+          });
+        }
+        await expect(preview).toBeVisible();
+        await expect(preview).toContainText('끝 문단');
+        const sourceWidth = (await source.boundingBox())!.width;
+        const contentWidth = (await preview.locator('p').boundingBox())!.width;
+        expect(contentWidth).toBeCloseTo(sourceWidth, 0);
+        const inset = await preview.evaluate((element) => {
+          const style = getComputedStyle(element);
+          return Math.min(parseFloat(style.paddingTop), parseFloat(style.paddingLeft));
+        });
+        expect(inset).toBeGreaterThanOrEqual(8);
+        await expect(marker).toBeVisible();
+      };
+
+      await lift();
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+      await expect(first).toHaveText('앞 문단');
+      await expect(preview).toHaveCount(0);
+      await expect(marker).toHaveCount(0);
+
+      await lift();
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await expect(first).toHaveText('끝 문단');
+      await expect(source).toHaveCount(1);
+      await expect(preview).toHaveCount(0);
+      await expect(marker).toHaveCount(0);
+      await editor.press('ControlOrMeta+z');
+      await expect(first).toHaveText('앞 문단');
+    } finally {
+      await context.close();
+    }
+  });
+
+  for (const fill of [true, false]) {
+    test(`touch edge-scrolls and drops a long block in ${fill ? 'a fixed-height editor' : 'the page'}`, async ({ browser }) => {
+      const context = await browser.newContext({ ...devices['Pixel 7'], viewport: { width: 393, height: 590 } });
+      try {
+        const page = await context.newPage();
+        await page.goto('http://localhost:4174/block-e2e');
+        if (fill) await page.getByLabel('Custom menu layout').check();
+        const editor = blockEditor(page);
+        const body = page.locator('.inkio-editor-body').filter({ has: editor });
+        const source = editor.getByText(/^끝 문단 길게/);
+        const grip = page.getByRole('button', { name: '블록 핸들' });
+        const preview = page.locator('.inkio-block-drag-preview');
+        const marker = page.locator('.inkio-block-drop-marker');
+        await editor.getByText('끝 문단', { exact: true }).click();
+        await page.keyboard.press('End');
+        await page.keyboard.insertText(' 길게 잡히는 블록을 만들기 위한 문장입니다.'.repeat(8));
+        for (let i = 0; i < 36; i++) {
+          await page.keyboard.press('Enter');
+          await page.keyboard.insertText(`아래 문단 ${i}`);
+        }
+
+        const cdp = await context.newCDPSession(page);
+        const readScroll = () => fill ? body.evaluate((el) => el.scrollTop) : page.evaluate(() => scrollY);
+        const lift = async () => {
+          await source.scrollIntoViewIfNeeded();
+          await source.tap({ position: { x: 60, y: 8 } });
+          await expect(grip).toBeVisible();
+          const handle = (await grip.boundingBox())!;
+          const box = (await body.boundingBox())!;
+          const viewportHeight = page.viewportSize()!.height;
+          const top = fill ? Math.max(box.y, 0) : 0;
+          const bottom = fill ? Math.min(box.y + box.height, viewportHeight) : viewportHeight;
+          const from = { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 };
+          const x = box.x + 72;
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] });
+          const move = (y: number) => cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y }] });
+          return { move, up: top + 3, down: bottom - 3 };
+        };
+
+        let drag = await lift();
+        const start = await readScroll();
+        await drag.move(drag.down);
+        await expect(preview).toBeVisible();
+        await expect.poll(readScroll).toBeGreaterThan(start + 220);
+        await expect(grip).toHaveCSS('opacity', '0');
+        const lower = await readScroll();
+        await drag.move(drag.up);
+        await expect.poll(readScroll).toBeLessThan(lower - 100);
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+        await expect(preview).toHaveCount(0);
+        await expect(marker).toHaveCount(0);
+        await expect(source.locator('xpath=following-sibling::p[1]')).toHaveText('아래 문단 0');
+        const stopped = await readScroll();
+        await page.evaluate(async () => {
+          for (let i = 0; i < 4; i++) await new Promise((resolve) => requestAnimationFrame(resolve));
+        });
+        expect(await readScroll()).toBe(stopped);
+
+        if (fill) {
+          await source.scrollIntoViewIfNeeded();
+          await source.tap({ position: { x: 60, y: 8 } });
+          await grip.tap();
+          const menu = page.getByRole('menu');
+          await expect(menu).toBeVisible();
+          await expect(source).toHaveJSProperty('tagName', 'P');
+          await page.touchscreen.tap(4, 4);
+          await expect(menu).toHaveCount(0);
+        }
+
+        drag = await lift();
+        const before = await readScroll();
+        await drag.move(drag.down);
+        await expect.poll(readScroll).toBeGreaterThan(before + 530);
+        await expect(marker).toBeVisible();
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        await expect(source.locator('xpath=preceding-sibling::p[1]')).toHaveText(/^아래 문단 (1[5-9]|[23]\d)$/);
+        await expect(preview).toHaveCount(0);
+      } finally {
+        await context.close();
+      }
+    });
+  }
+
+  test('touch block menu moves one sibling without dragging or leaving its list', async ({ browser }) => {
+    const context = await browser.newContext({ ...devices['Pixel 7'], viewport: { width: 320, height: 440 } });
+    try {
+      const page = await context.newPage();
+      await page.goto('http://localhost:4174/block-e2e');
+      const editor = blockEditor(page);
+      const menu = page.getByRole('menu');
+      const up = menu.getByRole('menuitem', { name: '위로 한 칸' });
+      const down = menu.getByRole('menuitem', { name: '아래로 한 칸' });
+      const tapHandle = async () => {
+        await page.getByRole('button', { name: '블록 핸들' }).tap();
+        await expect(menu).toBeVisible();
+      };
+      const open = async (text: string) => {
+        await editor.getByText(text, { exact: true }).tap();
+        await tapHandle();
+      };
+
+      await open('앞 문단');
+      await expect(up).toHaveCount(0);
+      await down.tap();
+      await expect(editor.locator(':scope > ul + p').first()).toHaveText('앞 문단');
+      await expect(menu).toHaveCount(0);
+      await tapHandle();
+      await down.tap();
+      await expect(editor.locator(':scope > ul + p + p').first()).toHaveText('앞 문단');
+      for (let i = 0; i < 2; i++) {
+        await expect(menu).toHaveCount(0);
+        await tapHandle();
+        await up.tap();
+      }
+      await expect(editor.locator(':scope > p').first()).toHaveText('앞 문단');
+
+      await open('둘');
+      await expect(down).toHaveCount(0);
+      await up.tap();
+      await expect(editor.locator(':scope > ul > li')).toHaveText(['둘', '하나']);
+      await editor.press('ControlOrMeta+z');
+      await expect(editor.locator(':scope > ul > li')).toHaveText(['하나', '둘']);
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('scoped themes keep the two editor palettes and the detached slash menu independent', async ({ page }) => {
+    await page.getByLabel('Compare themes').check();
+    const light = page.getByTestId('theme-probe-light');
+    const dark = page.getByTestId('theme-probe-dark');
+    await expect(light.locator('.hljs-keyword')).toHaveCSS('color', 'rgb(215, 58, 73)');
+    await expect(dark.locator('.hljs-keyword')).toHaveCSS('color', 'rgb(255, 123, 114)');
+    await dark.locator('.inkio-content > p').click();
+    await page.keyboard.insertText('/');
+    await expect(page.getByRole('listbox')).toHaveCSS('color-scheme', 'dark');
+    await expect(light.locator('.hljs-keyword')).toHaveCSS('color', 'rgb(215, 58, 73)');
+  });
+
   test('a new toggle opens, and Enter in its summary goes inside', async ({ page }) => {
     await replaceWith(page, '가');
     await page.keyboard.press('Enter');
@@ -704,13 +993,16 @@ test.describe('editor surfaces', () => {
     await expect(blockEditor(page).locator('hr')).toHaveCount(1);
   });
 
-  test('Enter right after opening the block menu keeps the block', async ({ page }) => {
-    await blockEditor(page).getByText('앞 문단', { exact: true }).hover();
-    await page.locator('[aria-label="블록 핸들"]').click();
+  test('the keyboard block menu highlights its source and Enter keeps the block', async ({ page }) => {
+    const block = blockEditor(page).getByText('앞 문단', { exact: true });
+    await block.click();
+    await page.keyboard.press('Shift+F10');
     const menu = page.locator('.inkio-block-handle-action-menu');
     await expect(menu).toBeFocused();
+    await expect(block).toHaveClass(/inkio-block-selected/);
     await page.keyboard.press('Enter');
-    await expect(blockEditor(page)).toContainText('앞 문단');
+    await expect(block).toBeVisible();
+    await expect(block).not.toHaveClass(/inkio-block-selected/);
 
     await page.keyboard.press('ArrowDown');
     await expect(menu.getByRole('menuitem').first()).toBeFocused();
@@ -1049,7 +1341,7 @@ test.describe('writing a document', () => {
     };
 
     await openMenuOn('td');
-    await expect(page.getByRole('menuitem')).toHaveCount(2);
+    await expect(page.getByRole('menuitem')).toHaveText(['삭제', '복제', '위로 한 칸', '아래로 한 칸']);
     await page.keyboard.press('Escape');
 
     await openMenuOn('li');

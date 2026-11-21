@@ -25,6 +25,7 @@ import {
   autoUpdateOverlayPosition,
   computeOverlayPosition,
   fixedOrigin,
+  type InkioMenuPosition,
 } from '../overlay/positioning';
 
 
@@ -52,6 +53,8 @@ export interface FloatingMenuProps {
   icons?: Partial<InkioIconRegistry>;
   /** Transform the default toolbar actions for the floating surface. */
   items?: InkioToolbarActionTransform;
+  /** Placement around the caret in an empty paragraph. */
+  position?: InkioMenuPosition;
 }
 
 export const FloatingMenu = ({
@@ -61,6 +64,7 @@ export const FloatingMenu = ({
   messages: messageOverrides,
   icons: iconOverrides,
   items,
+  position: menuPosition,
 }: FloatingMenuProps) => {
   const [isVisible, setIsVisible] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -109,8 +113,7 @@ export const FloatingMenu = ({
       height: menuRef.current?.offsetHeight ?? 40,
     };
 
-    // Use the editor DOM rect as boundary so the menu stays within the editor area
-    const boundaryRect = editor.view.dom.getBoundingClientRect();
+    const boundaryRect = menuPosition?.boundary === 'viewport' ? undefined : editor.view.dom.getBoundingClientRect();
 
     const nextPosition = computeOverlayPosition({
       anchorRect: {
@@ -128,13 +131,14 @@ export const FloatingMenu = ({
       padding: 8,
       flip: true,
       shift: true,
+      ...menuPosition,
       boundaryRect,
     });
 
     const origin = fixedOrigin(editor.view.dom);
     setPosition({ top: nextPosition.top - origin.y, left: nextPosition.left - origin.x });
     setIsVisible(true);
-  }, [editor]);
+  }, [editor, menuPosition]);
 
   const handleBlur = useCallback(() => {
     // Delay to check if focus moved to the floating menu itself.

@@ -234,8 +234,9 @@ interface DimensionsFieldProps {
   widthLabel: string;
   heightLabel: string;
   lockLabel: string;
-  onWidthChange: (value: number) => void;
-  onHeightChange: (value: number) => void;
+  invalidMessage?: string;
+  onWidthChange: (value: number) => boolean;
+  onHeightChange: (value: number) => boolean;
   onToggleLock: () => void;
   onFocus?: () => void;
   onCommit?: () => void;
@@ -246,6 +247,7 @@ interface DimensionsFieldProps {
 
 function DimensionInput({
   label,
+  invalidMessage,
   value,
   testId,
   onChange,
@@ -253,14 +255,16 @@ function DimensionInput({
   onCommit,
 }: {
   label: string;
+  invalidMessage?: string;
   value: number;
   testId?: string;
-  onChange: (value: number) => void;
+  onChange: (value: number) => boolean;
   onFocus?: () => void;
   onCommit?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const [invalid, setInvalid] = useState(false);
   const changedRef = useRef(false);
 
   return (
@@ -269,14 +273,17 @@ function DimensionInput({
       <input
         type="number"
         className="inkio-ie-field-input"
+        aria-label={label}
         data-testid={testId}
         min={1}
         step={1}
+        aria-invalid={invalid || undefined}
         value={editing ? draft : Math.round(value)}
         onFocus={() => {
           onFocus?.();
           setDraft(String(Math.round(value)));
           setEditing(true);
+          setInvalid(false);
           changedRef.current = false;
         }}
         onChange={(event) => {
@@ -284,21 +291,30 @@ function DimensionInput({
           setDraft(text);
           const nextValue = Number(text);
           if (!text || !Number.isFinite(nextValue) || nextValue <= 0) {
+            setInvalid(Boolean(text));
             return;
           }
-          changedRef.current = true;
-          onChange(Math.round(nextValue));
+          const valid = onChange(Math.max(1, Math.round(nextValue)));
+          setInvalid(!valid);
+          changedRef.current ||= valid;
         }}
         onBlur={() => {
           setEditing(false);
+          setInvalid(false);
           if (changedRef.current) onCommit?.();
         }}
         onKeyDown={(event) => {
           if (event.key !== 'Enter') return;
           event.preventDefault();
-          event.currentTarget.blur();
+          if (changedRef.current) onCommit?.();
+          changedRef.current = false;
+          setDraft(String(value));
+          setInvalid(false);
         }}
       />
+      {invalid && invalidMessage && (
+        <span className="inkio-ie-field-error" role="alert">{invalidMessage}</span>
+      )}
     </label>
   );
 }
@@ -310,6 +326,7 @@ export function DimensionsField({
   widthLabel,
   heightLabel,
   lockLabel,
+  invalidMessage,
   onWidthChange,
   onHeightChange,
   onToggleLock,
@@ -321,8 +338,8 @@ export function DimensionsField({
 }: DimensionsFieldProps) {
   return (
     <div className="inkio-ie-field-row">
-      <DimensionInput label={widthLabel} value={width} testId={widthTestId} onChange={onWidthChange} onFocus={onFocus} onCommit={onCommit} />
-      <DimensionInput label={heightLabel} value={height} testId={heightTestId} onChange={onHeightChange} onFocus={onFocus} onCommit={onCommit} />
+      <DimensionInput label={widthLabel} invalidMessage={invalidMessage} value={width} testId={widthTestId} onChange={onWidthChange} onFocus={onFocus} onCommit={onCommit} />
+      <DimensionInput label={heightLabel} invalidMessage={invalidMessage} value={height} testId={heightTestId} onChange={onHeightChange} onFocus={onFocus} onCommit={onCommit} />
       <button
         type="button"
         className={`inkio-ie-inline-toggle${lockAspectRatio ? ' is-active' : ''}`}

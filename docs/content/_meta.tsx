@@ -1,4 +1,6 @@
 export default {
+  index: { title: '홈', display: 'hidden' },
+  'docs-link': { title: '문서', type: 'page', href: '/getting-started' },
   'getting-started': '시작하기',
   troubleshooting: '트러블슈팅',
   components: '컴포넌트',
@@ -12,5 +14,8 @@ export default {
   'overlay-positioning': 'Overlay Positioning',
   frameworks: '프레임워크 통합',
   recipes: '레시피',
-  playground: '플레이그라운드',
+  playground: {
+    title: '플레이그라운드',
+    type: 'page',
+  },
 };

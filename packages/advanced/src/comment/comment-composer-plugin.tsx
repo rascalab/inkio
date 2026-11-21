@@ -1,12 +1,15 @@
 import type { Editor } from '@tiptap/core';
-import { Plugin } from '@tiptap/pm/state';
+import { Plugin, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import {
   commentComposerPluginKey,
   defaultGenerateId,
+  normalizeCommentId,
+  readCommentThread,
   type CommentOptions,
 } from './comment-shared';
 import { CommentComposer } from './components/CommentComposer';
+import { canCommentOnRange, findCommentRanges, visitCommentableText } from './utils';
 import { createOverlayHost, editorUi, type OverlayHost } from '@inkio/core';
 
 function getSelectionRect(view: EditorView, from: number, to: number) {
@@ -74,26 +77,44 @@ export function createCommentComposerPlugin(
         anchorResolver={anchorResolver}
         {...editorUi(editor, options)}
         onSubmit={(text: string) => {
-          // The composer must never mutate a read-only editor.
-          if (!editor.isEditable) {
+          // Read live positions: an edit may have arrived since the last React render.
+          const state = view.state;
+          const range = commentComposerPluginKey.getState(state) as ComposerPluginState;
+          if (!editor.isEditable || !range.active ||
+              !canCommentOnRange(state.doc, range.from, range.to)) {
             deactivate();
             return;
           }
-          const commentId = generateId();
-          const selectedText = view.state.doc.textBetween(from, to, ' ').trim();
+          let commentId: string | null;
+          try {
+            commentId = normalizeCommentId(generateId());
+          } catch {
+            commentId = null;
+          }
+          if (!commentId || findCommentRanges(state.doc, commentId).length ||
+              readCommentThread(options.getThread, commentId)) {
+            deactivate();
+            return;
+          }
 
-          // Close the composer first
-          deactivate();
+          const mark = state.schema.marks.comment.create({ commentId, resolved: false });
+          const tr = state.tr;
+          visitCommentableText(state.doc, range.from, range.to, (start, end) => {
+            tr.addMark(start, end, mark);
+          });
+          if (!tr.docChanged) {
+            deactivate();
+            return;
+          }
+          const selectedText = state.doc.textBetween(range.from, range.to, ' ').trim();
+          tr.setSelection(TextSelection.between(tr.doc.resolve(range.from), tr.doc.resolve(range.to)));
+          tr.setMeta(commentComposerPluginKey, { active: false, from: 0, to: 0 });
+          view.dispatch(tr);
 
-          // Apply the comment mark
-          editor
-            .chain()
-            .focus()
-            .setTextSelection({ from, to })
-            .setComment({ commentId })
-            .run();
-
-          // Notify consumer
+          // A host transaction filter can reject the edit; don't persist an orphan thread.
+          const doc = view.state.doc;
+          if (doc === state.doc || (doc !== tr.doc && !findCommentRanges(doc, commentId).length)) return;
+          editor.commands.focus();
           options.onCommentSubmit?.(commentId, text, selectedText);
         }}
         onCancel={() => {
@@ -118,7 +139,12 @@ export function createCommentComposerPlugin(
         const meta = tr.getMeta(commentComposerPluginKey);
         if (meta) return meta as ComposerPluginState;
         if (tr.docChanged && prev.active) {
-          return { ...prev, from: tr.mapping.map(prev.from), to: tr.mapping.map(prev.to) };
+          const from = tr.mapping.mapResult(prev.from, 1);
+          const to = tr.mapping.mapResult(prev.to, -1);
+          if (from.pos >= to.pos || (from.deleted && to.deleted)) {
+            return { active: false, from: 0, to: 0 };
+          }
+          return { ...prev, from: from.pos, to: to.pos };
         }
         return prev;
       },
@@ -177,12 +203,13 @@ export function createCommentComposerPlugin(
             ) {
               return;
             }
-            lastRenderedRange = { from: state.from, to: state.to };
             if (positionRaf !== null) return;
-            const snapshot = { ...state };
             positionRaf = requestAnimationFrame(() => {
               positionRaf = null;
-              renderComposer(view, snapshot);
+              const latest = commentComposerPluginKey.getState(view.state) as ComposerPluginState;
+              if (!latest.active) return;
+              lastRenderedRange = { from: latest.from, to: latest.to };
+              renderComposer(view, latest);
             });
           }
         },

@@ -18,6 +18,8 @@ export function CollabPresence({ provider, className, style }: CollabPresencePro
       {peers.map((peer) => (
         <span
           key={peer.clientId}
+          role="img"
+          aria-label={peer.user?.name ?? `peer ${peer.clientId}`}
           title={peer.user?.name ?? `peer ${peer.clientId}`}
           style={{
             width: 24,
@@ -32,7 +34,7 @@ export function CollabPresence({ provider, className, style }: CollabPresencePro
             backgroundColor: peer.user?.color ?? '#888',
           }}
         >
-          {(peer.user?.name ?? '?').slice(0, 1).toUpperCase()}
+          {(Array.from(peer.user?.name ?? '?')[0] ?? '?').toUpperCase()}
         </span>
       ))}
     </div>

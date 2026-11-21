@@ -13,7 +13,13 @@ import { TableMenu } from './TableMenu';
 import type { TableMenuProps } from './TableMenu';
 import { Toolbar } from './Toolbar';
 import type { ToolbarProps } from './Toolbar';
-import type { InkioCoreMessageOverrides, InkioLocaleInput, InkioMessageOverrides } from '../i18n/messages';
+import {
+  resolveCoreMessages,
+  toCoreMessageOverrides,
+  type InkioCoreMessageOverrides,
+  type InkioLocaleInput,
+  type InkioMessageOverrides,
+} from '../i18n/messages';
 import type { InkioIconRegistry } from '../icons/registry';
 import { resolveInkioExtensions } from '../extensions/resolve-extensions';
 import { isEqualStaticContent } from '../utils/static-content';
@@ -27,6 +33,8 @@ export interface EditorProps {
   content?: string | JSONContent;
   extensions?: Extensions;
   placeholder?: string;
+  /** Accessible name of the editing surface. Defaults to the localized editor label. */
+  ariaLabel?: string;
   editable?: boolean;
   onUpdate?: (content: JSONContent) => void;
   onCreate?: (editor: TiptapEditor) => void;
@@ -69,6 +77,7 @@ export const Editor = ({
   content,
   extensions,
   placeholder,
+  ariaLabel,
   editable = true,
   onUpdate,
   onCreate,
@@ -105,22 +114,28 @@ export const Editor = ({
     }
   }, [fill, autoresize]);
 
+  const context = useInkioContext();
+  const uiLocale = locale ?? context.locale;
+  const uiMessages = messages ?? context.messages;
+  const uiIcons = icons ?? context.icons;
+  const editorLabel = useMemo(
+    () => ariaLabel?.trim() || resolveCoreMessages(uiLocale, toCoreMessageOverrides(uiMessages)).editor.label,
+    [ariaLabel, uiLocale, uiMessages],
+  );
+
   const editor = useInkioEditor({
     content,
     // Reuse the already-resolved extensions so static SSR HTML and the live
     // editor share a single schema instance.
     extensions: resolvedExtensions,
     placeholder,
+    ariaLabel: editorLabel,
     editable,
     onUpdate,
     onCreate,
   });
   // A prop this editor was never given leaves what its extensions were configured with.
-  const context = useInkioContext();
   const givenUi = useRef<EditorUi>({});
-  const uiLocale = locale ?? context.locale;
-  const uiMessages = messages ?? context.messages;
-  const uiIcons = icons ?? context.icons;
   useEffect(() => {
     if (!editor) return;
     const current: EditorUi = { locale: uiLocale, messages: uiMessages, icons: uiIcons, placeholder };
@@ -179,42 +194,49 @@ export const Editor = ({
     staticHtml = staticRender.html || (editable ? createEditorPlaceholderHtml(placeholder) : '<p></p>');
   }
 
+  const toolbarPlacement = toolbar?.placement ?? 'top';
+  const toolbarElement = showToolbar && (
+    showInteractiveRuntime ? (
+      <Toolbar
+        key="toolbar"
+        editor={editor}
+        className={toolbar?.className}
+        locale={toolbar?.locale ?? locale}
+        messages={toolbar?.messages ?? messages}
+        icons={toolbar?.icons ?? icons}
+        items={toolbar?.items}
+        placement={toolbarPlacement}
+      >
+        {toolbar?.children}
+      </Toolbar>
+    ) : (
+      <div
+        key="toolbar"
+        className={`inkio-toolbar inkio-toolbar--ssr-placeholder${toolbar?.className ? ` ${toolbar.className}` : ''}`}
+        data-placement={toolbarPlacement}
+        role="presentation"
+        aria-hidden="true"
+      >
+        <div className="inkio-toolbar-group">
+          <span className="inkio-toolbar-skeleton-btn" />
+          <span className="inkio-toolbar-skeleton-btn" />
+          <span className="inkio-toolbar-skeleton-btn" />
+        </div>
+        <div className="inkio-toolbar-divider" />
+        <div className="inkio-toolbar-group">
+          <span className="inkio-toolbar-skeleton-btn inkio-toolbar-skeleton-btn--wide" />
+        </div>
+      </div>
+    )
+  );
+
   return (
     <div
       style={style}
       className={`inkio inkio-editor${theme ? ` ${theme}` : ''}${fill ? ' inkio-editor--fill' : ''}${!fill && autoresize ? ' inkio-editor--autoresize' : ''}${bordered ? ' inkio-container-default' : ''}${className ? ` ${className}` : ''}`}
       suppressHydrationWarning
     >
-      {showToolbar && (
-        showInteractiveRuntime ? (
-          <Toolbar
-            editor={editor}
-            className={toolbar?.className}
-            locale={toolbar?.locale ?? locale}
-            messages={toolbar?.messages ?? messages}
-            icons={toolbar?.icons ?? icons}
-            items={toolbar?.items}
-          >
-            {toolbar?.children}
-          </Toolbar>
-        ) : (
-          <div
-            className={`inkio-toolbar inkio-toolbar--ssr-placeholder${toolbar?.className ? ` ${toolbar.className}` : ''}`}
-            role="presentation"
-            aria-hidden="true"
-          >
-            <div className="inkio-toolbar-group">
-              <span className="inkio-toolbar-skeleton-btn" />
-              <span className="inkio-toolbar-skeleton-btn" />
-              <span className="inkio-toolbar-skeleton-btn" />
-            </div>
-            <div className="inkio-toolbar-divider" />
-            <div className="inkio-toolbar-group">
-              <span className="inkio-toolbar-skeleton-btn inkio-toolbar-skeleton-btn--wide" />
-            </div>
-          </div>
-        )
-      )}
+      {toolbarPlacement === 'top' && toolbarElement}
 
       {showInteractiveRuntime && showBubbleMenu && (
         <BubbleMenu
@@ -224,6 +246,7 @@ export const Editor = ({
           messages={bubbleMenu?.messages ?? messages}
           icons={bubbleMenu?.icons ?? icons}
           items={bubbleMenu?.items}
+          position={bubbleMenu?.position}
         >
           {bubbleMenu?.children}
         </BubbleMenu>
@@ -237,6 +260,7 @@ export const Editor = ({
           messages={floatingMenu?.messages ?? messages}
           icons={floatingMenu?.icons ?? icons}
           items={floatingMenu?.items}
+          position={floatingMenu?.position}
         />
       )}
 
@@ -247,17 +271,21 @@ export const Editor = ({
           locale={tableMenu?.locale ?? locale}
           messages={tableMenu?.messages ?? messages}
           icons={tableMenu?.icons ?? icons}
+          position={tableMenu?.position}
         />
       )}
 
       {showInteractiveRuntime ? (
-        <EditorContent editor={editor} />
+        <EditorContent className="inkio-editor-body" editor={editor} />
       ) : (
-        <div
-          className="tiptap ProseMirror inkio-content"
-          dangerouslySetInnerHTML={{ __html: staticHtml }}
-        />
+        <div className="inkio-editor-body">
+          <div
+            className="tiptap ProseMirror inkio-content"
+            dangerouslySetInnerHTML={{ __html: staticHtml }}
+          />
+        </div>
       )}
+      {toolbarPlacement === 'bottom' && toolbarElement}
     </div>
   );
 };

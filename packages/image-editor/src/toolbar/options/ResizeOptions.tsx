@@ -5,6 +5,7 @@ import { getDefaultCropRect } from '../../utils/crop';
 import { isQuarterTurn } from '../../utils/geometry';
 import { OptionPopover } from '../OptionPopover';
 import type { ViewportKind } from '../../utils/controls-model';
+import { fitsRaster, MAX_EXPORT_DIMENSION, MAX_EXPORT_PIXELS } from '../../utils/raster-limits';
 import {
   DimensionsField,
   PanelIconButton,
@@ -16,8 +17,7 @@ import {
 
 export function ResizeOptions({ viewportKind = 'desktop' }: { viewportKind?: ViewportKind }) {
   const { state, dispatch, locale } = useImageEditor();
-  const { resizeOptions, transform } = state;
-  const aspectRatioRef = useRef<number | null>(null);
+  const { transform } = state;
   const effectiveCrop = state.pendingCrop ?? transform.crop;
   const cropBounds = transform.crop ?? {
     x: 0,
@@ -25,56 +25,6 @@ export function ResizeOptions({ viewportKind = 'desktop' }: { viewportKind?: Vie
     width: state.originalWidth,
     height: state.originalHeight,
   };
-
-  const handleWidthChange = useCallback(
-    (nextWidth: number) => {
-      if (Number.isNaN(nextWidth) || nextWidth <= 0) {
-        return;
-      }
-
-      if (resizeOptions.lockAspectRatio && resizeOptions.width > 0) {
-        const ratio = aspectRatioRef.current ?? resizeOptions.width / resizeOptions.height;
-        aspectRatioRef.current = ratio;
-        dispatch({
-          type: 'SET_RESIZE_OPTIONS',
-          apply: true,
-          options: {
-            width: nextWidth,
-            height: Math.max(1, Math.round(nextWidth / ratio)),
-          },
-        });
-        return;
-      }
-
-      dispatch({ type: 'SET_RESIZE_OPTIONS', options: { width: nextWidth }, apply: true });
-    },
-    [dispatch, resizeOptions.height, resizeOptions.lockAspectRatio, resizeOptions.width],
-  );
-
-  const handleHeightChange = useCallback(
-    (nextHeight: number) => {
-      if (Number.isNaN(nextHeight) || nextHeight <= 0) {
-        return;
-      }
-
-      if (resizeOptions.lockAspectRatio && resizeOptions.height > 0) {
-        const ratio = aspectRatioRef.current ?? resizeOptions.width / resizeOptions.height;
-        aspectRatioRef.current = ratio;
-        dispatch({
-          type: 'SET_RESIZE_OPTIONS',
-          apply: true,
-          options: {
-            height: nextHeight,
-            width: Math.max(1, Math.round(nextHeight * ratio)),
-          },
-        });
-        return;
-      }
-
-      dispatch({ type: 'SET_RESIZE_OPTIONS', options: { height: nextHeight }, apply: true });
-    },
-    [dispatch, resizeOptions.height, resizeOptions.lockAspectRatio, resizeOptions.width],
-  );
 
   const handleCropPreset = useCallback(
     (aspectRatio: number | null) => {
@@ -108,7 +58,6 @@ export function ResizeOptions({ viewportKind = 'desktop' }: { viewportKind?: Vie
   );
   const preset = ASPECT_RATIO_PRESETS.find((item) => item.value === state.cropOptions.aspectRatio);
   const cropLabel = preset?.label ?? (preset ? locale[preset.labelKey] : locale.cropArea);
-  const sizeLabel = `${resizeOptions.width} × ${resizeOptions.height}`;
 
   return (
     <ToolPanel
@@ -141,35 +90,57 @@ export function ResizeOptions({ viewportKind = 'desktop' }: { viewportKind?: Vie
           </p>
         )}
       </PanelSection>
-      <PanelSection>
-        <OptionPopover
-          label={`${locale.resize}: ${sizeLabel}`}
-          summary={sizeLabel}
-          testId="inkio-ie-resize-dimensions-trigger"
-        >
-          <DimensionsField
-          width={resizeOptions.width}
-          height={resizeOptions.height}
-          lockAspectRatio={resizeOptions.lockAspectRatio}
-          widthLabel={locale.width}
-          heightLabel={locale.height}
-          lockLabel={locale.lockAspectRatio}
-          onWidthChange={handleWidthChange}
-          onHeightChange={handleHeightChange}
-          onFocus={() => { aspectRatioRef.current = null; }}
-          onCommit={() => dispatch({ type: 'COMMIT_RESIZE_SESSION' })}
-          onToggleLock={() =>
-            dispatch({
-              type: 'SET_RESIZE_OPTIONS',
-              options: { lockAspectRatio: !resizeOptions.lockAspectRatio },
-            })
-          }
-          widthTestId="inkio-ie-resize-width"
-          heightTestId="inkio-ie-resize-height"
-          lockTestId="inkio-ie-resize-lock-aspect"
-          />
-        </OptionPopover>
-      </PanelSection>
+      {viewportKind === 'desktop' && <PanelSection><ResizeDimensions /></PanelSection>}
     </ToolPanel>
+  );
+}
+
+export function ResizeDimensions() {
+  const { state: { resizeOptions }, dispatch, locale } = useImageEditor();
+  const aspectRatioRef = useRef<number | null>(null);
+  const sizeLabel = `${resizeOptions.width} × ${resizeOptions.height}`;
+
+  const changeDimension = (axis: 'width' | 'height', value: number) => {
+    let { width, height } = resizeOptions;
+    if (resizeOptions.lockAspectRatio && width > 0 && height > 0) {
+      const ratio = aspectRatioRef.current ?? width / height;
+      aspectRatioRef.current = ratio;
+      if (axis === 'width') height = Math.max(1, Math.round(value / ratio));
+      else width = Math.max(1, Math.round(value * ratio));
+    }
+    if (axis === 'width') width = value;
+    else height = value;
+    if (!fitsRaster(width, height, MAX_EXPORT_DIMENSION, MAX_EXPORT_PIXELS)) return false;
+    dispatch({ type: 'SET_RESIZE_OPTIONS', options: { width, height }, apply: true });
+    return true;
+  };
+
+  return (
+    <OptionPopover
+      label={`${locale.resize}: ${sizeLabel}`}
+      summary={sizeLabel}
+      testId="inkio-ie-resize-dimensions-trigger"
+    >
+      <DimensionsField
+        width={resizeOptions.width}
+        height={resizeOptions.height}
+        lockAspectRatio={resizeOptions.lockAspectRatio}
+        widthLabel={locale.width}
+        heightLabel={locale.height}
+        lockLabel={locale.lockAspectRatio}
+        invalidMessage={locale.outputSizeError}
+        onWidthChange={(value) => changeDimension('width', value)}
+        onHeightChange={(value) => changeDimension('height', value)}
+        onFocus={() => { aspectRatioRef.current = null; }}
+        onCommit={() => dispatch({ type: 'COMMIT_RESIZE_SESSION' })}
+        onToggleLock={() => dispatch({
+          type: 'SET_RESIZE_OPTIONS',
+          options: { lockAspectRatio: !resizeOptions.lockAspectRatio },
+        })}
+        widthTestId="inkio-ie-resize-width"
+        heightTestId="inkio-ie-resize-height"
+        lockTestId="inkio-ie-resize-lock-aspect"
+      />
+    </OptionPopover>
   );
 }

@@ -76,6 +76,9 @@ export default defineConfig({
         },
         {
           format: 'cjs',
+          // Keep react-dom/client lazy with a literal require. Next's SWC
+          // lowers an import() template literal in .cjs to require(expression).
+          dynamicImportInCjs: false,
           globals: {
             react: 'React',
             'react-dom': 'ReactDOM',

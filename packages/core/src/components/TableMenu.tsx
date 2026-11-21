@@ -7,7 +7,7 @@ import type {
   InkioMessageOverrides,
 } from '../i18n/messages';
 import { useInkioCoreUi } from '../context/use-inkio-ui';
-import { autoUpdateOverlayPosition, computeOverlayPosition, fixedOrigin } from '../overlay/positioning';
+import { autoUpdateOverlayPosition, computeOverlayPosition, fixedOrigin, type InkioMenuPosition } from '../overlay/positioning';
 import { useDismissableLayer } from '../overlay/use-dismissable-layer';
 import {
   canExecuteTableAction,
@@ -23,12 +23,15 @@ export interface TableMenuProps {
   locale?: InkioLocaleInput;
   messages?: InkioCoreMessageOverrides | InkioMessageOverrides;
   icons?: Partial<InkioIconRegistry>;
+  /** Placement of the context menu around the pointer, not the row/column insert controls. */
+  position?: InkioMenuPosition;
 }
+
+type ColumnBoundary = { x: number; cell: HTMLTableCellElement; after: boolean };
 
 /** Viewport geometry of the active table, used to place the insert affordances. */
 type TableMetrics = {
-  /** x of every column boundary — length is columnCount + 1. */
-  columns: number[];
+  columns: ColumnBoundary[];
   /** y of every row boundary — length is rowCount + 1. */
   rows: number[];
   top: number;
@@ -41,6 +44,8 @@ type TableMetrics = {
   /** Subtract from the viewport coordinates above when placing a fixed element. */
   origin: { x: number; y: number };
 };
+
+type TableGeometry = { table: HTMLTableElement; metrics: TableMetrics | null };
 
 type HoverState = { axis: 'column' | 'row'; index: number };
 type ContextMenuState = {
@@ -63,7 +68,10 @@ const CONTEXT_MENU_HEIGHT = 180;
 const CONTEXT_MENU_GUTTER = 8;
 
 /** Place the context menu at the pointer, shifted inside the viewport gutter. */
-function placeContextMenu(x: number, y: number, width: number, height: number): { x: number; y: number } {
+function placeContextMenu(
+  x: number, y: number, width: number, height: number,
+  editorDom: HTMLElement, position?: InkioMenuPosition,
+): { x: number; y: number } {
   const next = computeOverlayPosition({
     anchorRect: { top: y, bottom: y, left: x, right: x, width: 0, height: 0 },
     floatingRect: { width, height },
@@ -73,6 +81,8 @@ function placeContextMenu(x: number, y: number, width: number, height: number): 
     padding: CONTEXT_MENU_GUTTER,
     flip: false,
     shift: true,
+    ...position,
+    boundaryRect: position?.boundary === 'editor' ? editorDom.getBoundingClientRect() : undefined,
   });
   return { x: next.left, y: next.top };
 }
@@ -90,39 +100,56 @@ function resolveActiveTable(editor: Editor): HTMLTableElement | null {
 }
 
 function measureTable(table: HTMLTableElement): Omit<TableMetrics, 'origin'> | null {
-  const allRows = Array.from(table.rows);
-  if (allRows.length === 0 || allRows.every((row) => row.cells.length === 0)) {
+  const rect = table.getBoundingClientRect();
+  if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
     return null;
   }
 
-  // First-row boundaries preserve the legacy guide count (including
-  // zero-layout environments where every rect reads 0); edges unique to
-  // later rows are added so colspan/rowspan tables still get aligned
-  // insert guides instead of first-row-only ones.
-  const baseRow = allRows.find((row) => row.cells.length > 0);
-  if (!baseRow) return null;
-  const headCells = Array.from(baseRow.cells);
-  const columns = headCells.map((cell) => cell.getBoundingClientRect().left);
-  columns.push(headCells[headCells.length - 1].getBoundingClientRect().right);
-  const seen = new Set(columns.map((edge) => Math.round(edge)));
-  for (const row of allRows.slice(1)) {
-    for (const cell of Array.from(row.cells)) {
-      const rect = cell.getBoundingClientRect();
-      for (const edge of [rect.left, rect.right]) {
-        const rounded = Math.round(edge);
-        if (!seen.has(rounded)) {
-          seen.add(rounded);
-          columns.push(edge);
-        }
+  const allRows = Array.from(table.rows);
+  const firstRow = allRows.find((row) => row.cells.length > 0);
+  if (!firstRow) return null;
+
+  // A complete row gives every edge without reading other cells. The first
+  // row defines the grid width; later rows can lack cells due to either span.
+  let columnCount = 0;
+  for (const cell of firstRow.cells) columnCount += cell.colSpan;
+  const fullRow = columnCount === firstRow.cells.length
+    ? firstRow
+    : allRows.find((row) =>
+      row.cells.length === columnCount && Array.from(row.cells).every((cell) => cell.colSpan === 1),
+    );
+  let columns: ColumnBoundary[];
+  if (fullRow) {
+    columns = [];
+    const cells = fullRow.cells;
+    for (let i = 0; i < cells.length; i += 1) {
+      const cell = cells[i];
+      const bounds = cell.getBoundingClientRect();
+      columns.push({ x: bounds.left, cell, after: false });
+      if (i === cells.length - 1) columns.push({ x: bounds.right, cell, after: true });
+    }
+  } else {
+    // No row exposes the full grid. Read the visible edges across rows,
+    // preferring insert-before but accepting the cell ending at an edge.
+    const edges = new Map<number, ColumnBoundary>();
+    for (const row of allRows) {
+      for (const cell of row.cells) {
+        const { left, right } = cell.getBoundingClientRect();
+        const start = Math.round(left);
+        const end = Math.round(right);
+        if (edges.get(start)?.after !== false) edges.set(start, { x: left, cell, after: false });
+        if (!edges.has(end)) edges.set(end, { x: right, cell, after: true });
       }
     }
+    columns = [...edges.values()].sort((a, b) => a.x - b.x);
   }
-  columns.sort((a, b) => a - b);
 
-  const rows = allRows.map((row) => row.getBoundingClientRect().top);
-  rows.push(allRows[allRows.length - 1].getBoundingClientRect().bottom);
-
-  const rect = table.getBoundingClientRect();
+  const rows: number[] = [];
+  for (let i = 0; i < allRows.length; i += 1) {
+    const { top, bottom } = allRows[i].getBoundingClientRect();
+    rows.push(top);
+    if (i === allRows.length - 1) rows.push(bottom);
+  }
   const view = table.closest('.tableWrapper')?.getBoundingClientRect();
   return {
     columns,
@@ -136,33 +163,17 @@ function measureTable(table: HTMLTableElement): Omit<TableMetrics, 'origin'> | n
   };
 }
 
-/**
- * The cell a column insert anchors to. Merged cells leave a row with fewer cells
- * than columns, so its cell indexes don't match boundary indexes: use a row
- * without spans, or when every row has one, the cell touching the boundary.
- */
-function findCellAtColumnEdge(
-  table: HTMLTableElement,
-  columnCount: number,
-  columnIndex: number,
-  edge: number,
-  after: boolean,
-): HTMLTableCellElement | null {
-  const rows = Array.from(table.rows);
-  const fullRow = rows.find((row) => row.cells.length === columnCount);
-  if (fullRow) {
-    return fullRow.cells[columnIndex];
-  }
-
-  for (const row of rows) {
-    for (const cell of Array.from(row.cells)) {
-      const rect = cell.getBoundingClientRect();
-      if (Math.round(after ? rect.right : rect.left) === Math.round(edge)) {
-        return cell;
-      }
-    }
-  }
-  return null;
+function sameMetrics(a: TableMetrics | null, b: TableMetrics | null): boolean {
+  if (a === b) return true;
+  return a !== null && b !== null
+    && a.top === b.top && a.bottom === b.bottom && a.left === b.left && a.right === b.right
+    && a.viewLeft === b.viewLeft && a.viewRight === b.viewRight
+    && a.origin.x === b.origin.x && a.origin.y === b.origin.y
+    && a.rows.length === b.rows.length && a.rows.every((y, i) => y === b.rows[i])
+    && a.columns.length === b.columns.length && a.columns.every(({ x, cell, after }, i) => {
+      const other = b.columns[i];
+      return x === other.x && cell === other.cell && after === other.after;
+    });
 }
 
 export const TableMenu = ({
@@ -171,34 +182,55 @@ export const TableMenu = ({
   locale,
   messages: messageOverrides,
   icons: iconOverrides,
+  position: menuPosition,
 }: TableMenuProps) => {
-  const [metrics, setMetrics] = useState<TableMetrics | null>(null);
+  const [geometry, setGeometry] = useState<TableGeometry | null>(null);
+  const table = geometry?.table ?? null;
+  const metrics = geometry?.metrics ?? null;
   const [hover, setHover] = useState<HoverState | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const tableRef = useRef<HTMLTableElement | null>(null);
+  const visibilityRef = useRef<{ table: HTMLTableElement; visible: boolean } | null>(null);
   const hoveredTableRef = useRef<HTMLTableElement | null>(null);
   const clearTimerRef = useRef<number | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const ui = useInkioCoreUi({ locale, messages: messageOverrides, icons: iconOverrides });
 
   const refresh = useCallback(() => {
-    if (!editor || editor.isEditable === false) {
+    if (!editor || editor.isDestroyed || editor.isEditable === false) {
       tableRef.current = null;
-      setMetrics(null);
+      hoveredTableRef.current = null;
+      setGeometry(null);
       return;
     }
 
     // Prefer the table the mouse is currently over, then fall back to the
     // table that contains the selection — so hover alone is enough to reveal
     // the controls, and they stay if the cursor is inside.
-    let target: HTMLTableElement | null = hoveredTableRef.current;
+    const dom = editor.view.dom;
+    let target = hoveredTableRef.current;
+    if (target && !dom.contains(target)) {
+      hoveredTableRef.current = null;
+      target = null;
+    }
     if (!target && isTableActive(editor)) {
       target = resolveActiveTable(editor);
     }
 
     tableRef.current = target;
-    const measured = target ? measureTable(target) : null;
-    setMetrics(measured && { ...measured, origin: fixedOrigin(editor.view.dom) });
+    if (!target) {
+      setGeometry(null);
+      return;
+    }
+
+    const visibility = visibilityRef.current;
+    const measured = visibility?.table === target && !visibility.visible ? null : measureTable(target);
+    const next = measured && { ...measured, origin: fixedOrigin(dom) };
+    setGeometry((previous) =>
+      previous?.table === target && sameMetrics(previous.metrics, next)
+        ? previous
+        : { table: target, metrics: next },
+    );
   }, [editor]);
 
   const cancelHoverClear = useCallback(() => {
@@ -233,14 +265,12 @@ export const TableMenu = ({
   // right before paint. Events arriving while no table can be visible skip
   // measurement entirely.
   const refreshRafRef = useRef<number | null>(null);
-  const refreshRef = useRef(refresh);
-  refreshRef.current = refresh;
   const refreshCoalesced = useCallback(() => {
     if (!hoveredTableRef.current && editor && !isTableActive(editor)) {
       // No hover target and selection outside any table: nothing to show.
       // Clear once if stale metrics linger, otherwise skip the reflow.
       if (tableRef.current !== null) {
-        refreshRef.current();
+        refresh();
       }
       return;
     }
@@ -249,9 +279,9 @@ export const TableMenu = ({
     }
     refreshRafRef.current = window.requestAnimationFrame(() => {
       refreshRafRef.current = null;
-      refreshRef.current();
+      refresh();
     });
-  }, [editor]);
+  }, [editor, refresh]);
 
   useEffect(() => {
     return () => {
@@ -260,7 +290,7 @@ export const TableMenu = ({
         refreshRafRef.current = null;
       }
     };
-  }, []);
+  }, [editor]);
 
   useEffect(() => {
     if (!editor) {
@@ -278,15 +308,34 @@ export const TableMenu = ({
   }, [editor, refreshCoalesced]);
 
   useEffect(() => {
-    if (!editor || !metrics) {
-      return;
-    }
+    if (!editor || !table) return;
 
-    return autoUpdateOverlayPosition({
-      update: refresh,
-      elements: [editor.view.dom, tableRef.current],
+    // Bind observers to the DOM target, not each geometry snapshot. The
+    // auto-updater schedules an initial refresh, so a snapshot dependency
+    // would resubscribe and measure every frame even when nothing moves.
+    let active = true;
+    const stopUpdating = autoUpdateOverlayPosition({
+      update: () => {
+        if (active && tableRef.current === table) refresh();
+      },
+      elements: [editor.view.dom, table, table.closest('.tableWrapper')],
     });
-  }, [editor, metrics, refresh]);
+    const observer = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver((entries) => {
+      if (!active || tableRef.current !== table) return;
+      const visible = entries[entries.length - 1]?.isIntersecting;
+      const previous = visibilityRef.current;
+      if (visible === undefined || (previous?.table === table && previous.visible === visible)) return;
+      visibilityRef.current = { table, visible };
+      refresh();
+    });
+    observer?.observe(table);
+    return () => {
+      active = false;
+      stopUpdating();
+      observer?.disconnect();
+      if (visibilityRef.current?.table === table) visibilityRef.current = null;
+    };
+  }, [editor, table, refresh]);
 
   // Right-click inside a table cell opens the action menu.
   useEffect(() => {
@@ -320,7 +369,7 @@ export const TableMenu = ({
       }
       setContextMenu(
         {
-          ...placeContextMenu(event.clientX, event.clientY, CONTEXT_MENU_WIDTH, CONTEXT_MENU_HEIGHT),
+          ...placeContextMenu(event.clientX, event.clientY, CONTEXT_MENU_WIDTH, CONTEXT_MENU_HEIGHT, dom, menuPosition),
           anchor: { x: event.clientX, y: event.clientY },
           origin: fixedOrigin(dom),
         },
@@ -329,21 +378,23 @@ export const TableMenu = ({
 
     dom.addEventListener('contextmenu', handleContextMenu);
     return () => dom.removeEventListener('contextmenu', handleContextMenu);
-  }, [editor]);
+  }, [editor, menuPosition]);
 
   // Reclamp the context menu to the real rendered size: the open-time
   // estimate uses fixed constants, which long i18n labels or zoom overflow.
   // Before paint: the menu's height varies, and it must not appear elsewhere first.
   useIsomorphicLayoutEffect(() => {
-    if (!contextMenu || !menuRef.current) {
+    if (!editor || !contextMenu || !menuRef.current) {
       return;
     }
     const rect = menuRef.current.getBoundingClientRect();
-    const { x, y } = placeContextMenu(contextMenu.anchor.x, contextMenu.anchor.y, rect.width, rect.height);
+    const { x, y } = placeContextMenu(
+      contextMenu.anchor.x, contextMenu.anchor.y, rect.width, rect.height, editor.view.dom, menuPosition,
+    );
     if (x !== contextMenu.x || y !== contextMenu.y) {
       setContextMenu({ ...contextMenu, x, y });
     }
-  }, [contextMenu]);
+  }, [editor, contextMenu, menuPosition]);
 
   // Dismiss the context menu on any outside interaction.
   const isContextMenuOpen = contextMenu !== null;
@@ -404,20 +455,12 @@ export const TableMenu = ({
 
   const insertAt = useCallback(
     (axis: 'column' | 'row', index: number) => {
-      const table = tableRef.current;
-      if (!editor || !table) {
-        return;
-      }
+      if (!editor || !table || tableRef.current !== table || !metrics) return;
 
       if (axis === 'column') {
-        const columns = measureTable(table)?.columns;
-        if (!columns) {
-          return;
-        }
-        const columnCount = columns.length - 1;
-        const after = index >= columnCount;
-        const cell = findCellAtColumnEdge(table, columnCount, after ? columnCount - 1 : index, columns[index], after);
-        if (cell) {
+        const boundary = metrics.columns[index];
+        if (boundary && table.contains(boundary.cell)) {
+          const { cell, after } = boundary;
           runTableCommandAt(editor, editor.view.posAtDOM(cell, 0), after ? 'addColumnAfter' : 'addColumnBefore');
         }
         return;
@@ -434,7 +477,7 @@ export const TableMenu = ({
       }
       runTableCommandAt(editor, editor.view.posAtDOM(cell, 0), after ? 'addRowAfter' : 'addRowBefore');
     },
-    [editor],
+    [editor, table, metrics],
   );
 
   const runAction = useCallback(
@@ -483,13 +526,13 @@ export const TableMenu = ({
     <>
       {metrics && (
         <div className={`inkio-table-controls${className ? ` ${className}` : ''}`}>
-          {hover && (
+          {hover && hover.index < (hover.axis === 'column' ? metrics.columns.length : metrics.rows.length) && (
             <div
               className={`inkio-table-guide inkio-table-guide--${hover.axis}`}
               style={
                 hover.axis === 'column'
                   ? {
-                      left: metrics.columns[hover.index] - metrics.origin.x,
+                      left: metrics.columns[hover.index].x - metrics.origin.x,
                       top: metrics.top - metrics.origin.y,
                       height: metrics.bottom - metrics.top,
                     }
@@ -502,7 +545,7 @@ export const TableMenu = ({
             />
           )}
 
-          {metrics.columns.map((x, index) => {
+          {metrics.columns.map(({ x }, index) => {
             if (x < metrics.viewLeft - 1 || x > metrics.viewRight + 1) return null;
             const isLast = index === metrics.columns.length - 1;
             const label = isLast

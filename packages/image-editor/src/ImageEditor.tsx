@@ -1,46 +1,61 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type SyntheticEvent } from 'react';
 import { EditorCommandBar } from './chrome/EditorCommandBar';
-import { MobileToolTray } from './chrome/MobileToolTray';
-import { DesktopToolRail } from './chrome/DesktopToolRail';
+import { CustomToolOptions } from './chrome/CustomToolOptions';
+import { EditorToolbar } from './toolbar/EditorToolbar';
+import { ScaleRuler } from './chrome/ScaleRuler';
 import { ToolOptionsBar } from './chrome/ToolOptionsBar';
 import { ImageEditorProvider } from './ImageEditorContext';
 import { useElementSize } from './hooks/use-element-size';
-import { useImageEditor } from './hooks/use-image-editor';
 import { useImageEditorSession } from './hooks/use-image-editor-session';
+import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts';
 import { DEFAULT_LOCALE, DEFAULT_TOOLS } from './constants';
-import { EditorCanvas } from './canvas/EditorCanvas';
-import type { EnabledToolType, ImageEditorLocale, ImageEditorProps } from './types';
-import { normalizeTool, normalizeTools } from './utils/tooling';
+import { EditorCanvas, type CropScaleControl } from './canvas/EditorCanvas';
+import type { ImageEditorLocale, ImageEditorProps, ImageEditorToolPlacement } from './types';
+import { getImageEditorToolId, normalizeTool, normalizeTools, type ResolvedImageEditorTool } from './utils/tooling';
+import { ResizeDimensions } from './toolbar/options/ResizeOptions';
+import { getTransformedDimensions } from './utils/geometry';
+import { getPreviewScale } from './utils/raster-limits';
 
 const PREVIEW_ZOOM_MIN = 0.25;
 const PREVIEW_ZOOM_MAX = 4;
-const PREVIEW_ZOOM_STEP = 0.2;
 
 interface InnerEditorProps {
   src: string;
-  onSave: (dataUrl: string) => void | Promise<void>;
+  onSave: ImageEditorProps['onSave'];
+  onSaveBlob?: ImageEditorProps['onSaveBlob'];
+  savePreview?: boolean;
   onCancel: () => void;
   onDirtyChange?: (dirty: boolean) => void;
+  onUnchangedSave?: () => void;
   outputFormat: 'png' | 'jpeg' | 'webp';
   outputQuality: number;
-  enabledTools: EnabledToolType[];
+  enabledTools: readonly ResolvedImageEditorTool[];
+  fallbackTool: ResolvedImageEditorTool | null;
+  toolPlacement?: ImageEditorToolPlacement;
   locale: ImageEditorLocale;
 }
 
 function InnerEditor({
   src,
   onSave,
+  onSaveBlob,
+  savePreview,
   onCancel,
+  onUnchangedSave,
   onDirtyChange,
   outputFormat,
   outputQuality,
   enabledTools,
+  fallbackTool,
+  toolPlacement,
   locale,
 }: InnerEditorProps) {
   const { ref: rootRef, size: rootSize } = useElementSize<HTMLDivElement>();
   const viewportKind = rootSize.width > 0 && rootSize.width <= 900 ? 'mobile' : 'desktop';
+  const placement = viewportKind === 'desktop' ? toolPlacement?.desktop ?? 'left' : toolPlacement?.mobile ?? 'bottom';
+  const toolsBeforeOptions = placement === 'left' || placement === 'top';
   const {
     state,
     undo,
@@ -48,6 +63,7 @@ function InnerEditor({
     canUndo,
     canRedo,
     isSaving,
+    isSavePending,
     saveError,
     isDirty,
     selectedAnnotation,
@@ -60,20 +76,68 @@ function InnerEditor({
     outputFormat,
     outputQuality,
     onSave,
+    onSaveBlob,
+    savePreview,
+    onUnchangedSave,
     onDirtyChange,
     viewportKind,
   });
+  const currentToolId = state.activeCustomToolId ?? normalizeTool(state.activeTool);
+  const configuredTool = enabledTools.find((tool) => getImageEditorToolId(tool) === currentToolId);
+  const activeTool = configuredTool ?? fallbackTool;
+  const activeToolId = activeTool === null ? null : getImageEditorToolId(activeTool);
+  const customTool = typeof activeTool === 'string' ? null : activeTool;
+  useLayoutEffect(() => {
+    if (!isSaving && !configuredTool && (currentToolId || fallbackTool)) {
+      handleToolChange(fallbackTool);
+    }
+  }, [configuredTool, currentToolId, fallbackTool, handleToolChange, isSaving]);
+
+  const handleKeyDown = useKeyboardShortcuts(!isSaving);
   const { ref: stageViewportRef, size: containerSize } = useElementSize<HTMLDivElement>();
-  const [previewZoom, setPreviewZoom] = useState(1);
+  const [requestedZoom, setPreviewZoom] = useState(1);
+  const [cropScale, setCropScale] = useState<CropScaleControl | null>(null);
+  const activeCrop = activeTool === 'resize' ? state.pendingCrop : null;
+  const dimensions = useMemo(() => getTransformedDimensions(
+    state.originalWidth, state.originalHeight, state.transform, state.outputSize,
+  ), [state.originalWidth, state.originalHeight, state.transform, state.outputSize]);
+  const zoomLimit = useMemo(() => {
+    const { width, height } = dimensions;
+    const fitScale = Math.min(containerSize.width / width, containerSize.height / height);
+    return fitScale > 0 && width > 0 && height > 0
+      ? Math.max(1, Math.min(PREVIEW_ZOOM_MAX, getPreviewScale(width, height) / fitScale))
+      : PREVIEW_ZOOM_MAX;
+  }, [containerSize, dimensions]);
+  const previewZoom = Math.min(requestedZoom, zoomLimit);
 
   const setZoom = useCallback((nextZoom: number) => {
-    setPreviewZoom(Math.min(PREVIEW_ZOOM_MAX, Math.max(PREVIEW_ZOOM_MIN, nextZoom)));
-  }, []);
-  const isZoomMin = previewZoom <= PREVIEW_ZOOM_MIN + 0.001;
-  const isZoomMax = previewZoom >= PREVIEW_ZOOM_MAX - 0.001;
-  const isZoomFit = Math.abs(previewZoom - 1) < 0.001;
-  const zoomLabel = `${Math.round(previewZoom * 100)}%`;
-  const isControlsVisible = controls.kind === 'surface';
+    setPreviewZoom(Math.min(zoomLimit, Math.max(PREVIEW_ZOOM_MIN, nextZoom)));
+  }, [zoomLimit]);
+  const zoomPreviewBy = useCallback((factor: number) => {
+    setPreviewZoom((previous) => Math.min(
+      zoomLimit, Math.max(PREVIEW_ZOOM_MIN, Math.min(previous, zoomLimit) * factor),
+    ));
+  }, [zoomLimit]);
+  const scale = activeCrop ? cropScale : null;
+  const setScale = scale?.set ?? setZoom;
+  const outputDimensions = activeCrop
+    ? getTransformedDimensions(
+      state.originalWidth, state.originalHeight, { ...state.transform, crop: activeCrop }, state.outputSize,
+    )
+    : dimensions;
+  const customToolDisabled = isSaving || state.isLoading || !state.originalImage || Boolean(state.error);
+  const isControlsVisible = customTool !== null || controls.kind === 'surface';
+  const toolbar = enabledTools.length > 0 && (
+    <EditorToolbar
+      key="tools"
+      activeTool={activeToolId}
+      enabledTools={enabledTools}
+      locale={locale}
+      onToolChange={handleToolChange}
+      viewportKind={viewportKind}
+      disabled={isSaving}
+    />
+  );
   // e2e reads these debug attributes from production builds, so they stay
   // on; memoizing by object identity keeps JSON serialization off the
   // per-frame render path (drags, zoom, unrelated state updates).
@@ -108,12 +172,14 @@ function InnerEditor({
       onClickCapture={preventWhileSaving}
       onPointerDownCapture={preventWhileSaving}
       onKeyDownCapture={preventWhileSaving}
+      onKeyDown={handleKeyDown}
       data-testid="inkio-ie-root"
       data-viewport-kind={viewportKind}
+      data-crop-mode={Boolean(activeCrop)}
       data-controls-open={isControlsVisible ? 'true' : 'false'}
       data-debug-dirty={isDirty ? 'true' : 'false'}
       data-debug-preview-zoom={previewZoom.toFixed(4)}
-      data-debug-active-tool={state.activeTool ?? ''}
+      data-debug-active-tool={activeToolId ?? ''}
       data-debug-filter={state.filter}
       data-debug-selected-id={selectedAnnotation?.id ?? ''}
       data-debug-selected-type={selectedAnnotation?.type ?? ''}
@@ -125,18 +191,19 @@ function InnerEditor({
       data-debug-image-height={String(state.originalHeight)}
       data-debug-canvas-width={String(Math.round(containerSize.width))}
       data-debug-canvas-height={String(Math.round(containerSize.height))}
-      data-debug-resolved-panel={controls.kind === 'surface' ? controls.panel : ''}
-      data-debug-chrome-kind={controls.kind === 'surface' ? controls.surface : 'none'}
+      data-debug-resolved-panel={customTool?.id ?? (controls.kind === 'surface' ? controls.panel : '')}
+      data-debug-chrome-kind={customTool
+        ? (viewportKind === 'desktop' ? 'dock' : 'strip')
+        : (controls.kind === 'surface' ? controls.surface : 'none')}
       data-debug-unsupported="false"
     >
-      {state.originalImage && (
-        <img className="inkio-ie-backdrop" src={state.originalImage.src} alt="" aria-hidden="true" />
-      )}
       <div className="inkio-ie-body" data-viewport-kind={viewportKind}>
         <div
           className="inkio-ie-viewport"
           data-testid="inkio-ie-viewport"
           data-viewport-kind={viewportKind}
+          data-tool-placement={placement}
+          data-has-tools={enabledTools.length > 0}
           data-controls-open={isControlsVisible ? 'true' : 'false'}
         >
           <div className="inkio-ie-overlay-host" />
@@ -146,33 +213,30 @@ function InnerEditor({
             canUndo={canUndo}
             canRedo={canRedo}
             isSaving={isSaving}
-            isLoading={state.isLoading}
+            isLoading={state.isLoading || Boolean(state.error)}
             onClose={onCancel}
             onUndo={undo}
             onRedo={redo}
             onSave={handleSave}
-            zoomLabel={zoomLabel}
-            isZoomMin={isZoomMin}
-            isZoomMax={isZoomMax}
-            isZoomFit={isZoomFit}
-            onZoomOut={() => setZoom(Number((previewZoom - PREVIEW_ZOOM_STEP).toFixed(2)))}
-            onZoomIn={() => setZoom(Number((previewZoom + PREVIEW_ZOOM_STEP).toFixed(2)))}
-            onZoomFit={() => setZoom(1)}
           />
-          {viewportKind === 'desktop' && (
-            <DesktopToolRail
-              activeTool={normalizeTool(state.activeTool)}
-              enabledTools={enabledTools}
-              locale={locale}
-              onToolChange={handleToolChange}
-            />
-          )}
-          {controls.kind === 'surface' && (
+          {toolsBeforeOptions && toolbar}
+          {customTool ? (
+            <ToolOptionsBar viewportKind={viewportKind}>
+              <CustomToolOptions
+                key={customTool.id}
+                tool={customTool}
+                viewport={viewportKind}
+                disabled={customToolDisabled}
+                outputSize={dimensions}
+                isSavePending={isSavePending}
+              />
+            </ToolOptionsBar>
+          ) : controls.kind === 'surface' ? (
             <ToolOptionsBar panel={controls.panel} viewportKind={viewportKind} />
-          )}
+          ) : null}
           <div className="inkio-ie-stage-viewport" ref={stageViewportRef}>
             {saveError && (
-              <div className="inkio-ie-save-error" role="alert">{locale.error}</div>
+              <div className="inkio-ie-save-error" role="alert">{saveError}</div>
             )}
             {state.isLoading && (
               <div className="inkio-ie-loading-overlay">
@@ -181,7 +245,7 @@ function InnerEditor({
               </div>
             )}
             {state.error && !state.isLoading && (
-              <div className="inkio-ie-error-overlay">
+              <div className="inkio-ie-error-overlay" role="alert">
                 <span>{state.error}</span>
               </div>
             )}
@@ -190,82 +254,81 @@ function InnerEditor({
                 containerWidth={containerSize.width}
                 containerHeight={containerSize.height}
                 previewZoom={previewZoom}
-                onPreviewZoomChange={setZoom}
+                onPreviewZoomFactor={zoomPreviewBy}
+                onCropScaleChange={setCropScale}
               />
             )}
           </div>
-          {viewportKind === 'mobile' && (
-            <MobileToolTray
-              activeTool={normalizeTool(state.activeTool)}
-              enabledTools={enabledTools}
-              locale={locale}
-              onToolChange={handleToolChange}
-            />
-          )}
+          <ScaleRuler
+            locale={locale}
+            value={scale?.value ?? previewZoom}
+            min={scale?.min ?? PREVIEW_ZOOM_MIN}
+            max={scale?.max ?? zoomLimit}
+            onChange={setScale}
+            onFit={() => setScale(1)}
+            width={outputDimensions.width}
+            height={outputDimensions.height}
+            disabled={isSaving || state.isLoading || Boolean(state.error)}
+            dimensionsControl={viewportKind === 'mobile' && !customTool && controls.kind === 'surface' && controls.panel === 'resize'
+              ? <ResizeDimensions />
+              : undefined}
+          />
+          {!toolsBeforeOptions && toolbar}
         </div>
       </div>
     </div>
   );
 }
 
-export function ImageEditor({
+export function ImageEditor(props: ImageEditorProps) {
+  return <ImageEditorWorkbench {...props} />;
+}
+
+export function ImageEditorWorkbench({
   src,
   onSave,
+  onSaveBlob,
+  savePreview,
   onCancel,
+  onUnchangedSave,
   outputFormat = 'png',
   outputQuality = 0.92,
   tools = DEFAULT_TOOLS,
   defaultTool,
+  toolPlacement,
   locale: localeProp,
   className,
   maxUndoSteps,
   onDirtyChange,
-}: ImageEditorProps) {
+}: ImageEditorProps & { onUnchangedSave?: () => void }) {
   const locale: ImageEditorLocale = { ...DEFAULT_LOCALE, ...localeProp };
   const normalizedTools = useMemo(() => normalizeTools(tools), [tools]);
-  const normalizedDefaultTool = useMemo(() => {
-    const nextTool = normalizeTool(defaultTool ?? 'resize');
-    if (nextTool && normalizedTools.includes(nextTool)) return nextTool;
-    if (normalizedTools.includes('resize')) return 'resize';
-    return normalizedTools[0] ?? 'resize';
+  const fallbackTool = useMemo(() => {
+    const requestedId = normalizeTool(defaultTool ?? 'resize');
+    return normalizedTools.find((tool) => getImageEditorToolId(tool) === requestedId)
+      ?? normalizedTools.find((tool) => tool === 'resize')
+      ?? normalizedTools[0] ?? null;
   }, [defaultTool, normalizedTools]);
 
   return (
     <ImageEditorProvider maxUndoSteps={maxUndoSteps} locale={locale}>
       <div className={className} style={{ width: '100%', height: '100%' }}>
-        <InnerEditorWithDefaultTool
+        <InnerEditor
           src={src}
           onSave={onSave}
+          onSaveBlob={onSaveBlob}
+          savePreview={savePreview}
           onCancel={onCancel}
+          onUnchangedSave={onUnchangedSave}
           outputFormat={outputFormat}
           outputQuality={outputQuality}
           enabledTools={normalizedTools}
           locale={locale}
-          defaultTool={normalizedDefaultTool}
+          fallbackTool={fallbackTool}
+          toolPlacement={toolPlacement}
           onDirtyChange={onDirtyChange}
         />
       </div>
     </ImageEditorProvider>
   );
-}
-
-interface InnerEditorWithDefaultToolProps extends InnerEditorProps {
-  defaultTool?: EnabledToolType | null;
-}
-
-function InnerEditorWithDefaultTool({
-  defaultTool,
-  ...props
-}: InnerEditorWithDefaultToolProps) {
-  const { dispatch } = useImageEditor();
-
-  useEffect(() => {
-    if (!defaultTool) {
-      return;
-    }
-
-    dispatch({ type: 'SET_TOOL', tool: defaultTool });
-  }, [defaultTool, dispatch]);
-
-  return <InnerEditor {...props} />;
 }

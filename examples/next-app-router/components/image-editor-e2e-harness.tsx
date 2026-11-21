@@ -1,7 +1,26 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ImageEditorModal } from '@inkio/image-editor';
+import { ImageEditorModal, type ImageEditorCustomTool, type ImageEditorTool } from '@inkio/image-editor';
+
+const photoPreset: ImageEditorCustomTool = {
+  id: 'photo-preset',
+  label: 'Photo preset',
+  icon: <span>◐</span>,
+  renderControls: ({ actions, disabled, filter }) => (
+    <button
+      type="button"
+      className="image-editor-e2e-button"
+      disabled={disabled}
+      aria-pressed={filter === 'grayscale'}
+      onClick={() => actions.setFilter(filter === 'grayscale' ? 'none' : 'grayscale')}
+    >
+      Make monochrome
+    </button>
+  ),
+};
+
+const customDemoTools: readonly ImageEditorTool[] = ['rotate', photoPreset, 'crop', 'resize'];
 
 interface ImageEditorDebugState {
   annotationCount: string;
@@ -132,14 +151,25 @@ export function ImageEditorE2EHarness() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [locale, setLocale] = useState<'en' | 'ko'>('en');
   const [imageSrc, setImageSrc] = useState<string | null>(null);
-  const [savedImage, setSavedImage] = useState<string | null>(null);
+  const [savedImage, setSavedImage] = useState<{ src: string; fullSrc?: string } | null>(null);
+  const [saveAsBlob, setSaveAsBlob] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [showCustomTools, setShowCustomTools] = useState(false);
   const [debugState, setDebugState] = useState<ImageEditorDebugState>(EMPTY_DEBUG_STATE);
 
   useEffect(() => {
     setImageSrc(createFixturePng());
     setIsOpen(true);
   }, []);
+
+  useEffect(() => {
+    const { src, fullSrc } = savedImage ?? {};
+    if (!src || !fullSrc) return;
+    return () => {
+      URL.revokeObjectURL(fullSrc);
+      if (src !== fullSrc) URL.revokeObjectURL(src);
+    };
+  }, [savedImage]);
 
   const syncDebugState = useCallback(() => {
     setDebugState(readDebugState());
@@ -224,6 +254,7 @@ export function ImageEditorE2EHarness() {
                 const reader = new FileReader();
                 reader.onload = () => {
                   if (typeof reader.result !== 'string') return;
+                  setShowCustomTools(false);
                   setImageSrc(reader.result);
                   setSavedImage(null);
                   setIsOpen(true);
@@ -258,10 +289,24 @@ export function ImageEditorE2EHarness() {
             type="button"
             className="image-editor-e2e-button"
             data-testid="image-editor-e2e-open"
-            onClick={() => setIsOpen(true)}
+            onClick={() => {
+              setShowCustomTools(false);
+              setIsOpen(true);
+            }}
             disabled={!imageSrc}
           >
             Open editor
+          </button>
+          <button
+            type="button"
+            className="image-editor-e2e-button"
+            onClick={() => {
+              setShowCustomTools(true);
+              setIsOpen(true);
+            }}
+            disabled={!imageSrc}
+          >
+            Open custom tool demo
           </button>
           <button
             type="button"
@@ -272,6 +317,14 @@ export function ImageEditorE2EHarness() {
           >
             Square crop preset
           </button>
+          <label>
+            <input
+              type="checkbox"
+              checked={saveAsBlob}
+              onChange={(event) => setSaveAsBlob(event.target.checked)}
+            />
+            Save as Blob
+          </label>
           <span data-testid="image-editor-e2e-open-state">Modal: {isOpen ? 'open' : 'closed'}</span>
           <span data-testid="image-editor-e2e-fixture-state" data-src={imageSrc ?? undefined}>
             Fixture: {imageSrc ? 'ready' : 'loading'}
@@ -327,7 +380,8 @@ export function ImageEditorE2EHarness() {
       {savedImage && (
         <section className="demo-card image-editor-e2e-saved">
           <p className="section-title">Saved Preview</p>
-          <img src={savedImage} alt="Saved image editor output" className="image-editor-e2e-saved-image" />
+          <img src={savedImage.src} decoding={savedImage.fullSrc ? 'async' : undefined} alt="Saved image editor output" className="image-editor-e2e-saved-image" />
+          {savedImage.fullSrc && <a href={savedImage.fullSrc} download="edited-image.png">Download full image</a>}
         </section>
       )}
 
@@ -336,8 +390,17 @@ export function ImageEditorE2EHarness() {
           isOpen={isOpen}
           imageSrc={imageSrc}
           imageFormat="png"
+          tools={showCustomTools ? customDemoTools : undefined}
+          defaultTool={showCustomTools ? photoPreset.id : undefined}
+          toolPlacement={showCustomTools ? { desktop: 'right', mobile: 'top' } : undefined}
+          savePreview={saveAsBlob}
+          onSaveBlob={saveAsBlob ? (blob, preview) => {
+            const fullSrc = URL.createObjectURL(blob);
+            setSavedImage({ fullSrc, src: preview && preview !== blob ? URL.createObjectURL(preview) : fullSrc });
+            setIsOpen(false);
+          } : undefined}
           onSave={(nextImage) => {
-            setSavedImage(nextImage);
+            setSavedImage({ src: nextImage });
             setIsOpen(false);
           }}
           onClose={() => setIsOpen(false)}

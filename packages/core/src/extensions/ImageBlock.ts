@@ -1,8 +1,11 @@
 import { mergeAttributes, Node, type Editor } from '@tiptap/core';
 import { ReactNodeViewRenderer } from '@tiptap/react';
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
-import type { EditorView } from '@tiptap/pm/view';
-import { Plugin, PluginKey, Selection } from '@tiptap/pm/state';
+import { closeHistory } from '@tiptap/pm/history';
+import type { Node as ProseMirrorNode, Slice } from '@tiptap/pm/model';
+import { Plugin, PluginKey, Selection, type Transaction } from '@tiptap/pm/state';
+import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
+import { editorMessages } from '../i18n/messages';
+import { createId } from '../utils/create-id';
 import { isSafeUrl } from '../utils/url-safety';
 import {
   reportImageUploadError,
@@ -10,7 +13,7 @@ import {
   getImageValidationError,
   type ImageUploadOptions,
 } from './image-block-upload';
-import { createImageCleanupPlugin, queueImageCleanup, type ImageCleanupOptions } from './image-block-cleanup';
+import { discardAbandonedImageUpload, type ImageCleanupOptions } from './image-block-cleanup';
 import {
   IMAGE_BLOCK_MAX_WIDTH_PERCENT,
   IMAGE_BLOCK_MIN_WIDTH_PERCENT,
@@ -47,110 +50,174 @@ export interface ImageBlockOptions extends ImageUploadOptions, ImageCleanupOptio
   imageEditor?: ImageEditorComponent;
 }
 
+const imageBlockPluginKey = new PluginKey<DecorationSet>('imageBlockUpload');
+
+type UploadMarker = {
+  id: string;
+  placement?: { pos: number; stepIndex: number; label: string };
+};
+
+function setUploadMarker(tr: Transaction, marker: UploadMarker) {
+  const markers: UploadMarker[] = tr.getMeta(imageBlockPluginKey) ?? [];
+  return tr.setMeta(imageBlockPluginKey, [...markers, marker]);
+}
+
+function findUploadMarker(view: EditorView, id: string) {
+  return imageBlockPluginKey.getState(view.state)?.find(undefined, undefined, (spec) => spec.key === id)[0];
+}
+
 /**
- * Inserts a block image at `pos`. An empty paragraph is replaced rather than
- * left behind, and a caret in it moves below the image so writing continues
- * there, on a new line when the image would otherwise end its parent.
+ * Keep the upload preview out of the document and its undo history. The
+ * decoration maps through intervening edits until a real image can be inserted.
+ * https://prosemirror.net/examples/upload/
+ */
+function mapUploadMarkers(tr: Transaction, markers: DecorationSet): DecorationSet {
+  let next = tr.getMeta('preventUpdate') !== undefined
+    ? DecorationSet.empty
+    : markers.map(tr.mapping, tr.doc);
+  const updates: UploadMarker[] | undefined = tr.getMeta(imageBlockPluginKey);
+  if (!updates) return next;
+  for (const { id, placement } of updates) {
+    next = next.remove(next.find(undefined, undefined, (spec) => spec.key === id));
+    if (!placement) continue;
+    const mapped = tr.mapping.slice(placement.stepIndex).mapResult(placement.pos, 1);
+    if (mapped.deleted) continue;
+    next = next.add(tr.doc, [Decoration.widget(mapped.pos, (view) => {
+      const placeholder = view.dom.ownerDocument.createElement('span');
+      placeholder.className = 'inkio-image-block-placeholder';
+      placeholder.setAttribute('role', 'status');
+      placeholder.textContent = placement.label;
+      return placeholder;
+    }, { key: id, side: 1 })]);
+  }
+  return next;
+}
+
+/**
+ * Replace an empty paragraph when possible. Only move the caret when it was
+ * still in that paragraph, leaving the user's selection elsewhere alone.
  */
 function insertImageNode(view: EditorView, pos: number, node: ProseMirrorNode) {
   const { doc, schema, selection, tr } = view.state;
   const $pos = doc.resolve(pos);
-  const caretInEmptyBlock = selection.empty && selection.from === pos && $pos.parent.content.size === 0;
+  const moveCaret = selection.empty && selection.from === pos && $pos.parent.isTextblock && !$pos.parent.content.size;
 
-  tr.replaceRangeWith(pos, pos, node);
-  if (caretInEmptyBlock) {
-    const after = tr.mapping.map(pos);
-    if (!tr.doc.resolve(after).nodeAfter && schema.nodes.paragraph) {
-      tr.insert(after, schema.nodes.paragraph.create());
+  closeHistory(tr).replaceRangeWith(pos, pos, node);
+  let after: number | undefined;
+  tr.mapping.maps[0]?.forEach((_oldFrom, _oldTo, from, to) => {
+    tr.doc.nodesBetween(from, to, (child, childPos) => {
+      if (child === node) after = childPos + child.nodeSize;
+      if (after !== undefined) return false;
+    });
+  });
+  if (after === undefined) return null;
+
+  if (moveCaret) {
+    const $after = tr.doc.resolve(after);
+    const paragraph = schema.nodes.paragraph;
+    if (!$after.nodeAfter?.isTextblock && paragraph &&
+        $after.parent.canReplaceWith($after.index(), $after.index(), paragraph)) {
+      tr.insert(after, paragraph.create());
     }
     tr.setSelection(Selection.near(tr.doc.resolve(after), 1));
   }
-  view.dispatch(tr);
+  return { tr, after, moveCaret };
 }
 
-/** Shared upload helpers — used by both addCommands and addProseMirrorPlugins. */
-function createImageUploadHelpers(options: ImageBlockOptions, editor: Editor) {
+function chooserLeftFocusUnclaimed(view: EditorView): boolean {
+  const document = view.dom.ownerDocument;
+  return view.dom.isConnected && document.activeElement === document.body;
+}
 
-  /**
-   * Single-walk placeholder lookup. Upload completion and upload failure both
-   * need the transient placeholder's position; the walk early-exits at the
-   * first match so at most one pass ever runs per call site.
-   */
-  const findPlaceholderPos = (state: { doc: { descendants: (fn: (node: { type: { name: string }; attrs: Record<string, unknown> }, pos: number) => void | false) => void } }, placeholderSrc: string): number => {
-    let placeholderPos = -1;
-    state.doc.descendants((node, nodePos) => {
-      if (
-        placeholderPos === -1 &&
-        node.type.name === 'imageBlock' &&
-        node.attrs.src === placeholderSrc
-      ) {
-        placeholderPos = nodePos;
-        return false;
-      }
-    });
-    return placeholderPos;
-  };
-  /** Resolves to the position right after the image, or null when none was inserted. */
-  const processImageFile = async (file: File, view: EditorView, pos: number): Promise<number | null> => {
-    const validationError = await getImageValidationError(file, options);
-    if (validationError) {
-      reportImageUploadError(options, validationError, 'imageBlock.validation');
-      return null;
-    }
-    if (editor.isDestroyed) return null;
+function queueImageFiles(
+  editor: Editor,
+  options: ImageBlockOptions,
+  tr: Transaction,
+  files: File[],
+  pos: number,
+  restoreFocus = false,
+) {
+  const id = `${UPLOAD_PLACEHOLDER_PREFIX}${createId('image')}`;
+  const label = editorMessages(editor).imageBlock.uploading;
+  const clamped = Number.isFinite(pos) ? Math.max(0, Math.min(Math.trunc(pos), tr.doc.content.size)) : tr.selection.from;
+  setUploadMarker(tr, { id, placement: { pos: clamped, stepIndex: tr.mapping.maps.length, label } });
 
-    const placeholderSrc = `${UPLOAD_PLACEHOLDER_PREFIX}${Date.now()}_${Math.random().toString(36).slice(2)}`;
-
+  // Tiptap has to dispatch the outer command transaction (if any) first.
+  queueMicrotask(async () => {
+    if (editor.isDestroyed) return;
+    const { view } = editor;
     try {
-      const { schema } = view.state;
-      const placeholderNode = schema.nodes.imageBlock.create({
-        src: placeholderSrc,
-        alt: file.name,
-      });
-      const clampedPos = Math.max(0, Math.min(pos, view.state.doc.content.size));
-      insertImageNode(view, clampedPos, placeholderNode);
-
-      const attrs = await uploadImageFile(file, options, { blockId: placeholderSrc }, file.name);
-
-      if (editor.isDestroyed) {
-        if (attrs.src) queueImageCleanup(editor, attrs.src);
-        return null;
-      }
-      const placeholderPos = findPlaceholderPos(view.state, placeholderSrc);
-
-      if (placeholderPos === -1) {
-        if (attrs.src) queueImageCleanup(editor, attrs.src);
-        return null;
+      const initialMarker = findUploadMarker(view, id);
+      if (!initialMarker) return;
+      // A file chooser can leave Firefox without focus. Reclaim it only if
+      // there is still a caret at the upload and no other control took focus.
+      if (restoreFocus && chooserLeftFocusUnclaimed(view) &&
+          view.state.selection.empty && view.state.selection.from === initialMarker.from) {
+        view.focus();
       }
 
-      const finalNode = schema.nodes.imageBlock.create(attrs);
-      const tr = view.state.tr.replaceWith(placeholderPos, placeholderPos + 1, finalNode);
-      view.dispatch(tr);
-      return placeholderPos + finalNode.nodeSize;
+      for (const [index, file] of files.entries()) {
+        if (editor.isDestroyed || !editor.isEditable || !findUploadMarker(view, id)) return;
+        const validationError = await getImageValidationError(file, options);
+        if (validationError) {
+          reportImageUploadError(options, validationError, 'imageBlock.validation');
+          continue;
+        }
+        if (editor.isDestroyed || !editor.isEditable || !findUploadMarker(view, id)) return;
+
+        let attrs;
+        try {
+          attrs = await uploadImageFile(file, options, { blockId: `${id}-${index}` }, file.name);
+        } catch (error) {
+          reportImageUploadError(options, error, 'imageBlock.upload');
+          continue;
+        }
+
+        const marker = !editor.isDestroyed && editor.isEditable ? findUploadMarker(view, id) : undefined;
+        const insertion = marker
+          ? insertImageNode(view, marker.from, view.state.schema.nodes.imageBlock.create(attrs))
+          : null;
+        if (!insertion) {
+          if (options.onUpload && attrs.src) await discardAbandonedImageUpload(editor, options, attrs.src);
+          return;
+        }
+
+        const { tr: insert, after, moveCaret } = insertion;
+        setUploadMarker(insert, index + 1 < files.length
+          ? { id, placement: { pos: after, stepIndex: insert.mapping.maps.length, label } }
+          : { id });
+        const syncCaret = moveCaret && (view.hasFocus() || (restoreFocus && chooserLeftFocusUnclaimed(view)));
+        view.dispatch(insert);
+        // Synchronize the browser selection in this tick, before the next key.
+        if (syncCaret && !editor.isDestroyed && (view.hasFocus() || chooserLeftFocusUnclaimed(view))) view.focus();
+      }
     } catch (error) {
-      const placeholderPos = findPlaceholderPos(view.state, placeholderSrc);
-      if (placeholderPos !== -1) {
-        view.dispatch(view.state.tr.delete(placeholderPos, placeholderPos + 1));
-      }
       reportImageUploadError(options, error, 'imageBlock.upload');
-      return null;
-    }
-  };
-
-  const processImageFiles = async (files: File[], view: EditorView, startPos: number) => {
-    let pos = startPos;
-    for (const file of files) {
-      const next = await processImageFile(file, view, pos);
-      if (next !== null) {
-        pos = next;
+    } finally {
+      if (!editor.isDestroyed && findUploadMarker(view, id)) {
+        view.dispatch(setUploadMarker(view.state.tr, { id }));
       }
     }
-  };
-
-  return { processImageFile, processImageFiles };
+  });
 }
 
-const imageBlockPluginKey = new PluginKey('imageBlockUpload');
+function hasMeaningfulHtml(slice: Slice): boolean {
+  let meaningful = false;
+  slice.content.descendants((node) => {
+    if (meaningful) return false;
+    if (node.isText) meaningful = Boolean(node.text?.trim());
+    else if (node.type.name === 'imageBlock') {
+      const { src, caption } = node.attrs;
+      // Clipboard screenshots can have a temporary HTML URL as well as a real file.
+      meaningful = (typeof caption === 'string' && Boolean(caption.trim())) ||
+        (typeof src === 'string' && !/^(?:data|blob):/i.test(src.trim()) &&
+          !src.startsWith(UPLOAD_PLACEHOLDER_PREFIX) && isSafeUrl(src));
+    } else {
+      meaningful = (node.isAtom && node.type.name !== 'hardBreak') || node.type.spec.tableRole === 'table';
+    }
+  });
+  return meaningful;
+}
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -182,7 +249,7 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
       onUploadError: undefined,
       onError: undefined,
       imageEditor: undefined,
-      cleanup: 'immediate',
+      cleanup: 'manual',
       onDelete: undefined,
     };
   },
@@ -325,17 +392,9 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
           },
       uploadImageBlock:
         (files, pos) =>
-          ({ editor }) => {
-            const { processImageFiles } = createImageUploadHelpers(this.options, this.editor);
-            const startPos = pos ?? editor.state.selection.from;
-            // Defer placeholder insertion until after Tiptap finishes the command transaction.
-            queueMicrotask(() => {
-              if (editor.isDestroyed) {
-                return;
-              }
-
-              void processImageFiles(files, editor.view, startPos);
-            });
+          ({ editor, tr, dispatch }) => {
+            if (!files.length) return false;
+            if (dispatch) queueImageFiles(editor, this.options, tr, files, pos ?? tr.selection.from, true);
             return true;
           },
     };
@@ -346,8 +405,7 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
   },
 
   addProseMirrorPlugins() {
-    const { processImageFiles } = createImageUploadHelpers(this.options, this.editor);
-    const cleanupPlugin = createImageCleanupPlugin(this.editor, this.options);
+    const { editor, options } = this;
 
     // Helper to extract image files from data transfer
     const getImageFilesFromDataTransfer = (dataTransfer: DataTransfer): File[] => {
@@ -361,15 +419,29 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
           }
         }
       }
+      // Some clipboard implementations expose image files in items only.
+      if (!files.length && dataTransfer.items) {
+        for (let i = 0; i < dataTransfer.items.length; i++) {
+          const item = dataTransfer.items[i];
+          if (item.kind !== 'file' || !item.type.startsWith('image/')) continue;
+          const file = item.getAsFile();
+          if (file) files.push(file);
+        }
+      }
 
       return files;
     };
 
     return [
-      ...(cleanupPlugin ? [cleanupPlugin] : []),
+      // Upload previews neither persist nor appear in undo/redo.
       new Plugin({
         key: imageBlockPluginKey,
+        state: {
+          init: () => DecorationSet.empty,
+          apply: mapUploadMarkers,
+        },
         props: {
+          decorations: (state) => imageBlockPluginKey.getState(state),
           handleDrop: (view, event, _slice, moved) => {
             // Don't handle if this is just moving existing content
             if (moved) {
@@ -386,8 +458,6 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
               return false;
             }
 
-            event.preventDefault();
-
             const coordinates = view.posAtCoords({
               left: event.clientX,
               top: event.clientY,
@@ -397,11 +467,14 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
               return false;
             }
 
-            processImageFiles(imageFiles, view, coordinates.pos);
+            const tr = view.state.tr;
+            queueImageFiles(editor, options, tr, imageFiles, coordinates.pos);
+            view.dispatch(tr);
+            event.preventDefault();
             return true;
           },
 
-          handlePaste: (view, event, _slice) => {
+          handlePaste: (view, event, slice) => {
             const dataTransfer = event.clipboardData;
             if (!dataTransfer) {
               return false;
@@ -412,13 +485,14 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
               return false;
             }
 
+            // Prefer meaningful rich HTML to its attached image representation.
+            // Image-only pastes whose HTML could not be parsed still use the file.
+            if (dataTransfer.getData('text/html') && hasMeaningfulHtml(slice)) return false;
+
+            const tr = view.state.tr;
+            queueImageFiles(editor, options, tr, imageFiles, tr.selection.from);
+            view.dispatch(tr);
             event.preventDefault();
-
-            // Get current selection position
-            const { from } = view.state.selection;
-
-            // Process image files sequentially
-            processImageFiles(imageFiles, view, from);
 
             return true;
           },

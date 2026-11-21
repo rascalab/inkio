@@ -1,54 +1,98 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { act, render } from '@testing-library/react';
-import { useState } from 'react';
-import type { ReactNode } from 'react';
-import { BookmarkView } from '../BookmarkView';
+import { act, render, waitFor } from '@testing-library/react';
+import { Editor, EditorContent } from '@tiptap/react';
+import Document from '@tiptap/extension-document';
+import Paragraph from '@tiptap/extension-paragraph';
+import Text from '@tiptap/extension-text';
+import { Bookmark, type BookmarkOptions } from '../Bookmark';
 
-// NodeViewWrapper only provides editor drag/selection context for real
-// tiptap mounts; it contributes nothing to the resolve effect under test.
-vi.mock('@tiptap/react', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@tiptap/react')>()),
-  NodeViewWrapper: ({ children }: { children: ReactNode }) => <>{children}</>,
-}));
-
-function Harness({ calls }: { calls: string[] }) {
-  const [attrs, setAttrs] = useState<Record<string, unknown>>({ url: 'https://x.test' });
-  return (
-      <BookmarkView
-        node={{ attrs } as never}
-        selected={false}
-        editor={{} as never}
-        extension={{
-          options: {
-            onResolveBookmark: (url: string) => {
-              calls.push(url);
-              return Promise.resolve({ title: '' });
-            },
-          },
-        } as never}
-        updateAttributes={(next: Record<string, string | null>) =>
-          setAttrs((current) => ({ ...current, ...next }))
-        }
-        getPos={() => 0}
-      />
-  );
+function mountBookmark(resolve: BookmarkOptions['onResolveBookmark'], editable = true) {
+  const editor = new Editor({
+    editable,
+    extensions: [Document, Paragraph, Text, Bookmark.configure({ onResolveBookmark: resolve })],
+    content: '<p></p>',
+  });
+  const rendered = render(<EditorContent editor={editor} />);
+  return {
+    editor,
+    ...rendered,
+    destroy() {
+      rendered.unmount();
+      editor.destroy();
+    },
+  };
 }
 
-describe('BookmarkView empty preview', () => {
-  it('resolves an empty preview exactly once instead of refetching', async () => {
-    const calls: string[] = [];
-    const { unmount } = render(<Harness calls={calls} />);
+describe('BookmarkView preview resolution', () => {
+  it('resolves an explicitly inserted bookmark exactly once even for an empty result', async () => {
+    const resolve = vi.fn(async () => ({ title: '' }));
+    const view = mountBookmark(resolve);
     try {
-      // One tight fetch→write→rerender loop finishes in milliseconds; 300ms
-      // gives the old code ample room to refetch, while the fixed code can
-      // never issue a second call (guarded synchronously).
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-      });
-      expect(calls).toEqual(['https://x.test']);
+      await act(async () => { view.editor.commands.setBookmark({ url: 'https://example.com' }); });
+      await waitFor(() => expect(resolve).toHaveBeenCalledExactlyOnceWith('https://example.com'));
+      expect(view.getByRole('link')).toHaveAttribute('href', 'https://example.com');
     } finally {
-      unmount();
+      view.destroy();
+    }
+  });
+
+  it.each([true, false])('does not request previews for loaded documents (editable: %s)', async (editable) => {
+    const resolve = vi.fn();
+    const view = mountBookmark(resolve, editable);
+    try {
+      await act(async () => {
+        view.editor.commands.setContent('<a data-bookmark-fallback href="https://example.com">Example</a>');
+      });
+      expect(view.getByRole('link')).toHaveAttribute('href', 'https://example.com');
+      expect(resolve).not.toHaveBeenCalled();
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it('keeps navigable non-web URLs as links without resolving them', async () => {
+    const resolve = vi.fn();
+    const view = mountBookmark(resolve);
+    try {
+      await act(async () => {
+        view.editor.commands.setBookmark({ url: 'mailto:person@example.com' });
+      });
+      expect(view.getByRole('link')).toHaveAttribute('href', 'mailto:person@example.com');
+      expect(resolve).not.toHaveBeenCalled();
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it('drops malformed preview fields and keeps valid preview text', async () => {
+    const resolve = vi.fn(async () => ({ title: 'A web page', description: {}, image: 42 }));
+    const view = mountBookmark(resolve as unknown as BookmarkOptions['onResolveBookmark']);
+    try {
+      await act(async () => { view.editor.commands.setBookmark({ url: 'https://example.com' }); });
+      expect(await view.findByText('A web page')).toBeInTheDocument();
+      expect(view.queryByRole('img')).toBeNull();
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it('does not apply an old preview after a new document is loaded', async () => {
+    let finish!: (value: { title: string }) => void;
+    const resolve = vi.fn(() => new Promise<{ title: string }>((resolvePreview) => { finish = resolvePreview; }));
+    const view = mountBookmark(resolve);
+    try {
+      await act(async () => { view.editor.commands.setBookmark({ url: 'https://example.com/first' }); });
+      await waitFor(() => expect(resolve).toHaveBeenCalledTimes(1));
+      await act(async () => {
+        view.editor.commands.setContent('<a data-bookmark-fallback href="https://example.com/second">Second</a>');
+        finish({ title: 'First preview' });
+      });
+      expect(view.getByRole('link')).toHaveAttribute('href', 'https://example.com/second');
+      expect(view.queryByText('First preview')).toBeNull();
+      expect(resolve).toHaveBeenCalledTimes(1);
+    } finally {
+      view.destroy();
     }
   });
 });

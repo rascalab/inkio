@@ -12,14 +12,15 @@ import {
   type CommentConfig,
 } from '@inkio/editor';
 import { inkioIconRegistry, type InkioIconRegistry } from '@inkio/editor/icons';
-import { createId } from '@inkio/core';
+import { createId, type InkioJSONContent } from '@inkio/core';
 import {
   type CommentPanelProps,
   type CommentMessage,
   type CommentData,
 } from '@inkio/advanced';
 import { PLAYGROUND_INITIAL_CONTENT, type PlaygroundLocale } from './playground-content';
-import { useDebouncedState } from './use-debounced-state';
+import PlaygroundJson from './PlaygroundJson';
+import { usePlaygroundDocument } from './use-playground-document';
 import { useObjectUrlRegistry } from './use-object-urls';
 import { LazyImageEditorModal } from './lazy-image-editor-modal';
 
@@ -42,6 +43,7 @@ const PLAYGROUND_PAGES = [
 type PlaygroundEditorPaneProps = {
   content?: string;
   locale: PlaygroundLocale;
+  active: boolean;
   showViewer: boolean;
   showJSON: boolean;
 };
@@ -49,6 +51,7 @@ type PlaygroundEditorPaneProps = {
 export default function PlaygroundEditorPane({
   content: initialDoc,
   locale,
+  active,
   showViewer,
   showJSON,
 }: PlaygroundEditorPaneProps) {
@@ -61,9 +64,7 @@ export default function PlaygroundEditorPane({
   }, [resolvedTheme]);
   const inkioTheme = resolvedTheme === 'dark' ? 'dark' : 'light' as const;
 
-  const [doc, handleUpdate] = useDebouncedState<unknown>(
-    initialDoc ?? PLAYGROUND_INITIAL_CONTENT,
-  );
+  const initialContent = initialDoc ?? PLAYGROUND_INITIAL_CONTENT;
   const createObjectUrl = useObjectUrlRegistry();
   const handleImageUpload = useCallback(
     async (file: File) => createObjectUrl(file),
@@ -83,7 +84,7 @@ export default function PlaygroundEditorPane({
   const [wikiLinkTarget, setWikiLinkTarget] = useState<string | null>(null);
   const imageBlock = useMemo(() => ({ imageEditor: LazyImageEditorModal }), []);
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
-  const [viewerInstance, setViewerInstance] = useState<TiptapEditor | null>(null);
+  const doc = usePlaygroundDocument(editorInstance, active && (showViewer || showJSON));
   const [comments, setComments] = useState<CommentData[]>([]);
   const commentsRef = useRef<CommentData[]>([]);
   commentsRef.current = comments;
@@ -147,15 +148,15 @@ export default function PlaygroundEditorPane({
   return (
     <>
       <section className="playground-section">
-        <div className="playground-section-label">
-          Editor
+        <div className="playground-section-heading">
+          <h2 className="playground-section-label">Editor</h2>
           <span className="playground-mode-badge">
             @inkio/editor + lazy comments + lazy @inkio/image-editor
           </span>
         </div>
-        <div style={{ position: 'relative' }}>
+        <div className="playground-editor-frame">
           <InkioEditor
-            content={doc ?? PLAYGROUND_INITIAL_CONTENT}
+            content={initialContent}
             placeholder={
               locale === 'ko'
                 ? '/, #, [[, 댓글, 이미지 편집을 써 보세요...'
@@ -177,9 +178,8 @@ export default function PlaygroundEditorPane({
             imageBlock={imageBlock}
             comment={comment}
             onCreate={setEditorInstance}
-            onUpdate={handleUpdate}
           />
-          <ToC source={editorInstance} />
+          {active && <ToC source={editorInstance} />}
         </div>
         {wikiLinkTarget && (
           <div className="playground-note" role="status">
@@ -188,25 +188,14 @@ export default function PlaygroundEditorPane({
         )}
       </section>
 
-      {showViewer && doc && (
-        <section className="playground-section">
-          <div className="playground-section-label">Viewer</div>
-          <div style={{ position: 'relative' }}>
-            <InkioViewer content={doc} locale={locale} theme={inkioTheme} onCreate={setViewerInstance} />
-            <ToC source={viewerInstance} />
-          </div>
-        </section>
+      {active && showViewer && (
+        <PlaygroundViewer content={doc ?? initialContent} locale={locale} theme={inkioTheme} />
       )}
 
-      {showJSON && doc && (
-        <section className="playground-section">
-          <div className="playground-section-label">JSON Output</div>
-          <pre className="playground-json">{JSON.stringify(doc, null, 2)}</pre>
-        </section>
-      )}
+      {active && showJSON && <PlaygroundJson content={doc} />}
 
       <section className="playground-section">
-        <div className="playground-section-label">Comments</div>
+        <h2 className="playground-section-label">Comments</h2>
         <LazyCommentPanel
           editor={editorInstance}
           threads={comments}
@@ -220,5 +209,23 @@ export default function PlaygroundEditorPane({
         />
       </section>
     </>
+  );
+}
+
+function PlaygroundViewer({ content, locale, theme }: {
+  content: string | InkioJSONContent;
+  locale: PlaygroundLocale;
+  theme: 'dark' | 'light';
+}) {
+  const [viewerInstance, setViewerInstance] = useState<TiptapEditor | null>(null);
+
+  return (
+    <section className="playground-section">
+      <h2 className="playground-section-label">Viewer</h2>
+      <div className="playground-editor-frame">
+        <InkioViewer content={content} locale={locale} theme={theme} onCreate={setViewerInstance} />
+        <ToC source={viewerInstance} />
+      </div>
+    </section>
   );
 }

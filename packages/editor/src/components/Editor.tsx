@@ -12,6 +12,7 @@ import {
 import type { BubbleMenuProps } from '@inkio/core';
 import type { FloatingMenuProps } from '@inkio/core';
 import type { TableMenuProps } from '@inkio/core';
+import type { ToolbarProps } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import type { ImageBlockOptions } from '@inkio/core';
 import type { HashTagItem, MentionItem, SlashCommandItem, SlashCommandTransform, BookmarkPreview, CommentConfig, WikiLinkItem } from '@inkio/advanced';
@@ -29,6 +30,8 @@ interface EditorUiOptions {
   showBubbleMenu?: boolean;
   showFloatingMenu?: boolean;
   showTableMenu?: boolean;
+  showToolbar?: boolean;
+  toolbar?: Omit<ToolbarProps, 'editor'>;
   bubbleMenu?: Omit<BubbleMenuProps, 'editor'>;
   floatingMenu?: Omit<FloatingMenuProps, 'editor'>;
   tableMenu?: Omit<TableMenuProps, 'editor'>;
@@ -41,6 +44,8 @@ export interface EditorProps {
   content?: string | JSONContent;
   editable?: boolean;
   placeholder?: string;
+  /** Accessible name of the editing surface. */
+  ariaLabel?: string;
   locale?: InkioLocaleInput;
   /** Color theme */
   theme?: 'light' | 'dark';
@@ -82,6 +87,7 @@ export function Editor({
   content,
   editable,
   placeholder,
+  ariaLabel,
   locale,
   theme,
   tabBehavior,
@@ -115,6 +121,8 @@ export function Editor({
   // Only where the extensions start: `CoreEditor` keeps the live editor up to date
   // with later changes, so the document, caret and undo history stay.
   const [firstUi] = useState(() => ({ placeholder, locale, messages: stableUi.messages, icons: stableUi.icons }));
+  // React components are not event callbacks: keep their identity (including classes).
+  const imageEditor = imageBlock?.imageEditor;
   const extensionInputs = useStableProps({
     tabBehavior,
     onError,
@@ -130,7 +138,7 @@ export function Editor({
     callout,
     toggleList,
     table,
-    imageBlock,
+    imageBlock: imageBlock && { ...imageBlock, imageEditor: undefined },
     onImageUpload,
     bookmark,
   });
@@ -170,7 +178,7 @@ export function Editor({
       onError: input.onError,
     });
     if (mergedImageBlock) {
-      opts.imageBlock = mergedImageBlock;
+      opts.imageBlock = { ...mergedImageBlock, imageEditor };
     }
 
     // bookmark
@@ -184,7 +192,7 @@ export function Editor({
     }
 
     return resolveExtensionsInput(extensions, getDefaultExtensions(opts));
-  }, [extensionInputs, extensions, firstUi]);
+  }, [extensionInputs, extensions, firstUi, imageEditor]);
 
   const coreProps: CoreEditorProps = {
     ...mapEditorUiToCoreProps(stableUi, {
@@ -193,13 +201,11 @@ export function Editor({
       showFloatingMenu: true,
       showTableMenu: true,
     }),
-    // This wrapper has no toolbar surface.
-    showToolbar: false,
-    toolbar: undefined,
     content,
     extensions: resolvedExtensions,
     editable,
     placeholder,
+    ariaLabel,
     theme,
     onUpdate,
     onCreate,

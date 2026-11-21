@@ -1,6 +1,6 @@
 {
   "name": "@inkio/advanced",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Advanced notion-like and integration-aware extensions for Inkio",
   "license": "MIT",
   "homepage": "https://rascalab.github.io/inkio/",
@@ -124,20 +124,20 @@
   },
   "dependencies": {
     "@inkio/core": "workspace:^",
-    "@tiptap/core": "^3.31.4",
-    "@tiptap/extension-mention": "^3.31.4",
-    "@tiptap/pm": "^3.31.4",
-    "@tiptap/react": "^3.31.4",
-    "@tiptap/suggestion": "^3.31.4"
+    "@tiptap/core": "3.34.0",
+    "@tiptap/extension-mention": "3.34.0",
+    "@tiptap/pm": "3.34.0",
+    "@tiptap/react": "3.34.0",
+    "@tiptap/suggestion": "3.34.0"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",
-    "@tiptap/extension-document": "^3.31.4",
-    "@tiptap/extension-paragraph": "^3.31.4",
-    "@tiptap/extension-text": "^3.31.4",
+    "@tiptap/extension-document": "3.34.0",
+    "@tiptap/extension-paragraph": "3.34.0",
+    "@tiptap/extension-text": "3.34.0",
     "@types/node": "^26.6.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -147,11 +147,11 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "vite": "^8.3.2",
+    "vite": "^8.3.8",
     "vite-plugin-dts": "^5.1.2",
     "vitest": "^5.0.3"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.12.0"
   }
 }

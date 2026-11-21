@@ -2,7 +2,6 @@ import BaseCodeBlock from '@tiptap/extension-code-block';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { createLowlight } from 'lowlight';
 import { CodeBlockView } from './CodeBlockView';
-import { applyHljsTheme, isDarkTheme, releaseHljsTheme, retainHljsTheme } from './hljs-theme';
 import { ensureHljsLanguages, releaseEditor, repaintLoadedGrammars } from './hljs-lazy';
 import { InkioLowlightPlugin } from './lowlight-plugin';
 
@@ -13,10 +12,6 @@ import { InkioLowlightPlugin } from './lowlight-plugin';
 const lowlight = createLowlight();
 
 export const CodeBlock = BaseCodeBlock.extend({
-  addStorage() {
-    return { hljsObserver: null as MutationObserver | null };
-  },
-
   addNodeView() {
     return ReactNodeViewRenderer(CodeBlockView);
   },
@@ -33,29 +28,8 @@ export const CodeBlock = BaseCodeBlock.extend({
   },
 
   onCreate() {
-    retainHljsTheme();
     ensureHljsLanguages(lowlight, this.editor);
     repaintLoadedGrammars(this.editor);
-
-    const dom = this.editor.view.dom;
-    applyHljsTheme(isDarkTheme(dom));
-
-    const observer = new MutationObserver(() => {
-      applyHljsTheme(isDarkTheme(dom));
-    });
-
-    // Watch class attributes for dark mode changes: `.inkio` itself (the
-    // `theme` prop) and <html> (e.g. next-themes ancestor `.dark`, which
-    // isDarkTheme also honors).
-    const inkio = dom.closest('.inkio');
-    if (inkio) {
-      observer.observe(inkio, { attributes: true, attributeFilter: ['class'] });
-    }
-    if (document.documentElement) {
-      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-    }
-
-    this.storage.hljsObserver = observer;
   },
 
   onUpdate({ transaction, appendedTransactions }) {
@@ -65,8 +39,6 @@ export const CodeBlock = BaseCodeBlock.extend({
   },
 
   onDestroy() {
-    this.storage.hljsObserver?.disconnect();
     releaseEditor(this.editor);
-    releaseHljsTheme();
   },
 });

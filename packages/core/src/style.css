@@ -13,9 +13,13 @@
 /* inkio-content Editor with design */
 .inkio .inkio-content {
   min-height: 200px;
-  padding: 1rem;
+  padding: clamp(1rem, 3vw, 1.75rem);
   font-family: var(--inkio-font-family);
   font-size: var(--inkio-font-size-base);
+}
+
+.inkio .inkio-content > :where(h1, h2, h3, h4):first-child {
+  margin-top: 0;
 }
 
 /* Bordered container: paint the themed surface so `theme` (incl. dark) is
@@ -31,7 +35,7 @@
 
 /* Typography with colors and fonts */
 .inkio .inkio-content h1 {
-  font-size: 2.25rem;
+  font-size: clamp(1.75rem, 1.25rem + 1.75vw, 2.25rem);
   color: var(--inkio-text-heading);
 }
 
@@ -42,16 +46,15 @@
 
 .inkio .inkio-content h3 {
   font-size: 1.5rem;
-  color: var(--inkio-text);
+  color: var(--inkio-text-heading);
 }
 
 .inkio .inkio-content h4 {
   font-size: 1.25rem;
-  color: var(--inkio-text);
+  color: var(--inkio-text-heading);
 }
 
 .inkio .inkio-content p {
-  font-size: 1rem;
   color: var(--inkio-text);
 }
 
@@ -211,11 +214,6 @@
   color: var(--inkio-text-muted);
 }
 
-/* Placeholder with opacity */
-.inkio .inkio-content p.is-editor-empty:first-child::before {
-  color: var(--inkio-text-muted);
-}
-
 /* Selection */
 .inkio .inkio-content ::selection {
   background-color: var(--inkio-selection-bg);
@@ -225,46 +223,51 @@
    Editor Container with design
    ============================ */
 
-/* Shared base for editor — document appearance */
 .inkio-editor {
-  border-color: var(--inkio-border);
   color: var(--inkio-text);
 }
 
-.inkio-toolbar--ssr-placeholder {
-  background: var(--inkio-surface-shell);
-  box-shadow: var(--inkio-surface-shadow);
-  backdrop-filter: blur(var(--inkio-surface-blur-shell));
-}
-
 .inkio-toolbar-skeleton-btn {
-  background: color-mix(in srgb, var(--inkio-text-muted) 14%, transparent);
-  border: 1px solid var(--inkio-surface-border);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 24%, transparent);
+  background: var(--inkio-control-hover);
 }
 
-/* Editor-only: interactive feedback */
-.inkio-editor {
-  box-shadow: var(--inkio-shadow);
-  transition: border-color var(--inkio-transition-fast), box-shadow var(--inkio-transition-fast);
+.inkio-editor.inkio-container-default:focus-within {
+  border-color: var(--inkio-border-focus);
 }
 
-.inkio-editor:focus-within {
-  border-color: var(--inkio-primary);
-  box-shadow: var(--inkio-ring);
+.inkio-editor:not(.inkio-container-default) .inkio-content:focus-visible {
+  outline: 2px solid var(--inkio-border-focus);
+  outline-offset: -2px;
 }
 
 .inkio-toolbar {
-  background-color: var(--inkio-surface-shell);
-  border-bottom: 1px solid var(--inkio-surface-border);
-  box-shadow:
-    inset 0 -1px 0 color-mix(in srgb, var(--inkio-surface-border) 78%, transparent),
-    var(--inkio-surface-shadow);
-  backdrop-filter: blur(var(--inkio-surface-blur-shell));
+  background-color: var(--inkio-bg-subtle);
+  border-radius: inherit;
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scroll-padding-inline: 0.75rem;
+}
+
+.inkio-toolbar[data-placement="bottom"] {
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+  border-end-start-radius: inherit;
+  border-end-end-radius: inherit;
+}
+
+.inkio-toolbar-group {
+  flex: none;
+  flex-wrap: nowrap;
 }
 
 .inkio-toolbar-divider {
-  background-color: var(--inkio-surface-border);
+  flex: none;
+  align-self: center;
+  height: 1.25rem;
+  background-color: var(--inkio-border);
 }
 
 .inkio-toolbar-color-indicator {
@@ -273,6 +276,9 @@
 
 .inkio-color-popover {
   color: var(--inkio-text);
+  background-color: var(--inkio-surface-panel);
+  border-color: var(--inkio-surface-border);
+  box-shadow: var(--inkio-surface-shadow-lg);
 }
 
 .inkio-color-swatch {
@@ -296,10 +302,9 @@
    ============================ */
 .inkio-suggestion-container {
   background-color: var(--inkio-surface-panel);
-  border-radius: var(--inkio-radius-md);
+  border-radius: var(--inkio-radius-lg);
   box-shadow: var(--inkio-surface-shadow-lg);
-  border: 1px solid var(--inkio-surface-border);
-  backdrop-filter: blur(var(--inkio-surface-blur-panel));
+  border: 1px solid var(--inkio-border);
   overflow: hidden;
   min-width: 200px;
   max-width: 320px;
@@ -342,15 +347,15 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 0.75rem;
-  border-radius: var(--inkio-radius);
+  border-radius: var(--inkio-control-radius);
   transition: background-color var(--inkio-transition-fast);
   background-color: transparent;
-  color: var(--inkio-text);
+  color: var(--inkio-control-text);
 }
 
 .inkio-suggestion-item-content.is-selected {
-  background-color: var(--inkio-primary-bg);
-  color: var(--inkio-primary-hover);
+  background-color: var(--inkio-control-active);
+  color: var(--inkio-control-text);
 }
 
 .inkio-suggestion-item:focus-visible {
@@ -372,7 +377,7 @@
 }
 
 .inkio-suggestion-label {
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -392,9 +397,9 @@
 .inkio-bubble-menu {
   background-color: var(--inkio-surface-panel);
   box-shadow: var(--inkio-surface-shadow-lg);
-  border: 1px solid var(--inkio-surface-border);
-  border-radius: var(--inkio-radius-md);
-  padding: 0.25rem;
+  border: 1px solid var(--inkio-border);
+  border-radius: var(--inkio-radius-lg);
+  padding: 0.375rem;
   display: flex;
   flex-wrap: wrap;
   max-width: calc(100vw - 1rem);
@@ -402,13 +407,14 @@
   align-items: center;
   gap: 0.125rem;
   z-index: var(--inkio-layer-overlay);
-  backdrop-filter: blur(var(--inkio-surface-blur-panel));
 }
 
 .inkio-bubble-btn {
-  padding: 0.5rem;
-  border-radius: var(--inkio-radius-sm);
-  color: var(--inkio-text);
+  min-inline-size: 2.25rem;
+  min-block-size: 2.25rem;
+  padding: 0.375rem;
+  border-radius: var(--inkio-control-radius);
+  color: var(--inkio-control-text);
   background: transparent;
   border: none;
   cursor: pointer;
@@ -418,24 +424,30 @@
   justify-content: center;
 }
 
-.inkio-bubble-btn:hover {
-  background-color: var(--inkio-bg-muted);
+.inkio-bubble-btn:hover:not(:disabled) {
+  background-color: var(--inkio-control-hover);
 }
 
-.inkio-bubble-btn.is-active {
-  background-color: var(--inkio-bg-muted);
-  color: var(--inkio-primary);
+.inkio-bubble-btn.is-active,
+.inkio-bubble-btn[aria-expanded="true"] {
+  background-color: var(--inkio-control-active);
 }
 
-.inkio-bubble-btn.is-focused {
-  background-color: var(--inkio-bg-muted);
-  color: var(--inkio-primary);
-  box-shadow: var(--inkio-ring);
+.inkio-bubble-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .inkio-bubble-btn:focus-visible {
-  outline: none;
-  box-shadow: var(--inkio-ring);
+  outline: 2px solid var(--inkio-border-focus);
+  outline-offset: -2px;
+}
+
+@media (pointer: coarse) {
+  .inkio-bubble-btn {
+    min-inline-size: 2.75rem;
+    min-block-size: 2.75rem;
+  }
 }
 
 .inkio-bubble-btn.is-danger {
@@ -456,7 +468,8 @@
   border: 1px solid var(--inkio-surface-border);
   border-radius: var(--inkio-radius-md);
   padding: 0.75rem;
-  min-width: 300px;
+  width: min(300px, calc(100vw - 1rem));
+  box-sizing: border-box;
   z-index: var(--inkio-layer-popover);
   backdrop-filter: blur(var(--inkio-surface-blur-panel));
 }
@@ -532,6 +545,28 @@
   cursor: not-allowed;
 }
 
+@media (pointer: coarse) {
+  .inkio-link-input,
+  .inkio-link-btn-cancel,
+  .inkio-link-btn-save {
+    min-block-size: 2.75rem;
+  }
+
+  .inkio-link-btn-cancel,
+  .inkio-link-btn-save {
+    min-inline-size: 2.75rem;
+  }
+
+  .inkio-link-input {
+    font-size: 1rem;
+  }
+
+  .inkio-color-swatch {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}
+
 .inkio-table-controls {
   pointer-events: none;
 }
@@ -572,7 +607,7 @@
 .inkio-table-insert:focus-visible {
   opacity: 1;
   background-color: var(--inkio-primary);
-  color: #fff;
+  color: var(--inkio-text-on-primary);
   outline: none;
 }
 
@@ -692,7 +727,7 @@
   min-width: 0;
 }
 
-/* Radix portal content rendered outside .inkio — global unscoped */
+/* Radix content usually inherits the editor's tokens; keep a body fallback. */
 .inkio-popover-content {
   z-index: var(--inkio-layer-popover, 150);
   /* Fallback panel: Radix portals can mount outside `.inkio`, where tokens
@@ -702,6 +737,13 @@
   border: 1px solid var(--inkio-surface-border, var(--inkio-border, rgba(0, 0, 0, 0.1)));
   border-radius: var(--inkio-radius-md, 8px);
   box-shadow: var(--inkio-surface-shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.12));
+}
+
+/* The built-in link/color panels already draw the surface inside this wrapper. */
+.inkio-popover-content:has(> :is(.inkio-link-popover, .inkio-color-popover)) {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 /* TocBlock — inline document ToC (Notion-style) */

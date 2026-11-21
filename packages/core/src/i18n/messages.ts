@@ -82,6 +82,7 @@ export interface InkioCoreMessages {
     string
   >;
   editor: {
+    label: string;
     placeholder: string;
     formattingControls: string;
     blockControls: string;
@@ -122,6 +123,8 @@ export interface InkioCoreMessages {
     handle: string;
     delete: string;
     duplicate: string;
+    moveUp?: string;
+    moveDown?: string;
     transformSection: string;
     text: string;
     heading1: string;
@@ -214,6 +217,7 @@ export const enCoreMessages: InkioCoreMessages = {
     image: 'Image',
   },
   editor: {
+    label: 'Rich text editor',
     placeholder: 'Start typing...',
     formattingControls: 'Formatting controls',
     blockControls: 'Block controls',
@@ -254,6 +258,8 @@ export const enCoreMessages: InkioCoreMessages = {
     handle: 'Block handle',
     delete: 'Delete',
     duplicate: 'Duplicate',
+    moveUp: 'Move up one block',
+    moveDown: 'Move down one block',
     transformSection: 'Turn into',
     text: 'Text',
     heading1: 'Heading 1',
@@ -405,6 +411,7 @@ export const koCoreMessages: InkioCoreMessages = {
     image: '이미지',
   },
   editor: {
+    label: '문서 편집기',
     placeholder: '내용을 입력하세요',
     formattingControls: '서식 도구',
     blockControls: '블록 도구',
@@ -445,6 +452,8 @@ export const koCoreMessages: InkioCoreMessages = {
     handle: '블록 핸들',
     delete: '삭제',
     duplicate: '복제',
+    moveUp: '위로 한 칸',
+    moveDown: '아래로 한 칸',
     transformSection: '다음으로 바꾸기',
     text: '텍스트',
     heading1: '제목 1',

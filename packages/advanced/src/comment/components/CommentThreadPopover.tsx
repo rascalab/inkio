@@ -10,7 +10,7 @@ import {
   useInkioCommentUi,
   type InkioCommentMessageOverrides,
 } from '../i18n';
-import type { CommentThreadData } from './CommentPanel';
+import { isKnownCommentThread, type CommentThreadData } from '../comment-shared';
 import { getInitials } from '../utils';
 import { CommentActionIcon } from './CommentActionIcon';
 
@@ -80,15 +80,17 @@ export function CommentThreadPopover({
     escape: { insideOnly: true, stopPropagation: true },
   });
 
+  const knownThread = thread && isKnownCommentThread(thread, threadId) ? thread : null;
+
   const handleReply = () => {
     const trimmed = replyText.trim();
-    if (!trimmed || !onReply) return;
+    if (!knownThread || knownThread.resolved || !trimmed || !onReply) return;
 
     onReply(threadId, trimmed);
     setReplyText('');
   };
 
-  const isResolved = thread?.resolved ?? false;
+  const isResolved = knownThread?.resolved ?? false;
   const truncatedQuote =
     quotedText.length > 100 ? `${quotedText.slice(0, 100)}\u2026` : quotedText;
 
@@ -102,8 +104,8 @@ export function CommentThreadPopover({
 
       {/* Messages */}
       <div className="inkio-thread-popover-messages">
-        {thread && thread.messages.length > 0 ? (
-          thread.messages.map((msg) => (
+        {knownThread && knownThread.messages.length > 0 ? (
+          knownThread.messages.map((msg) => (
             <div key={msg.id} className="inkio-thread-popover-msg">
               <div className="inkio-thread-popover-msg-avatar">
                 {getInitials(msg.author || currentUser)}
@@ -129,7 +131,7 @@ export function CommentThreadPopover({
       </div>
 
       {/* Reply input */}
-      {onReply && !isResolved && (
+      {knownThread && onReply && !isResolved && (
         <div className="inkio-thread-popover-reply">
           <textarea
             ref={replyInputRef}
@@ -150,7 +152,7 @@ export function CommentThreadPopover({
       )}
 
       {/* Actions */}
-      {(onResolve || onDelete) && (
+      {knownThread && (onResolve || onDelete) && (
         <div className="inkio-thread-popover-actions">
           {onResolve && !isResolved && (
             <button

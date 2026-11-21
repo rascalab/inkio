@@ -1,33 +1,38 @@
-import type { EnabledToolType, ToolType } from '../types';
+import { DEFAULT_TOOLS } from '../constants';
+import type { EnabledToolType, ImageEditorCustomTool, ImageEditorTool, ToolType } from '../types';
 
-export function normalizeTool(tool: ToolType | null): EnabledToolType | null {
-  if (tool === 'crop') {
-    return 'resize';
-  }
+export type ResolvedImageEditorTool = EnabledToolType | ImageEditorCustomTool;
 
-  return tool;
+const BUILTIN_TOOL_IDS = new Set<string>([...DEFAULT_TOOLS, 'crop']);
+
+export function normalizeTool(tool: ToolType | null): EnabledToolType | null;
+export function normalizeTool(tool: string): string;
+export function normalizeTool(tool: string | null): string | null {
+  return tool === 'crop' ? 'resize' : tool;
 }
 
-/**
- * Normalize a tool list for the toolbar: 'crop' is an alias of 'resize'
- * (same session machinery), nulls are dropped, and duplicates collapse to
- * first occurrence. Callers passing ['crop', 'resize'] intentionally get
- * ['resize'] — the alias is resolved here, not at every call site.
- */
-export function normalizeTools(tools: ToolType[]): EnabledToolType[] {
-  const normalized: EnabledToolType[] = [];
-  const seen = new Set<EnabledToolType>();
+export function getImageEditorToolId(tool: ResolvedImageEditorTool): string {
+  return typeof tool === 'string' ? tool : tool.id;
+}
 
-  tools.forEach((tool) => {
-    const nextTool = normalizeTool(tool);
-    if (!nextTool || seen.has(nextTool)) {
-      return;
+/** Keep the first entry for each tool ID and reserve all built-in names for built-ins. */
+export function normalizeTools(tools: readonly ImageEditorTool[]): ResolvedImageEditorTool[] {
+  const normalized: ResolvedImageEditorTool[] = [];
+  const seen = new Set<string>();
+  for (const tool of tools) {
+    if (!tool) continue;
+    if (typeof tool === 'string') {
+      if (!BUILTIN_TOOL_IDS.has(tool)) continue;
+    } else if (typeof tool.id !== 'string' || !tool.id.trim() || BUILTIN_TOOL_IDS.has(tool.id)) {
+      continue;
     }
-
-    seen.add(nextTool);
+    const nextTool = typeof tool === 'string' ? normalizeTool(tool) : tool;
+    if (!nextTool) continue;
+    const id = getImageEditorToolId(nextTool);
+    if (seen.has(id)) continue;
+    seen.add(id);
     normalized.push(nextTool);
-  });
-
+  }
   return normalized;
 }
 

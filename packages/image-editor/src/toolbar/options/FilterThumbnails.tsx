@@ -3,6 +3,7 @@ import Konva from 'konva';
 import { useImageEditor } from '../../hooks/use-image-editor';
 import type { FilterPresetId } from '../../types';
 import { FILTER_PRESETS, applyImageFilter } from '../../utils/filters';
+import { isImageTainted } from '../../utils/image-loader';
 
 const THUMB_WIDTH = 72;
 const THUMB_MAX_HEIGHT = 72;
@@ -28,7 +29,7 @@ export function FilterThumbnails() {
 
   useEffect(() => {
     const source = state.originalImage;
-    if (!source || source.naturalWidth === 0) {
+    if (!source || source.naturalWidth === 0 || isImageTainted(source)) {
       // Reset on empty source: without this a previous image's thumbnails
       // stay mounted after the source is cleared.
       setThumbnails({});
@@ -44,29 +45,15 @@ export function FilterThumbnails() {
       const preset = FILTER_PRESETS[index];
       if (!preset) return;
 
-      // Small fixed-size offscreen render: full-res source downscaled into
-      // a 72px-wide stage keeps each cache()/toDataURL() pass cheap.
-      let stage: Konva.Stage | null = null;
+      const node = new Konva.Image({ image: source, width: THUMB_WIDTH, height });
       try {
-        stage = new Konva.Stage({
-          container: document.createElement('div'),
-          width: THUMB_WIDTH,
-          height,
-        });
-        const layer = new Konva.Layer();
-        stage.add(layer);
-        const node = new Konva.Image({ image: source, width: THUMB_WIDTH, height });
-        layer.add(node);
-        applyImageFilter(node, preset.id);
-        layer.batchDraw();
-        const dataUrl = stage.toDataURL({ mimeType: 'image/png' });
-        if (!cancelled) {
-          setThumbnails((prev) => (prev[preset.id] === dataUrl ? prev : { ...prev, [preset.id]: dataUrl }));
-        }
+        if (preset.id !== 'none') applyImageFilter(node, preset.id);
+        const dataUrl = node.toDataURL({ x: 0, y: 0, width: THUMB_WIDTH, height, mimeType: 'image/png', pixelRatio: 1 });
+        setThumbnails((prev) => ({ ...prev, [preset.id]: dataUrl }));
       } catch {
-        // CORS-tainted source or headless canvas: keep the label fallback.
+        // Headless canvas: keep the label fallback.
       } finally {
-        stage?.destroy();
+        node.destroy();
       }
 
       if (!cancelled && index + 1 < FILTER_PRESETS.length) {

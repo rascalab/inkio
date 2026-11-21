@@ -10,12 +10,14 @@ import type { InkioIconRegistry } from '@inkio/core/icons';
 import {
   autoUpdateOverlayPosition,
   computeOverlayPosition,
+  planAdjacentBlockMove,
   runOptionalChainCommand,
   useDismissableLayer,
   useInkioCoreUi,
   type InkioOptionalChainCommand,
 } from '@inkio/core';
-import { NodeSelection } from '@tiptap/pm/state';
+import { closeHistory } from '@tiptap/pm/history';
+import { NodeSelection, Selection, type Transaction } from '@tiptap/pm/state';
 import { blockMenuIconsFrom, type BlockMenuIcons, type BlockMenuIconId } from './icons';
 
 interface AnchorRect {
@@ -37,6 +39,7 @@ interface BlockHandleActionMenuProps {
   messages?: InkioCoreMessageOverrides | InkioMessageOverrides;
   coreIcons?: Partial<InkioIconRegistry>;
   onClose: () => void;
+  onMove?: (transaction: Transaction, movedTo: number) => void;
   /**
    * Identity snapshot of the block the menu was opened for (captured at
    * open time). Actions validate the resolved node against it and refuse to
@@ -173,6 +176,7 @@ export const BlockHandleActionMenu = ({
   messages,
   coreIcons,
   onClose,
+  onMove,
   blockFingerprint,
 }: BlockHandleActionMenuProps) => {
   const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -216,32 +220,25 @@ export const BlockHandleActionMenu = ({
         return;
       }
       const resolved = resolveBlockPos();
+      if (!resolved || resolved.node.isAtom || resolved.node.isLeaf || !TURNS_INTO_TEXT.has(resolved.node.type.name)) {
+        onClose();
+        return;
+      }
       let selectedText = false;
       const didRun = runOptionalChainCommand(editor, command, {
         args: attrs,
         prepare: (chain) => {
-          // Atom/leaf blocks (hr, bookmark) have no inner text position: let the
-          // command decide placement.
-          if (!resolved || resolved.node.isAtom || resolved.node.isLeaf) {
-            return chain;
-          }
-          const steps = chain as unknown as {
-            setTextSelection?: (position: number | { from: number; to: number }) => typeof chain;
-            clearNodes?: () => typeof chain;
-          };
-          if (typeof steps.setTextSelection !== 'function') return chain;
           // Lists, quotes and callouts wrap their text, and a command for a text
           // block does nothing there: take the whole block back to paragraphs first.
-          if (!resolved.node.isTextblock && typeof steps.clearNodes === 'function') {
+          if (!resolved.node.isTextblock) {
             const textRange = textRangeOf(resolved.node, resolved.pos);
             if (textRange) {
               selectedText = true;
-              steps.setTextSelection(textRange);
-              return steps.clearNodes();
+              return chain.setTextSelection(textRange).clearNodes();
             }
           }
           const inner = Math.max(0, Math.min(resolved.pos + 1, editor.state.doc.content.size));
-          return steps.setTextSelection(inner);
+          return chain.setTextSelection(inner);
         },
       });
 
@@ -291,6 +288,19 @@ export const BlockHandleActionMenu = ({
     editor.view.dispatch(tr.scrollIntoView());
     onClose();
   }, [editor, onClose, resolveBlockPos]);
+
+  const moveBlock = useCallback((direction: -1 | 1) => {
+    const block = editor.isEditable && resolveBlockPos();
+    const move = block && planAdjacentBlockMove(editor.state.doc, block.pos, direction);
+    if (move) {
+      const transaction = closeHistory(editor.state.tr.step(move.step));
+      transaction.setSelection(Selection.near(transaction.doc.resolve(move.selectionPos)));
+      transaction.scrollIntoView();
+      if (onMove) onMove(transaction, move.movedTo);
+      else editor.view.dispatch(transaction);
+    }
+    onClose();
+  }, [editor, onClose, onMove, resolveBlockPos]);
 
   const menuItems = useMemo<MenuItem[]>(() => {
     const labels = ui.messages.blockHandle;
@@ -361,12 +371,22 @@ export const BlockHandleActionMenu = ({
       },
     ];
 
-    // A table or an image can't become text: the rest of the list would do nothing.
     const block = resolveBlockPos();
-    return !block || TURNS_INTO_TEXT.has(block.node.type.name)
-      ? items
-      : items.filter((item) => item.id === 'delete' || item.id === 'duplicate');
-  }, [deleteBlock, duplicateBlock, icons, resolveBlockPos, turnInto, ui.messages.blockHandle]);
+    if (block) {
+      const moves: MenuItem[] = [];
+      if (planAdjacentBlockMove(editor.state.doc, block.pos, -1)) {
+        moves.push({ id: 'moveUp', icon: icon('moveUp'), label: labels.moveUp ?? 'Move up one block', onSelect: () => moveBlock(-1) });
+      }
+      if (planAdjacentBlockMove(editor.state.doc, block.pos, 1)) {
+        moves.push({ id: 'moveDown', icon: icon('moveDown'), label: labels.moveDown ?? 'Move down one block', onSelect: () => moveBlock(1) });
+      }
+      // A table or an image can't become text but can still be moved.
+      items.splice(2, TURNS_INTO_TEXT.has(block.node.type.name) ? 0 : items.length - 2, ...moves);
+    }
+    return items;
+  }, [deleteBlock, duplicateBlock, editor, icons, moveBlock, resolveBlockPos, turnInto, ui.messages.blockHandle]);
+  const transformStart = menuItems.findIndex((item) => item.id === 'text');
+  const actionCount = transformStart < 0 ? menuItems.length : transformStart;
 
   // The menu root is reused across blocks (menuRoot.render reuses the mounted
   // component), so reset keyboard state whenever the target block changes.
@@ -437,6 +457,7 @@ export const BlockHandleActionMenu = ({
       if (event.key === 'Escape') {
         event.preventDefault();
         onClose();
+        editor.view.focus();
         return;
       }
 
@@ -469,7 +490,7 @@ export const BlockHandleActionMenu = ({
         menuItems[activeIndex]?.onSelect();
       }
     },
-    [activeIndex, menuItems, navigate, onClose],
+    [activeIndex, editor, menuItems, navigate, onClose],
   );
 
   // The menu must never display on a read-only editor, even if opened
@@ -488,7 +509,7 @@ export const BlockHandleActionMenu = ({
       aria-label={ui.messages.blockHandle.menu}
       onKeyDown={handleKeyDown}
     >
-      {menuItems.slice(0, 2).map((item, index) => (
+      {menuItems.slice(0, actionCount).map((item, index) => (
         <MenuItemButton
           key={item.id}
           item={item}
@@ -500,11 +521,15 @@ export const BlockHandleActionMenu = ({
         />
       ))}
 
-      <div className="inkio-block-handle-action-separator" />
-      <div className="inkio-block-handle-action-section-label">{ui.messages.blockHandle.transformSection}</div>
+      {transformStart >= 0 && (
+        <>
+          <div className="inkio-block-handle-action-separator" />
+          <div className="inkio-block-handle-action-section-label">{ui.messages.blockHandle.transformSection}</div>
+        </>
+      )}
 
-      {menuItems.slice(2).map((item, offsetIndex) => {
-        const index = offsetIndex + 2;
+      {menuItems.slice(actionCount).map((item, offsetIndex) => {
+        const index = offsetIndex + actionCount;
         const showDividerBefore = item.id === 'bulletList';
 
         return (

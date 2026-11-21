@@ -51,9 +51,7 @@ import {
   type InkioLocaleInput,
   type InkioMessageOverrides,
 } from '../i18n/messages';
-import { Table } from '@tiptap/extension-table';
-import { TableCell } from '@tiptap/extension-table-cell';
-import { TableHeader } from '@tiptap/extension-table-header';
+import { BoundedTable, BoundedTableCell, BoundedTableHeader } from './BoundedTable';
 import { TableRow } from '@tiptap/extension-table-row';
 import { Callout } from './Callout';
 import { KeyboardShortcuts } from './KeyboardShortcuts';
@@ -344,7 +342,7 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
 
   if (table !== false) {
     extensions.push(
-      Table.configure({
+      BoundedTable.configure({
         HTMLAttributes: {},
         resizable: false,
         allowTableNodeSelection: false,
@@ -354,8 +352,8 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
         renderWrapper: true,
       }),
       TableRow,
-      TableHeader,
-      TableCell,
+      BoundedTableHeader,
+      BoundedTableCell,
     );
   }
 

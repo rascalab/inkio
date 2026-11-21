@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { JSONContent } from '@tiptap/core';
-import { parseMarkdown, stringifyMarkdown } from '../index';
+import { Editor, getSchema, type JSONContent } from '@tiptap/core';
+import Document from '@tiptap/extension-document';
+import Heading from '@tiptap/extension-heading';
+import Paragraph from '@tiptap/extension-paragraph';
+import Text from '@tiptap/extension-text';
+import { MarkdownPaste, parseMarkdown, stringifyMarkdown } from '../index';
 
 describe('advanced inline nodes', () => {
   it('round-trips wiki links through [[name]] syntax', () => {
@@ -23,6 +27,27 @@ describe('advanced inline nodes', () => {
       { type: 'wikiLink', attrs: { href: 'my_page_name' } },
     ]);
     expect(stringifyMarkdown(json)).toBe(md);
+  });
+
+  it('keeps punctuation in a wiki label as text without emitting HTML markup', () => {
+    const name = 'A < B & <code>Notes</code> | 2 * 3';
+    const doc = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'wikiLink', attrs: { href: name } }] }],
+    };
+    const markdown = stringifyMarkdown(doc);
+    expect(markdown).toMatch(/^\[\[.*\]\]$/);
+    expect(markdown).not.toContain('<code>');
+    expect(parseMarkdown(markdown)).toEqual(doc);
+  });
+
+  it('keeps incomplete wiki syntax literal and finds the next complete wiki link', () => {
+    const doc = parseMarkdown('Use [[ for a wiki link, for example [[Release Notes]].');
+    expect(doc.content?.[0]?.content).toEqual([
+      { type: 'text', text: 'Use [[ for a wiki link, for example ' },
+      { type: 'wikiLink', attrs: { href: 'Release Notes' } },
+      { type: 'text', text: '.' },
+    ]);
   });
 
   it('keeps unsafe wiki targets as plain text', () => {
@@ -153,6 +178,102 @@ describe('@inkio/core/markdown', () => {
     expect(stringifyMarkdown(content)).toBe(markdown);
   });
 
+  it('round-trips a details summary containing literal markup, quotes, and entities', () => {
+    const markdown = [
+      '<details>',
+      '<summary>Use &lt;code&gt;, &quot;quotes&quot;, and &amp;amp; in {notes}</summary>',
+      '',
+      'Inside details',
+      '</details>',
+    ].join('\n');
+    const doc = parseMarkdown(markdown);
+    expect(doc.content?.[0]?.content?.[0]?.content).toEqual([
+      { type: 'text', text: 'Use <code>, "quotes", and &amp; in {notes}' },
+    ]);
+    expect(stringifyMarkdown(doc)).toBe(markdown);
+    expect(parseMarkdown(stringifyMarkdown(doc))).toEqual(doc);
+  });
+
+  it('preserves details markup and directives in fenced code', () => {
+    const source = [
+      '<details>',
+      '<summary>Example</summary>',
+      '',
+      ':::details{summary="Example"}',
+      'Code sample',
+      ':::',
+      '</details>',
+    ].join('\n');
+    const code = `\`\`\`markdown\n${source}\n\`\`\``;
+    const doc = parseMarkdown(code);
+    expect(doc.content?.[0]).toMatchObject({
+      type: 'codeBlock',
+      content: [{ type: 'text', text: source }],
+    });
+    expect(stringifyMarkdown(doc)).toBe(code);
+  });
+
+  it('round-trips details inside a callout and a nested callout inside details', () => {
+    const markdown = [
+      '::::callout{color="blue"}',
+      '<details>',
+      '<summary>More</summary>',
+      '',
+      ':::callout{color="green"}',
+      'Nested note',
+      ':::',
+      '',
+      '</details>',
+      '',
+      'After details',
+      '::::',
+    ].join('\n');
+    const doc = parseMarkdown(markdown);
+    expect(doc.content?.[0]).toMatchObject({
+      type: 'callout',
+      content: [
+        {
+          type: 'details',
+          content: [
+            { type: 'detailsSummary' },
+            { type: 'detailsContent', content: [{ type: 'callout' }] },
+          ],
+        },
+        { type: 'paragraph', content: [{ type: 'text', text: 'After details' }] },
+      ],
+    });
+    expect(parseMarkdown(stringifyMarkdown(doc))).toEqual(doc);
+  });
+
+  it('does not let a closing tag in a fenced example end the enclosing details', () => {
+    const markdown = [
+      '<details>',
+      '<summary>Usage</summary>',
+      '',
+      '```html',
+      '</details>',
+      '```',
+      '',
+      'More guidance',
+      '</details>',
+    ].join('\n');
+    const doc = parseMarkdown(markdown);
+    expect(doc.content?.[0]?.content?.[1]?.content).toEqual([
+      { type: 'codeBlock', attrs: { language: 'html' }, content: [{ type: 'text', text: '</details>' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: 'More guidance' }] },
+    ]);
+    expect(parseMarkdown(stringifyMarkdown(doc))).toEqual(doc);
+  });
+
+  it('keeps the rest of a document when an unsupported image has no alt text', () => {
+    const doc = parseMarkdown('Before\n\n![](ftp://example.com/photo.jpg)\n\nAfter');
+    const schema = getSchema([Document, Paragraph, Text]);
+    const node = schema.nodeFromJSON(doc);
+    expect(node.textContent).toBe('BeforeAfter');
+    expect(node.childCount).toBe(3);
+    expect(node.child(1).content.size).toBe(0);
+  });
+
   it('round-trips gfm tables', () => {
     const markdown = [
       '| Name | Count |',
@@ -270,6 +391,41 @@ describe('@inkio/core/markdown', () => {
     });
   });
 
+});
+
+describe('Markdown input limits', () => {
+  it('rejects oversized and excessively nested documents without affecting later imports', () => {
+    expect(() => parseMarkdown('Daily meeting notes. '.repeat(50_001))).toThrow(RangeError);
+    expect(() => parseMarkdown(`${'> '.repeat(129)}Meeting notes`)).toThrow(RangeError);
+    expect(parseMarkdown('Meeting notes').content?.[0]?.content?.[0]?.text).toBe('Meeting notes');
+  });
+
+  it('bounds the work of repeated table merge metadata', () => {
+    const row = (cell: string) => `| ${Array.from({ length: 25 }, () => cell).join(' | ')} |`;
+    const table = [row('Header'), row('-'), ...Array.from({ length: 39 }, () => row(''))].join('\n');
+    const spans = Array.from({ length: 1001 }, () => '0,0,25,40').join(' ');
+    expect(() => parseMarkdown(`<!-- inkio:table-spans ${spans} -->\n\n${table}`))
+      .toThrow('table spans cover too many cells');
+    expect(parseMarkdown(table).content?.[0]?.content).toHaveLength(40);
+  });
+
+  it('keeps normal paste available when Markdown parsing rejects the input', () => {
+    const editor = new Editor({ extensions: [Document, Heading, Paragraph, Text, MarkdownPaste] });
+    try {
+      const paste = (text: string) => editor.view.pasteText(text, Object.assign(new Event('paste'), {
+        clipboardData: { getData: (type: string) => type === 'text/plain' ? text : '' },
+      }) as unknown as ClipboardEvent);
+      const nested = `${'> '.repeat(129)}Meeting notes`;
+      paste(nested);
+      expect(editor.getText()).toBe(nested);
+      editor.commands.clearContent();
+      paste('# Agenda');
+      expect(editor.getJSON().content?.[0]?.type).toBe('heading');
+      expect(editor.getText()).toBe('Agenda');
+    } finally {
+      editor.destroy();
+    }
+  });
 });
 
 describe('text written as it reads', () => {

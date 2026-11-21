@@ -1,11 +1,13 @@
 import { Mark, mergeAttributes } from '@tiptap/core';
-import { Plugin } from '@tiptap/pm/state';
+import { Plugin, type Transaction } from '@tiptap/pm/state';
 import {
   commentComposerPluginKey,
   normalizeCommentId,
+  readCommentThread,
   type CommentOptions,
 } from './comment-shared';
 import { createCommentComposerPlugin } from './comment-composer-plugin';
+import { canCommentOnRange, findCommentRanges } from './utils';
 import { createCommentThreadPopoverPlugin } from './comment-thread-popover-plugin';
 
 export * from './comment-shared';
@@ -22,6 +24,22 @@ declare module '@tiptap/core' {
       openCommentComposer: () => ReturnType;
     };
   }
+}
+
+function updateCommentResolution(
+  tr: Transaction,
+  id: string,
+  resolved: boolean,
+  apply: boolean,
+): boolean {
+  const ranges = findCommentRanges(tr.doc, id, !resolved);
+  if (apply) {
+    for (const { from, to, mark } of ranges) {
+      tr.removeMark(from, to, mark);
+      tr.addMark(from, to, mark.type.create({ ...mark.attrs, resolved }));
+    }
+  }
+  return ranges.length > 0;
 }
 
 // ─── Extension ──────────────────────────────────────────────
@@ -52,13 +70,10 @@ export const Comment = Mark.create<CommentOptions>({
     return {
       commentId: {
         default: null,
-        parseHTML: (element) => element.getAttribute('data-comment-id'),
+        parseHTML: (element) => normalizeCommentId(element.getAttribute('data-comment-id')),
         renderHTML: (attributes) => {
-          if (!attributes.commentId) {
-            return {};
-          }
-
-          return { 'data-comment-id': attributes.commentId };
+          const id = normalizeCommentId(attributes.commentId);
+          return id ? { 'data-comment-id': id } : {};
         },
       },
       resolved: {
@@ -107,7 +122,7 @@ export const Comment = Mark.create<CommentOptions>({
         const { state, view } = this.editor;
         const { from, to } = state.selection;
 
-        if (from === to) {
+        if (typeof window === 'undefined' || !canCommentOnRange(state.doc, from, to)) {
           return false;
         }
 
@@ -177,120 +192,24 @@ export const Comment = Mark.create<CommentOptions>({
           },
       resolveComment:
         (commentId) =>
-          ({ state, dispatch }) => {
-            if (!this.editor.isEditable) {
+          ({ tr, dispatch }) => {
+            const id = normalizeCommentId(commentId);
+            if (!this.editor.isEditable || !id || !updateCommentResolution(tr, id, true, !!dispatch)) {
               return false;
             }
-            const trimmedId = normalizeCommentId(commentId);
-
-            if (!trimmedId) {
-              return false;
-            }
-
-            const markType = state.schema.marks[this.name];
-
-            if (!markType) {
-              return false;
-            }
-
-            const ranges: Array<{ from: number; to: number; attrs: Record<string, any> }> = [];
-
-            state.doc.descendants((node, pos) => {
-              if (!node.isText || node.nodeSize <= 0) {
-                return;
-              }
-
-              const mark = node.marks.find(
-                (candidate) => candidate.type === markType && candidate.attrs.commentId === trimmedId
-              );
-
-              if (!mark || mark.attrs.resolved) {
-                return;
-              }
-
-              ranges.push({
-                from: pos,
-                to: pos + node.nodeSize,
-                attrs: mark.attrs as Record<string, any>,
-              });
-            });
-
-            if (ranges.length === 0) {
-              return false;
-            }
-
-            const transaction = state.tr;
-
-            ranges.forEach(({ from, to, attrs }) => {
-              transaction.removeMark(from, to, markType);
-              transaction.addMark(
-                from,
-                to,
-                markType.create({
-                  ...attrs,
-                  resolved: true,
-                })
-              );
-            });
-
-            if (dispatch) {
-              dispatch(transaction);
-              this.options.onCommentResolve?.(trimmedId);
-            }
-
+            const { getThread, onCommentResolve } = this.options;
+            if (dispatch && onCommentResolve && readCommentThread(getThread, id)) onCommentResolve(id);
             return true;
           },
       unresolveComment:
         (commentId) =>
-          ({ state, dispatch }) => {
-            if (!this.editor.isEditable) {
+          ({ tr, dispatch }) => {
+            const id = normalizeCommentId(commentId);
+            if (!this.editor.isEditable || !id || !updateCommentResolution(tr, id, false, !!dispatch)) {
               return false;
             }
-            const trimmedId = normalizeCommentId(commentId);
-            if (!trimmedId) return false;
-
-            const markType = state.schema.marks[this.name];
-            if (!markType) return false;
-
-            const ranges: Array<{ from: number; to: number; attrs: Record<string, any> }> = [];
-
-            state.doc.descendants((node, pos) => {
-              if (!node.isText || node.nodeSize <= 0) return;
-
-              const mark = node.marks.find(
-                (candidate) => candidate.type === markType && candidate.attrs.commentId === trimmedId
-              );
-
-              if (!mark || !mark.attrs.resolved) return;
-
-              ranges.push({
-                from: pos,
-                to: pos + node.nodeSize,
-                attrs: mark.attrs as Record<string, any>,
-              });
-            });
-
-            if (ranges.length === 0) return false;
-
-            const transaction = state.tr;
-
-            ranges.forEach(({ from, to, attrs }) => {
-              transaction.removeMark(from, to, markType);
-              transaction.addMark(
-                from,
-                to,
-                markType.create({
-                  ...attrs,
-                  resolved: false,
-                })
-              );
-            });
-
-            if (dispatch) {
-              dispatch(transaction);
-              this.options.onCommentUnresolve?.(trimmedId);
-            }
-
+            const { getThread, onCommentUnresolve } = this.options;
+            if (dispatch && onCommentUnresolve && readCommentThread(getThread, id)) onCommentUnresolve(id);
             return true;
           },
       openCommentComposer:
@@ -301,7 +220,7 @@ export const Comment = Mark.create<CommentOptions>({
             }
             const { from, to } = state.selection;
 
-            if (from === to) {
+            if (!canCommentOnRange(state.doc, from, to)) {
               return false;
             }
 

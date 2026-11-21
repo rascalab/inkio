@@ -1,4 +1,5 @@
-import { isExtensionsAdapter, mapExtensionsAdapterToOptions } from '../adapter';
+import { Node } from '@tiptap/core';
+import { applyExtensionsAdapter, isExtensionsAdapter, mapExtensionsAdapterToOptions } from '../adapter';
 import type { ExtensionsAdapter } from '../adapter';
 
 describe('isExtensionsAdapter', () => {
@@ -169,4 +170,38 @@ describe('mapExtensionsAdapterToOptions', () => {
     const options = mapExtensionsAdapterToOptions(adapter);
     expect(options.maxFileSize).toBe(5_000_000);
   });
+});
+
+describe('applyExtensionsAdapter image limits', () => {
+  const Image = Node.create({
+    name: 'imageBlock',
+    addOptions: () => ({ allowedMimeTypes: ['image/png'], maxFileSize: 1024 }),
+  });
+
+  it('preserves extension defaults when the file adapter only supplies an uploader', () => {
+    const [image] = applyExtensionsAdapter([Image], {
+      file: { uploadFile: async () => 'https://example.com/photo.png' },
+    });
+    expect(image.options.allowedMimeTypes).toEqual(['image/png']);
+    expect(image.options.maxFileSize).toBe(1024);
+  });
+
+  it('retains explicitly configured limits', () => {
+    const [image] = applyExtensionsAdapter([Image], {
+      file: {
+        uploadFile: async () => 'https://example.com/photo.png',
+        allowedMimeTypes: ['image/webp'],
+        maxFileSize: 2048,
+      },
+    });
+    expect(image.options.allowedMimeTypes).toEqual(['image/webp']);
+    expect(image.options.maxFileSize).toBe(2048);
+  });
+});
+
+it('rejects a missing upload result with the adapter contract error', async () => {
+  const { onUpload } = mapExtensionsAdapterToOptions({
+    file: { uploadFile: async () => null as never },
+  });
+  await expect(onUpload!(new File([], 'photo.png'))).rejects.toThrow('must return a URL string');
 });

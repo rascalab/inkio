@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { isValidElement, useMemo, useRef } from 'react';
 
 /**
  * Structural equality for editor option objects. Plain data compares by
@@ -8,6 +8,8 @@ import { useMemo, useRef } from 'react';
  */
 export function isEqualOptionsValue(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;
+  // React owns element identity, props and refs; never walk its private owner graph.
+  if (isValidElement(a) || isValidElement(b)) return false;
   if (typeof a !== typeof b) return false;
   if (typeof a === 'function') return false;
   if (typeof a !== 'object' || a === null || b === null) return false;
@@ -154,7 +156,7 @@ export function useStableProps<T extends object>(props: T): T {
 
   const stabilize = (value: unknown, path: string[]): unknown => {
     if (typeof value === 'function') return forwarderFor(path);
-    if (!isPlainObject(value)) return value;
+    if (!isPlainObject(value) || isValidElement(value)) return value;
     const out: Record<string, unknown> = {};
     for (const key of Object.keys(value)) {
       out[key] = stabilize(value[key], [...path, key]);

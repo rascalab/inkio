@@ -1,94 +1,94 @@
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { memo, useEffect, useRef, useState } from 'react';
 import { sanitizeUrlOrEmpty } from '@inkio/core';
-import type { BookmarkOptions, BookmarkPreview } from './bookmark-types';
+import type { BookmarkOptions } from './bookmark-types';
 
-const resolvePreviewUpdate = (preview: BookmarkPreview): Record<string, string | null> => {
-  const nextAttributes: Record<string, string | null> = {};
-
-  if (preview.title !== undefined) {
-    nextAttributes.title = preview.title ?? null;
+function isResolvableWebUrl(url: string): boolean {
+  if (url.length > 4096 || !/^https?:\/\/[^/\\\s]/i.test(url) || /[\\\s\u0000-\u001f\u007f]/.test(url)) {
+    return false;
   }
-
-  if (preview.description !== undefined) {
-    nextAttributes.description = preview.description ?? null;
+  try {
+    const { hostname, username, password } = new URL(url);
+    const host = hostname.toLowerCase().replace(/\.$/, '');
+    // DNS names only; never pass literal IPs or ordinary local hostnames to the resolver.
+    return !username && !password && !url.slice(url.indexOf('//') + 2).split(/[/?#]/, 1)[0].includes('@') &&
+      /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z][a-z0-9-]*$/.test(host) &&
+      !/(?:^|\.)(?:local|localhost|internal|home\.arpa)$/.test(host);
+  } catch {
+    return false;
   }
+}
 
-  // Sanitize at write time so unsafe image/favicon URLs never persist in JSON.
-  // Render-time sanitizeUrlOrEmpty() remains as a second layer.
-  if (preview.image !== undefined) {
-    nextAttributes.image = sanitizeUrlOrEmpty(preview.image ? String(preview.image) : '') || null;
+function previewUpdate(preview: unknown): Record<string, string> {
+  const next: Record<string, string> = {};
+  if (!preview || typeof preview !== 'object') return next;
+  for (const key of ['title', 'description', 'image', 'favicon'] as const) {
+    const value = (preview as Record<string, unknown>)[key];
+    if (typeof value !== 'string' || !value.trim()) continue;
+    if (key === 'image' || key === 'favicon') {
+      const safeUrl = sanitizeUrlOrEmpty(value);
+      if (isResolvableWebUrl(safeUrl)) next[key] = safeUrl;
+    } else {
+      next[key] = value;
+    }
   }
+  return next;
+}
 
-  if (preview.favicon !== undefined) {
-    nextAttributes.favicon = sanitizeUrlOrEmpty(preview.favicon ? String(preview.favicon) : '') || null;
-  }
-
-  return nextAttributes;
-};
-
-const BookmarkViewInner = ({ node, updateAttributes, extension }: NodeViewProps) => {
-  const [resolving, setResolving] = useState(false);
+const BookmarkViewInner = ({ node, updateAttributes, extension, editor, getPos }: NodeViewProps) => {
+  const [resolvingNode, setResolvingNode] = useState<typeof node | null>(null);
   const options = extension.options as BookmarkOptions;
   const resolver = options.onResolveBookmark;
 
-  const url = sanitizeUrlOrEmpty(String(node.attrs.url || ''));
-  const title = node.attrs.title ? String(node.attrs.title) : '';
-  const description = node.attrs.description ? String(node.attrs.description) : '';
-  const image = node.attrs.image ? sanitizeUrlOrEmpty(String(node.attrs.image)) : '';
-  const favicon = node.attrs.favicon ? sanitizeUrlOrEmpty(String(node.attrs.favicon)) : '';
+  const url = sanitizeUrlOrEmpty(node.attrs.url);
+  const title = typeof node.attrs.title === 'string' ? node.attrs.title : '';
+  const description = typeof node.attrs.description === 'string' ? node.attrs.description : '';
+  const image = sanitizeUrlOrEmpty(node.attrs.image);
+  const favicon = sanitizeUrlOrEmpty(node.attrs.favicon);
 
   const hasPreviewData = Boolean(title || description || image || favicon);
-  // Stabilize inline resolvers (recreated per render) so 20 same-URL bookmarks
-  // don't refetch in a loop. Identity is tracked via ref; fetch key is `url`.
-  const resolverRef = useRef(resolver);
-  resolverRef.current = resolver;
-
-  // URLs that already completed one resolution round (data, empty, or
-  // denied). tiptap rebinds node-view callbacks on every update, so without
-  // this an empty preview — hasPreviewData stuck false — refetches forever.
-  const resolvedUrlsRef = useRef<Set<string>>(new Set());
+  const { previewRequests } = editor.storage.bookmark;
+  const canResolve = Boolean(resolver) && editor.isEditable && isResolvableWebUrl(url);
+  // Node view callbacks can be rebound without changing the URL. Keep the
+  // latest target without restarting a pending request for the same bookmark.
+  const latest = useRef({ node, resolver, updateAttributes, getPos });
+  latest.current = { node, resolver, updateAttributes, getPos };
 
   useEffect(() => {
-    const currentResolver = resolverRef.current;
-    if (!currentResolver || !url || hasPreviewData || resolvedUrlsRef.current.has(url)) {
-      return;
-    }
+    const currentResolver = latest.current.resolver;
+    if (!canResolve || !currentResolver || hasPreviewData || !previewRequests.has(node)) return;
 
     let cancelled = false;
-    setResolving(true);
 
-    currentResolver(url)
-      .then((preview) => {
-        // Empty or denied responses resolve the URL anyway: refetching them
-        // rewrites the same empty attrs and refires this effect endlessly.
-        resolvedUrlsRef.current.add(url);
-        if (cancelled || !preview) {
-          return;
-        }
-
-        const nextAttributes = resolvePreviewUpdate(preview);
-
-        if (Object.keys(nextAttributes).length > 0) {
-          updateAttributes(nextAttributes);
-        }
-      })
-      .catch(() => {
-        resolvedUrlsRef.current.add(url);
-        // Fallback rendering is handled below.
-      })
-      .finally(() => {
+    void (async () => {
+      // Defer consuming the one-shot grant until React's effect setup survives cleanup.
+      const isCurrent = () => {
+        if (cancelled || latest.current.node !== node || !editor.isEditable) return false;
+        const pos = latest.current.getPos();
+        return typeof pos === 'number' && editor.state.doc.nodeAt(pos) === node;
+      };
+      await Promise.resolve();
+      if (!isCurrent() || !previewRequests.delete(node)) return;
+      setResolvingNode(node);
+      try {
+        const preview = await currentResolver(url);
+        if (!isCurrent()) return;
+        const next = previewUpdate(preview);
+        if (Object.keys(next).length) latest.current.updateAttributes(next);
+      } catch {
+        // A rejected preview leaves a plain, navigable bookmark.
+      } finally {
         if (!cancelled) {
-          setResolving(false);
+          setResolvingNode(null);
         }
-      });
+      }
+    })();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [url, hasPreviewData, updateAttributes]);
+    return () => { cancelled = true; };
+  }, [canResolve, editor, url, hasPreviewData, node, previewRequests]);
 
-  if (!resolver && !hasPreviewData) {
+  const resolving = resolvingNode === node && canResolve;
+  if (!resolving && !hasPreviewData) {
     return (
       <NodeViewWrapper className="inkio-bookmark-wrapper">
         <a href={url} rel="noopener noreferrer nofollow" target="_blank" className="inkio-bookmark-fallback">

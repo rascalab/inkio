@@ -82,14 +82,14 @@ describe('Toolbar', () => {
     });
 
     await act(async () => {
-      fireEvent.mouseDown(screen.getByRole('button', { name: 'Text color' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Text color' }));
     });
     fireEvent.click(screen.getByRole('button', { name: 'Text color: #ef4444' }));
     expect(spies.setColor).toHaveBeenCalledWith('#ef4444');
     expect(spies.getCurrentColor()).toBe('#ef4444');
 
     await act(async () => {
-      fireEvent.mouseDown(screen.getByRole('button', { name: 'Text color' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Text color' }));
     });
     fireEvent.click(screen.getByRole('button', { name: 'Text color: clear' }));
     expect(spies.unsetColor).toHaveBeenCalledTimes(1);

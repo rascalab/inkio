@@ -26,6 +26,8 @@ const LazyImageEditorModal = dynamic<ImageEditorModalProps>(
   { ssr: false, loading: () => null },
 );
 
+const JSON_PREVIEW_LIMIT = 20_000;
+
 const initialContent = `<h2>Inkio in Next.js</h2>
 <p>This example uses the opinionated <code>@inkio/editor</code> package.</p>
 <ul>
@@ -68,11 +70,44 @@ function createDemoImageDataUrl(): string {
 }
 
 export function EditorDemo() {
-  const [json, setJson] = useState<unknown>(null);
+  const [jsonPreview, setJsonPreview] = useState({ text: '', limited: false });
+  const [showFullJson, setShowFullJson] = useState(false);
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
   const [comments, setComments] = useState<CommentData[]>([]);
   const commentsRef = useRef<CommentData[]>([]);
   commentsRef.current = comments;
+
+  useEffect(() => {
+    if (!editorInstance) return;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let document = editorInstance.state.doc;
+    const refresh = () => {
+      if (editorInstance.isDestroyed) return;
+      if (!showFullJson && document.content.size > JSON_PREVIEW_LIMIT) {
+        setJsonPreview({ text: '', limited: true });
+        return;
+      }
+      const text = JSON.stringify(editorInstance.getJSON(), null, 2);
+      setJsonPreview(showFullJson || text.length <= JSON_PREVIEW_LIMIT
+        ? { text, limited: false }
+        : { text: '', limited: true });
+    };
+    const update = () => {
+      const next = editorInstance.state.doc;
+      if (next === document) return;
+      document = next;
+      clearTimeout(timer);
+      timer = setTimeout(refresh, 160);
+    };
+
+    refresh();
+    editorInstance.on('update', update);
+    return () => {
+      clearTimeout(timer);
+      editorInstance.off('update', update);
+    };
+  }, [editorInstance, showFullJson]);
 
   const iconOverrides = useMemo<Partial<InkioIconRegistry>>(
     () => ({ comment: inkioIconRegistry.comment }),
@@ -206,6 +241,7 @@ export function EditorDemo() {
         <Editor
           content={initialContent}
           placeholder="Type /, #, [[ and select text for comments..."
+          ariaLabel="Demo document"
           locale={locale}
           hashtagItems={hashtagItems}
           mentionItems={mentionItems}
@@ -229,7 +265,6 @@ export function EditorDemo() {
             icons: iconOverrides,
           }}
           onCreate={setEditorInstance}
-          onUpdate={(next: unknown) => setJson(next)}
         />
         {wikiLinkTarget && (
           <p data-testid="next-editor-wiki-link-target">
@@ -255,7 +290,19 @@ export function EditorDemo() {
 
       <section className="json-card">
         <p className="section-title">JSON Output</p>
-        <pre>{JSON.stringify(json, null, 2)}</pre>
+        {jsonPreview.limited ? (
+          <p>
+            Live preview paused for this large document.{' '}
+            <button type="button" onClick={() => setShowFullJson(true)}>Show full JSON</button>
+          </p>
+        ) : (
+          <>
+            {showFullJson && (
+              <button type="button" onClick={() => setShowFullJson(false)}>Pause full JSON preview</button>
+            )}
+            <pre tabIndex={0} aria-label="Document JSON">{jsonPreview.text}</pre>
+          </>
+        )}
       </section>
     </>
   );

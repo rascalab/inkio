@@ -16,19 +16,30 @@ describe('@inkio/editor defaults', () => {
     const ready = new Promise<TiptapEditor>((resolve) => { created = resolve; });
     const failure = new Promise<void>((resolve) => { reported = resolve; });
     const onError = vi.fn(() => { reported(); });
+    let started: () => void = () => { throw new Error('Upload signal is missing'); };
+    let finish: (src: string) => void = () => { throw new Error('Upload has not started'); };
+    const uploading = new Promise<void>((resolve) => { started = resolve; });
+    const upload = new Promise<string>((resolve) => { finish = resolve; });
+    const onUpload = () => { started(); return upload; };
+    const bytes = Uint8Array.from(atob(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGNgAAIAAAUAAXpeqz8AAAAASUVORK5CYII=',
+    ), (char) => char.charCodeAt(0));
     render(
       <Editor
-        content={{ type: 'doc', content: [{ type: 'imageBlock', attrs: { src: '/image.png' } }] }}
+        content="<p></p>"
+        onImageUpload={onUpload}
         onCreate={created}
         onError={onError}
-        imageBlock={{ onDelete: async () => { throw error; } }}
+        imageBlock={{ cleanup: 'immediate', onDelete: async () => { throw error; } }}
       />,
     );
     const editor = await ready;
-    act(() => { editor.commands.setNodeSelection(0); });
+    act(() => { editor.commands.uploadImageBlock([new File([bytes], 'pixel.png', { type: 'image/png' })]); });
+    await uploading;
 
     await act(async () => {
-      editor.commands.deleteSelection();
+      editor.commands.setContent('<p>A different document</p>');
+      finish('/unused-upload.png');
       await failure;
     });
 

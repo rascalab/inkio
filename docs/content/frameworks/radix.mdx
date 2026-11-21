@@ -14,5 +14,8 @@ pnpm add @radix-ui/themes @inkio/editor react react-dom
 
 ```tsx
 import '@radix-ui/themes/styles.css';
-import '@inkio/editor/minimal.css';
+import '@inkio/editor/style.css';
 ```
+
+Radix Themes의 `appearance`와 Inkio의 `theme`에 같은 값을 넘기세요. Radix Theme
+래퍼 안에만 있는 CSS 변수는 `body`에 열리는 Inkio 포털에 상속되지 않습니다.

@@ -5,6 +5,7 @@ import {
 } from '@hocuspocus/provider';
 import * as Y from 'yjs';
 import { assertValidDocId } from './doc-id';
+import { normalizePresenceUser } from './presence-user';
 
 export interface CollabUser {
   name: string;
@@ -31,11 +32,25 @@ export interface CreateCollabProviderOptions {
   user?: CollabUser;
 }
 
-const rejected = new WeakMap<CollabProvider, boolean>();
+const ACCESS_DENIED = 'inkio:access-denied';
+const sessions = new WeakMap<CollabProvider, { rejected: boolean; retry: () => void }>();
+
+/** Retry one document after refreshing credentials, without resetting its shared socket. */
+export function retryCollabAuthentication(provider: CollabProvider): void {
+  sessions.get(provider)?.retry();
+}
 
 async function resolveToken(token: CollabToken | undefined): Promise<string> {
   const value = typeof token === 'function' ? await token() : token;
   return value ?? '';
+}
+
+class AuthenticatedProvider extends HocuspocusProvider {
+  override startSync(): void {
+    // The default onOpen starts sync even if a local token supplier throws.
+    // Wait for auth so repeated local failures do not queue document frames.
+    if (this.isAuthenticated) super.startSync();
+  }
 }
 
 export function createCollabProvider(options: CreateCollabProviderOptions): CollabProvider {
@@ -44,31 +59,80 @@ export function createCollabProvider(options: CreateCollabProviderOptions): Coll
   if (!url && !websocketProvider) {
     throw new Error('[inkio/collab] pass either `url` or `websocketProvider`.');
   }
-  const provider = new HocuspocusProvider({
+  const provider = new AuthenticatedProvider({
     name: docId,
     document: doc ?? new Y.Doc(),
     token: () => resolveToken(token),
-    ...(websocketProvider ? { websocketProvider } : { url: url as string }),
+    ...(websocketProvider ? { websocketProvider, sessionAwareness: true } : { url: url as string }),
   });
-  provider.on('authenticationFailed', () => {
-    rejected.set(provider, true);
-    // Never retry with rejected credentials: Hocuspocus reconnects with
-    // backoff by default, which would hammer the server with a token that
-    // can never succeed. Reconnect explicitly (remount) after fixing auth.
-    provider.disconnect();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let failures = 0;
+  let destroyed = false;
+  let retrying = false;
+  const clearRetry = () => {
+    clearTimeout(timer);
+    timer = undefined;
+  };
+  const session = {
+    rejected: false,
+    retry() {
+      clearRetry();
+      if (destroyed || retrying || !session.rejected) return;
+      const socket = provider.configuration.websocketProvider;
+      if (socket.status === WebSocketStatus.Connected && socket.receivedOnOpenPayload) {
+        // Hocuspocus clears a refused room's auth state on the server; only
+        // redo this document's handshake, not its siblings on a shared socket.
+        retrying = true;
+        void provider.onOpen(socket.receivedOnOpenPayload);
+      }
+    },
+  };
+  sessions.set(provider, session);
+  const scheduleRetry = () => {
+    if (timer !== undefined) return;
+    // Retry ambiguous failures (including document-load failures) with jitter.
+    const delay = Math.min(1000 * 2 ** Math.min(failures++, 5), 30_000);
+    timer = setTimeout(session.retry, delay * (0.75 + Math.random() * 0.25));
+  };
+  provider.on('authenticationFailed', ({ reason }: { reason: string }) => {
+    retrying = false;
+    session.rejected = true;
+    provider.onClose();
+    if (reason === ACCESS_DENIED) clearRetry();
+    else scheduleRetry();
   });
-  provider.on('authenticated', () => rejected.set(provider, false));
+  provider.on('close', () => {
+    retrying = false;
+    // The server can close a single room without closing its socket
+    // (e.g. to revoke a grant). Require a fresh handshake for that room.
+    if (provider.configuration.websocketProvider.status === WebSocketStatus.Connected) {
+      session.rejected = true;
+      scheduleRetry();
+    }
+  });
+  provider.on('authenticated', () => {
+    retrying = false;
+    session.rejected = false;
+    clearRetry();
+    provider.startSync();
+  });
+  provider.on('synced', () => { failures = 0; });
+  provider.on('open', clearRetry);
+  provider.on('destroy', () => {
+    destroyed = true;
+    clearRetry();
+  });
   // A caller-owned socket is not attached automatically.
   if (websocketProvider) provider.attach();
-  if (user) provider.setAwarenessField('user', user);
+  if (user) provider.setAwarenessField('user', normalizePresenceUser(user));
   return provider;
 }
 
 export function getCollabStatus(provider: CollabProvider): CollabStatus {
-  if (rejected.get(provider)) return 'unauthorized';
+  if (sessions.get(provider)?.rejected) return 'unauthorized';
   const socketStatus = provider.configuration.websocketProvider.status;
   if (socketStatus === WebSocketStatus.Disconnected) return 'disconnected';
-  if (socketStatus === WebSocketStatus.Connected && provider.isSynced) return 'synced';
+  if (socketStatus === WebSocketStatus.Connected && provider.isAuthenticated && provider.isSynced) return 'synced';
   return 'connecting';
 }
 
@@ -81,7 +145,7 @@ export function onCollabStatus(provider: CollabProvider, listener: CollabStatusL
     last = next;
     listener(next);
   };
-  const events = ['status', 'synced', 'authenticated', 'authenticationFailed', 'destroy'];
+  const events = ['status', 'synced', 'authenticated', 'authenticationFailed', 'close', 'destroy'];
   for (const event of events) provider.on(event, check);
   return () => {
     for (const event of events) provider.off(event, check);

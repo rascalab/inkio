@@ -14,6 +14,8 @@ export interface UseInkioEditorOptions {
   content?: string | JSONContent;
   extensions?: Extensions;
   placeholder?: string;
+  /** Accessible name of the editing surface. */
+  ariaLabel?: string;
   editable?: boolean;
   onUpdate?: (content: JSONContent) => void;
   onCreate?: (editor: TiptapEditor) => void;
@@ -46,6 +48,7 @@ export function useInkioEditor({
   // explicit [] means a bare document (see resolveInkioExtensions).
   extensions,
   placeholder,
+  ariaLabel = 'Rich text editor',
   editable = true,
   onUpdate,
   onCreate,
@@ -66,16 +69,16 @@ export function useInkioEditor({
     onCreateRef.current = onCreate;
   }, [onCreate]);
 
+  const editorProps = useMemo(() => ({
+    attributes: { class: 'inkio-content', 'aria-label': ariaLabel, 'aria-multiline': 'true' },
+  }), [ariaLabel]);
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: finalExtensions,
     content: initialContent,
     editable,
-    editorProps: {
-      attributes: {
-        class: 'inkio-content',
-      },
-    },
+    editorProps,
     onCreate: ({ editor: editorInstance }) => {
       onCreateRef.current?.(editorInstance);
     },

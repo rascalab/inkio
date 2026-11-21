@@ -12,6 +12,7 @@ export type ExtensionsUploadContext = {
 export type ExtensionsUploadResult = string | { src: string; [key: string]: unknown };
 
 export interface ExtensionsFileAdapter {
+  /** The host must validate file contents, enforce limits, and authorize the upload. */
   uploadFile: (file: File, context?: ExtensionsUploadContext) => Promise<ExtensionsUploadResult>;
   resolveFileUrl?: (url: string) => Promise<string>;
   onUploadError?: (error: Error) => void;
@@ -68,12 +69,12 @@ function isConfigurableExtension(value: unknown): value is ConfigurableExtension
   );
 }
 
-function toUploadSrc(result: ExtensionsUploadResult): string {
+function toUploadSrc(result: unknown): string {
   if (typeof result === 'string') {
     return result;
   }
 
-  if (typeof result.src === 'string') {
+  if (result && typeof result === 'object' && 'src' in result && typeof result.src === 'string') {
     return result.src;
   }
 
@@ -180,8 +181,8 @@ export function applyExtensionsAdapter(
         return extension.configure?.({
           onUpload: mappedOptions.onUpload,
           resolveFileUrl: mappedOptions.resolveFileUrl,
-          allowedMimeTypes: mappedOptions.allowedMimeTypes,
-          maxFileSize: mappedOptions.maxFileSize,
+          ...(mappedOptions.allowedMimeTypes === undefined ? {} : { allowedMimeTypes: mappedOptions.allowedMimeTypes }),
+          ...(mappedOptions.maxFileSize === undefined ? {} : { maxFileSize: mappedOptions.maxFileSize }),
           onUploadError: mappedOptions.onUploadError,
           onError,
         }) as Extensions[number];

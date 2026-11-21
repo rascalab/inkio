@@ -6,6 +6,7 @@ interface ToolButtonProps {
   isActive?: boolean;
   onClick: () => void;
   disabled?: boolean;
+  className?: string;
   testId?: string;
 }
 
@@ -15,6 +16,7 @@ export function ToolButton({
   isActive = false,
   onClick,
   disabled = false,
+  className = 'inkio-ie-toolbar-btn',
   testId,
 }: ToolButtonProps) {
   return (
@@ -26,9 +28,9 @@ export function ToolButton({
       aria-pressed={isActive}
       disabled={disabled}
       onClick={onClick}
-      className={`inkio-ie-toolbar-btn${isActive ? ' is-active' : ''}${disabled ? ' is-disabled' : ''}`}
+      className={`${className}${isActive ? ' is-active' : ''}${disabled ? ' is-disabled' : ''}`}
     >
-      {icon}
+      {icon != null && <span className="inkio-ie-toolbar-btn-icon" aria-hidden="true">{icon}</span>}
       <span className="inkio-ie-toolbar-btn-label">{label}</span>
     </button>
   );

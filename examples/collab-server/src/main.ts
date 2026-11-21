@@ -2,24 +2,26 @@ import 'reflect-metadata';
 import { Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { InkioCollabModule } from './nest/collab.module';
-
-// DEVELOPMENT DEFAULTS ONLY: no `verify` is wired, so anyone can read and
-// write any document. Pass a `verify` token check before exposing this.
-@Module({
-  imports: [InkioCollabModule.forRoot({ dataDir: process.env.DATA_DIR ?? './data' })],
-})
-class AppModule {}
+import { createLocalVerify, listenOptions, originsFromEnv, requiredEnv } from './env';
 
 async function bootstrap() {
-  const portRaw = process.env.PORT ?? '3123';
-  const port = Number(portRaw);
-  if (!Number.isInteger(port) || port <= 0 || port >= 65536) {
-    throw new Error(`[collab] invalid PORT: ${JSON.stringify(portRaw)}`);
-  }
-  const app = await NestFactory.create(AppModule);
-  app.enableShutdownHooks();
-  await app.listen(port);
-  console.log(`[collab] NestJS + Hocuspocus on ws://localhost:${port}/collab`);
+  const { port, host } = listenOptions(3123);
+  @Module({
+    imports: [InkioCollabModule.forRoot({
+      dataDir: requiredEnv('DATA_DIR'),
+      verify: createLocalVerify(),
+      allowedOrigins: originsFromEnv(),
+    })],
+  })
+  class AppModule {}
+  const app = await NestFactory.create(AppModule, { abortOnError: false });
+  app.enableShutdownHooks(['SIGINT', 'SIGTERM']);
+  await app.listen(port, host);
+  const url = (await app.getUrl()).replace(/^http/, 'ws');
+  console.log(`[collab] NestJS + Hocuspocus listening on ${url}/collab`);
 }
 
-void bootstrap();
+void bootstrap().catch((error) => {
+  console.error(error instanceof Error ? error.message : '[collab] startup failed');
+  process.exitCode = 1;
+});

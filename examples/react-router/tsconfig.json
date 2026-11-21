@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "types": ["vite/client"],
+    "paths": {
+      "@inkio/simple": ["../../packages/simple/src/index.ts"],
+      "@inkio/core": ["../../packages/core/src/index.ts"],
+      "@inkio/core/*": ["../../packages/core/src/*"]
+    }
+  },
+  "include": ["src"]
+}

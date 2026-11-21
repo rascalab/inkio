@@ -4,6 +4,8 @@ import { inkioIconRegistry, type InkioIconRegistry } from '@inkio/core/icons';
 export type BlockMenuIconId =
   | 'delete'
   | 'duplicate'
+  | 'moveUp'
+  | 'moveDown'
   | 'text'
   | 'heading1'
   | 'heading2'
@@ -23,6 +25,8 @@ const ICON_PROPS = {
 const IDS: BlockMenuIconId[] = [
   'delete',
   'duplicate',
+  'moveUp',
+  'moveDown',
   'text',
   'heading1',
   'heading2',
@@ -36,7 +40,7 @@ const IDS: BlockMenuIconId[] = [
 export function blockMenuIconsFrom(registry: InkioIconRegistry): Record<BlockMenuIconId, React.ReactNode> {
   return Object.fromEntries(
     IDS.map((id) => {
-      const Icon = registry[id];
+      const Icon = registry[id] ?? registry[id === 'moveUp' ? 'addRowBefore' : 'addRowAfter'];
       return [id, <Icon key={id} {...ICON_PROPS} />];
     }),
   ) as Record<BlockMenuIconId, React.ReactNode>;

@@ -53,6 +53,13 @@ export function CanvasTextEditor({
     if (!input) return;
     input.focus();
     input.setSelectionRange(input.value.length, input.value.length);
+    const workspace = input.closest('.inkio-ie-canvas-workspace');
+    const completeOutside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !workspace?.contains(event.target)) input.blur();
+    };
+    const owner = input.ownerDocument;
+    owner.addEventListener('pointerdown', completeOutside, true);
+    return () => owner.removeEventListener('pointerdown', completeOutside, true);
   }, [annotation.id]);
 
   return (

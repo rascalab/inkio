@@ -1,10 +1,9 @@
-import { findChildren } from '@tiptap/core';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
-import type { EditorState, Transaction } from '@tiptap/pm/state';
-import type { Step } from '@tiptap/pm/transform';
+import type { EditorState } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import highlight from 'highlight.js/lib/core';
+import { clampRange, collectChangedRanges } from '../../utils/changed-ranges';
 
 export type InkioLowlight = ReturnType<typeof import('lowlight').createLowlight>;
 
@@ -44,80 +43,6 @@ function safeHighlight(
   }
 }
 
-function registered(aliasOrLanguage: string): boolean {
-  return Boolean(highlight.getLanguage(aliasOrLanguage));
-}
-
-function getDecorations({
-  doc,
-  name,
-  lowlight,
-  defaultLanguage,
-}: {
-  doc: ProseMirrorNode;
-  name: string;
-  lowlight: InkioLowlight;
-  defaultLanguage: string | null | undefined;
-}): DecorationSet {
-  const decorations: Decoration[] = [];
-  const languages = lowlight.listLanguages();
-  findChildren(doc, (node) => node.type.name === name).forEach((block) => {
-    let from = block.pos + 1;
-    const language = block.node.attrs.language || defaultLanguage;
-    const nodes =
-      language &&
-      (languages.includes(language) ||
-        registered(language) ||
-        lowlight.registered?.(language))
-        ? getHighlightNodes(safeHighlight(() => lowlight.highlight(language, block.node.textContent)))
-        : getHighlightNodes(safeHighlight(() => lowlight.highlightAuto(block.node.textContent)));
-    parseNodes(nodes as Parameters<typeof parseNodes>[0]).forEach((node) => {
-      const to = from + node.text.length;
-      if (node.classes.length) {
-        const decoration = Decoration.inline(from, to, {
-          class: node.classes.join(' '),
-        });
-        decorations.push(decoration);
-      }
-      from = to;
-    });
-  });
-  return DecorationSet.create(doc, decorations);
-}
-
-/**
- * Rehighlight when the selection is in a code block, a code block was added
- * or removed, or a step fully covers one (e.g. whole-doc replaces during
- * collab sync).
- */
-function needsRehighlight(
-  transaction: Transaction,
-  oldState: EditorState,
-  newState: EditorState,
-  name: string,
-): boolean {
-  if (
-    oldState.selection.$head.parent.type.name === name ||
-    newState.selection.$head.parent.type.name === name
-  ) {
-    return true;
-  }
-  const isBlock = (node: ProseMirrorNode) => node.type.name === name;
-  const oldNodes = findChildren(oldState.doc, isBlock);
-  if (findChildren(newState.doc, isBlock).length !== oldNodes.length) {
-    return true;
-  }
-  return transaction.steps.some((step: Step) => {
-    const from = (step as unknown as { from?: number }).from;
-    const to = (step as unknown as { to?: number }).to;
-    return (
-      from !== undefined &&
-      to !== undefined &&
-      oldNodes.some((node) => node.pos >= from && node.pos + node.node.nodeSize <= to)
-    );
-  });
-}
-
 /**
  * Transaction meta that forces a full rehighlight without a doc change, e.g.
  * after a lazy grammar registers (see `refreshCodeBlockDecorations`).
@@ -128,15 +53,7 @@ function isFunction(param: unknown): param is (...args: never[]) => unknown {
   return typeof param === 'function';
 }
 
-/**
- * Fork of tiptap's LowlightPlugin with one change: when nothing needs
- * recomputing, the incoming `decorationSet` is returned AS-IS instead of a
- * mapped copy. tiptap's version always returns
- * `decorationSet.map(...)` — a fresh object every transaction — which makes
- * ProseMirror refresh outer decorations on EVERY node view, and tiptap's
- * React layer re-renders every portal (`setRenderer` storm, O(views) per
- * keystroke). Returning the identical set lets ProseMirror skip all of that.
- */
+/** Highlight changed code blocks, preserving mapped decorations elsewhere. */
 export function InkioLowlightPlugin({
   name,
   lowlight,
@@ -149,42 +66,72 @@ export function InkioLowlightPlugin({
   if (!['highlight', 'highlightAuto', 'listLanguages'].every((api) => isFunction(lowlight[api as keyof InkioLowlight]))) {
     throw Error('You should provide an instance of lowlight to use the code-block-lowlight extension');
   }
-  const lowlightPlugin: Plugin = new Plugin({
+
+  const highlightBlock = (node: ProseMirrorNode, pos: number, decorations: Decoration[]) => {
+    const language = node.attrs.language || defaultLanguage;
+    const source = node.textContent;
+    const result =
+      language &&
+      (highlight.getLanguage(language) ||
+        (lowlight.registered?.(language) ?? lowlight.listLanguages().includes(language)))
+        ? safeHighlight(() => lowlight.highlight(language, source))
+        : safeHighlight(() => lowlight.highlightAuto(source));
+    const nodes = getHighlightNodes(result) as Parameters<typeof parseNodes>[0];
+    let from = pos + 1;
+    for (const { text, classes } of parseNodes(nodes)) {
+      const to = from + text.length;
+      if (classes.length) {
+        decorations.push(Decoration.inline(from, to, { class: classes.join(' ') }));
+      }
+      from = to;
+    }
+  };
+
+  const highlightDocument = (doc: ProseMirrorNode): DecorationSet => {
+    const decorations: Decoration[] = [];
+    doc.descendants((node, pos) => {
+      if (node.type.name === name) highlightBlock(node, pos, decorations);
+      return !node.isTextblock;
+    });
+    return DecorationSet.create(doc, decorations);
+  };
+
+  const lowlightPlugin: Plugin<DecorationSet> = new Plugin<DecorationSet>({
     key: new PluginKey('lowlight'),
     state: {
-      init: (_: unknown, { doc }: { doc: ProseMirrorNode }) =>
-        getDecorations({
-          doc,
-          name,
-          lowlight,
-          defaultLanguage,
-        }),
-      apply: (
-        transaction: Transaction,
-        decorationSet: DecorationSet,
-        oldState: EditorState,
-        newState: EditorState,
-      ) => {
-        // Walks below are O(doc): skip them entirely for selection-only
-        // transactions, which are the common case (cursor moves).
-        if (
-          transaction.getMeta(LOWLIGHT_REFRESH_META)
-          || (transaction.docChanged && needsRehighlight(transaction, oldState, newState, name))
-        ) {
-          return getDecorations({
-            doc: transaction.doc,
-            name,
-            lowlight,
-            defaultLanguage,
+      init: (_, { doc }) => highlightDocument(doc),
+      apply(transaction, decorationSet) {
+        const { doc, mapping } = transaction;
+        if (transaction.getMeta(LOWLIGHT_REFRESH_META)) return highlightDocument(doc);
+        if (!transaction.docChanged) return decorationSet;
+
+        const mapped = decorationSet.map(mapping, doc);
+        const touched = new Set<number>();
+        const remove: Decoration[] = [];
+        const add: Decoration[] = [];
+        for (const range of collectChangedRanges([transaction])) {
+          const [from, to] = clampRange(doc, range);
+          // A collapsed range still visits its ancestors (e.g. text deleted
+          // inside a code block), but skips adjacent blocks at node boundaries.
+          doc.nodesBetween(from, to, (node, pos) => {
+            if (!node.isTextblock) return true;
+            if (touched.has(pos)) return false;
+            touched.add(pos);
+            // Cover any textblock here: changing a code block to a paragraph
+            // can preserve its inline decorations through the step's mapping.
+            for (const decoration of mapped.find(pos + 1, pos + node.nodeSize - 1)) {
+              remove.push(decoration);
+            }
+            if (node.type.name === name) highlightBlock(node, pos, add);
+            return false;
           });
         }
-        const mapped = decorationSet.map(transaction.mapping, transaction.doc);
-        // DecorationSet.eq exists at runtime but is missing from the
-        // published types.
-        const unchanged = (
-          mapped as unknown as { eq(other: DecorationSet): boolean }
-        ).eq(decorationSet);
-        return unchanged ? decorationSet : mapped;
+
+        const next = mapped.remove(remove).add(doc, add);
+        // DecorationSet.eq exists at runtime but is missing from its types.
+        // Keep the original set when its coordinates and tokens are identical.
+        const comparable = next as DecorationSet & { eq(other: DecorationSet): boolean };
+        return comparable.eq(decorationSet) ? decorationSet : next;
       },
     },
     props: {

@@ -38,6 +38,9 @@ export function Page() {
 }
 ```
 
+블록 핸들이나 슬래시 메뉴 같은 advanced UI의 기본 외형도 필요하면 위 CSS 대신
+core 스타일을 포함한 `@inkio/editor/style.css`를 사용하세요.
+
 ## 멘션 (Mention)
 
 `@` 트리거로 사용자 등을 멘션합니다. `mentionItems`는 `({ query }) => MentionItem[]` 형태의 함수로,
@@ -204,38 +207,22 @@ interface BookmarkPreview {
 />
 ```
 
-> `onResolveBookmark`는 메타데이터를 가져오는 로직만 담당합니다. Open Graph 스크래핑 같은
-> 실제 조회는 직접 구현해야 합니다(보통 서버 측 엔드포인트).
+> 미리보기는 편집 중 직접 추가한 웹 북마크에 대해서만 조회를 시도합니다. 문서를 열거나
+> 협업으로 받은 북마크는 자동 조회하지 않습니다. 실제 Open Graph 조회는 앱이 구현합니다.
+> 서버에서 조회한다면 URL을 비신뢰 입력으로 취급하고 허용 목적지, DNS 결과,
+> 리다이렉트, 타임아웃 및 응답 크기를 서버에서 제한하세요.
 
 ## Image editor
 
-```tsx
-import { Editor } from '@inkio/editor';
-import { ImageEditorModal } from '@inkio/image-editor';
-import '@inkio/image-editor/style.css';
-
-export function Page() {
-  return (
-    <Editor
-      onImageUpload={async (file) => URL.createObjectURL(file)}
-      imageBlock={{
-        imageEditor: ImageEditorModal,
-        onDelete: (src) => URL.revokeObjectURL(src),
-      }}
-    />
-  );
-}
-```
-
-자세한 내용은 [이미지 에디터 문서](./image-editor)를 참고하세요.
-`imageBlock.cleanup`의 기본값은 `'immediate'`입니다. 실제 파일 삭제는 `onDelete`로
-연결하며, 앱에서 정리 시점을 관리하려면 `cleanup: 'manual'`을 지정하세요.
+`@inkio/image-editor/style.css`를 가져오고 `imageBlock.imageEditor`로 모달을 연결합니다.
+파일 저장, 업로드 재시도, 커스텀 도구와 Blob 사용법은 [이미지 에디터 문서](/image-editor)를
+참고하세요.
 
 ## TocBlock (인라인 목차)
 
 `@inkio/core`에 기본 포함됩니다. 문서 안에 Notion 스타일의 인라인 목차 블록을 삽입합니다.
 
-> **참고:** 에디터 외부에 오버레이 미니맵 형태로 표시하려면 `<ToC>` 컴포넌트를 사용하세요. [컴포넌트 문서 참고](./components#option-2-toc-컴포넌트-오버레이-미니맵)
+> **참고:** 에디터 외부에 오버레이 미니맵 형태로 표시하려면 `<ToC>` 컴포넌트를 사용하세요. [컴포넌트 문서 참고](/components#option-2-toc-컴포넌트-오버레이-미니맵)
 
 - `/toc` 슬래시 커맨드로 삽입 (`@inkio/advanced` SlashCommand 필요)
 - 헤딩이 추가/수정/삭제되면 자동으로 업데이트됩니다
@@ -321,6 +308,28 @@ import { Document, Paragraph, Text } from '@tiptap/starter-kit';
 />
 ```
 
+### 블록 메뉴와 순서 바꾸기
+
+`@inkio/editor`의 `blockHandle`은 드래그 핸들과 블록 메뉴를 함께 켜고 끕니다.
+`editable={false}`와 Viewer에서는 둘 다 동작하지 않습니다.
+
+- **마우스**: 블록 옆의 점 여섯 개 핸들을 눌러 메뉴를 열거나, 핸들을 끌어 블록을 옮깁니다.
+- **터치**: 블록을 한 번 탭해 핸들을 표시하고, 핸들을 다시 탭해 메뉴를 엽니다.
+  핸들을 끌어서 옮길 수도 있습니다. 본문에서 시작한 스와이프는 평소처럼 스크롤됩니다.
+- **키보드**: 블록 안에서 `Shift+F10`을 누릅니다. 화살표로 항목을 이동하고
+  Enter로 실행하거나 Esc로 에디터에 돌아옵니다.
+
+메뉴에서 삭제·복제하거나, 텍스트를 지원하는 블록의 유형을 바꿀 수 있습니다.
+드래그 없이 옮기려면 **위로 한 칸** 또는 **아래로 한 칸**을 선택하세요. 리스트
+항목은 같은 리스트 안에서 움직이며, 이동할 수 없는 방향은 표시하지 않습니다.
+드래그 중에는 블록의 너비와 줄바꿈을 유지한 미리보기와 삽입선이 표시됩니다.
+화면 또는 편집 영역 위·아래 가장자리에 핸들을 끌면 자동으로 스크롤합니다.
+
+문구는 `ui.messages.core.blockHandle`(예: `moveUp`, `moveDown`), 아이콘은
+`ui.icons`로 바꿀 수 있습니다. 블록 메뉴에는 툴바의 `items`나 `children`에
+해당하는 옵션이 없습니다. 직접 확장을 조합할 때는 `@inkio/advanced/block-handle`의
+`BlockHandle.configure({ dragHandleWidth: 28 })`로 핸들 너비를 설정할 수 있습니다.
+
 ## CSS
 
 - `@inkio/simple/minimal.css`
@@ -328,6 +337,5 @@ import { Document, Paragraph, Text } from '@tiptap/starter-kit';
 - `@inkio/core/style.css` — `@inkio/core` + `@inkio/advanced` 직접 조합 시
 - `@inkio/image-editor/style.css`
 
-> advanced 노드 장식(멘션 pill, 슬래시 메뉴 등)은 `@inkio/editor/style.css`에만
-> 들어 있습니다. 직접 조합에서 해당 비주얼까지 필요하면 editor 스타일시트를
-> 함께 import하세요.
+> 멘션 pill과 블록 핸들 등 advanced UI의 전체 스타일은 `@inkio/editor/style.css`에
+> 들어 있습니다. 직접 조합에서 이 외형까지 필요하면 `core/style.css` 대신 사용하세요.

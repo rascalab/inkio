@@ -7,8 +7,8 @@ import { DEFAULT_LOCALE } from '../../constants';
 import { useImageEditor } from '../use-image-editor';
 import { useImageEditorSession } from '../use-image-editor-session';
 
-const { exportToDataURLMock, loadImageMock } = vi.hoisted(() => ({
-  exportToDataURLMock: vi.fn(),
+const { exportCanvasMock, loadImageMock } = vi.hoisted(() => ({
+  exportCanvasMock: vi.fn(),
   loadImageMock: vi.fn(),
 }));
 
@@ -16,18 +16,20 @@ vi.mock('../../utils/image-loader', () => ({
   loadImage: loadImageMock,
 }));
 
-vi.mock('../use-canvas-export', () => ({
-  useCanvasExport: () => ({
-    exportToDataURL: exportToDataURLMock,
-  }),
+vi.mock('../../utils/export-canvas', () => ({
+  exportCanvas: exportCanvasMock,
 }));
 
 function SessionHarness({
   onDirtyChange,
   onSave,
+  onSaveBlob,
+  savePreview,
 }: {
   onDirtyChange: (dirty: boolean) => void;
   onSave: (dataUrl: string) => void | Promise<void>;
+  onSaveBlob?: (blob: Blob, preview?: Blob) => void | Promise<void>;
+  savePreview?: boolean;
 }) {
   const { state, dispatch } = useImageEditor();
   const session = useImageEditorSession({
@@ -36,6 +38,8 @@ function SessionHarness({
     outputFormat: 'png',
     outputQuality: 0.92,
     onSave,
+    onSaveBlob,
+    savePreview,
     onDirtyChange,
     viewportKind: 'desktop',
   });
@@ -106,12 +110,12 @@ function SessionHarness({
 describe('useImageEditorSession', () => {
   beforeEach(() => {
     loadImageMock.mockReset();
-    exportToDataURLMock.mockReset();
+    exportCanvasMock.mockReset();
     loadImageMock.mockResolvedValue({
       naturalWidth: 640,
       naturalHeight: 480,
     } as HTMLImageElement);
-    exportToDataURLMock.mockResolvedValue('data:image/png;base64,saved');
+    exportCanvasMock.mockResolvedValue('data:image/png;base64,saved');
   });
 
   afterEach(() => {
@@ -124,7 +128,7 @@ describe('useImageEditorSession', () => {
 
     render(
       <ImageEditorProvider locale={DEFAULT_LOCALE}>
-        <SessionHarness onDirtyChange={onDirtyChange} onSave={onSave} />
+        <SessionHarness onDirtyChange={onDirtyChange} onSave={onSave} savePreview />
       </ImageEditorProvider>,
     );
 
@@ -140,7 +144,7 @@ describe('useImageEditorSession', () => {
 
     fireEvent.click(screen.getByTestId('save'));
     await waitFor(() => {
-      expect(exportToDataURLMock).toHaveBeenCalledTimes(1);
+      expect(exportCanvasMock).toHaveBeenCalledTimes(1);
       expect(onSave).toHaveBeenCalledWith('data:image/png;base64,saved');
       expect(screen.getByTestId('is-dirty').textContent).toBe('false');
       // onDirtyChange fires from an effect after the commit that updates
@@ -149,6 +153,32 @@ describe('useImageEditorSession', () => {
     });
 
     expect(onDirtyChange).toHaveBeenCalledWith(true);
+  });
+
+  it.each([false, true])('passes the encoded Blob only to the preferred callback (savePreview=%s)', async (savePreview) => {
+    const blob = new Blob(['encoded image'], { type: 'image/png' });
+    const preview = new Blob(['encoded preview'], { type: 'image/png' });
+    exportCanvasMock.mockResolvedValueOnce(savePreview ? { blob, preview } : blob);
+    const onSave = vi.fn();
+    const onSaveBlob = vi.fn();
+    render(
+      <ImageEditorProvider locale={DEFAULT_LOCALE}>
+        <SessionHarness onDirtyChange={vi.fn()} onSave={onSave} onSaveBlob={onSaveBlob} savePreview={savePreview} />
+      </ImageEditorProvider>,
+    );
+    await waitFor(() => { expect(loadImageMock).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('make-dirty'));
+    await act(async () => { fireEvent.click(screen.getByTestId('save')); });
+
+    expect(exportCanvasMock).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ originalWidth: 640, originalHeight: 480 }),
+      'png',
+      0.92,
+      savePreview ? 'blob-with-preview' : 'blob',
+    );
+    expect(onSaveBlob).toHaveBeenCalledExactlyOnceWith(...(savePreview ? [blob, preview] : [blob]));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByTestId('is-dirty').textContent).toBe('false');
   });
 
   it('is not dirty when the resize tool seeds its crop draft', async () => {

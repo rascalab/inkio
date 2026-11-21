@@ -12,7 +12,7 @@ export function onCleanup(fn: () => unknown): void {
 }
 
 export async function startServer(config: Partial<Configuration> = {}) {
-  const server = new Server({ port: 0, quiet: true, stopOnSignals: false, ...config });
+  const server = new Server({ port: 0, address: '127.0.0.1', quiet: true, stopOnSignals: false, ...config });
   await server.listen();
   onCleanup(() => server.destroy());
   return { server, url: `ws://127.0.0.1:${server.address.port}` };

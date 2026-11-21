@@ -6,14 +6,53 @@ Versioning is unified across the publishable Inkio packages.
 
 ## [Unreleased]
 
+## [0.0.9] - 2026-11-22
+
+See [MIGRATION.md](./MIGRATION.md#008--009) for runtime, image storage, and collaboration changes.
+
 ### Added
 
-- image blocks default to `cleanup: 'immediate'`: an `onDelete(src)` storage adapter cleans files after their last reference in the current document is removed, including uploads whose targets disappeared. Select `cleanup: 'manual'` to manage cleanup in the app. Loading a document, read-only updates and destroying an editor do not delete its files; cleanup failures reach `onError` without rolling back successful edits.
+- editors provide a localized accessible label for the editable body; set `ariaLabel` to distinguish multiple editors.
+- the image workbench uses compact tool controls, on-canvas text editing and live dimension changes.
+- both editor presets can place the built-in toolbar above or below the document and configure the alignment, direction, and collision behavior of contextual menus.
+- the React Router example shows edit/read routes for multiple documents with in-memory drafts and a bottom toolbar.
+- image editor tools can mix custom controls and built-ins, use the same edit history and export commands, and move the tool rail independently on desktop and mobile.
+
+### Changed
+
+- the SDK requires Node.js 22.12 or newer. `@inkio/image-editor` requires React and React DOM 19.3 or newer within React 19; the base editors still support React 18.
+- image `cleanup` defaults to `manual`. Even with explicit `immediate` cleanup, removing a document reference never deletes a file. `onDelete` only handles a newly uploaded file that could not enter the document.
+- bookmark previews resolve for explicit new bookmark insertions, not for imported or collaborative document content.
+- live and static rendering bound expanded table dimensions before building the table. Markdown import also rejects documents outside its parser work budget.
+- the landing, guides, and playground share one layout, search, theme switch, and LINE Seed Sans KR typography. The landing explains the two editor presets and loads the live demo only on request; the playground serializes only when its preview is visible and editing stops.
+- image export encodes asynchronously and bounds source, preview, and output rasters. The image workbench supports keyboard canvas editing and uses one scrollable tool row on phones.
+- the image workbench puts the scale ruler below the photo, uses a fill-only tool selection, and dims actual overflowing image pixels rather than duplicating the photo as a background.
+- the image preview uses the same transparency checkerboard in both themes. Crop drag settles at the edge without committing overscroll; large image exports use a lazy worker when supported.
+- the document and image editors share fill-only control states. Document text has higher contrast, and the classic toolbar stays on one scrollable row without taking space away from the document.
+- desktop and touch block drags show a preview card with padding outside the original block width, preserving line breaks, and mark the insertion point.
+- touch block drags auto-scroll at the upper and lower edges of the editor or page, with the insertion marker following the new drop position.
+- block menus move a block up or down one sibling without dragging, including within lists. On touch devices, menu rows have 44px targets and the menu scrolls on short screens.
+- collaborative offline data is scoped by account and deployment. The reference server requires document-scoped access rules, binds privately by default, and validates and flushes snapshots.
 
 ### Fixed
 
 - edited images use the configured image upload callback instead of persisting a data URL directly. The original image stays in the document until upload succeeds; upload limits, URL resolution and error callbacks also apply to edited files.
 - image editing waits for asynchronous saves before closing. Failed saves keep the edits for retry, unchanged images skip the upload, and edited files have distinct names instead of all using `edited-image.png`.
+- image uploads keep transient placeholders out of saved content and undo history. Inserting from the slash menu leaves the caret ready for typing below the image.
+- unsupported Markdown images without alt text no longer blank the document. Details transforms ignore fenced code, and exported wiki labels are escaped.
+- the table menu does not remeasure an idle table continuously. Syntax highlighting updates changed blocks without retokenizing the entire document.
+- runtime dependency upgrades remove the audited advisories; CI checks the lockfile, real collaboration modes, and consumer installs on supported Node and React versions.
+- CommonJS React overlay loading emits a literal lazy dependency request, avoiding a Next.js Webpack warning without changing the ESM build.
+- document formatting buttons can be activated from the keyboard, and toolbar popovers inherit the palette of the editor that opened them.
+- saving large inline photos uses asynchronous bitmap decoding even when the export worker is unavailable, and separates canvas rendering from the encoder's buffer snapshot.
+- image upload can take the encoded Blob directly, avoiding conversion to and from a large data URL. Existing data URL callbacks still work.
+- image load errors omit source URLs so credentials in signed URLs are not recorded by the editor logger.
+- touch block drags hide the source handle while scrolling, and tapping the handle opens its menu without selecting the item underneath the finger.
+- workerless large-image export applies color filters in bounded bands, leaving room for input and painting without lowering output resolution.
+- document and image popovers reuse the shared palette, tightly spaced mobile panels stay inside the viewport, and code highlighting follows each editor's theme instead of a page-global stylesheet.
+- custom React slots preserve component identity, and block transformations refuse stale targets.
+- a repeated up/down menu action keeps targeting the just-moved block instead of switching to its neighbor.
+- opening a block menu with Shift+F10 or the context-menu key keeps the source block highlighted until the next key or editor click.
 
 ## [0.0.8] - 2026-11-06
 

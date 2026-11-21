@@ -1,5 +1,5 @@
 import { generateStaticParamsFor, importPage } from 'nextra/pages';
-import { useMDXComponents } from '../../../mdx-components';
+import { useMDXComponents } from '../../mdx-components';
 import { notFound } from 'next/navigation';
 
 export const generateStaticParams = generateStaticParamsFor('mdxPath');
@@ -32,9 +32,11 @@ export default async function Page(props: PageProps) {
   const Wrapper = useMDXComponents().wrapper;
 
   return (
-    <Wrapper {...pageProps}>
-      <MDXContent />
-    </Wrapper>
+    <div className="inkio-docs-layout">
+      <Wrapper {...pageProps}>
+        <MDXContent />
+      </Wrapper>
+    </div>
   );
 }
 

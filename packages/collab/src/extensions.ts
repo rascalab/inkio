@@ -3,6 +3,7 @@ import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCaret from '@tiptap/extension-collaboration-caret';
 import type * as Y from 'yjs';
 import type { CollabProvider, CollabUser } from './provider';
+import { FALLBACK_PRESENCE_USER, normalizePresenceUser } from './presence-user';
 
 export const COLLAB_CONFLICTING_EXTENSIONS = ['history', 'undoRedo'] as const;
 
@@ -16,28 +17,18 @@ export function removeConflictingExtensions(extensions: Extensions): Extensions 
   });
 }
 
-const FALLBACK_USER: CollabUser = { name: 'Anonymous', color: '#888888' };
-
-/** Remote peer input must never reach CSS raw: `;` or braces break out of
- * the declaration they are interpolated into. Everything else (including
- * exotic-but-valid colors) passes through untouched. */
-function isSafeCssColor(value: string): boolean {
-  return !/[;{}]/.test(value);
-}
-
 /** Self-styled caret so consumers need no extra stylesheet. */
 function renderCaret(user: Record<string, unknown>): HTMLElement {
-  // Remote peer input must never reach CSS raw: a crafted color string
-  // breaks out of the declaration (e.g. `red;background:url(...)`).
-  const rawColor = typeof user.color === 'string' ? user.color : FALLBACK_USER.color;
-  const color = isSafeCssColor(rawColor) ? rawColor : FALLBACK_USER.color;
+  const { name, color } = normalizePresenceUser(user) ?? FALLBACK_PRESENCE_USER;
   const caret = document.createElement('span');
   caret.className = 'collaboration-carets__caret';
-  caret.style.cssText = `position:relative;margin:0 -1px;border-left:1px solid ${color};border-right:1px solid ${color};word-break:normal;pointer-events:none;`;
+  caret.style.cssText = 'position:relative;margin:0 -1px;border-left:1px solid;border-right:1px solid;word-break:normal;pointer-events:none;';
+  caret.style.borderColor = color;
   const label = document.createElement('div');
   label.className = 'collaboration-carets__label';
-  label.style.cssText = `position:absolute;top:-1.4em;left:-1px;padding:0.1rem 0.3rem;border-radius:3px 3px 3px 0;font-size:12px;font-style:normal;font-weight:600;line-height:normal;white-space:nowrap;user-select:none;color:#fff;background-color:${color};`;
-  label.textContent = typeof user.name === 'string' ? user.name : FALLBACK_USER.name;
+  label.style.cssText = 'position:absolute;top:-1.4em;left:-1px;padding:0.1rem 0.3rem;border-radius:3px 3px 3px 0;font-size:12px;font-style:normal;font-weight:600;line-height:normal;white-space:nowrap;user-select:none;color:#fff;';
+  label.style.backgroundColor = color;
+  label.textContent = name;
   caret.append(label);
   return caret;
 }
@@ -61,7 +52,7 @@ export function createCollabExtensions({
         provider,
         // The caret plugin overwrites the awareness `user` field with this
         // option on mount, so fall back to whatever the provider already set.
-        user: user ?? provider.awareness?.getLocalState()?.user ?? FALLBACK_USER,
+        user: normalizePresenceUser(user ?? provider.awareness?.getLocalState()?.user) ?? FALLBACK_PRESENCE_USER,
         render: renderCaret,
       }),
     );

@@ -13,6 +13,8 @@
 
 ## 설치
 
+빌드와 SSR에는 Node.js **22.12 이상**이 필요합니다. 일반 에디터는 React 18 또는 19를 지원하고, 선택 기능인 `@inkio/image-editor`는 React 및 React DOM **19.3 이상 (19.x)** 이 필요합니다.
+
 ```bash
 npm install @inkio/simple react react-dom
 ```
@@ -26,7 +28,7 @@ npm install @inkio/editor react react-dom
 옵션:
 
 ```bash
-npm install @inkio/image-editor
+npm install @inkio/image-editor "react@^19.3.0" "react-dom@^19.3.0"
 ```
 
 `CommentPanel`이나 comment i18n처럼 advanced export를 직접 import할 때만 `@inkio/advanced`를 추가 설치합니다.
@@ -35,16 +37,19 @@ Inkio는 자신이 사용하는 Tiptap runtime을 직접 소유합니다. 일반
 
 ## 스타일
 
+기본 외형으로 시작하려면 프리셋의 `style.css`를 가져오세요. 본문과 메뉴를 직접
+스타일링하는 경우에만 `minimal.css`로 대체합니다.
+
 Simple:
 
 ```tsx
-import '@inkio/simple/minimal.css';
+import '@inkio/simple/style.css';
 ```
 
 Editor:
 
 ```tsx
-import '@inkio/editor/minimal.css';
+import '@inkio/editor/style.css';
 ```
 
 Image editor:
@@ -52,6 +57,8 @@ Image editor:
 ```tsx
 import '@inkio/image-editor/style.css';
 ```
+
+이미지 에디터만 사용하는 경우 [공통 토큰 CSS도 가져오세요](/image-editor#설치와-css).
 
 ## 기본 사용
 
@@ -93,3 +100,7 @@ export function Page() {
 - `@inkio/editor` CSS는 advanced preset 스타일을 이미 포함합니다.
 - `justify` alignment는 지원하지 않습니다.
 - math는 내장하지 않습니다. 필요하면 [Tiptap Mathematics](https://tiptap.dev/docs/editor/extensions/nodes/mathematics)를 직접 조합하세요.
+
+문서 저장, 인증·권한, 이미지 저장소, 관리자 화면은 Inkio가 제공하지 않습니다.
+예제는 편집기 연결 방법을 보여 줍니다. 운영 앱에서는 필요한 저장 경로와 서버를 따로
+구현하세요. [통합 레시피](/recipes)와 [실시간 협업 서버](/collaboration#서버)를 참고하세요.

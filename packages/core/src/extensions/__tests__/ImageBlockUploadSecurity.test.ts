@@ -1,9 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Editor } from '@tiptap/core';
+import { history, redo, undo } from '@tiptap/pm/history';
+import { Fragment, Slice } from '@tiptap/pm/model';
+import { Plugin } from '@tiptap/pm/state';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
 import { ImageBlock } from '../ImageBlock';
+import { rasterPngFile } from './image-fixtures';
 
 function createEditor(options: {
   onUpload?: (file: File) => Promise<string>;
@@ -26,6 +30,12 @@ function createEditor(options: {
   });
 }
 
+function pasteImage(editor: Editor, file: File, html = '', slice = Slice.empty) {
+  const clipboardData = { files: [file], getData: (type: string) => type === 'text/html' ? html : '' };
+  const event = { clipboardData, preventDefault: vi.fn() } as unknown as ClipboardEvent;
+  return editor.view.someProp('handlePaste', (handlePaste) => handlePaste(editor.view, event, slice));
+}
+
 function makeFile(content: string, name: string, type: string) {
   return new File([content], name, { type });
 }
@@ -42,20 +52,21 @@ function docText(editor: Editor) {
 }
 
 /**
- * Upload callbacks are untrusted input: their return values must pass
- * isSafeUrl before reaching the document, and file bytes are sniffed so a
- * client-spoofed MIME type can't smuggle HTML/SVG script content in.
+ * Validate storage callback URLs before inserting them, and raster bytes
+ * before calling the storage adapter.
  */
 describe('ImageBlock upload URL validation', () => {
   it('rejects a javascript: URL returned by onUpload', async () => {
     const onUploadError = vi.fn();
+    const onUpload = vi.fn(async () => 'javascript:alert(1)');
     const editor = createEditor({
-      onUpload: async () => 'javascript:alert(1)',
+      onUpload,
       onUploadError,
     });
 
-    editor.commands.uploadImageBlock([makeFile('x', 'a.png', 'image/png')]);
+    editor.commands.uploadImageBlock([rasterPngFile()]);
     await flushUploads();
+    expect(onUpload).toHaveBeenCalledOnce();
 
     expect(docText(editor)).not.toContain('javascript:');
     expect(onUploadError).toHaveBeenCalled();
@@ -63,15 +74,17 @@ describe('ImageBlock upload URL validation', () => {
   });
 
   it('rejects an unsafe URL returned by resolveFileUrl', async () => {
+    const resolveFileUrl = vi.fn(async () => 'data:text/html,<script>alert(1)</script>');
     const onUploadError = vi.fn();
     const editor = createEditor({
       onUpload: async () => 'https://example.com/a.png',
-      resolveFileUrl: async () => 'data:text/html,<script>alert(1)</script>',
+      resolveFileUrl,
       onUploadError,
     });
 
-    editor.commands.uploadImageBlock([makeFile('x', 'a.png', 'image/png')]);
+    editor.commands.uploadImageBlock([rasterPngFile()]);
     await flushUploads();
+    expect(resolveFileUrl).toHaveBeenCalledOnce();
 
     expect(docText(editor)).not.toContain('data:text/html');
     expect(onUploadError).toHaveBeenCalled();
@@ -83,42 +96,52 @@ describe('ImageBlock upload URL validation', () => {
       onUpload: async () => 'https://example.com/a.png',
     });
 
-    editor.commands.uploadImageBlock([makeFile('x', 'a.png', 'image/png')]);
+    editor.commands.uploadImageBlock([rasterPngFile()]);
     await flushUploads();
 
     expect(docText(editor)).toContain('https://example.com/a.png');
     editor.destroy();
   });
 
-  it('rejects files whose bytes look like markup despite an image MIME', async () => {
+  it('rejects plain text mislabeled as an image without calling the uploader', async () => {
     const onUploadError = vi.fn();
+    const onUpload = vi.fn(async () => 'https://example.com/a.png');
     const editor = createEditor({
-      onUpload: async () => 'https://example.com/a.png',
+      onUpload,
       onUploadError,
     });
 
     editor.commands.uploadImageBlock([
-      makeFile('<svg onload="alert(1)">', 'evil.png', 'image/png'),
+      makeFile('A note from the clipboard', 'note.png', 'image/png'),
     ]);
     await flushUploads();
 
+    expect(onUpload).not.toHaveBeenCalled();
     expect(docText(editor)).not.toContain('https://example.com/a.png');
     expect(onUploadError).toHaveBeenCalled();
     editor.destroy();
   });
 
-  it('rejects markup hidden behind leading NUL bytes', async () => {
+  it.each([
+    ['an empty file', () => makeFile('', 'empty.png', 'image/png')],
+    ['a mismatched raster type', () => rasterPngFile('mislabeled.gif', 'image/gif')],
+    ['a file whose bytes cannot be read', () => {
+      const file = rasterPngFile();
+      vi.spyOn(file, 'slice').mockImplementation(() => { throw new Error('Cannot read file'); });
+      return file;
+    }],
+  ])('rejects %s', async (_label, getFile) => {
     const onUploadError = vi.fn();
+    const onUpload = vi.fn(async () => 'https://example.com/a.png');
     const editor = createEditor({
-      onUpload: async () => 'https://example.com/a.png',
+      onUpload,
       onUploadError,
     });
 
-    editor.commands.uploadImageBlock([
-      makeFile('\0\0\0<svg onload="alert(1)">', 'evil.png', 'image/png'),
-    ]);
+    editor.commands.uploadImageBlock([getFile()]);
     await flushUploads();
 
+    expect(onUpload).not.toHaveBeenCalled();
     expect(docText(editor)).not.toContain('https://example.com/a.png');
     expect(onUploadError).toHaveBeenCalled();
     editor.destroy();
@@ -132,7 +155,7 @@ describe('ImageBlock upload URL validation', () => {
     });
 
     expect(() =>
-      editor.commands.uploadImageBlock([makeFile('x', 'a.png', 'image/png')], -50),
+      editor.commands.uploadImageBlock([rasterPngFile()], -50),
     ).not.toThrow();
     await flushUploads();
 
@@ -145,7 +168,7 @@ describe('ImageBlock upload URL validation', () => {
     const editor = createEditor({ onUpload: async () => 'https://example.com/a.png' });
     editor.commands.focus('end');
 
-    editor.commands.uploadImageBlock([makeFile('x', 'a.png', 'image/png')]);
+    editor.commands.uploadImageBlock([rasterPngFile()]);
     await flushUploads();
 
     expect(editor.getJSON().content?.map((node) => node.type)).toEqual(['imageBlock', 'paragraph']);
@@ -160,8 +183,8 @@ describe('ImageBlock upload URL validation', () => {
     editor.commands.focus('end');
 
     editor.commands.uploadImageBlock([
-      makeFile('x', '1.png', 'image/png'),
-      makeFile('x', '2.png', 'image/png'),
+      rasterPngFile('1.png'),
+      rasterPngFile('2.png'),
     ]);
     await flushUploads();
 
@@ -185,11 +208,84 @@ describe('ImageBlock upload URL validation', () => {
     });
     editor.commands.setTextSelection(3);
 
-    editor.commands.uploadImageBlock([makeFile('x', 'a.png', 'image/png')], 7);
+    editor.commands.uploadImageBlock([rasterPngFile()], 7);
     await flushUploads();
 
     expect(editor.getJSON().content?.map((node) => node.type)).toEqual(['paragraph', 'imageBlock']);
     expect(editor.state.selection.from).toBe(3);
+    editor.destroy();
+  });
+
+  it('keeps placeholders out of history and redoes the completed image', async () => {
+    const editor = createEditor({ onUpload: async () => '/completed.png' });
+    editor.registerPlugin(history());
+    editor.commands.uploadImageBlock([rasterPngFile()]);
+    expect(editor.getJSON().content?.map((node) => node.type)).toEqual(['paragraph']);
+    expect(editor.view.dom.querySelector('.inkio-image-block-placeholder')).not.toBeNull();
+    await vi.waitFor(() => expect(docText(editor)).toContain('/completed.png'));
+
+    expect(undo(editor.state, editor.view.dispatch)).toBe(true);
+    expect(editor.getJSON().content?.map((node) => node.type)).toEqual(['paragraph']);
+    expect(redo(editor.state, editor.view.dispatch)).toBe(true);
+    expect(editor.state.doc.firstChild?.attrs.src).toBe('/completed.png');
+    expect(editor.view.dom.querySelector('.inkio-image-block-placeholder')).toBeNull();
+    editor.destroy();
+  });
+
+  it('maps the batch position through edits before validation and during upload', async () => {
+    let finish: (src: string) => void = () => { throw new Error('Upload has not started'); };
+    const onUpload = vi.fn()
+      .mockImplementationOnce(() => new Promise<string>((resolve) => { finish = resolve; }))
+      .mockResolvedValueOnce('/second.png');
+    const editor = createEditor({ onUpload });
+    editor.commands.setContent('<p>before</p><p></p><p>after</p>');
+    editor.commands.setTextSelection(9);
+    editor.commands.uploadImageBlock([rasterPngFile('first.png'), rasterPngFile('second.png')]);
+    editor.commands.insertContentAt(1, 'new ');
+    await vi.waitFor(() => expect(onUpload).toHaveBeenCalledOnce());
+    editor.commands.insertContentAt(1, 'more ');
+    finish('/first.png');
+
+    await vi.waitFor(() => expect(docText(editor)).toContain('/second.png'));
+    const blocks: string[] = [];
+    editor.state.doc.forEach((node) => blocks.push(node.attrs.src ?? node.textContent));
+    expect(blocks).toEqual(['more new before', '/first.png', '/second.png', 'after']);
+    editor.destroy();
+  });
+
+  it('does not start an upload while checking command availability', async () => {
+    const onUpload = vi.fn(async () => '/completed.png');
+    const editor = createEditor({ onUpload });
+    expect(editor.can().uploadImageBlock([rasterPngFile()])).toBe(true);
+    await Promise.resolve();
+    expect(onUpload).not.toHaveBeenCalled();
+    expect(editor.view.dom.querySelector('.inkio-image-block-placeholder')).toBeNull();
+    editor.destroy();
+  });
+
+  it('lets normal paste preserve meaningful parsed HTML when there is also an image file', () => {
+    const onUpload = vi.fn(async () => '/file.png');
+    const editor = createEditor({ onUpload });
+    const normalPaste = vi.fn(() => true);
+    editor.registerPlugin(new Plugin({ props: { handlePaste: normalPaste } }));
+    const formattedContent = editor.schema.nodes.paragraph.create(null, editor.schema.text('A real caption'));
+    const slice = new Slice(Fragment.from(formattedContent), 1, 1);
+
+    expect(pasteImage(editor, rasterPngFile(), '<p>A real caption</p>', slice)).toBe(true);
+    expect(normalPaste).toHaveBeenCalledWith(editor.view, expect.anything(), slice);
+    expect(onUpload).not.toHaveBeenCalled();
+    editor.destroy();
+  });
+
+  it.each([null, 'data:image/png;base64,iVBORw0KGgo='])('uploads the clipboard file when HTML has no reusable image (%s)', async (src) => {
+    const onUpload = vi.fn(async () => '/clipboard.png');
+    const editor = createEditor({ onUpload });
+    const unusableImage = editor.schema.nodes.imageBlock.create({ src });
+    const slice = new Slice(Fragment.from(unusableImage), 0, 0);
+
+    expect(pasteImage(editor, rasterPngFile(), '<img alt="">', slice)).toBe(true);
+    await vi.waitFor(() => expect(docText(editor)).toContain('/clipboard.png'));
+    expect(onUpload).toHaveBeenCalledOnce();
     editor.destroy();
   });
 

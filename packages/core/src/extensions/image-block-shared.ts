@@ -5,9 +5,8 @@ export const IMAGE_BLOCK_MIN_WIDTH_PERCENT = 10;
 export const IMAGE_BLOCK_MAX_WIDTH_PERCENT = 100;
 
 /**
- * Prefix marking a transient upload-placeholder `src`. This is a sentinel
- * string, not a real URL — the view layer must render it as a loading state
- * instead of an `<img src>` (which would trigger a relative-path fetch).
+ * Prefix for transient upload IDs. Older documents may contain this marker
+ * in an image `src`; render it as a loading state, not a relative URL.
  */
 export const UPLOAD_PLACEHOLDER_PREFIX = '__inkio_upload_';
 
@@ -16,6 +15,8 @@ export interface ImageEditorComponentProps {
   imageSrc: string;
   /** Reject to keep the image editor open when persistence fails. */
   onSave: (editedImageData: string) => void | Promise<void>;
+  /** When provided, editors may pass encoded image bytes here instead of calling onSave. */
+  onSaveBlob?: (blob: Blob) => void | Promise<void>;
   onClose: () => void;
   /** Resolved theme of the editor that opened it (`theme` prop or a `.dark` ancestor). */
   theme?: 'light' | 'dark';

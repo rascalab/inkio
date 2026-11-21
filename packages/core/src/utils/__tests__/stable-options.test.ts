@@ -1,4 +1,5 @@
-import { renderHook } from '@testing-library/react';
+import { render, renderHook, screen } from '@testing-library/react';
+import { Component, createElement, type ReactNode } from 'react';
 import { isEqualOptionsValue, useStableCallback, useStableOptions, useStableProps } from '../stable-options';
 
 describe('useStableCallback', () => {
@@ -112,6 +113,22 @@ describe('useStableProps', () => {
     rerender({ onPick: () => 'again' });
     expect(result.current.onPick).not.toBe(forwarder);
     expect(result.current.onPick?.()).toBe('again');
+  });
+
+  it('renders a class component slot and replaces it with a different component type', () => {
+    class ClassSlot extends Component {
+      render() { return 'class slot'; }
+    }
+    function FunctionSlot() { return 'function slot'; }
+    function Harness({ slot }: { slot: ReactNode }) {
+      const { ui } = useStableProps({ ui: { toolbar: { children: slot } } });
+      return ui.toolbar.children;
+    }
+    const { rerender } = render(createElement(Harness, { slot: createElement(ClassSlot) }));
+    expect(screen.getByText('class slot')).toBeTruthy();
+    rerender(createElement(Harness, { slot: createElement(FunctionSlot) }));
+    expect(screen.queryByText('class slot')).toBeNull();
+    expect(screen.getByText('function slot')).toBeTruthy();
   });
 });
 

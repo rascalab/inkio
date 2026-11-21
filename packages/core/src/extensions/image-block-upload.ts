@@ -3,15 +3,16 @@ import { isSafeUrl } from '../utils/url-safety';
 
 type ImageUploadResult = string | Record<string, unknown>;
 
-/** `blockId` identifies the transient placeholder of a newly inserted image. */
+/** `blockId` identifies one file in a transient insertion batch. */
 export interface ImageUploadContext {
   blockId?: string;
 }
 
 export interface ImageUploadOptions {
-  /** Handles new uploads and edited image files; returns the uploaded URL or image attributes. */
+  /** Uploads new or edited images. The server must independently validate the bytes and limits. */
   onUpload?: (file: File, context?: ImageUploadContext) => Promise<ImageUploadResult>;
   resolveFileUrl?: (url: string) => Promise<string>;
+  /** Further restricts the recognized raster formats; it cannot enable unrecognized formats. */
   allowedMimeTypes?: string[];
   maxFileSize?: number;
   onUploadError?: (error: Error) => void;
@@ -49,27 +50,65 @@ function toImageNodeAttributes(result: ImageUploadResult, fallbackAlt?: string):
   return attrs;
 }
 
-const EXECUTABLE_PREFIXES = [
-  '<!doctype', '<html', '<head', '<body', '<script', '<svg', '<?xml', '<!',
-  '%pdf', 'mz',
-] as const;
+function matchesAscii(bytes: Uint8Array, offset: number, text: string): boolean {
+  if (bytes.length < offset + text.length) return false;
+  for (let i = 0; i < text.length; i++) {
+    if (bytes[offset + i] !== text.charCodeAt(i)) return false;
+  }
+  return true;
+}
 
-/** Best-effort sniffing; the MIME allowlist remains authoritative when bytes cannot be read. */
-async function sniffImageContent(file: File): Promise<boolean> {
+function readImageHeader(file: File): Promise<ArrayBuffer> {
+  const header = file.slice(0, 256);
+  if (typeof header.arrayBuffer === 'function') return header.arrayBuffer();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (reader.result === null || typeof reader.result === 'string') reject(new Error('Cannot read image header.'));
+      else resolve(reader.result);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(header);
+  });
+}
+
+/** A signature check is an early client-side rejection, not an image decoder or a server trust boundary. */
+async function matchesRasterSignature(file: File): Promise<boolean> {
   try {
-    const slice = typeof file.slice === 'function' ? file.slice(0, 64) : file;
-    const buffer = await slice.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-    if (bytes.length === 0) return true;
-    const head = Array.from(bytes.slice(0, 64))
-      .map((b) => String.fromCharCode(b))
-      .join('')
-      .replace(/^[\0\x01-\x08\x0B\x0C\x0E-\x1F\x7F\s]+/, '')
-      .toLowerCase();
-    if (!head) return true;
-    return !EXECUTABLE_PREFIXES.some((prefix) => head.startsWith(prefix));
+    const bytes = new Uint8Array(await readImageHeader(file));
+    switch (file.type) {
+      case 'image/png':
+        return bytes[0] === 0x89 && matchesAscii(bytes, 1, 'PNG\r\n\x1a\n') && matchesAscii(bytes, 12, 'IHDR');
+      case 'image/jpeg':
+        return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+      case 'image/gif':
+        return bytes.length >= 13 && (matchesAscii(bytes, 0, 'GIF87a') || matchesAscii(bytes, 0, 'GIF89a'));
+      case 'image/webp':
+        return matchesAscii(bytes, 0, 'RIFF') && matchesAscii(bytes, 8, 'WEBP') &&
+          (matchesAscii(bytes, 12, 'VP8 ') || matchesAscii(bytes, 12, 'VP8L') || matchesAscii(bytes, 12, 'VP8X'));
+      case 'image/avif': {
+        if (bytes.length < 16 || !matchesAscii(bytes, 4, 'ftyp')) return false;
+        const size = new DataView(bytes.buffer).getUint32(0);
+        if (size < 16 || size > file.size) return false;
+        const isAvifBrand = (offset: number) =>
+          matchesAscii(bytes, offset, 'avif') || matchesAscii(bytes, offset, 'avis');
+        if (isAvifBrand(8)) return true;
+        for (let offset = 16; offset + 4 <= Math.min(size, bytes.length); offset += 4) {
+          if (isAvifBrand(offset)) return true;
+        }
+        return false;
+      }
+      case 'image/bmp':
+        return bytes.length >= 14 && matchesAscii(bytes, 0, 'BM');
+      case 'image/x-icon':
+      case 'image/vnd.microsoft.icon':
+        return bytes.length >= 6 && bytes[0] === 0 && bytes[1] === 0 &&
+          bytes[2] === 1 && bytes[3] === 0 && (bytes[4] !== 0 || bytes[5] !== 0);
+      default:
+        return false;
+    }
   } catch {
-    return true;
+    return false;
   }
 }
 
@@ -89,7 +128,7 @@ export async function getImageValidationError(file: File, options: ImageUploadOp
   if (options.maxFileSize && file.size > options.maxFileSize) {
     return new Error('File size exceeds maximum allowed size.');
   }
-  if (!(await sniffImageContent(file))) return new Error('File content is not a supported image.');
+  if (!(await matchesRasterSignature(file))) return new Error('File content is not a supported image.');
   return null;
 }
 

@@ -11,6 +11,7 @@ const content = `<h2>Hello Inkio</h2>
 
 export default function App() {
   const [json, setJson] = useState<unknown>(null);
+  const [appearance, setAppearance] = useState('light');
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -44,9 +45,19 @@ export default function App() {
       </section>
 
       <section className="editor-card">
+        <label className="appearance-picker">
+          Editor theme
+          <select value={appearance} onChange={(event) => setAppearance(event.target.value)}>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="custom">Custom palette</option>
+          </select>
+        </label>
         <Editor
           placeholder="Write something..."
           content={content}
+          theme={appearance === 'dark' ? 'dark' : 'light'}
+          ui={{ className: appearance === 'custom' ? 'example-theme' : undefined }}
           onUpdate={handleUpdate}
         />
       </section>

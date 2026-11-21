@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Editor, useEditorState } from '@tiptap/react';
 import * as Popover from '@radix-ui/react-popover';
 import type { InkioIconRegistry } from '../icons/registry';
@@ -62,6 +62,8 @@ export interface ToolbarProps {
   messages?: InkioCoreMessageOverrides | InkioMessageOverrides;
   icons?: Partial<InkioIconRegistry>;
   items?: InkioToolbarActionTransform;
+  /** Which edge of the document the toolbar borders, and where its popovers open. */
+  placement?: 'top' | 'bottom';
 }
 
 export const Toolbar = ({
@@ -72,29 +74,19 @@ export const Toolbar = ({
   messages: messageOverrides,
   icons: iconOverrides,
   items,
+  placement = 'top',
 }: ToolbarProps) => {
   const [linkPopoverOpen, setLinkPopoverOpen] = useState(false);
   const [textColorOpen, setTextColorOpen] = useState(false);
   const [currentLinkUrl, setCurrentLinkUrl] = useState('');
-  // Radix portals render into document.body, outside `.inkio`, so design
-  // tokens would not resolve (transparent popover backgrounds). Scope the
-  // token root onto the popover content, mirroring the editor dark mode —
-  // the same pattern as the suggestion renderer popup.
-  // Computed during render (not memoized): a memoized class goes stale when
-  // `.dark` toggles while a popover is open, and closest() is trivial.
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
   const linkPopoverContentRef = useRef<HTMLDivElement | null>(null);
-  let portalContentClassName = 'inkio inkio-popover-content';
-  try {
-    const dom = editor?.view.dom as Element | undefined;
-    const root = typeof dom?.closest === 'function' ? dom.closest('.inkio') : null;
-    if (root?.classList.contains('dark')) {
-      portalContentClassName += ' dark';
-    } else if (root?.classList.contains('light')) {
-      portalContentClassName += ' light';
-    }
-  } catch {
-    // Non-DOM runtimes keep the default class.
-  }
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    // Escape the scrolling toolbar without losing this editor's theme or overrides.
+    setPortalContainer(toolbarRef.current?.closest<HTMLElement>('.inkio') ?? null);
+  }, [editor]);
+  const portalContentClassName = portalContainer ? 'inkio-popover-content' : 'inkio inkio-popover-content';
   const ui = useInkioCoreUi({
     locale,
     messages: messageOverrides,
@@ -161,7 +153,7 @@ export const Toolbar = ({
   }
 
   return (
-    <div className={`inkio-toolbar${className ? ` ${className}` : ''}`} role="toolbar" aria-label="Editor toolbar">
+    <div ref={toolbarRef} className={`inkio-toolbar${className ? ` ${className}` : ''}`} data-placement={placement} role="toolbar" aria-label="Editor toolbar">
       {actionGroups.map((group, groupIndex) => (
         <Fragment key={`${group[0]?.action.group ?? 'group'}-${groupIndex}`}>
           {groupIndex > 0 && <div className="inkio-toolbar-divider" />}
@@ -179,7 +171,9 @@ export const Toolbar = ({
                     open={linkPopoverOpen}
                     onOpenChange={(open) => {
                       setLinkPopoverOpen(open);
-                      if (!open) {
+                      if (open) {
+                        setCurrentLinkUrl(String(editor.getAttributes('link').href ?? ''));
+                      } else {
                         setCurrentLinkUrl('');
                         // Dismissal by outside-click/Escape must not steal
                         // focus the user already moved elsewhere: refocus
@@ -196,27 +190,23 @@ export const Toolbar = ({
                       }
                     }}
                   >
-                  <Popover.Anchor asChild>
+                    <Popover.Trigger asChild>
                       <button
                         type="button"
                         className={`inkio-bubble-btn${isActive ? ' is-active' : ''}`}
                         title={label}
                         aria-label={label}
                         disabled={isDisabled}
-                        onMouseDown={(event) => {
-                          event.preventDefault();
-                          const existingUrl = String(editor.getAttributes('link').href ?? '');
-                          setCurrentLinkUrl(existingUrl);
-                          setLinkPopoverOpen(true);
-                        }}
+                        onMouseDown={(event) => event.preventDefault()}
                       >
                         {iconNode}
                       </button>
-                    </Popover.Anchor>
-                    <Popover.Portal>
+                    </Popover.Trigger>
+                    <Popover.Portal container={portalContainer}>
                       <Popover.Content
                         ref={linkPopoverContentRef}
                         sideOffset={8}
+                        side={placement === 'bottom' ? 'top' : 'bottom'}
                         className={portalContentClassName}
                         onOpenAutoFocus={(event) => event.preventDefault()}
                       >
@@ -251,17 +241,14 @@ export const Toolbar = ({
                 const currentColor = String(editor.getAttributes('textStyle').color ?? '');
                 return (
                   <Popover.Root key={action.id} open={textColorOpen} onOpenChange={setTextColorOpen}>
-                    <Popover.Anchor asChild>
+                    <Popover.Trigger asChild>
                       <button
                         type="button"
                         className={`inkio-bubble-btn${isActive ? ' is-active' : ''}`}
                         title={label}
                         aria-label={label}
                         disabled={isDisabled}
-                        onMouseDown={(event) => {
-                          event.preventDefault();
-                          setTextColorOpen((previous) => !previous);
-                        }}
+                        onMouseDown={(event) => event.preventDefault()}
                       >
                         <span className="inkio-toolbar-color-icon">
                           {iconNode}
@@ -271,12 +258,12 @@ export const Toolbar = ({
                           />
                         </span>
                       </button>
-                    </Popover.Anchor>
-                    <Popover.Portal>
+                    </Popover.Trigger>
+                    <Popover.Portal container={portalContainer}>
                       <Popover.Content
                         sideOffset={8}
+                        side={placement === 'bottom' ? 'top' : 'bottom'}
                         className={portalContentClassName}
-                        onOpenAutoFocus={(event) => event.preventDefault()}
                       >
                         <div className="inkio-color-popover">
                           <div className="inkio-color-popover-grid">
@@ -330,13 +317,10 @@ export const Toolbar = ({
                   className={`inkio-bubble-btn${isActive ? ' is-active' : ''}${action.id === 'unlink' ? ' is-danger' : ''}`}
                   title={label}
                   aria-label={label}
+                  aria-pressed={action.isActive ? isActive : undefined}
                   disabled={isDisabled}
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    if (isDisabled) {
-                      return;
-                    }
-
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
                     if (action.id === 'comment') {
                       requestComment();
                       return;

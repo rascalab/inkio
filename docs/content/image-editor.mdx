@@ -5,11 +5,16 @@
 
 ## 설치와 CSS
 
-이미지 에디터는 자체 스타일시트가 필요합니다. 앱 진입점에서 한 번 import 하세요.
+이미지 에디터는 본문 에디터의 공통 테마 토큰과 자체 스타일시트를 함께 사용합니다.
+본문 에디터에 연결할 때는 본문 프리셋 CSS에 더해 아래 파일을 가져오세요.
 
 ```tsx
 import '@inkio/image-editor/style.css';
 ```
+
+본문 에디터 없이 사용할 때는 `@inkio/core`도 직접 설치하고
+`@inkio/core/minimal.css`를 먼저 가져오세요. 인라인 `ImageEditor`는 `.inkio`
+테마 래퍼 안에 놓습니다. `ImageEditorModal`은 포털에 이 래퍼를 자체 생성합니다.
 
 ## 에디터에 연결하기
 
@@ -17,16 +22,16 @@ import '@inkio/image-editor/style.css';
 전달하면 이미지 툴바에 편집 버튼이 나타납니다. 버튼을 누르면 모달이 열리고, 저장 시
 편집 결과가 해당 이미지 블록에 반영됩니다.
 
-`onImageUpload`가 있으면 편집한 data URL도 `File`로 변환해 같은 콜백으로 업로드하고,
-반환된 URL을 저장합니다. 업로드 중에는 원본 문서를 유지하고, 실패하면 원본 이미지를
-그대로 두고 `imageBlock.onUploadError` 또는 `onError`로 알립니다. 편집창도 열린 상태로
-유지되어 같은 편집 내용을 다시 저장할 수 있습니다. 업로드 중에는 닫기와 추가 편집을
-막고, 성공한 뒤 창을 닫습니다. 변경 없이 저장하면 업로드 콜백을 호출하지 않습니다.
-콜백을 지정하지 않으면 기존처럼 data URL을 저장합니다.
+`onImageUpload`가 있으면 모달이 출력 Blob을 넘기고, 이미지 블록이 이를 `File`로
+만들어 같은 업로드 콜백으로 보냅니다. `onSave`만 쓰는 커스텀 편집기의 data URL도
+같은 경로로 업로드됩니다. 업로드 중이나 실패 시에는 원본이 유지되며, 실패는
+`imageBlock.onUploadError` 또는 `onError`에 전달됩니다. 모달은 저장 중 추가 편집과
+닫기를 막고, 실패하면 편집 내용을 유지해 재시도할 수 있게 합니다.
+변경 없이 저장하면 업로드하지 않고 닫습니다. `onImageUpload`가 없으면 편집 결과를
+data URL로 저장합니다.
 
 편집 파일에는 고유한 이름을 부여하며, 같은 편집창에서 재시도할 때는 이름을 재사용합니다.
-서버의 저장 키 생성은 앱에서 관리합니다. 미사용 파일은 기본적으로 `immediate` 모드로
-정리하며, 아래의 `onDelete`에 실제 스토리지 삭제 함수를 연결합니다.
+서버의 저장 키 생성과 더 이상 참조되지 않는 파일의 정리는 앱에서 관리합니다.
 기본 출력 형식은 PNG입니다. 사진 중심 서비스에서는 `ImageEditorModal`을 감싸
 `imageFormat="jpeg"` 또는 `"webp"`를 지정할 수 있습니다.
 
@@ -36,64 +41,66 @@ import { ImageEditorModal } from '@inkio/image-editor';
 import '@inkio/editor/style.css';
 import '@inkio/image-editor/style.css';
 
-export function Page() {
+type UploadImage = (file: File) => Promise<string | { src: string }>;
+
+export function Page({ uploadImage }: { uploadImage: UploadImage }) {
   return (
     <Editor
-      onImageUpload={async (file) => URL.createObjectURL(file)}
+      onImageUpload={uploadImage}
       imageBlock={{
         imageEditor: ImageEditorModal,
-        onDelete: (src) => URL.revokeObjectURL(src),
       }}
     />
   );
 }
 ```
 
-`imageEditor`에는 `{ isOpen, imageSrc, onSave, onClose }` 인터페이스를 만족하는 컴포넌트라면
-무엇이든 전달할 수 있으며, `ImageEditorModal`이 기본 구현입니다.
-사용자 정의 이미지 편집기는 `onSave`가 반환한 Promise를 기다리고, 거절되면 창을
-닫지 않아야 합니다.
+영구 저장할 문서는 업로드한 파일의 안정적인 URL을 반환하세요. `blob:` URL은
+현재 페이지의 임시 미리보기용이며 새로고침하거나 문서를 공유하면 사용할 수 없습니다.
+휴대폰에서는 `@inkio/editor`에 `/`를 입력해 이미지 항목을 선택하면 시스템 사진 선택기를
+열 수 있습니다. 드래그에 의존하기 어려운 UI에서는 앱의 파일 입력을 두고
+`editor.commands.uploadImageBlock(files)`에 선택한 `File[]`을 전달할 수도 있습니다.
+이미지를 삽입한 뒤 이미지 블록을 탭하고 편집 버튼을 누르세요.
+
+`imageEditor`에는 `ImageEditorComponentProps`를 받는 커스텀 컴포넌트도 전달할 수
+있습니다. `isOpen`, `imageSrc`, `onSave`, `onClose` 외에 여는 에디터의 `theme`, `locale`,
+그리고 업로드가 구성됐을 때 `onSaveBlob`을 받습니다. Blob 콜백이 있으면 둘 중 하나만
+호출하세요. 선택한 저장 콜백의 Promise가 완료된 후 닫고, 실패하면 편집을 유지하세요.
 
 ### 이미지 파일 정리
 
-`imageBlock.cleanup`으로 정리 시점을 선택합니다. `@inkio/editor`와 `@inkio/simple`에서
-같은 옵션을 사용하며, `ImageBlock.configure(...)`에도 전달할 수 있습니다.
+`imageBlock.cleanup`의 기본값은 `'manual'`입니다. 문서에서 이미지를 삭제하거나 교체해도
+Inkio는 스토리지에 삭제 요청을 보내지 않습니다. 실행 취소·다시 실행, 잘라내기·붙여넣기,
+다른 문서 또는 저장된 버전에서 같은 파일을 참조할 수 있기 때문입니다. 앱의 저장 및
+보존 정책에 따라 서버에서 참조가 없는 파일을 정리하세요.
 
 | 옵션 | 타입 | 기본값 | 동작 |
 |------|------|--------|------|
-| `cleanup` | `'immediate' \| 'manual'` | `'immediate'` | 미사용 파일을 자동 정리할지 앱이 관리할지 선택합니다. |
-| `onDelete` | `(src: string) => void \| Promise<void>` | 없음 | 실제 스토리지에서 URL에 해당하는 파일을 삭제합니다. |
+| `cleanup` | `'immediate' \| 'manual'` | `'manual'` | `'immediate'`는 성공했지만 대상이 사라져 문서에 반영된 적 없는 새 업로드만 정리합니다. |
+| `onDelete` | `(src: string) => void \| Promise<void>` | 없음 | `'immediate'`에서만 해당 업로드의 최종 URL로 호출합니다. |
 
-`immediate`에서는 교체나 삭제 후 현재 문서의 마지막 참조가 사라진 이미지에 대해
-Inkio가 `onDelete`를 호출합니다. 새 이미지 업로드가 실패하면 이전 이미지를 삭제하지
-않습니다. 업로드 중 대상 블록이 삭제되어 결과를 넣지 못한 경우에는 그 업로드 결과를
-정리합니다. 같은 URL을 쓰는 이미지가 현재 문서에 남아 있으면 삭제하지 않습니다.
-
-서버 파일을 삭제하려면 `onDelete`를 연결해야 합니다. 이 콜백을 생략하면 Inkio는
-스토리지에 삭제 요청을 보내지 않습니다. 위 예제는 임시 blob URL을 해제하며, 서버
-스토리지를 쓰는 앱은 자신의 삭제 API를 호출하는 함수로 바꿉니다.
-
-앱이 문서 저장 시점이나 보존 기간에 맞춰 정리하려면 `manual`을 선택하세요.
-이 모드에서는 `onDelete`를 지정해도 Inkio가 자동 호출하지 않습니다.
+업로드마다 새롭고 독점적인 파일 URL을 발급하는 경우에만 `'immediate'`를 사용하세요.
+중복 제거로 기존 URL을 재사용하거나 여러 문서에서 파일을 공유하면 기본값을 유지하세요.
+`onDelete`가 없으면 스토리지에 삭제 요청을 보내지 않습니다. 콜백 실패는 `onError`에
+`{ source: 'imageBlock.cleanup', recoverable: true }`로 전달됩니다.
 
 ```tsx
 <Editor
-  onImageUpload={uploadImage}
+  onImageUpload={uploadNewImage}
   imageBlock={{
     imageEditor: ImageEditorModal,
-    cleanup: 'manual',
+    cleanup: 'immediate',
+    onDelete: discardAbandonedUpload,
   }}
 />
 ```
 
-`uploadImage`는 앱에서 구현한 업로드 함수입니다. `immediate`는 실제 파일을 삭제하므로
-실행 취소가 이전 파일까지 복원해 주지는 않습니다. 다른 문서와 파일을 공유하거나
-문서 저장을 취소할 수 있는 앱에서는 `manual`로 참조와 보존 기간을 관리하세요.
-
-에디터 종료, 읽기 전용 문서 갱신, `setContent`/`clearContent`로 문서 전체를 바꾸는 동작은
-자동 삭제로 취급하지 않습니다. 삭제 콜백이 실패하면 `onError`에
-`{ source: 'imageBlock.cleanup', recoverable: true }`를 전달하며, 성공한 이미지 교체를
-되돌리지는 않습니다.
+`uploadNewImage`와 `discardAbandonedUpload`는 앱에서 구현합니다. 브라우저의 파일 시그니처
+확인은 잘못된 파일을 일찍 거르는 용도이며 서버의 검증을 대신하지 않습니다. 서버에서
+업로드·삭제 권한과 파일 크기 제한을 적용하고 MIME 헤더나 파일명 대신 실제 바이트로
+허용 형식을 판별하세요. 이미지 디코딩 시 픽셀 수와 메모리에 상한을 두고, 필요한 경우
+검증한 이미지를 다시 인코딩한 뒤 서버가 만든 키로 저장하세요. 응답에는 올바른
+`Content-Type`과 `X-Content-Type-Options: nosniff`를 설정하세요.
 
 ### `ImageEditorModal` props
 
@@ -101,31 +108,39 @@ Inkio가 `onDelete`를 호출합니다. 새 이미지 업로드가 실패하면 
 |------|------|------|
 | `isOpen` | `boolean` | 모달 열림 여부 (필수) |
 | `imageSrc` | `string` | 편집할 이미지 소스 (필수) |
-| `onSave` | `(editedImageData: string) => void \| Promise<void>` | 변경한 이미지의 data URL 콜백. 완료 후 닫고, 거절되면 편집 상태를 유지합니다. |
-| `onClose` | `() => void` | 닫기 콜백 (필수) |
-| `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 `.inkio` 루트의 테마를 따름) |
-| `imageQuality` | `number` | 출력 품질 0~1 (기본값: `0.92`) |
+| `onSave` | `(editedImageData: string) => void \| Promise<void>` | 필수 data URL 콜백. 변경이 있고 `onSaveBlob`이 없을 때 호출합니다. 실패하면 편집 상태를 유지합니다 |
+| `onSaveBlob` | `(blob: Blob, preview?: Blob) => void \| Promise<void>` | 지정하면 변경된 이미지의 저장은 `onSave` 대신 이 콜백을 사용합니다 |
+| `savePreview` | `boolean` | Blob 콜백에 같은 형식의 표시용 미리보기도 전달합니다(긴 변 최대 1,200px) |
+| `onClose` | `() => void` | 닫기 콜백 (필수). 저장 성공 또는 변경 없이 저장할 때도 호출됩니다 |
+| `theme` | `'light' \| 'dark'` | 이미지 블록에 연결하면 여는 에디터의 테마를 받습니다. 단독 모달은 명시하지 않으면 문서의 첫 `.inkio`에 붙은 테마 클래스나 `html`/`body`의 다크 클래스를 확인합니다 |
+| `imageQuality` | `number` | 출력 품질 0~1 (기본값: `0.92`). PNG에는 영향이 없습니다 |
 | `imageFormat` | `'png' \| 'jpeg' \| 'webp'` | 출력 형식 (기본값: `'png'`) |
-| `tools` | `ToolType[]` | 노출할 도구 목록 |
-| `locale` | `string \| Partial<ImageEditorLocale>` | 로케일 ID 또는 라벨 오버라이드 |
+| `tools` | `readonly ImageEditorTool[]` | 내장 ID와 커스텀 도구를 표시 순서대로 지정 |
+| `defaultTool` | `string` | 처음 선택할 도구 ID |
+| `toolPlacement` | `ImageEditorToolPlacement` | 데스크톱 `'left'`/`'right'`, 모바일 `'top'`/`'bottom'` |
+| `locale` | `InkioLocaleInput \| Partial<ImageEditorLocale>` | 앱 로케일 입력 또는 라벨 오버라이드 |
 | `messages` | `InkioImageEditorMessageOverrides \| InkioMessageOverrides` | 메시지 오버라이드 |
 | `icons` | `Partial<InkioIconRegistry>` | 아이콘 오버라이드 |
+
+테마가 다른 에디터를 같은 페이지에 두거나 모달을 단독으로 열 때는 `theme`을 명시하세요.
+`body`로 열린 모달에 본문 CSS 변수가 자동으로 전달되지는 않습니다.
+[CSS 변수와 포털](/components#css-변수와-포털)을 참고하세요.
+변경한 뒤 닫으면 폐기 확인이 표시되고, 저장에 실패하면 닫히지 않습니다.
 
 ## 단독 컴포넌트 사용
 
 모달 없이 인라인 편집 화면을 직접 배치하려면 `ImageEditor`를 사용합니다.
 
 ```tsx
-import { ImageEditor } from '@inkio/image-editor';
+import { ImageEditor, type ImageEditorProps } from '@inkio/image-editor';
+import '@inkio/core/minimal.css';
 import '@inkio/image-editor/style.css';
 
-export function StandaloneEditor({ src }: { src: string }) {
+export function StandaloneEditor(props: ImageEditorProps) {
   return (
-    <ImageEditor
-      src={src}
-      onSave={(dataUrl) => console.log('saved', dataUrl)}
-      onCancel={() => console.log('cancelled')}
-    />
+    <div className="inkio light" style={{ height: 'min(70dvh, 640px)' }}>
+      <ImageEditor {...props} />
+    </div>
   );
 }
 ```
@@ -135,32 +150,115 @@ export function StandaloneEditor({ src }: { src: string }) {
 | Prop | 타입 | 설명 |
 |------|------|------|
 | `src` | `string` | 편집할 이미지 소스 (필수) |
-| `onSave` | `(dataUrl: string) => void \| Promise<void>` | 저장 콜백. 완료를 기다리며, 거절되면 편집 상태를 유지합니다. |
+| `onSave` | `(dataUrl: string) => void \| Promise<void>` | 필수 data URL 콜백. `onSaveBlob`을 지정하면 대신 그 콜백을 사용합니다. 저장 콜백의 완료를 기다리며, 거절되면 편집 상태를 유지합니다 |
+| `onSaveBlob` | `(blob: Blob, preview?: Blob) => void \| Promise<void>` | 지정 시 `onSave` 대신 호출. 첫 인자는 원래 출력 크기와 형식의 파일입니다. |
+| `savePreview` | `boolean` | `onSaveBlob`의 두 번째 인자로 최대 1,200px(긴 변)의 표시용 이미지도 전달합니다. 다운로드·업로드에는 첫 번째 인자를 사용하세요. |
 | `onCancel` | `() => void` | 취소 콜백 (필수) |
 | `outputFormat` | `'png' \| 'jpeg' \| 'webp'` | 출력 형식 (기본값: `'png'`) |
-| `outputQuality` | `number` | 출력 품질 0~1 |
-| `tools` | `ToolType[]` | 노출할 도구 목록 |
-| `defaultTool` | `ToolType` | 초기 선택 도구 |
+| `outputQuality` | `number` | 출력 품질 0~1 (기본값: `0.92`). PNG에는 영향이 없습니다 |
+| `tools` | `readonly ImageEditorTool[]` | 내장 도구 ID와 커스텀 도구를 표시 순서대로 지정 |
+| `defaultTool` | `string` | 처음 선택할 도구 또는 활성 도구가 목록에서 제거됐을 때 우선 선택할 도구 |
+| `toolPlacement` | `ImageEditorToolPlacement` | 데스크톱 `'left'`/`'right'`, 모바일 `'top'`/`'bottom'` |
 | `locale` | `Partial<ImageEditorLocale>` | 라벨 오버라이드 |
 | `className` | `string` | 루트 엘리먼트 클래스 |
 | `maxUndoSteps` | `number` | 실행 취소 기록 한도 (기본값: `30`) |
 | `onDirtyChange` | `(dirty: boolean) => void` | 미저장 변경 발생/해소 콜백 |
 
+출력은 브라우저에서 PNG·JPEG·WebP로 비동기 인코딩합니다. 파일 업로드나
+다운로드에는 `onSaveBlob`을 사용하면 Base64 문자열 변환이 필요 없습니다.
+기존 `onSave`만 지정하면 이전과 같이 data URL을 받습니다.
+미리보기를 즉시 표시하는 앱이라면 `savePreview`를 켜고 두 번째 Blob만 화면에
+띄우세요. `URL.createObjectURL`로 만든 주소는 더 이상 쓰지 않을 때 해제합니다.
+
+### 큰 이미지 저장
+
+큰 이미지는 지원되는 환경에서 워커로 렌더링하고 인코딩합니다. 워커·캔버스 기능이 제한되거나
+문서의 글꼴과 글 방향이 출력에 필요한 경우에는 메인 스레드 캔버스에서 저장합니다.
+워커를 쓰지 못해도 큰 이미지의 색 필터는 작은 픽셀 구간으로 나눠 적용합니다. 구간 사이에
+입력과 화면 갱신을 처리하며, 최종 파일의 해상도나 투명도를 줄이지 않습니다.
+브라우저가 지정한 형식을 지원하지 않거나 인코딩에 실패하면 저장 콜백을 호출하지 않습니다.
+다른 출처의 이미지는 미리보기가 되더라도 이미지 호스트가 앱에 CORS를 허용하지 않으면
+캔버스에서 내보낼 수 없습니다. 같은 출처의 이미지를 쓰거나 이미지 호스트의 CORS를 설정하세요.
+
+원본은 한 변 8,192px, 총 3,200만 픽셀까지 열 수 있습니다. 저장 한도는 한 변 4,096px,
+총 1,600만 픽셀입니다. 열 수 있는 이미지라도 저장 한도를 넘으면 **자르기** 또는 **크기 조절**로
+줄여야 저장할 수 있습니다. 화면 확대는 미리보기만 바꾸므로 출력 크기에는 영향이 없습니다.
+
+## 커스텀 도구
+
+인라인 에디터와 모달 모두 `tools`, `defaultTool`, `toolPlacement`를 받습니다.
+커스텀 도구의 `renderControls`에는 뷰포트, 읽기 전용 편집 값, 명령이 전달됩니다.
+명령으로 바꾼 값은 내장 도구와 같은 미리보기·실행 취소·내보내기 경로를 사용합니다.
+
+```tsx
+import { ImageEditorModal, type ImageEditorCustomTool } from '@inkio/image-editor';
+
+const contrastTool: ImageEditorCustomTool = {
+  id: 'brand-contrast',
+  label: 'Brand contrast',
+  renderControls: ({ disabled, actions }) => (
+    <button type="button" disabled={disabled} onClick={() => actions.setAdjustments({ contrast: 15 })}>
+      Apply contrast
+    </button>
+  ),
+};
+
+export function BrandedImageEditor(props: React.ComponentProps<typeof ImageEditorModal>) {
+  return (
+    <ImageEditorModal
+      {...props}
+      tools={['resize', contrastTool, 'rotate']}
+      defaultTool="brand-contrast"
+      toolPlacement={{ desktop: 'right', mobile: 'top' }}
+    />
+  );
+}
+```
+
+도구는 `tools`에 넣은 순서대로 표시합니다. 중복 ID는 첫 항목만 남고, `crop`은
+`resize`와 같은 도구를 가리킵니다. 커스텀 도구에는 비어 있지 않은 고유 ID를 쓰세요.
+내장 ID(`crop` 포함)는 예약되어 있습니다. `defaultTool`을 사용할 수 없으면 `resize`,
+그것도 없으면 목록의 첫 항목을 선택합니다. 빈 배열은 도구 모음을 숨깁니다.
+커스텀 도구는 필터, 보정, 회전·반전, 자르기, 출력 크기를 조작할 수 있습니다.
+픽셀 렌더러 자체를 교체하는 플러그인 API는 아닙니다.
+본문과 맞는 팔레트는 [공유 스타일 토큰](/components#css-변수와-포털)을 사용하세요.
+
 ## 레이아웃
 
-데스크톱 UI는 세 부분으로 구성됩니다.
+상단에는 닫기·실행 취소·다시 실행·저장만 둡니다. 선택한 도구의 옵션은 캔버스
+위에, 배율과 출력 치수는 아래에 표시합니다. 캔버스 위에서 마우스 휠로 확대·축소하거나
+아래 눈금을 직접 움직일 수 있습니다. 배율 숫자를 누르면 맞춤 크기로 돌아갑니다.
+사진 전체가 보일 때는 바깥에 테마 배경만 보입니다. 자르기 프레임을 벗어난 실제
+사진 픽셀은 어둡게 이어서 표시하며, 같은 사진을 배경에 복제하지 않습니다.
+사진과 프레임은 원본 비율을 유지하면서 사용 가능한 공간에 맞춥니다. 모바일에서는
+크기 조절 도구의 출력 치수를 배율 옆에서 눌러 편집할 수 있습니다.
+라이트·다크 모두 이미지의 투명 영역에는 같은 회색 체크 배경을 사용합니다.
+이 배경은 미리보기에서만 보이고 저장 파일의 투명도는 그대로 유지됩니다.
+자르기에서 이미지 바깥까지 끌면 손을 뗄 때 경계로 되돌아옵니다. 프레임을 이미
+가득 채운 방향으로 끌어도 자르기 값이 바뀌지 않습니다. 모션 줄이기 설정에서는
+되돌아가는 애니메이션 없이 경계에서 바로 멈춥니다.
 
-- **상단바** — 닫기, 실행 취소/다시 실행, 저장
-- **하단 도구 레일** — 활성화된 도구 한 줄 표시
-- **Util 패널** — 활성 도구의 옵션 인스펙터 (도구당 1개)
+| 작업 공간 너비 | 배치 |
+|---------------|------|
+| 900px 초과 | 세로 도구 모음. 기본 왼쪽, `toolPlacement.desktop`으로 오른쪽 지정 가능 |
+| 900px 이하 | 한 줄 도구 모음. 기본 하단, `toolPlacement.mobile`로 상단 지정 가능. 옆으로 밀거나 Tab으로 나머지 도구에 접근 |
 
-화면 너비에 따라 Util 패널 위치가 바뀝니다.
+## 키보드 사용
 
-| 너비 | 배치 |
-|------|------|
-| 1200px 이상 | 우측 인스펙터 (이미지 영역을 가리지 않음) |
-| 901–1199px | 하단 패널 (캔버스가 패널 위로 밀림) |
-| 900px 이하 | 모바일 하단 스트립 + 도구 트레이 |
+- Tab으로 도구를 선택한 뒤 **이미지 캔버스**로 이동하세요. Enter로 도형, 텍스트,
+  스티커 등을 배치합니다. 자유 그리기는 포인터를 사용하고, 키보드로는 그리기
+  도구에서 Enter를 눌러 직선 획을 추가할 수 있습니다.
+- Space / Shift+Space로 주석 사이를 이동하고, 방향키로 선택한 주석을 움직이며,
+  Delete 또는 Backspace로 삭제합니다. 선택한 텍스트는 Enter로 다시 편집하고,
+  Shift+Enter로 새 주석을 추가합니다. 선택한 주석의 서식은 이미지 위 옵션에서 바꿉니다.
+- 텍스트는 바깥을 클릭하거나 Esc 또는 Ctrl/Cmd+Enter를 눌러 편집을 마칩니다.
+  텍스트 입력 중 Enter는 줄을 바꿉니다.
+- 자르기 중 방향키로 영역을 이동하고 Shift+위/아래 방향키로 영역을 줄이거나
+  넓힙니다. 적용을 눌러 완료하세요. 영역을 바꾸지 않으면 적용해도 새 편집으로
+  기록하지 않습니다.
+- 팝오버 안에서 Tab을 사용해 옵션을 순서대로 이동합니다. Esc를 누르면 닫히고
+  팝오버를 연 버튼에 포커스가 돌아옵니다. 실행 취소 및 다시 실행 단축키는
+  포커스가 있는 이미지 편집기에서만 동작합니다.
 
 ## 도구와 주석
 
@@ -197,7 +295,7 @@ type ToolType = 'crop' | 'rotate' | 'resize' | 'draw' | 'shape' | 'text' | 'filt
 | `LineAnnotation` | 직선 |
 | `TextAnnotationData` | 텍스트 주석 |
 | `FreeDrawAnnotation` | 자유 그리기 선 |
-| `RedactAnnotation` | 모자이크/블러 영역 (`mode: 'pixelate' \| 'blur'`) |
+| `Extract<Annotation, { type: 'redact' }>` | 모자이크/블러 영역 (`mode: 'pixelate' \| 'blur'`) |
 | `StickerAnnotation` | 이모지 스티커 |
 
 이 외에 `CropRect`, `Transform`, `DrawOptions`, `ShapeOptions`, `TextOptions`,

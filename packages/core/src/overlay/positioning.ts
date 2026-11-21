@@ -22,6 +22,14 @@ export interface OverlayPositionOptions {
   boundaryRect?: RectLike;
 }
 
+/** Position overrides for an Inkio menu without changing its built-in anchor. */
+export type InkioMenuPosition = Pick<
+  OverlayPositionOptions,
+  'placement' | 'align' | 'offset' | 'padding' | 'flip' | 'shift'
+> & {
+  boundary?: 'editor' | 'viewport';
+};
+
 export interface OverlayPositionResult {
   top: number;
   left: number;

@@ -144,6 +144,46 @@ describe('useInkioCollaborativeEditor', () => {
     await waitFor(() => expect(hook.result.current.readOnly).toBe(true));
     await waitFor(() => expect(hook.result.current.editor?.isEditable).toBe(false));
   });
+
+  it('does not expose an editor when denied and recovers on a rotated token', async () => {
+    const { url } = await startServer({
+      async onAuthenticate({ token }) {
+        if (token !== 'updated') throw { reason: 'inkio:access-denied' };
+      },
+    });
+    const options = { docId: 'auth-restore', url, extensions: BASE, token: 'previous' };
+    const hook = mountEditor(options);
+    expect(hook.result.current.editor?.isEditable).not.toBe(true);
+    await waitFor(() => expect(hook.result.current.status).toBe('unauthorized'));
+    expect(hook.result.current.editor).toBeNull();
+    hook.rerender({ ...options, token: 'updated' });
+    await waitFor(() => expect(hook.result.current.status).toBe('synced'));
+    await waitFor(() => expect(hook.result.current.editor?.isEditable).toBe(true));
+    expect(hook.result.current.editor?.view.dom.getAttribute('aria-multiline')).toBe('true');
+    expect(hook.result.current.editor?.view.dom.getAttribute('aria-label')).toBe('Rich text editor');
+  });
+
+  it('creates a fresh document when the offline account changes', async () => {
+    const { url } = await startServer({
+      async onAuthenticate({ token }) {
+        if (token !== 'first') throw { reason: 'inkio:access-denied' };
+      },
+    });
+    const options = {
+      docId: 'account-switch',
+      url,
+      extensions: BASE,
+      token: 'first',
+      offline: { accountId: 'ada', deploymentId: 'local' },
+    };
+    const hook = mountEditor(options);
+    await waitFor(() => expect(hook.result.current.status).toBe('synced'));
+    const first = hook.result.current.provider?.document;
+    hook.rerender({ ...options, token: 'second', offline: { accountId: 'grace', deploymentId: 'local' } });
+    await waitFor(() => expect(hook.result.current.status).toBe('unauthorized'));
+    expect(hook.result.current.provider?.document).not.toBe(first);
+    expect(hook.result.current.editor).toBeNull();
+  });
 });
 
 describe('useCollabProvider', () => {

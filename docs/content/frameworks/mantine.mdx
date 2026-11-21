@@ -14,13 +14,15 @@ pnpm add @mantine/core @inkio/editor react react-dom
 
 ```tsx
 import '@mantine/core/styles.css';
-import '@inkio/editor/minimal.css';
+import '@inkio/editor/style.css';
 import './inkio-mantine.css';
 ```
 
 ## 디자인 토큰 연결
 
-Inkio의 UI는 모두 `--inkio-*` CSS 변수로 그려집니다. 아래 파일을 Inkio CSS **다음에** 불러오면 폰트, primary 색, radius, 그림자, 배경·글자·테두리 색이 Mantine 테마(`createTheme`)를 그대로 따릅니다. Mantine 변수는 색 스킴에 따라 값이 바뀌므로 라이트와 다크(`--inkio-dark-*`) 토큰을 같은 변수에 연결합니다.
+아래 파일을 Inkio CSS **다음에** 불러오면 폰트, primary 색, radius, 그림자,
+배경·글자·테두리 색을 Mantine 테마(`createTheme`)에 연결할 수 있습니다.
+Mantine 변수는 색 스킴을 따르므로 라이트와 다크(`--inkio-dark-*`) 토큰을 같은 변수에 연결합니다.
 
 `inkio-mantine.css`:
 
@@ -76,7 +78,9 @@ Inkio의 UI는 모두 `--inkio-*` CSS 변수로 그려집니다. 아래 파일�
 }
 ```
 
-Inkio의 메뉴·팝오버는 `.inkio` 클래스를 단 포털로 열리므로 이 연결이 팝업에도 그대로 적용됩니다.
+위 `.inkio` 선택자는 에디터와 `body` 아래 `.inkio` 포털에 각각 적용됩니다.
+Mantine 토큰을 `cssVariablesSelector`로 특정 래퍼에만 정의했다면, 그 아래에 없는
+Inkio 포털에서도 토큰을 읽을 수 있게 전역 범위에 정의하거나 별도의 포털 규칙을 두세요.
 
 ## 다크 모드 동기화
 
@@ -96,7 +100,10 @@ export function MyEditor() {
 
 ## Modal·Drawer 안에서 쓰기
 
-Mantine `Modal`은 z-index 200 위에 그려지고, Inkio 메뉴의 기본 레이어는 150입니다. 위 파일의 `--inkio-layer-*` 연결이 Inkio 팝업을 Mantine popover 레벨(300)로 올리므로 모달 안에서도 슬래시 메뉴, 버블 메뉴, 테이블 메뉴가 모달 위에 열립니다. 이미지 에디터 모달은 Mantine overlay 레벨(400) 위로 올라갑니다.
+Mantine 기본값에서는 `--inkio-layer-*` 연결이 메뉴를 popover 레벨(300)로, 이미지
+모달을 overlay 레벨(400) 위로 올립니다. Mantine `Modal`·`Drawer`의 `zIndex`를
+오버라이드했다면 Inkio 레이어도 맞춰 주세요. 에디터 조상에 대한 잘림이나 스태킹
+컨텍스트는 z-index만으로 해결되지 않습니다.
 
 ## 연결하지 않는 토큰
 

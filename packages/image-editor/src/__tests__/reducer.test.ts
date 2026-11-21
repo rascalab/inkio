@@ -199,6 +199,25 @@ describe('imageEditorReducer', () => {
       expect(next.resizeOptions.height).toBe(360);
     });
 
+    it('closes an unchanged rotated draft without adding an undo step', () => {
+      const initial = makeInitialUndoableState();
+      const state = {
+        ...initial,
+        present: {
+          ...initial.present,
+          originalWidth: 560,
+          originalHeight: 360,
+          transform: { ...initial.present.transform, rotation: 90 },
+        },
+      };
+      const started = undoableReducer(state, { type: 'START_RESIZE_SESSION' }, 30);
+      const committed = undoableReducer(started, { type: 'COMMIT_RESIZE_SESSION' }, 30);
+      expect(committed.present.pendingCrop).toBeNull();
+      expect(committed.present.transform).toBe(state.present.transform);
+      expect(committed.present.outputSize).toBeNull();
+      expect(committed.past).toHaveLength(0);
+    });
+
     it('COMMIT_RESIZE_SESSION applies crop and resize in one step', () => {
       const state = {
         ...initialState,

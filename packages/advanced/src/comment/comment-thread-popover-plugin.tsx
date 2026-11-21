@@ -4,9 +4,13 @@ import { Plugin } from '@tiptap/pm/state';
 import {
   commentThreadPopoverPluginKey,
   COMMENT_THREADS_CHANGED_EVENT,
+  normalizeCommentId,
+  readCommentThread,
+  type CommentThreadData,
   type CommentOptions,
 } from './comment-shared';
 import { CommentThreadPopover } from './components/CommentThreadPopover';
+import { findCommentRanges, type CommentRange } from './utils';
 import {
   autoUpdateOverlayPosition,
   computeOverlayPosition,
@@ -21,27 +25,6 @@ interface ThreadPopoverPluginState {
 }
 
 type MarkRange = { from: number; to: number };
-
-/** Find all ranges in the document that carry a specific comment mark. */
-function findMarkRanges(editor: Editor, threadId: string): MarkRange[] {
-  const ranges: MarkRange[] = [];
-  const markType = editor.state.schema.marks.comment;
-  if (!markType) return ranges;
-
-  editor.state.doc.descendants((node, pos) => {
-    if (!node.isText) return;
-
-    const mark = node.marks.find(
-      (m) => m.type === markType && m.attrs.commentId === threadId,
-    );
-
-    if (mark) {
-      ranges.push({ from: pos, to: pos + node.nodeSize });
-    }
-  });
-
-  return ranges;
-}
 
 /** Collect the text content for all spans of the given mark ranges. */
 function collectRangesText(doc: ProseMirrorNode, ranges: MarkRange[]): string {
@@ -110,16 +93,12 @@ export function createCommentThreadPopoverPlugin(
   let host: OverlayHost | null = null;
   let cleanupAutoUpdate: (() => void) | null = null;
   let currentThreadId = '';
-  let cachedRanges: MarkRange[] = [];
+  let cachedRanges: CommentRange[] = [];
   let cachedQuotedText = '';
   // Content snapshot of the rendered thread: compared instead of identity so
   // both fresh objects per call and in-place mutation are handled.
   let renderedSnapshot = '';
-  const threadChanged = (): boolean => {
-    const thread = options.getThread?.(currentThreadId) ?? null;
-    // Content, not identity: getThread may build a fresh object per call.
-    return snapshotThread(thread) !== renderedSnapshot;
-  };
+  const getThread = () => cachedRanges.length ? readCommentThread(options.getThread, currentThreadId) : null;
   let positionRaf = 0;
 
   function deactivate() {
@@ -131,7 +110,7 @@ export function createCommentThreadPopoverPlugin(
   }
 
   function refreshQuotedText() {
-    cachedRanges = findMarkRanges(editor, currentThreadId);
+    cachedRanges = findCommentRanges(editor.state.doc, currentThreadId);
     cachedQuotedText = collectRangesText(editor.state.doc, cachedRanges);
   }
 
@@ -178,38 +157,25 @@ export function createCommentThreadPopoverPlugin(
     });
   }
 
-  // Stable callbacks: re-renders don't hand React fresh closures each time.
-  // canMutate is captured at render time: each action re-checks at action
-  // time in case the editor flipped read-only while open.
+  // Recheck even when the currently rendered controls are stale.
+  const canChangeThread = (id: string) =>
+    editor.isEditable && id === currentThreadId && cachedRanges.length > 0;
   const handleReply = (id: string, text: string) => {
-    if (!editor.isEditable) return;
-    options.onCommentReply?.(id, text);
+    if (canChangeThread(id) && getThread()?.resolved === false) options.onCommentReply?.(id, text);
   };
   const handleResolve = (id: string) => {
-    if (!editor.isEditable) return;
-    // resolveComment() already invokes onCommentResolve internally.
-    (
-      editor.commands as unknown as {
-        resolveComment?: (commentId: string) => boolean;
-      }
-    ).resolveComment?.(id);
+    if (!canChangeThread(id) || getThread()?.resolved !== false) return;
+    editor.commands.resolveComment(id);
     deactivate();
   };
   const handleDelete = (id: string) => {
-    if (!editor.isEditable) return;
-    // Remove comment marks from the document
-    const markType = editor.state.schema.marks.comment;
-    if (markType) {
-      const ranges = findMarkRanges(editor, id);
-      if (ranges.length > 0) {
-        const tr = editor.view.state.tr;
-        ranges.forEach(({ from, to }) => tr.removeMark(from, to, markType));
-        editor.view.dispatch(tr);
-      }
-    }
-
-    options.onCommentDelete?.(id);
-    deactivate();
+    if (!canChangeThread(id) || !options.onCommentDelete || !getThread()) return;
+    const tr = editor.view.state.tr;
+    for (const { from, to, mark } of cachedRanges) tr.removeMark(from, to, mark);
+    tr.setMeta(commentThreadPopoverPluginKey, { active: false, threadId: '' });
+    const before = tr.before;
+    editor.view.dispatch(tr);
+    if (editor.state.doc !== before) options.onCommentDelete(id);
   };
   const handleClose = () => {
     deactivate();
@@ -236,16 +202,14 @@ export function createCommentThreadPopoverPlugin(
     renderPopover();
   }
 
-  function renderPopover() {
+  function renderPopover(thread: CommentThreadData | null = getThread()) {
     if (!host || !currentThreadId) return;
-
-    const thread = options.getThread?.(currentThreadId) ?? null;
     renderedSnapshot = snapshotThread(thread);
-    const currentUser = options.currentUser ?? 'User';
+    const currentUser = typeof options.currentUser === 'string' ? options.currentUser : 'User';
 
     // Read-only surfaces render threads but offer no actions: omitting a
     // callback hides its UI, so frozen discussion views fall out naturally.
-    const canMutate = editor.isEditable;
+    const canMutate = editor.isEditable && thread !== null && cachedRanges.length > 0;
     host.render(
       <CommentThreadPopover
         threadId={currentThreadId}
@@ -254,8 +218,8 @@ export function createCommentThreadPopoverPlugin(
         currentUser={currentUser}
         {...editorUi(editor, options)}
         onReply={canMutate && options.onCommentReply ? handleReply : undefined}
-        onResolve={canMutate ? handleResolve : undefined}
-        onDelete={canMutate ? handleDelete : undefined}
+        onResolve={canMutate && options.onCommentResolve ? handleResolve : undefined}
+        onDelete={canMutate && options.onCommentDelete ? handleDelete : undefined}
         onClose={handleClose}
       />,
     );
@@ -291,14 +255,14 @@ export function createCommentThreadPopoverPlugin(
     },
 
     props: {
-      handleClick: (_view, _pos, event) => {
+      handleClick: (view, _pos, event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return false;
 
         const commentEl = target.closest('span[data-comment-id]');
-        if (!commentEl) return false;
+        if (!commentEl || !view.dom.contains(commentEl)) return false;
 
-        const threadId = commentEl.getAttribute('data-comment-id');
+        const threadId = normalizeCommentId(commentEl.getAttribute('data-comment-id'));
         if (!threadId) return false;
 
         // Toggle: clicking the same thread again closes the popover
@@ -332,9 +296,9 @@ export function createCommentThreadPopoverPlugin(
       // popover is open. Re-read getThread on notification so the popover
       // never shows stale messages.
       const handleThreadsChanged = () => {
-        if (wasActive && host && currentThreadId && threadChanged()) {
-          renderPopover();
-        }
+        if (!wasActive || !host || !currentThreadId) return;
+        const thread = getThread();
+        if (snapshotThread(thread) !== renderedSnapshot) renderPopover(thread);
       };
       if (typeof window !== 'undefined') {
         window.addEventListener(COMMENT_THREADS_CHANGED_EVENT, handleThreadsChanged);
@@ -358,25 +322,26 @@ export function createCommentThreadPopoverPlugin(
             wasActive = false;
             lastThreadId = '';
           } else if (state.active && host) {
-            // Avoid per-transaction work while open: only a doc change that
-            // touches this thread's marks re-collects the quote, and only
-            // quote/thread/editability changes re-render. Thread data changes
-            // also arrive through COMMENT_THREADS_CHANGED_EVENT.
-            let needsRender = threadChanged();
+            // Also pick up host stores that mutate thread objects in place without
+            // emitting a notification, including selection-only transactions.
+            let needsRender = false;
             if (view.state.doc !== prevState.doc) {
               if (diffTouchesRanges(prevState.doc, view.state.doc, cachedRanges)) {
                 const previousText = cachedQuotedText;
+                const hadRanges = cachedRanges.length > 0;
                 refreshQuotedText();
-                needsRender = cachedQuotedText !== previousText;
+                needsRender = cachedQuotedText !== previousText || hadRanges !== (cachedRanges.length > 0);
               }
               // The mark may have moved on screen even when untouched.
               schedulePosition();
             }
+            const thread = getThread();
+            needsRender ||= snapshotThread(thread) !== renderedSnapshot;
             if (editor.isEditable !== lastEditable) {
               lastEditable = editor.isEditable;
               needsRender = true;
             }
-            if (needsRender) renderPopover();
+            if (needsRender) renderPopover(thread);
           }
         },
         destroy: () => {

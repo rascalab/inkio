@@ -64,6 +64,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Audit locked dependencies
+        run: pnpm security:audit
+
       - name: Build packages
         run: pnpm build:packages
 

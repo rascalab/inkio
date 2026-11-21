@@ -22,8 +22,8 @@ describe('layered package dependency contract', () => {
 
     expect(imageEditorPackage.peerDependencies).toEqual({
       '@inkio/core': 'workspace:^',
-      react: '^18.0.0 || ^19.0.0',
-      'react-dom': '^18.0.0 || ^19.0.0',
+      react: '^19.3.0',
+      'react-dom': '^19.3.0',
     });
 
     expect(corePackage.dependencies).toMatchObject({

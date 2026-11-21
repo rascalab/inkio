@@ -4,13 +4,16 @@ import type { NodeViewProps } from '@tiptap/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ImageBlockView } from '../ImageBlockView';
 import type { ImageBlockOptions, ImageEditorComponentProps } from '../ImageBlock';
+import { pngBase64 } from './image-fixtures';
 
 let capturedSave: ImageEditorComponentProps['onSave'] | null = null;
+let capturedBlobSave: ImageEditorComponentProps['onSaveBlob'];
 let capturedTheme: ImageEditorComponentProps['theme'];
 let capturedLocale: ImageEditorComponentProps['locale'];
 
 function StubImageEditor(props: ImageEditorComponentProps) {
   capturedSave = props.onSave;
+  capturedBlobSave = props.onSaveBlob;
   capturedTheme = props.theme;
   capturedLocale = props.locale;
   return <div data-testid="image-editor-stub" />;
@@ -20,14 +23,16 @@ type ViewProps = NodeViewProps & { updateAttributes: ReturnType<typeof vi.fn> };
 
 function createProps(src: string, options: Partial<ImageBlockOptions> = {}): ViewProps {
   capturedSave = null;
+  capturedBlobSave = undefined;
+  const node = { type: { name: 'imageBlock' }, attrs: { caption: '', width: '100%', src, alt: 'a', align: 'center' } };
   return {
-    node: {
-      attrs: { caption: '', width: '100%', src, alt: 'a', align: 'center' },
-    },
+    node,
+    getPos: () => 0,
     updateAttributes: vi.fn(),
     selected: false,
     editor: {
       isEditable: true,
+      state: { doc: { nodeAt: () => node, descendants: vi.fn() } },
       on: vi.fn(),
       off: vi.fn(),
     },
@@ -110,25 +115,57 @@ describe('ImageBlockView src safety', () => {
 });
 
 describe('ImageBlockView edited image upload', () => {
-  const editedImage = 'data:image/png;base64,iVBORw0KGgo=';
+  const editedImage = `data:image/png;base64,${pngBase64}`;
 
-  it('uploads the edited bytes and persists the resolved URL without changing the image metadata', async () => {
+  it.each(['data URL', 'Blob'])('uploads edited bytes from a %s and persists the resolved URL', async (representation) => {
     const onUpload = vi.fn(async (_file: File) => ({ src: '/files/edited.png', title: 'Edited' }));
     const resolveFileUrl = vi.fn(async () => 'https://example.com/edited.png');
     const props = createProps('https://example.com/a.png', { onUpload, resolveFileUrl });
     render(<ImageBlockView {...props} />);
     fireEvent.click(screen.getByTestId('inkio-image-block-edit'));
 
-    await act(async () => { await capturedSave?.(editedImage); });
+    await act(async () => {
+      if (representation === 'Blob') {
+        const bytes = Uint8Array.from(atob(pngBase64), (char) => char.charCodeAt(0));
+        expect(capturedBlobSave).toBeDefined();
+        await capturedBlobSave!(new Blob([bytes], { type: 'image/png' }));
+      } else {
+        await capturedSave?.(editedImage);
+      }
+    });
 
     const file = onUpload.mock.calls[0]?.[0];
     expect(file).toBeInstanceOf(File);
-    expect(file).toMatchObject({ type: 'image/png', size: 8 });
+    expect(file).toMatchObject({ type: 'image/png', size: atob(pngBase64).length });
+    const uploaded = await new Promise<ArrayBuffer>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsArrayBuffer(file!);
+    });
+    expect(Array.from(new Uint8Array(uploaded))).toEqual(
+      Array.from(atob(pngBase64), (char) => char.charCodeAt(0)),
+    );
     expect(resolveFileUrl).toHaveBeenCalledWith('/files/edited.png');
     expect(props.updateAttributes).toHaveBeenCalledWith({
       src: 'https://example.com/edited.png',
       title: 'Edited',
     });
+  });
+
+  it('rejects a Blob with an invalid image signature before uploading', async () => {
+    const onUpload = vi.fn(async (_file: File) => '/edited.png');
+    const props = createProps('/original.png', { onUpload });
+    render(<ImageBlockView {...props} />);
+    fireEvent.click(screen.getByTestId('inkio-image-block-edit'));
+
+    await act(async () => {
+      await expect(capturedBlobSave?.(new Blob(['not a PNG'], { type: 'image/png' })))
+        .rejects.toThrow('File content is not a supported image.');
+    });
+    expect(onUpload).not.toHaveBeenCalled();
+    expect(props.updateAttributes).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('image-editor-stub')).not.toBeNull();
   });
 
   it('uses a different file name for edits of different image blocks', async () => {
@@ -163,6 +200,7 @@ describe('ImageBlockView edited image upload', () => {
     await act(async () => { saving = capturedSave?.(editedImage); await uploadStarted; });
 
     expect(screen.queryByTestId('image-editor-stub')).not.toBeNull();
+    expect(screen.getByRole('img', { name: 'a' }).getAttribute('src')).toBe('https://example.com/a.png');
     expect(props.updateAttributes).not.toHaveBeenCalled();
     await act(async () => { finishUpload('https://example.com/edited.png'); await saving; });
     expect(screen.queryByTestId('image-editor-stub')).toBeNull();
@@ -188,11 +226,14 @@ describe('ImageBlockView edited image upload', () => {
     expect(props.updateAttributes).toHaveBeenCalledWith({ src: 'https://example.com/edited.png' });
   });
 
-  it('keeps the original image and reports an upload failure', async () => {
+  it('keeps the original image on error and retries the same edited file', async () => {
     const error = new Error('Upload failed');
     const onUploadError = vi.fn();
+    const onUpload = vi.fn<(file: File) => Promise<string>>()
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce('https://example.com/edited.png');
     const props = createProps('https://example.com/a.png', {
-      onUpload: async () => { throw error; },
+      onUpload,
       onUploadError,
     });
     render(<ImageBlockView {...props} />);
@@ -203,6 +244,11 @@ describe('ImageBlockView edited image upload', () => {
     expect(props.updateAttributes).not.toHaveBeenCalled();
     expect(onUploadError).toHaveBeenCalledWith(error);
     expect(screen.queryByTestId('image-editor-stub')).not.toBeNull();
+
+    await act(async () => { await capturedSave?.(editedImage); });
+    expect(onUpload.mock.calls[0][0].name).toBe(onUpload.mock.calls[1][0].name);
+    expect(props.updateAttributes).toHaveBeenCalledExactlyOnceWith({ src: 'https://example.com/edited.png' });
+    expect(screen.queryByTestId('image-editor-stub')).toBeNull();
   });
 
   it('rejects an unsafe resolved upload URL through the generic error callback', async () => {
@@ -240,25 +286,35 @@ describe('ImageBlockView edited image upload', () => {
 
   it('does not update a deleted image when its upload completes', async () => {
     let finishUpload: (url: string) => void = () => { throw new Error('Upload has not started'); };
+    let startUpload: () => void = () => { throw new Error('Upload signal is missing'); };
+    const started = new Promise<void>((resolve) => { startUpload = resolve; });
     const upload = new Promise<string>((resolve) => { finishUpload = resolve; });
-    const props = createProps('https://example.com/a.png', { onUpload: () => upload });
+    const onDelete = vi.fn();
+    const props = createProps('https://example.com/a.png', {
+      onUpload: () => { startUpload(); return upload; },
+      cleanup: 'immediate',
+      onDelete,
+    });
     const { unmount } = render(<ImageBlockView {...props} />);
     fireEvent.click(screen.getByTestId('inkio-image-block-edit'));
 
     await act(async () => {
       const saving = capturedSave?.(editedImage);
+      await started;
       unmount();
       finishUpload('https://example.com/edited.png');
       await saving;
     });
 
     expect(props.updateAttributes).not.toHaveBeenCalled();
+    expect(onDelete).toHaveBeenCalledExactlyOnceWith('https://example.com/edited.png');
   });
 
   it('keeps data URL storage when no upload callback is configured', async () => {
     const props = createProps('https://example.com/a.png');
     render(<ImageBlockView {...props} />);
     fireEvent.click(screen.getByTestId('inkio-image-block-edit'));
+    expect(capturedBlobSave).toBeUndefined();
 
     await act(async () => { await capturedSave?.(editedImage); });
 

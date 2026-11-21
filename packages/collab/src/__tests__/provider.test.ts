@@ -9,9 +9,11 @@ import {
   HocuspocusProviderWebsocket,
   createCollabProvider,
   createSeedUpdate,
+  getCollabCacheKey,
   getCollabStatus,
   isReadOnly,
   onCollabStatus,
+  retryCollabAuthentication,
   seedYDoc,
   type CollabProvider,
 } from '../index';
@@ -87,16 +89,47 @@ describe('createCollabProvider', () => {
     await synced(good);
   });
 
-  it('stops reconnecting after the server rejects the token', async () => {
+  it('recovers from a temporary verifier outage on only the affected shared room', async () => {
+    let attempts = 0;
     const { url } = await startServer({
-      async onAuthenticate({ token }) {
-        if (token !== 'good') throw new Error('nope');
+      async onAuthenticate({ documentName }) {
+        if (documentName === 'recovering' && ++attempts === 1) {
+          throw { reason: 'inkio:temporarily-unavailable' };
+        }
       },
     });
-    const bad = connect(url, 'auth-stop', { token: 'bad' });
-    const disconnectSpy = vi.spyOn(bad, 'disconnect');
-    await until(() => getCollabStatus(bad) === 'unauthorized');
-    expect(disconnectSpy).toHaveBeenCalled();
+    const socket = new HocuspocusProviderWebsocket({ url });
+    onCleanup(() => socket.destroy());
+    const healthy = connect(url, 'healthy', { websocketProvider: socket });
+    const recovering = connect(url, 'recovering', { websocketProvider: socket });
+    const healthyStatuses: string[] = [];
+    onCleanup(onCollabStatus(healthy, (status) => healthyStatuses.push(status)));
+    await until(() => getCollabStatus(recovering) === 'unauthorized');
+    await synced(healthy);
+    expect(attempts).toBe(1);
+    await synced(recovering);
+    expect(attempts).toBe(2);
+    expect(healthyStatuses).not.toContain('disconnected');
+    expect(getCollabStatus(healthy)).toBe('synced');
+  });
+
+  it('recovers after the token supplier becomes available', async () => {
+    let available = false;
+    const { url } = await startServer({
+      async onAuthenticate({ token }) {
+        if (token !== 'current') throw { reason: 'inkio:access-denied' };
+      },
+    });
+    const provider = connect(url, 'fresh-token', {
+      token: async () => {
+        if (!available) throw new Error('Session API is not ready');
+        return 'current';
+      },
+    });
+    await until(() => getCollabStatus(provider) === 'unauthorized');
+    available = true;
+    retryCollabAuthentication(provider);
+    await synced(provider);
   });
 
   it('notifies status transitions', async () => {
@@ -141,6 +174,17 @@ describe('createCollabProvider', () => {
   });
 });
 
+describe('offline namespaces', () => {
+  it('keys the same room separately for each account and deployment', () => {
+    const local = { accountId: 'ada', deploymentId: 'local:team' };
+    const key = getCollabCacheKey('shared', local);
+    expect(getCollabCacheKey('shared', { ...local })).toBe(key);
+    expect(getCollabCacheKey('shared', { ...local, accountId: 'grace' })).not.toBe(key);
+    expect(getCollabCacheKey('shared', { ...local, deploymentId: 'staging:team' })).not.toBe(key);
+    expect(key).not.toBe('shared');
+  });
+});
+
 describe('seeding', () => {
   it('produces identical updates so concurrent seeds merge into one copy', () => {
     const a = new Y.Doc();
@@ -153,6 +197,22 @@ describe('seeding', () => {
     expect(a.getXmlFragment('default').toString()).toBe(b.getXmlFragment('default').toString());
   });
 
+  it('converges on both copies if clients accidentally provide different seeds', () => {
+    const a = new Y.Doc();
+    const b = new Y.Doc();
+    const first = createSeedUpdate(schema, para('first deployment'));
+    const second = createSeedUpdate(schema, para('second deployment'));
+    Y.applyUpdate(a, first);
+    Y.applyUpdate(a, second);
+    Y.applyUpdate(b, second);
+    Y.applyUpdate(b, first);
+    const left = a.getXmlFragment('default').toString();
+    expect(left).toContain('first deployment');
+    expect(left).toContain('second deployment');
+    expect(left).toBe(b.getXmlFragment('default').toString());
+    a.destroy();
+    b.destroy();
+  });
   it('skips a doc that already has content', () => {
     const doc = new Y.Doc();
     Y.applyUpdate(doc, createSeedUpdate(schema, para('first')));

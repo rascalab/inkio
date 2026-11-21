@@ -242,8 +242,11 @@ test('desktop shell starts with topbar, canvas, left tool rail, and contextual o
   await expect(page.getByTestId('inkio-ie-toolbar-tools')).toBeVisible();
   await expect(page.getByTestId('inkio-ie-tool-rail')).toBeVisible();
   await expect(page.getByTestId('inkio-ie-close')).toBeVisible();
-  await expect(page.getByTestId('inkio-ie-desktop-zoom-cluster')).toBeVisible();
-  await expect(page.getByTestId('inkio-ie-zoom-controls')).toBeVisible();
+  await expect(page.getByTestId('inkio-ie-topbar').getByRole('slider')).toHaveCount(0);
+  const scale = page.getByRole('slider', { name: 'Scale' });
+  await expect(scale).toBeVisible();
+  const canvas = await getStageViewportBox(page);
+  expect((await scale.boundingBox())!.y).toBeGreaterThanOrEqual(canvas.y + canvas.height);
   // The default 'resize' tool is always active, so its contextual row shows from the start.
   await expect(page.getByTestId('inkio-ie-util-panel')).toBeVisible();
   await expect(page.getByTestId('inkio-ie-util-panel-controls')).toHaveAttribute('data-panel', 'resize');
@@ -269,6 +272,10 @@ test('resizing an untouched crop editor does not change the image or save a repl
     await expect(page.getByTestId('inkio-ie-root')).toHaveAttribute('data-debug-pending-crop', originalCrop ?? '');
     await expect(page.getByTestId('inkio-ie-root')).toHaveAttribute('data-debug-dirty', 'false');
   }
+
+  await page.getByTestId('inkio-ie-resize-apply').click();
+  await expect(page.getByTestId('inkio-ie-root')).toHaveAttribute('data-debug-dirty', 'false');
+  await expect(page.getByTestId('inkio-ie-undo')).toBeDisabled();
 
   await page.getByTestId('inkio-ie-save').click();
   await expect(page.getByTestId('inkio-ie-modal-content')).toHaveCount(0);
@@ -300,6 +307,55 @@ for (const width of [1440, 1000]) {
     }
   });
 }
+
+test('custom tool controls work in the reordered desktop rail and mobile tray and save their edits', async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 800 });
+  await waitForHarness(page);
+  await triggerButton(page, 'inkio-ie-close');
+  await page.getByRole('button', { name: 'Open custom tool demo' }).click();
+
+  const toolbar = page.getByRole('toolbar', { name: 'Image editor tools' });
+  const custom = toolbar.getByRole('button', { name: 'Photo preset' });
+  const resize = toolbar.getByRole('button', { name: 'Resize' });
+  const buttons = toolbar.getByRole('button');
+  await expect(buttons).toHaveCount(3);
+  await expect(buttons.nth(0)).toHaveAccessibleName('Rotate');
+  await expect(buttons.nth(1)).toHaveAccessibleName('Photo preset');
+  await expect(buttons.nth(2)).toHaveAccessibleName('Resize');
+  await expect(custom).toHaveAttribute('aria-pressed', 'true');
+  await expect(toolbar).toHaveAttribute('aria-orientation', 'vertical');
+  expect((await toolbar.boundingBox())!.x).toBeGreaterThanOrEqual((await getStageViewportBox(page)).x);
+
+  await custom.focus();
+  await custom.press('ArrowDown');
+  await expect(resize).toBeFocused();
+  await resize.press('Enter');
+  await expect(resize).toHaveAttribute('aria-pressed', 'true');
+
+  await page.setViewportSize({ width: 390, height: 640 });
+  await expect(toolbar).toHaveAttribute('aria-orientation', 'horizontal');
+  const tray = (await toolbar.boundingBox())!;
+  expect(tray.y + tray.height).toBeLessThanOrEqual((await getStageViewportBox(page)).y);
+  await resize.focus();
+  await resize.press('ArrowLeft');
+  await expect(custom).toBeFocused();
+  await custom.press('Space');
+  await expect(custom).toHaveAttribute('aria-pressed', 'true');
+
+  const preset = page.getByRole('button', { name: 'Make monochrome' });
+  await preset.click();
+  await expect(preset).toHaveAttribute('aria-pressed', 'true');
+  await triggerButton(page, 'inkio-ie-undo');
+  await expect(preset).toHaveAttribute('aria-pressed', 'false');
+  await triggerButton(page, 'inkio-ie-redo');
+  await expect(preset).toHaveAttribute('aria-pressed', 'true');
+
+  const original = await page.getByTestId('image-editor-e2e-fixture-state').getAttribute('data-src');
+  await triggerButton(page, 'inkio-ie-save');
+  const saved = page.getByRole('img', { name: 'Saved image editor output' });
+  await expect(saved).toBeVisible();
+  await expectImagePixelsChanged(page, original, await saved.getAttribute('src'));
+});
 
 test('filter tool applies a preset and saves a filtered image', async ({ page }) => {
   const pageErrors: string[] = [];
@@ -527,8 +583,7 @@ for (const rotatedCrop of [false, true]) {
     if (rotatedCrop) {
       await page.getByTestId('inkio-ie-tool-rotate').click();
       await page.getByTestId('inkio-ie-rotate-cw').click();
-      await page.getByTestId('inkio-ie-zoom-in').click();
-      await page.getByTestId('inkio-ie-zoom-in').click();
+      await wheelZoomPreview(page);
       await page.getByTestId('inkio-ie-tool-resize').click();
       await page.getByTestId('inkio-ie-crop-preset-1-1').click();
     }
@@ -547,8 +602,7 @@ for (const rotatedCrop of [false, true]) {
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('inkio-ie-color-picker')).toHaveCount(0);
     if (!rotatedCrop) {
-      await page.getByTestId('inkio-ie-zoom-in').click();
-      await page.getByTestId('inkio-ie-zoom-in').click();
+      await wheelZoomPreview(page);
     }
     await waitForLayoutSettle(page);
     const stage = await getStageFrameBox(page);
@@ -616,6 +670,286 @@ test('text can be entered and reopened directly at its canvas position', async (
   await expect(input).toBeFocused();
   await page.keyboard.press('Escape');
   await expect.poll(async () => (await getSelectedAnnotation(page))?.text).toBe('Edited in place\nSecond line\nThird line');
+});
+
+test('clicking blank canvas commits text without opening another input', async ({ page }) => {
+  await waitForHarness(page);
+  await triggerButton(page, 'inkio-ie-tool-text');
+  await waitForLayoutSettle(page);
+  const frame = await getStageFrameBox(page);
+  await clickStage(page, { x: frame.width / 4, y: frame.height / 4 });
+  const input = page.getByTestId('inkio-ie-text-content-input');
+  await input.fill('Keep this text');
+  await clickStage(page, { x: frame.width * 0.85, y: frame.height * 0.85 });
+  await expect(input).toHaveCount(0);
+  await expect(page.getByTestId('inkio-ie-canvas-workspace')).toBeFocused();
+  await expect(page.getByTestId('inkio-ie-root')).toHaveAttribute('data-debug-annotation-count', '1');
+  await page.keyboard.press('Control+z');
+  await expect(page.getByTestId('inkio-ie-root')).toHaveAttribute('data-debug-annotation-count', '0');
+});
+
+test('crop mode ignores annotations under the pointer and supports keyboard adjustments', async ({ page }) => {
+  await waitForHarness(page);
+  const workspace = page.getByTestId('inkio-ie-canvas-workspace');
+  const root = page.getByTestId('inkio-ie-root');
+  await triggerButton(page, 'inkio-ie-tool-shape');
+  await workspace.press('Enter');
+  await expect(root).toHaveAttribute('data-debug-annotation-count', '1');
+  await triggerButton(page, 'inkio-ie-tool-resize');
+  await waitForLayoutSettle(page);
+  const frame = await getStageFrameBox(page);
+  await clickStage(page, { x: frame.width * 0.4, y: frame.height / 2 });
+  await expect(root).toHaveAttribute('data-debug-resolved-panel', 'resize');
+  await expect(page.getByTestId('inkio-ie-selection-actions')).toHaveCount(0);
+
+  const before = await root.getAttribute('data-debug-pending-crop');
+  await workspace.press('Shift+ArrowUp');
+  await expect(root).not.toHaveAttribute('data-debug-pending-crop', before ?? '');
+  const resized = await root.getAttribute('data-debug-pending-crop');
+  await workspace.press('ArrowRight');
+  await expect(root).not.toHaveAttribute('data-debug-pending-crop', resized ?? '');
+});
+
+test('keyboard can place, edit, select and delete annotations', async ({ page }) => {
+  await waitForHarness(page);
+  const workspace = page.getByRole('application', { name: 'Image canvas' });
+  const input = page.getByRole('textbox', { name: 'Text content' });
+  const root = page.getByTestId('inkio-ie-root');
+  await triggerButton(page, 'inkio-ie-tool-text');
+  await workspace.press('Enter');
+  await expect(input).toBeFocused();
+  await input.fill('Keyboard text');
+  await input.press('Control+Enter');
+  await expect(workspace).toBeFocused();
+  await workspace.press('Enter');
+  await expect(input).toHaveValue('Keyboard text');
+  await input.press('Escape');
+
+  await triggerButton(page, 'inkio-ie-tool-sticker');
+  await workspace.press('Enter');
+  const picker = page.getByTestId('inkio-ie-sticker-picker-trigger');
+  await picker.press('Enter');
+  const choices = page.getByRole('dialog', { name: 'Sticker' }).getByRole('button');
+  const emoji = await choices.last().textContent();
+  await choices.last().press('Enter');
+  await expect.poll(async () => (await getSelectedAnnotation(page))?.emoji).toBe(emoji);
+  await choices.last().press('Escape');
+  const sticker = await getSelectedAnnotation(page);
+  await workspace.press('ArrowRight');
+  await expect.poll(async () => (await getSelectedAnnotation(page))?.x).toBeGreaterThan(sticker.x);
+  await workspace.press('Delete');
+  await expect(root).toHaveAttribute('data-debug-annotation-count', '1');
+  await workspace.press('Space');
+  await expect(root).toHaveAttribute('data-debug-selected-type', 'text');
+  await workspace.press('Delete');
+  await expect(root).toHaveAttribute('data-debug-annotation-count', '0');
+
+  await triggerButton(page, 'inkio-ie-tool-shape');
+  await workspace.press('Enter');
+  await expect(root).toHaveAttribute('data-debug-selected-type', 'rect');
+  const shape = await getSelectedAnnotation(page);
+  await workspace.press('ArrowDown');
+  await expect.poll(async () => (await getSelectedAnnotation(page))?.y).toBeGreaterThan(shape.y);
+  await workspace.press('Delete');
+  await expect(root).toHaveAttribute('data-debug-annotation-count', '0');
+
+  await triggerButton(page, 'inkio-ie-tool-draw');
+  await workspace.press('Enter');
+  await expect(root).toHaveAttribute('data-debug-selected-type', 'freedraw');
+  expect((await getSelectedAnnotation(page))?.points).toHaveLength(4);
+});
+
+test('keyboard traverses a portaled options panel in trigger order', async ({ page }) => {
+  await waitForHarness(page);
+  const trigger = page.getByTestId('inkio-ie-resize-dimensions-trigger');
+  const width = page.getByTestId('inkio-ie-resize-width');
+  await trigger.press('Enter');
+  await expect(width).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(trigger).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(width).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByTestId('inkio-ie-resize-height')).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByTestId('inkio-ie-resize-lock-aspect')).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(width).toHaveCount(0);
+  await expect(page.getByTestId('inkio-ie-canvas-workspace')).toBeFocused();
+  await trigger.press('Enter');
+  await expect(width).toBeFocused();
+  await width.press('Escape');
+  await expect(trigger).toBeFocused();
+  await expect(width).toHaveCount(0);
+});
+
+test('refuses a decoded photo beyond the source side limit', async ({ page }) => {
+  await waitForHarness(page);
+  await closeModal(page);
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 8193;
+    canvas.height = 2;
+    const context = canvas.getContext('2d')!;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  await page.getByTestId('image-editor-e2e-photo-input').setInputFiles({
+    name: 'panorama.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64'),
+  });
+  const root = page.getByTestId('inkio-ie-root');
+  await expect(root.getByRole('alert')).toContainText('8,192');
+  await expect(root.getByTestId('inkio-ie-stage-frame')).toHaveCount(0);
+});
+
+for (const useWorker of [true, false]) test(`a large PNG saves as a full-resolution Blob ${useWorker ? 'through the production worker' : 'with workers blocked'}`, async ({ page }) => {
+  if (useWorker) {
+    await page.addInitScript(() => {
+      const encode = HTMLCanvasElement.prototype.toBlob;
+      HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
+        // Do not let the main-thread fallback conceal a broken production worker.
+        if (this.width * this.height >= 2_000_000) throw new Error('Large export reached the DOM canvas');
+        return encode.call(this, callback, type, quality);
+      };
+    });
+  } else {
+    await page.route('**/image-editor-e2e', async (route) => {
+      const response = await route.fetch();
+      await route.fulfill({ response, headers: { ...response.headers(), 'content-security-policy': "worker-src 'none'" } });
+    });
+  }
+  await waitForHarness(page);
+  await closeModal(page);
+  await page.getByLabel('Save as Blob').check();
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 2100;
+    canvas.height = 1000;
+    const context = canvas.getContext('2d')!;
+    context.fillStyle = '#20c050';
+    context.fillRect(0, 0, 1050, 1000);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  await page.getByTestId('image-editor-e2e-photo-input').setInputFiles({
+    name: 'large-photo.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64'),
+  });
+  await expect(page.getByTestId('inkio-ie-stage-frame')).toBeVisible();
+  await page.getByTestId('inkio-ie-tool-rotate').click();
+  await page.getByTestId('inkio-ie-rotate-cw').click();
+  await page.getByTestId('inkio-ie-save').click();
+
+  const saved = page.getByRole('img', { name: 'Saved image editor output' });
+  await expect(saved).toBeVisible({ timeout: 20_000 });
+  await expect(saved).toHaveAttribute('src', /^blob:/);
+  const download = page.getByRole('link', { name: 'Download full image' });
+  await expect(download).toHaveAttribute('href', /^blob:/);
+  const previewSize = await saved.evaluate(async (element: HTMLImageElement) => {
+    await element.decode();
+    return Math.max(element.naturalWidth, element.naturalHeight);
+  });
+  expect(previewSize).toBeLessThanOrEqual(1200);
+  const result = await download.evaluate(async (link: HTMLAnchorElement) => {
+    const element = new Image();
+    element.src = link.href;
+    await element.decode();
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d')!;
+    const pixel = (x: number, y: number) => {
+      context.clearRect(0, 0, 1, 1);
+      context.drawImage(element, x, y, 1, 1, 0, 0, 1, 1);
+      return Array.from(context.getImageData(0, 0, 1, 1).data);
+    };
+    return { width: element.naturalWidth, height: element.naturalHeight, top: pixel(500, 500), bottom: pixel(500, 1600) };
+  });
+  expect(result).toEqual({ width: 1000, height: 2100, top: [32, 192, 80, 255], bottom: [0, 0, 0, 0] });
+});
+
+test('banded filter fallback preserves the worker output, including global clarity and alpha', async ({ page }) => {
+  let blockWorker = false;
+  await page.route('**/image-editor-e2e', async (route) => {
+    if (!blockWorker) return route.continue();
+    const response = await route.fetch();
+    await route.fulfill({ response, headers: { ...response.headers(), 'content-security-policy': "worker-src 'none'" } });
+  });
+  await page.goto(HARNESS_URL);
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 2100;
+    canvas.height = 1100;
+    const ctx = canvas.getContext('2d')!;
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    gradient.addColorStop(0, 'rgba(42, 28, 15, 0.75)');
+    gradient.addColorStop(1, 'rgba(80, 190, 140, 1)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 1970, canvas.height);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  const save = async (blocked: boolean, rotate: boolean) => {
+    blockWorker = blocked;
+    await waitForHarness(page);
+    await closeModal(page);
+    await page.getByLabel('Save as Blob').check();
+    await page.getByTestId('image-editor-e2e-photo-input').setInputFiles({
+      name: 'color-bands.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64'),
+    });
+    const editor = page.getByTestId('inkio-ie-root');
+    await expect(editor.getByTestId('inkio-ie-stage-frame')).toBeVisible();
+    await expect(editor).toHaveAttribute('data-debug-image-width', '2100');
+    await page.getByTestId('inkio-ie-tool-filter').click();
+    await page.getByTestId('inkio-ie-filter-sepia').click();
+    await expect(editor).toHaveAttribute('data-debug-filter', 'sepia');
+    await page.getByTestId('inkio-ie-finetune-trigger').click();
+    const clarity = page.getByTestId('inkio-ie-finetune-clarity-number');
+    await clarity.fill('0.4');
+    await clarity.press('Tab');
+    await expect(page.getByTestId('inkio-ie-finetune-clarity-range')).toHaveValue('0.4');
+    await page.getByTestId('inkio-ie-finetune-trigger').click();
+    await expect(clarity).toHaveCount(0);
+    if (rotate) {
+      await page.getByTestId('inkio-ie-tool-rotate').click();
+      await page.getByTestId('inkio-ie-rotate-cw').click();
+    }
+    const worker = blocked ? undefined : page.waitForEvent('worker');
+    await page.getByTestId('inkio-ie-save').click();
+    await worker;
+    const download = page.getByRole('link', { name: 'Download full image' });
+    await expect(download).toBeVisible();
+    return download.evaluate(async (link: HTMLAnchorElement) => {
+      const blob = await (await fetch(link.href)).blob();
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+    });
+  };
+  for (const rotate of [false, true]) {
+    const reference = await save(false, rotate);
+    const fallback = await save(true, rotate);
+    const comparison = await page.evaluate(async (sources) => {
+      const pixels = await Promise.all(sources.map(async (src) => {
+        const image = new Image();
+        image.src = src;
+        await image.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = image.naturalWidth;
+        canvas.height = image.naturalHeight;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(image, 0, 0);
+        return ctx.getImageData(0, 0, canvas.width, canvas.height);
+      }));
+      const [a, b] = pixels;
+      const maxDelta = [0, 0, 0, 0];
+      for (let i = 0; i < a.data.length; i++) {
+        const channel = i % 4;
+        maxDelta[channel] = Math.max(maxDelta[channel], Math.abs(a.data[i] - b.data[i]));
+      }
+      return { dimensions: pixels.map(({ width, height }) => [width, height]), maxDelta };
+    }, [reference, fallback]);
+    const dimensions = rotate ? [1100, 2100] : [2100, 1100];
+    expect(comparison).toEqual({ dimensions: [dimensions, dimensions], maxDelta: [0, 0, 0, 0] });
+  }
 });
 
 for (const { width, text } of [
@@ -871,8 +1205,12 @@ test('draw, shape, resize, and rotate controls work from the desktop contextual 
   await expect(page.getByTestId('inkio-ie-layer-front')).toBeEnabled();
   await page.getByTestId('inkio-ie-layer-front').click();
   await expect(page.getByTestId('inkio-ie-layer-forward')).toBeDisabled();
+  await expect.poll(() => page.getByRole('dialog', { name: 'Layer order' }).evaluate(
+    (dialog) => dialog.contains(dialog.ownerDocument.activeElement),
+  )).toBe(true);
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('inkio-ie-layer-front')).toHaveCount(0);
+  await expect(page.getByTestId('inkio-ie-layer-trigger')).toBeFocused();
 
   await triggerButton(page, 'inkio-ie-tool-resize');
   await expect(page.getByTestId('inkio-ie-util-panel-controls')).toHaveAttribute('data-panel', 'resize');
@@ -933,6 +1271,36 @@ test('mobile shell uses top command bar, contextual options above the stage, and
   await expect(page.getByTestId('inkio-ie-mobile-option-strip')).toBeVisible();
 });
 
+test('mobile tools stay in one comfortable row and the last tool is reachable', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await waitForHarness(page);
+  const tray = page.getByRole('toolbar', { name: 'Image editor tools' });
+  const controls = tray.getByRole('button');
+  const boxes = await Promise.all((await controls.all()).map((button) => button.boundingBox()));
+  const first = boxes[0]!;
+  for (const box of boxes) {
+    expect(box).not.toBeNull();
+    expect(Math.abs(box!.y - first.y)).toBeLessThanOrEqual(1);
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  }
+  const last = controls.last();
+  await expect(last).not.toBeInViewport();
+  await controls.nth(6).focus();
+  await page.keyboard.press('Tab');
+  await expect(last).toBeFocused();
+  await expect(last).toBeInViewport({ ratio: 1 });
+  await page.keyboard.press('Enter');
+  await expect(last).toHaveAttribute('aria-pressed', 'true');
+  await expectEditorFitsViewport(page);
+
+  await page.setViewportSize({ width: 634, height: 725 });
+  await waitForLayoutSettle(page);
+  for (const button of await controls.all()) {
+    await expect(button).toBeInViewport({ ratio: 1 });
+  }
+});
+
 for (const width of [320, 390]) {
   test(`${width}px mobile annotation and discard actions offer 44px targets`, async ({ page }) => {
     await page.setViewportSize({ width, height: 640 });
@@ -975,7 +1343,7 @@ for (const width of [1440, 390]) {
     await page.getByTestId('inkio-ie-draw-brush-size-range-trigger').click();
     await expect(brush).toBeVisible();
     await expect(page.getByRole('dialog')).toHaveCount(2);
-    await expect(page.getByRole('slider')).toBeVisible();
+    await expect(page.getByRole('dialog', { name: /Brush size/ }).getByRole('slider')).toBeVisible();
     await page.getByTestId('inkio-ie-draw-opacity-range-trigger').click();
     await expect(brush).toHaveCount(0);
     await expect(opacity).toBeVisible();
@@ -1020,6 +1388,9 @@ test('mobile crop ratios and dimensions open through separate context popovers',
   await expect(square).toHaveCount(0);
   await expect(width).toHaveCount(0);
   await expect(height).toHaveCount(0);
+  const dimensions = page.getByTestId('inkio-ie-resize-dimensions-trigger');
+  await expect(page.getByTestId('inkio-ie-mobile-option-strip').getByTestId('inkio-ie-resize-dimensions-trigger')).toHaveCount(0);
+  await expect(page.getByTestId('inkio-ie-zoom-controls').getByTestId('inkio-ie-resize-dimensions-trigger')).toBeVisible();
   await page.getByTestId('inkio-ie-crop-ratios-trigger').click();
   await square.click();
   await expect.poll(async () => {
@@ -1027,7 +1398,7 @@ test('mobile crop ratios and dimensions open through separate context popovers',
     return crop ? Math.abs(crop.width - crop.height) : null;
   }).toBeLessThanOrEqual(1);
 
-  await page.getByTestId('inkio-ie-resize-dimensions-trigger').click();
+  await dimensions.click();
   await expect(square).toHaveCount(0);
   await expect(width).toBeVisible();
   await expect(height).toBeVisible();
@@ -1042,12 +1413,46 @@ test('mobile crop ratios and dimensions open through separate context popovers',
   await expect(page.getByTestId('image-editor-e2e-output-size')).toHaveText('360x360');
 });
 
+test('a new portrait or landscape photo fits the available area without cropping', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 640 });
+  await waitForHarness(page);
+  const root = page.getByTestId('inkio-ie-root');
+  for (const [width, height] of [[1200, 600], [600, 1200]]) {
+    await closeModal(page);
+    const data = await page.evaluate(({ width, height }) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d')!;
+      context.fillStyle = '#4074ae';
+      context.fillRect(0, 0, width, height);
+      return canvas.toDataURL().split(',')[1];
+    }, { width, height });
+    await page.getByTestId('image-editor-e2e-photo-input').setInputFiles({
+      name: `photo-${width}.png`, mimeType: 'image/png', buffer: Buffer.from(data, 'base64'),
+    });
+    await expect(root).toHaveAttribute('data-debug-image-width', String(width));
+    await expect(page.getByTestId('inkio-ie-zoom-label')).toHaveText('100%');
+    await expect(page.getByTestId('inkio-ie-resize-dimensions-trigger')).toContainText(`${width} × ${height}`);
+    const aperture = page.locator('.inkio-ie-crop-frame');
+    await expect(aperture).toBeVisible();
+    await expect.poll(async () => {
+      const frame = (await aperture.boundingBox())!;
+      const stage = await getStageViewportBox(page);
+      const scale = Math.min(stage.width / width, stage.height / height);
+      return Math.max(Math.abs(frame.width - width * scale), Math.abs(frame.height - height * scale));
+    }).toBeLessThanOrEqual(1);
+    await expect(root).toHaveAttribute('data-debug-dirty', 'false');
+  }
+});
+
 test('mobile fits the image through the visible percentage control after zooming', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 640 });
   await waitForHarness(page);
 
-  await page.getByTestId('inkio-ie-zoom-in').click();
-  await expect(page.getByTestId('inkio-ie-zoom-label')).toHaveText('120%');
+  const scale = page.getByRole('slider', { name: 'Scale' });
+  await scale.press('ArrowRight');
+  await expect(page.getByTestId('inkio-ie-zoom-label')).not.toHaveText('100%');
   await page.getByTestId('inkio-ie-zoom-fit').click();
   await expect(page.getByTestId('inkio-ie-zoom-label')).toHaveText('100%');
 });
@@ -1121,6 +1526,159 @@ test('text controls use font family, size px, and the shared color picker', asyn
       fontSize: 48,
       fill: '#ef4444',
     });
+});
+
+async function wheelZoomPreview(page: Page) {
+  await page.getByTestId('inkio-ie-canvas-workspace').hover();
+  await page.mouse.wheel(0, -320);
+  await expect.poll(async () => Number(await getRootDebugAttribute(page, 'data-debug-preview-zoom')))
+    .toBeGreaterThan(1);
+}
+
+test('a fitted photo has a clean surround and only its real overflow is dimmed when zoomed', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await waitForHarness(page);
+  await closeModal(page);
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 900;
+    canvas.height = 450;
+    const context = canvas.getContext('2d')!;
+    context.fillStyle = '#20c050';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.clearRect(0, 0, 315, canvas.height);
+    return canvas.toDataURL().split(',')[1];
+  });
+  await page.getByTestId('image-editor-e2e-photo-input').setInputFiles({
+    name: 'color-field.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64'),
+  });
+  const aperture = page.locator('.inkio-ie-crop-frame');
+  await expect(aperture).toBeVisible();
+  await waitForLayoutSettle(page);
+  const frame = (await aperture.boundingBox())!;
+  const x = Math.round(frame.x + frame.width * 0.42);
+  const clearX = Math.round(frame.x + frame.width * 0.04);
+  const y = Math.round(frame.y);
+  const sample = async () => {
+    const png = (await page.screenshot({ scale: 'css', animations: 'disabled' })).toString('base64');
+    return page.evaluate(async ({ png, x, y, clearX }) => {
+      const img = new Image();
+      img.src = `data:image/png;base64,${png}`;
+      await img.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const context = canvas.getContext('2d')!;
+      context.drawImage(img, 0, 0);
+      const pixel = (row: number) => Array.from(context.getImageData(x, row, 1, 1).data);
+      return {
+        inside: pixel(y + 24),
+        outside: pixel(y - 8),
+        transparent: Array.from(context.getImageData(clearX, y - 8, 1, 1).data),
+      };
+    }, { png, x, y, clearX });
+  };
+  const fitted = await sample();
+  expect(fitted.inside.slice(0, 3)).toEqual([32, 192, 80]);
+  expect(Math.abs(fitted.outside[1] - fitted.outside[0])).toBeLessThan(20);
+
+  await page.mouse.move(frame.x + frame.width / 2, frame.y + frame.height / 2);
+  await page.mouse.wheel(0, -350);
+  await expect(page.getByTestId('inkio-ie-zoom-label')).not.toHaveText('100%');
+  await expect.poll(async () => (await sample()).outside[1]).toBeLessThan(170);
+  expect(await aperture.boundingBox()).toEqual(frame);
+  const zoomed = await sample();
+  expect(zoomed.inside.slice(0, 3)).toEqual([32, 192, 80]);
+  expect(zoomed.outside[1] - zoomed.outside[0]).toBeGreaterThan(25);
+  expect(zoomed.transparent).toEqual(fitted.transparent);
+  await page.mouse.wheel(0, 350);
+  await expect(page.getByTestId('inkio-ie-zoom-label')).toHaveText('100%');
+  await expect.poll(async () => (await sample()).outside).toEqual(fitted.outside);
+});
+
+test('transparent and translucent pixels preview the same in both themes and export with alpha', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 640 });
+  await waitForHarness(page);
+  const modal = page.getByTestId('inkio-ie-modal-content');
+  const preview = async () => {
+    await waitForLayoutSettle(page);
+    const frame = await getStageFrameBox(page);
+    const png = (await page.screenshot({ scale: 'css' })).toString('base64');
+    return page.evaluate(async ({ png, frame }) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${png}`;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext('2d')!;
+      context.drawImage(image, 0, 0);
+      const pixel = (x: number, y: number) =>
+        Array.from(context.getImageData(Math.round(x), Math.round(y), 1, 1).data);
+      return {
+        transparent: pixel(frame.x + 18, frame.y + 18),
+        translucent: pixel(frame.x + frame.width * 0.42, frame.y + frame.height * 0.45),
+        surround: pixel(frame.x + 18, frame.y - 12),
+      };
+    }, { png, frame });
+  };
+
+  const light = await preview();
+  await closeModal(page);
+  await page.getByTestId('image-editor-e2e-theme-toggle').click();
+  await page.getByRole('button', { name: 'Open editor' }).click();
+  await expect(modal).toBeVisible();
+  const dark = await preview();
+  expect(dark.surround).not.toEqual(light.surround);
+  expect(dark.transparent).toEqual(light.transparent);
+  expect(dark.translucent).toEqual(light.translucent);
+
+  await page.getByTestId('inkio-ie-tool-rotate').click();
+  await page.getByTestId('inkio-ie-rotate-cw').click();
+  await page.getByTestId('inkio-ie-save').click();
+  const saved = page.getByRole('img', { name: 'Saved image editor output' });
+  await expect(saved).toBeVisible();
+  expect(await saved.evaluate(async (element) => {
+    const image = element as HTMLImageElement;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d')!;
+    context.drawImage(image, 0, 0);
+    return context.getImageData(14, 14, 1, 1).data[3];
+  })).toBe(0);
+});
+
+test('crop drag springs back at fit and stops at the image boundary when zoomed', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await waitForHarness(page);
+  await waitForLayoutSettle(page);
+  const aperture = page.locator('.inkio-ie-crop-frame');
+  const fitted = await getStageFrameBox(page);
+  const from = { x: fitted.x + fitted.width / 2, y: fitted.y + fitted.height / 2 };
+  const originalCrop = await getRootDebugAttribute(page, 'data-debug-pending-crop');
+  const originalFrame = await aperture.boundingBox();
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 120, from.y + 70, { steps: 8 });
+  await expect.poll(async () => (await getStageFrameBox(page)).x - fitted.x).toBeGreaterThan(4);
+  expect(await getRootDebugAttribute(page, 'data-debug-pending-crop')).toBe(originalCrop);
+  await page.mouse.up();
+  await expect.poll(() => getStageFrameBox(page)).toEqual(fitted);
+  await expect(page.getByTestId('inkio-ie-undo')).toBeDisabled();
+
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.wheel(0, -300);
+  await expect(page.getByTestId('inkio-ie-zoom-label')).not.toHaveText('100%');
+  await page.mouse.down();
+  await page.mouse.move(from.x + 260, from.y + 130, { steps: 10 });
+  await page.mouse.up();
+  await expect.poll(async () => {
+    const box = await getStageFrameBox(page);
+    return Math.abs(box.x - originalFrame!.x);
+  }).toBeLessThan(1);
+  expect(await aperture.boundingBox()).toEqual(originalFrame);
 });
 
 test('wheel zoom updates preview zoom and crop mode keeps the crop frame fixed while image zoom changes', async ({ page }) => {

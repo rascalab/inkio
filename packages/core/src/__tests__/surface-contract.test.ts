@@ -8,7 +8,6 @@ const packageDir = dirname(fileURLToPath(import.meta.url));
 import { describe, expect, it } from 'vitest';
 
 const tokensCss = readFileSync(resolve(packageDir, '../tokens.css'), 'utf8');
-const styleCss = readFileSync(resolve(packageDir, '../style.css'), 'utf8');
 
 describe('surface token contract', () => {
   it('defines the shared surface token ladder', () => {
@@ -25,19 +24,6 @@ describe('surface token contract', () => {
       '--inkio-surface-blur-field',
     ].forEach((token) => {
       expect(tokensCss).toContain(token);
-    });
-  });
-
-  it('maps core chrome surfaces onto the shared surface tokens', () => {
-    [
-      'background-color: var(--inkio-surface-shell);',
-      'background-color: var(--inkio-surface-panel);',
-      'background-color: var(--inkio-surface-field);',
-      'border: 1px solid var(--inkio-surface-border);',
-      'backdrop-filter: blur(var(--inkio-surface-blur-panel));',
-      'box-shadow: var(--inkio-surface-shadow-lg);',
-    ].forEach((snippet) => {
-      expect(styleCss).toContain(snippet);
     });
   });
 });

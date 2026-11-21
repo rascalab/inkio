@@ -105,4 +105,30 @@ describe('CommentPanel with a live editor', () => {
       editor.destroy();
     }
   });
+
+  it('deletes all disjoint ranges for a known thread without removing adjacent threads', () => {
+    const editor = createEditor();
+    const onDelete = vi.fn();
+    try {
+      const type = editor.state.schema.marks.comment;
+      editor.view.dispatch(
+        editor.state.tr
+          .addMark(1, 4, type.create({ commentId: 't1' }))
+          .addMark(4, 7, type.create({ commentId: 't2' })),
+      );
+      const { getByRole } = render(
+        <CommentPanel
+          editor={editor as never}
+          threads={[{ id: 't1', messages: [], resolved: false }]}
+          onDelete={onDelete}
+        />,
+      );
+      fireEvent.click(getByRole('button', { name: /delete/i }));
+      expect(onDelete).toHaveBeenCalledExactlyOnceWith('t1');
+      expect(JSON.stringify(editor.getJSON())).not.toContain('"commentId":"t1"');
+      expect(editor.state.doc.rangeHasMark(4, 7, type.create({ commentId: 't2' }))).toBe(true);
+    } finally {
+      editor.destroy();
+    }
+  });
 });

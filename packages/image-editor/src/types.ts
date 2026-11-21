@@ -1,5 +1,6 @@
 import type { DeepPartial, InkioLocaleInput, InkioMessageOverrides } from '@inkio/core';
 import type { InkioIconRegistry } from '@inkio/core/icons';
+import type { ReactNode } from 'react';
 
 export type ToolType = 'crop' | 'rotate' | 'resize' | 'draw' | 'shape' | 'text' | 'filter' | 'redact' | 'sticker';
 export type EnabledToolType = Exclude<ToolType, 'crop'>;
@@ -276,6 +277,7 @@ export interface ImageEditorLocale {
   transparent: string;
   opacity: string;
   zoom: string;
+  scaleLabel?: string;
   fit: string;
   filter: string;
   filterNone: string;
@@ -314,17 +316,75 @@ export interface ImageEditorLocale {
   zoomInLabel?: string;
   zoomOutLabel?: string;
   toolsLabel?: string;
+  canvasLabel?: string;
+  canvasKeyboardHelp?: string;
+  cropKeyboardHelp?: string;
+  sourceSizeError?: string;
+  outputSizeError?: string;
+}
+
+export interface ImageEditorToolActions {
+  setFilter: (filter: FilterPresetId) => void;
+  /** Brightness, saturation and clarity are clamped to −1…1; contrast to −100…100. Non-finite values are ignored. */
+  setAdjustments: (adjustments: Partial<FinetuneOptions>) => void;
+  resetAdjustments: () => void;
+  rotate: (direction: 'clockwise' | 'counterclockwise') => void;
+  flip: (axis: 'horizontal' | 'vertical') => void;
+  /** Set an in-bounds crop in unrotated source pixels, or clear it with null. */
+  setCrop: (crop: CropRect | null) => void;
+  /** Set final displayed dimensions in pixels, or use the natural cropped size with null. */
+  setOutputSize: (size: OutputSize | null) => void;
+}
+
+export interface ImageEditorToolContext {
+  readonly viewport: 'desktop' | 'mobile';
+  /** True while loading, saving, or when the source image is unavailable. */
+  readonly disabled: boolean;
+  readonly originalSize: Readonly<OutputSize>;
+  /** Effective displayed dimensions, including the current rotation. */
+  readonly outputSize: Readonly<OutputSize>;
+  readonly transform: Readonly<Omit<Transform, 'crop'>> & { readonly crop: Readonly<CropRect> | null };
+  readonly adjustments: Readonly<FinetuneOptions>;
+  readonly filter: FilterPresetId;
+  /** Edits use editor history and export. Calls are ignored while the controls are disabled or inactive. */
+  readonly actions: Readonly<ImageEditorToolActions>;
+}
+
+export interface ImageEditorCustomTool {
+  /** A unique, non-empty ID. Built-in tool IDs, including the 'crop' alias, are reserved. */
+  readonly id: string;
+  readonly label: string;
+  /** An optional decorative icon; the label is used as the accessible name. */
+  readonly icon?: ReactNode;
+  /** Render controls in the same surface as the built-in controls. */
+  readonly renderControls: (context: ImageEditorToolContext) => ReactNode;
+}
+
+export type ImageEditorTool = ToolType | ImageEditorCustomTool;
+
+export interface ImageEditorToolPlacement {
+  /** Defaults to 'left'. */
+  desktop?: 'left' | 'right';
+  /** Defaults to 'bottom'. */
+  mobile?: 'top' | 'bottom';
 }
 
 export interface ImageEditorProps {
   src: string;
   /** Awaited before saving completes; reject to preserve edits for retry. */
   onSave: (dataUrl: string) => void | Promise<void>;
+  /** Preferred over onSave when provided; receives the full-size encoded image without base64. */
+  onSaveBlob?: (blob: Blob, preview?: Blob) => void | Promise<void>;
+  /** Pass a same-format, display-only preview (longest side at most 1200 px) to onSaveBlob. */
+  savePreview?: boolean;
   onCancel: () => void;
   outputFormat?: 'png' | 'jpeg' | 'webp';
   outputQuality?: number;
-  tools?: ToolType[];
-  defaultTool?: ToolType;
+  /** Tools are shown in the given order. The first entry for an ID is used. */
+  tools?: readonly ImageEditorTool[];
+  /** Initial tool ID, or the preferred fallback when the active tool is removed. */
+  defaultTool?: string;
+  toolPlacement?: ImageEditorToolPlacement;
   locale?: Partial<ImageEditorLocale>;
   className?: string;
   maxUndoSteps?: number;
@@ -336,11 +396,17 @@ export interface ImageEditorModalProps {
   imageSrc: string;
   /** Called only for changed images; the modal closes after this resolves. */
   onSave: (editedImageData: string) => void | Promise<void>;
+  /** Preferred over onSave when provided; receives the full-size encoded image without base64. */
+  onSaveBlob?: ImageEditorProps['onSaveBlob'];
+  /** Pass a same-format, display-only preview (longest side at most 1200 px) to onSaveBlob. */
+  savePreview?: boolean;
   onClose: () => void;
   theme?: 'light' | 'dark';
   imageQuality?: number;
   imageFormat?: 'png' | 'jpeg' | 'webp';
-  tools?: ToolType[];
+  tools?: ImageEditorProps['tools'];
+  defaultTool?: ImageEditorProps['defaultTool'];
+  toolPlacement?: ImageEditorProps['toolPlacement'];
   locale?: InkioLocaleInput | Partial<ImageEditorLocale>;
   messages?: InkioImageEditorMessageOverrides | InkioMessageOverrides;
   icons?: Partial<InkioIconRegistry>;

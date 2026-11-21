@@ -23,23 +23,22 @@ version of that sheet.
 Layout: image workbench - keep a bounded image between fixed navigation and
 content-sized options -> holy-grail variant with one narrow rail
 (https://github.com/changeroa/StyleGallery/blob/main/patterns/viewport-shell/holy-grail.md);
-scroll owners: desktop tool rail on short windows, contextual options for
-overflowing controls, horizontal filter/tool reels; the document and photograph
+scroll owners: desktop tool rail on short windows, contextual options and
+the horizontal filter reel for overflowing controls; the document and photograph
 do not become page scrollers. Avoid absolute-positioned inspectors, guessed
 per-tool canvas reservations, and multiple vertical scrollers for the same
 content.
 
-Desktop uses a header, a 76px left rail, a shallow transparent command row
-above the image, and a flexible image region. Simple actions remain inline.
-Dimensions, sliders, layers, and detailed adjustments open bounded
-popovers only when requested. No bottom sheet or right inspector is reserved.
-The contextual row has no panel background, border, or decorative container.
+Desktop uses a top command row (close, history, save), a narrow left tool
+rail, and a shallow contextual row above the canvas. The scale ruler and
+output dimensions sit below the canvas; the pointer wheel over the canvas
+also changes scale. Dimensions, sliders, layers, and detailed adjustments
+open bounded popovers only when requested. No side inspector is reserved.
 
-Mobile retains a top command bar and bottom tool reel. Its shallow contextual
-row is above the image, with horizontally scrollable commands when needed.
-Detailed options use the same bounded popovers rather than a bottom sheet.
-At very narrow widths the zoom group gets its own header row. There is no
-minimum-height page that extends beneath the visible viewport.
+Mobile keeps those same command and scale rows, with a single tool row at
+the bottom. Tools keep their touch targets and scroll horizontally on narrow
+phones; the canvas does not lose a second row. Contextual commands can also
+scroll horizontally, and detailed options use the same bounded popovers.
 
 The shell responds to the editor's measured width, not a containing page's
 assumed device size. The existing 900px desktop/mobile boundary remains.
@@ -51,12 +50,15 @@ assumed device size. The existing 900px desktop/mobile boundary remains.
 - Surfaces: `--inkio-bg`, `--inkio-bg-subtle`, and `--inkio-bg-muted`.
 - Focus/interaction: existing primary and ring tokens.
 - Destructive actions: existing danger text/background tokens.
-- The photograph continues behind the workbench as a static, softly blurred
-  backdrop. A theme-colored veil keeps labels readable. Header and tool
-  navigation use translucent surfaces, fine borders, and backdrop blur;
-  contextual commands remain compact without individual glass containers.
+- Use one raster over the themed workbench. A theme-independent gray checker
+  shows alpha only inside the image preview or crop aperture; it never enters
+  export. Real pixels outside the aperture are dimmed without adding opacity.
+- Crop dragging commits only positions that keep the frame covered. At an
+  edge, a small preview-only offset springs back on release. Reduced motion
+  clamps without this effect.
 - Spacing uses 4, 8, 12, 16, and 24px steps.
-- Controls use 6-8px radii; tool selection uses a restrained filled background.
+- Selected tools use a filled surface without an underline. Keep the
+  focus-visible ring independent from selection.
 - Save uses foreground/background contrast. Only Save has the strongest fill.
 - Labels and controls use a compact 12-14px scale, with 11px tool captions.
   These are tool labels, not paragraph text; the reference-led density is
@@ -86,13 +88,7 @@ Before captures and measurements:
 `/tmp/inkio-compact-1794678701473/before/manifest.json`.
 Screenshots are local verification artifacts, not package assets.
 
-## Live gestures and glass follow-up
-
-The reference's material treatment is part of the requested result: the
-photograph must give the shell depth instead of stopping at an opaque workspace.
-Keep the existing compact layout, system font, tool inventory, and Save hierarchy.
-Only the decorative backdrop is blurred; the edited photograph and exported
-pixels stay sharp. Blur is static and never animated during pointer gestures.
+## Live gestures
 
 Text input, text wrapping, selection actions, and redaction sampling must follow
 the current canvas geometry before pointer release. Persist one undo step at the
@@ -101,7 +97,7 @@ pointer still held, not only the final document.
 
 Before captures: `/tmp/inkio-live-glass-1794731834086/before-photo-*`.
 
-Verified final live-gesture and glass correction:
+Earlier live-gesture verification (before the crop display change):
 
 - All 74 production browser cases pass across Chromium and Firefox, including
   assertions before pointer release for text bounds, selection actions, and
@@ -184,6 +180,23 @@ canvas glyph size.
 Reset seeds the crop in original-image coordinates while retaining rotated
 display dimensions. Locked dimension input holds its ratio through the edit
 gesture. Deferred popover autofocus preserves a field the user already chose.
+
+The workbench owns shortcuts only while it has focus. Portaled options
+follow their trigger in sequential Tab order; Escape returns focus to that
+trigger. The keyboard canvas supports annotation placement, selection,
+movement, deletion, direct text entry and crop adjustment. While the crop
+frame is active, annotations stay visible for context but do not receive
+pointer input. Applying an unchanged draft preserves the original visual
+references and does not consume an undo step.
+
+Decoded source images are limited to 8,192px per side and 32 million pixels;
+the LRU retains at most 12 million decoded pixels. Export is limited to
+4,096px per side and 16 million pixels. Preview surfaces account for device
+pixel ratio; this limit does not change export size. Export rasterizes a
+detached scene at 1× to avoid duplicate Stage and hit canvases, encodes with
+`toBlob()`, and converts the resulting Blob to the public data URL format
+after releasing the raster. A mismatched browser encoder MIME type is an
+error, not a silently substituted format.
 
 The direct-editing features deliberately raise the raw dual-format JavaScript
 budget from 244000 to 252000 bytes. This covers native canvas text editing,

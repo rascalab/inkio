@@ -25,6 +25,8 @@ export interface EditorProps {
   content?: string | JSONContent;
   editable?: boolean;
   placeholder?: string;
+  /** Accessible name of the editing surface. */
+  ariaLabel?: string;
   locale?: InkioLocaleInput;
   /** Color theme */
   theme?: 'light' | 'dark';
@@ -61,6 +63,7 @@ export function Editor({
   content,
   editable,
   placeholder,
+  ariaLabel,
   locale,
   theme,
   tabBehavior,
@@ -80,9 +83,10 @@ export function Editor({
   // Only where the extensions start: `CoreEditor` keeps the live editor up to date
   // with later changes, so the document, caret and undo history stay.
   const [firstUi] = useState(() => ({ placeholder, locale, messages: stableUi.messages, icons: stableUi.icons }));
+  const imageEditor = imageBlock?.imageEditor;
   const extensionInputs = useStableProps({
     tabBehavior,
-    imageBlock,
+    imageBlock: imageBlock && { ...imageBlock, imageEditor: undefined },
     onImageUpload,
     onError,
   });
@@ -97,10 +101,10 @@ export function Editor({
       onError: extensionInputs.onError,
     });
     if (mergedImageBlock) {
-      opts.imageBlock = mergedImageBlock;
+      opts.imageBlock = { ...mergedImageBlock, imageEditor };
     }
     return resolveExtensionsInput(extensions, getExtensions(opts));
-  }, [extensionInputs, extensions, firstUi]);
+  }, [extensionInputs, extensions, firstUi, imageEditor]);
 
   const coreProps: CoreEditorProps = {
     ...mapEditorUiToCoreProps(stableUi, {
@@ -113,6 +117,7 @@ export function Editor({
     extensions: resolvedExtensions,
     editable,
     placeholder,
+    ariaLabel,
     theme,
     onUpdate,
     onCreate,

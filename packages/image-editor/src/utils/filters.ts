@@ -156,7 +156,7 @@ export function applyImageFilter(
   node.luminance(values.luminance);
   node.enhance(values.clarity);
   node.filters(filters);
-  node.cache();
+  node.cache({ pixelRatio: 1 });
   node.getLayer()?.batchDraw();
 }
 

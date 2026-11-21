@@ -1,12 +1,18 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useId, useState } from 'react';
 import EditorPane from './PlaygroundEditorPane';
 import SimplePane from './PlaygroundSimplePane';
 import type { PlaygroundLocale } from './playground-content';
+import { TabPanel, Tabs } from './Tabs';
 import './Playground.css';
 
-type PlaygroundMode = 'editor' | 'simple';
+const MODES = [
+  { id: 'simple', label: 'Simple' },
+  { id: 'editor', label: 'Editor' },
+] as const;
+
+type PlaygroundMode = (typeof MODES)[number]['id'];
 
 const LOCALES: { id: PlaygroundLocale; label: string }[] = [
   { id: 'ko', label: '한국어' },
@@ -14,6 +20,7 @@ const LOCALES: { id: PlaygroundLocale; label: string }[] = [
 ];
 
 export default function Playground({ content }: { content?: string } = {}) {
+  const modeId = useId();
   const [mode, setMode] = useState<PlaygroundMode>('editor');
   const [locale, setLocale] = useState<PlaygroundLocale>('ko');
   const [showViewer, setShowViewer] = useState(true);
@@ -28,29 +35,18 @@ export default function Playground({ content }: { content?: string } = {}) {
 
   return (
     <div className="inkio playground-root">
-      <header className="playground-header">
+      <header className="playground-header" lang="en">
         <div className="playground-header-left">
           <h1 className="playground-title">Inkio Playground</h1>
-          <div className="playground-mode-switch" role="tablist" aria-label="Playground mode">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === 'simple'}
-              className={`playground-mode-btn${mode === 'simple' ? ' is-active' : ''}`}
-              onClick={() => handleModeChange('simple')}
-            >
-              Simple
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === 'editor'}
-              className={`playground-mode-btn${mode === 'editor' ? ' is-active' : ''}`}
-              onClick={() => handleModeChange('editor')}
-            >
-              Editor
-            </button>
-          </div>
+          <Tabs
+            id={modeId}
+            label="Playground mode"
+            className="playground-mode-switch"
+            buttonClassName="playground-mode-btn"
+            items={MODES}
+            value={mode}
+            onChange={handleModeChange}
+          />
         </div>
         <div className="playground-header-right">
           <div className="playground-mode-switch" role="group" aria-label="Editor language">
@@ -58,8 +54,9 @@ export default function Playground({ content }: { content?: string } = {}) {
               <button
                 key={id}
                 type="button"
+                lang={id}
                 aria-pressed={locale === id}
-                className={`playground-mode-btn${locale === id ? ' is-active' : ''}`}
+                className="playground-mode-btn"
                 onClick={() => setLocale(id)}
               >
                 {label}
@@ -87,17 +84,17 @@ export default function Playground({ content }: { content?: string } = {}) {
         </div>
       </header>
 
-      <main className="playground-main">
-        {/* Both stay mounted once opened, so each tab keeps what was written in it. */}
-        {simpleOpened && (
-          <div className="playground-pane" hidden={mode !== 'simple'}>
-            <SimplePane content={content} locale={locale} showViewer={showViewer} showJSON={showJSON} />
-          </div>
-        )}
-        <div className="playground-pane" hidden={mode !== 'editor'}>
-          <EditorPane content={content} locale={locale} showViewer={showViewer} showJSON={showJSON} />
-        </div>
-      </main>
+      <div className="playground-main">
+        {/* Both editors stay mounted once opened so each keeps its own document and history. */}
+        <TabPanel id={modeId} tab="simple" className="playground-pane" active={mode === 'simple'}>
+          {simpleOpened && (
+            <SimplePane content={content} locale={locale} active={mode === 'simple'} showViewer={showViewer} showJSON={showJSON} />
+          )}
+        </TabPanel>
+        <TabPanel id={modeId} tab="editor" className="playground-pane" active={mode === 'editor'}>
+          <EditorPane content={content} locale={locale} active={mode === 'editor'} showViewer={showViewer} showJSON={showJSON} />
+        </TabPanel>
+      </div>
     </div>
   );
 }

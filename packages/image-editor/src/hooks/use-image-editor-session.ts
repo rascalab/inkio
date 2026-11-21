@@ -1,22 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useCanvasExport } from './use-canvas-export';
+import { exportCanvas } from '../utils/export-canvas';
 import { useImageEditor } from './use-image-editor';
-import { useKeyboardShortcuts } from './use-keyboard-shortcuts';
 import { resolveControlsModel, type ViewportKind } from '../utils/controls-model';
-import type { ImageEditorLocale, ImageEditorState, ToolType } from '../types';
+import type { ImageEditorLocale, ImageEditorProps, ImageEditorState } from '../types';
 import { getSelectedAnnotation } from '../utils/annotation-types';
 import { loadImage } from '../utils/image-loader';
-import { isResizeTool, normalizeTool } from '../utils/tooling';
+import { isResizeTool, normalizeTool, type ResolvedImageEditorTool } from '../utils/tooling';
 import { areVisualRefsEqual, getVisualRefs, nextVisualVersion, type VisualRefs } from '../utils/visual-state';
 import { getTransformedDimensions } from '../utils/geometry';
-import { commitResizeSession } from '../reducer';
+import { commitResizeSession, imageEditorReducer } from '../reducer';
 
 interface UseImageEditorSessionOptions {
   src: string;
   locale: ImageEditorLocale;
   outputFormat: 'png' | 'jpeg' | 'webp';
   outputQuality: number;
-  onSave: (dataUrl: string) => void | Promise<void>;
+  onSave: ImageEditorProps['onSave'];
+  onSaveBlob?: ImageEditorProps['onSaveBlob'];
+  savePreview?: boolean;
+  onUnchangedSave?: () => void;
   onDirtyChange?: (dirty: boolean) => void;
   viewportKind: ViewportKind;
 }
@@ -27,16 +29,19 @@ export function useImageEditorSession({
   outputFormat,
   outputQuality,
   onSave,
+  onSaveBlob,
+  savePreview,
+  onUnchangedSave,
   onDirtyChange,
   viewportKind,
 }: UseImageEditorSessionOptions) {
   const { state, dispatch, undo, redo, canUndo, canRedo } = useImageEditor();
-  const { exportToDataURL } = useCanvasExport();
   const [isSaving, setIsSaving] = useState(false);
   const savingRef = useRef(false);
-  const [saveError, setSaveError] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const isSavePending = useCallback(() => savingRef.current, []);
   const [baseline, setBaseline] = useState<{ version: number; refs: VisualRefs } | null>(null);
-  const loadErrorRef = useRef(locale.error);
+  const loadErrorRef = useRef({ error: locale.error, geometry: locale.sourceSizeError });
 
   // Incremental dirty version: O(1) integer bump per visual state change
   // instead of a full JSON.stringify per stroke frame. Updated during render
@@ -59,14 +64,12 @@ export function useImageEditorSession({
     }
   }, []);
 
-  useKeyboardShortcuts(!isSaving);
+  useEffect(() => {
+    loadErrorRef.current = { error: locale.error, geometry: locale.sourceSizeError };
+  }, [locale.error, locale.sourceSizeError]);
 
   useEffect(() => {
-    loadErrorRef.current = locale.error;
-  }, [locale.error]);
-
-  useEffect(() => {
-    setSaveError(false);
+    setSaveError(null);
     dispatch({ type: 'SET_LOADING', isLoading: true });
     dispatch({ type: 'SET_ERROR', error: null });
 
@@ -86,7 +89,8 @@ export function useImageEditorSession({
           return;
         }
 
-        dispatch({ type: 'SET_ERROR', error: loadErrorRef.current });
+        const { error, geometry } = loadErrorRef.current;
+        dispatch({ type: 'SET_ERROR', error: (err instanceof RangeError ? geometry : error) ?? error });
         dispatch({ type: 'SET_LOADING', isLoading: false });
         console.error('[ImageEditor] Failed to load image:', err);
       });
@@ -156,11 +160,13 @@ export function useImageEditorSession({
   );
 
   const handleToolChange = useCallback(
-    (tool: ToolType) => {
-      const nextTool = normalizeTool(tool);
+    (tool: ResolvedImageEditorTool | null) => {
+      if (savingRef.current) return;
+      const nextTool = typeof tool === 'string' ? tool : null;
+      const customToolId = typeof tool === 'object' ? tool?.id : undefined;
       const currentTool = normalizeTool(state.activeTool);
 
-      if (currentTool === nextTool) {
+      if (currentTool === nextTool && state.activeCustomToolId === customToolId) {
         if (isResizeTool(state.activeTool) && state.pendingCrop === null) {
           dispatch({ type: 'START_RESIZE_SESSION' });
         }
@@ -171,57 +177,59 @@ export function useImageEditorSession({
         dispatch({ type: 'DISCARD_RESIZE_SESSION' });
       }
 
-      dispatch({ type: 'SELECT_ANNOTATION', id: null });
-      dispatch({ type: 'SET_TOOL', tool: nextTool });
+      dispatch({ type: 'SET_TOOL', tool: nextTool, customToolId });
     },
-    [dispatch, state.activeTool, state.pendingCrop],
+    [dispatch, state.activeCustomToolId, state.activeTool, state.pendingCrop],
   );
 
   const handleSave = useCallback(async () => {
     if (savingRef.current) return;
+    if (!isDirty && onUnchangedSave) {
+      onUnchangedSave();
+      return;
+    }
     savingRef.current = true;
     setIsSaving(true);
-    setSaveError(false);
+    setSaveError(null);
     // Capture the version of the draft represented by the exported bytes.
     const saveBaseVersion = versionRef.current;
 
+    let exporting = true;
     try {
       const isResizeSessionActive = isResizeTool(state.activeTool);
       const exportState = isResizeSessionActive
         ? commitResizeSession(state)
-        : state.pendingCrop
-          ? {
-              ...state,
-              transform: {
-                ...state.transform,
-                crop: state.pendingCrop,
-              },
-              pendingCrop: null,
-            }
-          : state;
+        : imageEditorReducer(state, { type: 'APPLY_CROP' });
 
-      const dataUrl = await exportToDataURL(outputFormat, outputQuality, exportState);
-      await onSave(dataUrl);
+      if (onSaveBlob && savePreview) {
+        const { blob, preview } = await exportCanvas(exportState, outputFormat, outputQuality, 'blob-with-preview');
+        exporting = false;
+        await onSaveBlob(blob, preview);
+      } else if (onSaveBlob) {
+        const blob = await exportCanvas(exportState, outputFormat, outputQuality, 'blob');
+        exporting = false;
+        await onSaveBlob(blob);
+      } else {
+        const dataUrl = await exportCanvas(exportState, outputFormat, outputQuality);
+        exporting = false;
+        await onSave(dataUrl);
+      }
       // Failed persistence must leave the crop/resize draft intact for retry.
       if (isResizeSessionActive) {
         dispatch({ type: 'COMMIT_RESIZE_SESSION' });
       } else if (state.pendingCrop) {
         dispatch({ type: 'APPLY_CROP' });
       }
-      // The commit above bumps the version by exactly one on the next render
-      // (COMMIT/APPLY always mint fresh transform/outputSize refs), so the
-      // post-save baseline anticipates the pre-dispatch version plus one.
-      // Edits racing the export keep the flag dirty, correctly: they are not
-      // in the exported bytes.
-      resetDirtyBaseline(exportState, saveBaseVersion + (isResizeSessionActive || state.pendingCrop ? 1 : 0));
+      // Use the projected commit to distinguish real changes from closing a clean crop draft.
+      resetDirtyBaseline(exportState, nextVisualVersion(state, saveBaseVersion, exportState));
     } catch (err) {
-      setSaveError(true);
+      setSaveError((exporting && err instanceof RangeError ? locale.outputSizeError : locale.error) ?? locale.error);
       console.error('[ImageEditor] Save failed:', err);
     } finally {
       savingRef.current = false;
       setIsSaving(false);
     }
-  }, [dispatch, exportToDataURL, locale.error, onSave, outputFormat, outputQuality, resetDirtyBaseline, state]);
+  }, [dispatch, isDirty, locale.error, locale.outputSizeError, onSave, onSaveBlob, onUnchangedSave, outputFormat, outputQuality, resetDirtyBaseline, savePreview, state]);
 
   return {
     state,
@@ -231,6 +239,7 @@ export function useImageEditorSession({
     canUndo,
     canRedo,
     isSaving,
+    isSavePending,
     saveError,
     isDirty,
     selectedAnnotation,

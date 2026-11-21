@@ -1,6 +1,6 @@
 {
   "name": "@inkio/simple",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Classic WYSIWYG entry point for Inkio",
   "license": "MIT",
   "homepage": "https://rascalab.github.io/inkio/",
@@ -90,11 +90,11 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "vite": "^8.3.2",
+    "vite": "^8.3.8",
     "vite-plugin-dts": "^5.1.2",
     "vitest": "^5.0.3"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.12.0"
   }
 }

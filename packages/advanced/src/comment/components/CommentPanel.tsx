@@ -10,8 +10,16 @@ import {
   useInkioCommentUi,
   type InkioCommentMessageOverrides,
 } from '../i18n';
-import { getInitials } from '../utils';
-import { notifyCommentThreadsChanged, type CommentMessage, type CommentThreadData } from '../comment-shared';
+import { findCommentRanges, getInitials } from '../utils';
+import {
+  isKnownCommentThread,
+  normalizeCommentId,
+  notifyCommentThreadsChanged,
+  readCommentThread,
+  type CommentMessage,
+  type CommentOptions,
+  type CommentThreadData,
+} from '../comment-shared';
 import { CommentActionIcon } from './CommentActionIcon';
 
 // ─── Data types ────────────────────────────────────────────
@@ -34,7 +42,7 @@ interface EditorCommentMark {
 export interface CommentPanelProps {
   /** Tiptap Editor instance */
   editor: Editor | null;
-  /** Externally managed comment thread data */
+  /** Valid threads for this document and user. Host mutations still require authorization. */
   threads: CommentThreadData[];
   /** Called when user submits a reply to a thread (omit to hide reply UI) */
   onReply?: (commentId: string, text: string) => void;
@@ -94,8 +102,8 @@ function collectEditorMarks(editor: Editor): EditorCommentMark[] {
     for (const mark of node.marks) {
       if (mark.type !== markType) continue;
 
-      const commentId = mark.attrs.commentId as string;
-      if (!commentId) continue;
+      const commentId = normalizeCommentId(mark.attrs.commentId);
+      if (!commentId || commentId !== mark.attrs.commentId) continue;
 
       const from = pos;
       const to = pos + node.nodeSize;
@@ -172,11 +180,6 @@ export function stepMayAffectComments(doc: PMNode, step: Step, markType: MarkTyp
   return hit;
 }
 
-/** Fresh positions for one comment id, read at use time. */
-function findEditorMark(editor: Editor, commentId: string): EditorCommentMark | undefined {
-  return collectEditorMarks(editor).find((mark) => mark.commentId === commentId);
-}
-
 // ─── Component ─────────────────────────────────────────────
 
 export const CommentPanel = ({
@@ -195,9 +198,19 @@ export const CommentPanel = ({
 }: CommentPanelProps) => {
   const [editorMarks, setEditorMarks] = useState<EditorCommentMark[]>([]);
   const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('all');
-  const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
+  const [editable, setEditable] = useState(() => editor?.isEditable ?? false);
+  const [replyTexts, setReplyTexts] = useState(() => new Map<string, string>());
   const [activeThread, setActiveThread] = useState<string | null>(null);
   const threadRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const threadsById = useMemo(() => {
+    const byId = new Map<string, CommentThreadData>();
+    if (Array.isArray(threads)) {
+      for (const thread of threads) {
+        if (isKnownCommentThread(thread) && !byId.has(thread.id)) byId.set(thread.id, thread);
+      }
+    }
+    return byId;
+  }, [threads]);
 
   // Let the open thread popover re-read thread data: external `threads`
   // updates don't produce document transactions, so without this the popover
@@ -223,9 +236,11 @@ export const CommentPanel = ({
 
 
   useEffect(() => {
+    setEditable(editor?.isEditable ?? false);
     if (!editor) return;
 
     let lastDoc = editor.state.doc;
+    let lastEditable = editor.isEditable;
     setEditorMarks(collectEditorMarks(editor));
 
     const refresh = ({ transaction }: { transaction?: Transaction } = {}) => {
@@ -255,21 +270,27 @@ export const CommentPanel = ({
     };
 
     editor.on('transaction', refresh);
+    const refreshEditable = () => {
+      if (editor.isEditable === lastEditable) return;
+      lastEditable = editor.isEditable;
+      setEditable(lastEditable);
+    };
+    editor.on('update', refreshEditable);
     return () => {
       editor.off('transaction', refresh);
+      editor.off('update', refreshEditable);
     };
   }, [editor]);
 
   const handleScrollTo = useCallback(
-    (mark: EditorCommentMark) => {
+    (commentId: string) => {
       if (!editor) return;
 
       // Positions in panel state may be stale (typing elsewhere does not
       // refresh them), so re-read the mark's current ranges.
-      const current = findEditorMark(editor, mark.commentId) ?? mark;
-      // Select the first contiguous range only — never the gap between
-      // non-contiguous same-id runs.
-      const target = current.ranges[0] ?? { from: current.from, to: current.to };
+      // Select only the first contiguous span; never select the gap or use a stale range.
+      const [target] = findCommentRanges(editor.state.doc, commentId);
+      if (!target) return;
       const size = editor.state.doc.content.size;
       if (
         !Number.isFinite(target.from) ||
@@ -299,36 +320,34 @@ export const CommentPanel = ({
 
   const handleReply = useCallback(
     (commentId: string) => {
-      const text = (replyTextsRef.current[commentId] || '').trim();
-      if (!text || !onReply) return;
+      const text = replyTextsRef.current.get(commentId)?.trim();
+      if (!editor?.isEditable || !text || !onReply ||
+          threadsById.get(commentId)?.resolved !== false ||
+          findCommentRanges(editor.state.doc, commentId).length === 0) return;
 
       onReply(commentId, text);
-      setReplyTexts((prev) => ({ ...prev, [commentId]: '' }));
+      setReplyTexts((prev) => {
+        const next = new Map(prev);
+        next.delete(commentId);
+        return next;
+      });
     },
-    [onReply],
+    [editor, onReply, threadsById],
   );
 
   const handleDeleteThread = useCallback(
     (commentId: string) => {
-      if (!editor || !onDelete) return;
+      if (!editor?.isEditable || !onDelete || !threadsById.has(commentId)) return;
+      const ranges = findCommentRanges(editor.state.doc, commentId);
+      if (!ranges.length) return;
 
-      // Re-read positions: panel state may predate edits elsewhere.
-      const mark = findEditorMark(editor, commentId);
-      if (mark) {
-        // Remove every contiguous range, not just the first span.
-        const tr = editor.state.tr;
-        const markType = editor.state.schema.marks.comment;
-        if (markType) {
-          for (const range of mark.ranges) {
-            tr.removeMark(range.from, range.to, markType);
-          }
-          editor.view.dispatch(tr);
-        }
-      }
-
-      onDelete(commentId);
+      const tr = editor.state.tr;
+      for (const { from, to, mark } of ranges) tr.removeMark(from, to, mark);
+      const before = tr.before;
+      editor.view.dispatch(tr);
+      if (editor.state.doc !== before) onDelete(commentId);
     },
-    [editor, onDelete],
+    [editor, onDelete, threadsById],
   );
 
   /**
@@ -340,27 +359,20 @@ export const CommentPanel = ({
    */
   const handleResolveThread = useCallback(
     (commentId: string) => {
-      if (!editor || !onResolve) return;
+      if (!editor?.isEditable || !onResolve || threadsById.get(commentId)?.resolved !== false) return;
       const commentExtension = editor.extensionManager.extensions.find(
         (extension) => extension.name === 'comment',
-      ) as { options?: { onCommentResolve?: (commentId: string) => void } } | undefined;
-      (editor.commands as { resolveComment?: (commentId: string) => void }).resolveComment?.(commentId);
-      if (onResolve !== commentExtension?.options?.onCommentResolve) {
-        onResolve(commentId);
-      }
+      );
+      const options = commentExtension?.options as Partial<CommentOptions> | undefined;
+      const commandWillNotify = onResolve === options?.onCommentResolve
+        && readCommentThread(options?.getThread, commentId) !== null;
+      if (editor.commands.resolveComment?.(commentId) && !commandWillNotify) onResolve(commentId);
     },
-    [editor, onResolve],
-  );
-
-  const isResolvedMark = useCallback(
-    (mark: EditorCommentMark, threadData: { resolved: boolean } | undefined) =>
-      threadData?.resolved ?? mark.resolved,
-    [],
+    [editor, onResolve, threadsById],
   );
 
   interface PanelRow {
     commentId: string;
-    mark: EditorCommentMark;
     threadData: CommentThreadData | undefined;
     resolved: boolean;
     quoteText: string;
@@ -370,16 +382,15 @@ export const CommentPanel = ({
   // the panel, and undo brings it back along with its mark.
   const allRows = useMemo<PanelRow[]>(() => {
     return editorMarks.map((mark) => {
-      const threadData = threads.find((thread) => thread.id === mark.commentId);
+      const threadData = threadsById.get(mark.commentId);
       return {
         commentId: mark.commentId,
-        mark,
         threadData,
-        resolved: isResolvedMark(mark, threadData),
+        resolved: threadData?.resolved ?? mark.resolved,
         quoteText: mark.text,
       };
     });
-  }, [editorMarks, threads, isResolvedMark]);
+  }, [editorMarks, threadsById]);
 
   const displayThreads = useMemo(() => {
     return allRows.filter((row) => {
@@ -396,10 +407,12 @@ export const CommentPanel = ({
   );
   if (!hasCommentExtension) return null;
 
-  const resolvedCurrentUser = currentUser || ui.messages.commentPanel.you;
+  const resolvedCurrentUser = typeof currentUser === 'string' && currentUser
+    ? currentUser
+    : ui.messages.commentPanel.you;
   // Counts share the displayThreads denominator so badges match the filtered lists.
   const openCount = allRows.filter((row) => !row.resolved).length;
-  const resolvedCount = allRows.filter((row) => row.resolved).length;
+  const resolvedCount = allRows.length - openCount;
 
   return (
     <div className={`inkio inkio-comment-panel ${className || ''}`} style={style}>
@@ -442,8 +455,10 @@ export const CommentPanel = ({
         </div>
       ) : (
         <div className="inkio-comment-list">
-          {displayThreads.map(({ commentId, mark, threadData, resolved: isResolved, quoteText }) => {
+          {displayThreads.map(({ commentId, threadData, resolved: isResolved, quoteText }) => {
             const isActive = activeThread === commentId;
+            const canMutate = editable && Boolean(threadData);
+            const replyText = replyTexts.get(commentId) ?? '';
 
             return (
               <div
@@ -456,7 +471,7 @@ export const CommentPanel = ({
               >
                 <div
                   className="inkio-comment-thread-quote"
-                  onClick={() => handleScrollTo(mark)}
+                  onClick={() => handleScrollTo(commentId)}
                   title={ui.messages.commentPanel.quoteHint}
                 >
                   <div className="inkio-comment-quote-bar" />
@@ -488,16 +503,17 @@ export const CommentPanel = ({
                   </div>
                 )}
 
-                {onReply && !isResolved && (
+                {canMutate && onReply && !isResolved && (
                   <div className="inkio-comment-reply-row">
                     <input
                       type="text"
                       className="inkio-comment-reply-input"
                       placeholder={ui.messages.commentPanel.replyPlaceholder}
-                      value={replyTexts[commentId] || ''}
-                      onChange={(event) =>
-                        setReplyTexts((prev) => ({ ...prev, [commentId]: event.target.value }))
-                      }
+                      value={replyText}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setReplyTexts((prev) => new Map(prev).set(commentId, value));
+                      }}
                       onKeyDown={(event) => {
                         if (event.nativeEvent.isComposing) return;
                         if (event.key === 'Enter' && !event.shiftKey) {
@@ -507,7 +523,7 @@ export const CommentPanel = ({
                       }}
                       onFocus={() => setActiveThread(commentId)}
                     />
-                    {(replyTexts[commentId] || '').trim() && (
+                    {replyText.trim() && (
                       <button
                         type="button"
                         className="inkio-comment-reply-send"
@@ -519,7 +535,7 @@ export const CommentPanel = ({
                   </div>
                 )}
 
-                {(onResolve || onDelete) && (
+                {canMutate && (onResolve || onDelete) && (
                   <div className="inkio-comment-thread-actions">
                     {onResolve && !isResolved && (
                       <button

@@ -23,7 +23,7 @@ export const BlockHandle = Extension.create<BlockHandleOptions>({
   addOptions() {
     return {
       HTMLAttributes: {},
-      dragHandleWidth: 24,
+      dragHandleWidth: 28,
       icons: undefined,
       locale: undefined,
       messages: undefined,

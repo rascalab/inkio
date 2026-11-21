@@ -85,6 +85,7 @@ export { createOverlayHost } from './utils/overlay-host';
 export type { OverlayHost, OverlayHostOptions } from './utils/overlay-host';
 export { resolveInkioExtensions } from './extensions/resolve-extensions';
 export { runOptionalChainCommand } from './extensions/optional-commands';
+export { planAdjacentBlockMove } from './extensions/adjacent-block-move';
 export type { InkioOptionalChainCommand } from './extensions/optional-commands';
 export type { ExtensionsInput, CoreExtensions } from './utils/extensions-input';
 export type { JSONContent as InkioJSONContent } from '@tiptap/core';
@@ -112,6 +113,7 @@ export {
   toRectLike,
 } from './overlay/positioning';
 export type {
+  InkioMenuPosition,
   RectLike,
   OverlayPlacement,
   OverlayAlignment,

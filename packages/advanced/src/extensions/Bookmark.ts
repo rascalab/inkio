@@ -2,11 +2,15 @@ import { mergeAttributes, Node } from '@tiptap/core';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { sanitizeUrlOrEmpty } from '@inkio/core';
 import { BookmarkView } from './BookmarkView';
-import type { BookmarkOptions } from './bookmark-types';
+import type { BookmarkOptions, BookmarkStorage } from './bookmark-types';
 
 export type { BookmarkAttributes, BookmarkOptions, BookmarkPreview } from './bookmark-types';
 
 declare module '@tiptap/core' {
+  interface Storage {
+    bookmark: BookmarkStorage;
+  }
+
   interface Commands<ReturnType> {
     bookmark: {
       setBookmark: (attributes: { url: string }) => ReturnType;
@@ -14,7 +18,7 @@ declare module '@tiptap/core' {
   }
 }
 
-export const Bookmark = Node.create<BookmarkOptions>({
+export const Bookmark = Node.create<BookmarkOptions, BookmarkStorage>({
   name: 'bookmark',
 
   group: 'block',
@@ -32,6 +36,11 @@ export const Bookmark = Node.create<BookmarkOptions>({
     };
   },
 
+  addStorage() {
+    // Local insertion intent is not serialized or shared with collaborators.
+    return { previewRequests: new WeakSet() };
+  },
+
   addAttributes() {
     return {
       url: {
@@ -45,26 +54,30 @@ export const Bookmark = Node.create<BookmarkOptions>({
       title: {
         default: null,
         parseHTML: (element) => element.getAttribute('data-bookmark-title'),
-        renderHTML: (attributes) =>
-          attributes.title ? { 'data-bookmark-title': attributes.title } : {},
+        renderHTML: ({ title }) =>
+          typeof title === 'string' && title ? { 'data-bookmark-title': title } : {},
       },
       description: {
         default: null,
         parseHTML: (element) => element.getAttribute('data-bookmark-description'),
-        renderHTML: (attributes) =>
-          attributes.description ? { 'data-bookmark-description': attributes.description } : {},
+        renderHTML: ({ description }) =>
+          typeof description === 'string' && description ? { 'data-bookmark-description': description } : {},
       },
       image: {
         default: null,
         parseHTML: (element) => sanitizeUrlOrEmpty(element.getAttribute('data-bookmark-image')) || null,
-        renderHTML: (attributes) =>
-          attributes.image ? { 'data-bookmark-image': sanitizeUrlOrEmpty(attributes.image) } : {},
+        renderHTML: (attributes) => {
+          const url = sanitizeUrlOrEmpty(attributes.image);
+          return url ? { 'data-bookmark-image': url } : {};
+        },
       },
       favicon: {
         default: null,
         parseHTML: (element) => sanitizeUrlOrEmpty(element.getAttribute('data-bookmark-favicon')) || null,
-        renderHTML: (attributes) =>
-          attributes.favicon ? { 'data-bookmark-favicon': sanitizeUrlOrEmpty(attributes.favicon) } : {},
+        renderHTML: (attributes) => {
+          const url = sanitizeUrlOrEmpty(attributes.favicon);
+          return url ? { 'data-bookmark-favicon': url } : {};
+        },
       },
     };
   },
@@ -99,6 +112,7 @@ export const Bookmark = Node.create<BookmarkOptions>({
   },
 
   renderHTML({ HTMLAttributes }) {
+    const href = sanitizeUrlOrEmpty(HTMLAttributes['data-bookmark-url']);
     const hasPreviewData = Boolean(
       HTMLAttributes['data-bookmark-title'] ||
         HTMLAttributes['data-bookmark-description'] ||
@@ -110,19 +124,17 @@ export const Bookmark = Node.create<BookmarkOptions>({
       const fallbackAttrs = mergeAttributes(
         {
           'data-bookmark-fallback': '',
-          href: sanitizeUrlOrEmpty(HTMLAttributes['data-bookmark-url']),
           rel: 'noopener noreferrer nofollow',
           target: '_blank',
         },
         this.options.HTMLAttributes,
         HTMLAttributes,
       );
-      // Links point at user-supplied URLs: pin the security attributes
-      // last so neither extension config nor node attrs can downgrade
-      // rel/target (tabnabbing via window.opener).
+      // Pin the destination and navigation attributes after HTMLAttributes overrides.
       fallbackAttrs.rel = 'noopener noreferrer nofollow';
       fallbackAttrs.target = '_blank';
-      return ['a', fallbackAttrs, HTMLAttributes['data-bookmark-url']];
+      fallbackAttrs.href = href;
+      return ['a', fallbackAttrs, href];
     }
 
     return [
@@ -130,7 +142,7 @@ export const Bookmark = Node.create<BookmarkOptions>({
       mergeAttributes({ 'data-bookmark': '' }, this.options.HTMLAttributes, HTMLAttributes),
       // Same-tab navigation needs no target, but user-supplied URLs still
       // get rel hygiene (no opener reference, no SEO juice).
-      ['a', { href: sanitizeUrlOrEmpty(HTMLAttributes['data-bookmark-url']), rel: 'noopener noreferrer nofollow' }, HTMLAttributes['data-bookmark-title'] || HTMLAttributes['data-bookmark-url']],
+      ['a', { href, rel: 'noopener noreferrer nofollow' }, HTMLAttributes['data-bookmark-title'] || href],
     ];
   },
 
@@ -138,17 +150,17 @@ export const Bookmark = Node.create<BookmarkOptions>({
     return {
       setBookmark:
         (attributes) =>
-        ({ commands }) => {
+        ({ commands, dispatch, tr }) => {
           const url = sanitizeUrlOrEmpty(attributes?.url);
           if (!url) {
             return false;
           }
-          return commands.insertContent({
-            type: this.name,
-            attrs: {
-              url,
-            },
-          });
+          const node = this.type.create({ url });
+          const inserted = commands.insertContentAt(tr.selection, node);
+          if (inserted && dispatch && this.editor.isEditable && this.options.onResolveBookmark) {
+            this.storage.previewRequests.add(node);
+          }
+          return inserted;
         },
     };
   },

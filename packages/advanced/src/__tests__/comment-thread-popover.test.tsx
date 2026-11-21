@@ -26,6 +26,14 @@ describe('CommentThreadPopover frozen view', () => {
     expect(screen.queryByRole('button', { name: /resolve/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /delete/i })).toBeNull();
   });
+
+  it('does not display another thread or offer mutations for a mismatched host ID', () => {
+    render(<CommentThreadPopover {...baseProps} thread={{ ...baseProps.thread, id: 't2' }} />);
+    expect(screen.queryByText('hi')).toBeNull();
+    expect(screen.queryByPlaceholderText(/reply/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /resolve/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /delete/i })).toBeNull();
+  });
 });
 
 describe('CommentThreadPopover focus', () => {

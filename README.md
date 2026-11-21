@@ -20,6 +20,8 @@ Inkio is a layered React rich-text editor family built on Tiptap.
 
 ## Install
 
+Build and SSR require Node.js 22.12 or newer. The editor packages support React 18 and 19; the optional image editor requires React and React DOM 19.3 or newer within React 19.
+
 Classic editor:
 
 ```bash
@@ -35,7 +37,7 @@ npm install @inkio/editor react react-dom
 Optional packages:
 
 ```bash
-npm install @inkio/image-editor
+npm install @inkio/image-editor "react@^19.3.0" "react-dom@^19.3.0"
 ```
 
 If app code imports `CommentPanel`, comment i18n, or other advanced exports directly:
@@ -143,3 +145,4 @@ Key examples:
 
 - `examples/basic-react` -> `@inkio/simple`
 - `examples/next-app-router` -> `@inkio/editor`
+- `examples/react-router` -> `@inkio/simple` with route-based edit/read views

@@ -24,12 +24,15 @@ import {
   DEFAULT_STICKER_OPTIONS,
 } from './constants';
 import { DEFAULT_FINETUNE } from './utils/filters';
-import { getDefaultCropRect } from './utils/crop';
+import { getDefaultCropRect, getEffectivePendingCrop } from './utils/crop';
 import { getBaseDisplayDimensions, getTransformedDimensions, isQuarterTurn } from './utils/geometry';
+import { fitsRaster, MAX_EXPORT_DIMENSION, MAX_EXPORT_PIXELS } from './utils/raster-limits';
+
+export type ImageEditorSessionState = ImageEditorState & { activeCustomToolId?: string };
 
 export type ImageEditorAction =
   | { type: 'SET_IMAGE'; image: HTMLImageElement; width: number; height: number }
-  | { type: 'SET_TOOL'; tool: ToolType | null; preserveSelection?: boolean }
+  | { type: 'SET_TOOL'; tool: ToolType | null; customToolId?: string; preserveSelection?: boolean }
   | { type: 'START_RESIZE_SESSION' }
   | { type: 'COMMIT_RESIZE_SESSION' }
   | { type: 'DISCARD_RESIZE_SESSION' }
@@ -50,13 +53,13 @@ export type ImageEditorAction =
   | { type: 'APPEND_ANNOTATION_POINTS'; id: string; points: number[] }
   | { type: 'DELETE_ANNOTATION'; id: string }
   | { type: 'SELECT_ANNOTATION'; id: string | null }
-  | { type: 'APPLY_CROP' }
+  | { type: 'APPLY_CROP'; crop?: CropRect | null }
   | { type: 'SET_PENDING_CROP'; crop: CropRect | null }
   | { type: 'ROTATE_CW' }
   | { type: 'ROTATE_CCW' }
   | { type: 'FLIP_X' }
   | { type: 'FLIP_Y' }
-  | { type: 'APPLY_RESIZE'; size: OutputSize }
+  | { type: 'APPLY_RESIZE'; size: OutputSize | null }
   | { type: 'SET_LOADING'; isLoading: boolean }
   | { type: 'SET_ERROR'; error: string | null }
   | { type: 'BRING_ANNOTATION_TO_FRONT'; id: string }
@@ -104,9 +107,9 @@ export function createInitialState(): ImageEditorState {
 export const initialState: ImageEditorState = createInitialState();
 
 export function imageEditorReducer(
-  state: ImageEditorState,
+  state: ImageEditorSessionState,
   action: ImageEditorAction,
-): ImageEditorState {
+): ImageEditorSessionState {
   switch (action.type) {
     case 'SET_IMAGE':
       return {
@@ -130,6 +133,7 @@ export function imageEditorReducer(
       return {
         ...state,
         activeTool: action.tool,
+        activeCustomToolId: action.tool === null ? action.customToolId : undefined,
         selectedAnnotationId: action.preserveSelection ? state.selectedAnnotationId : null,
         // Crop/resize sessions belong to their tool: carrying a stale
         // pendingCrop across tools blocks the next session from starting.
@@ -219,17 +223,29 @@ export function imageEditorReducer(
 
     case 'SET_RESIZE_OPTIONS': {
       const next = { ...state, resizeOptions: { ...state.resizeOptions, ...action.options } };
+      if (action.apply && !fitsRaster(
+        Math.round(next.resizeOptions.width), Math.round(next.resizeOptions.height),
+        MAX_EXPORT_DIMENSION, MAX_EXPORT_PIXELS,
+      )) return state;
       return action.apply ? commitResizeSession(next) : next;
     }
 
     case 'SET_FILTER':
-      return { ...state, filter: action.filter };
+      return state.filter === action.filter ? state : { ...state, filter: action.filter };
 
-    case 'SET_FINETUNE':
-      return { ...state, finetune: { ...state.finetune, ...action.finetune } };
+    case 'SET_FINETUNE': {
+      const current = state.finetune;
+      const brightness = clampAdjustment(action.finetune.brightness, current.brightness, 1);
+      const contrast = clampAdjustment(action.finetune.contrast, current.contrast, 100);
+      const saturation = clampAdjustment(action.finetune.saturation, current.saturation, 1);
+      const clarity = clampAdjustment(action.finetune.clarity, current.clarity, 1);
+      if (brightness === current.brightness && contrast === current.contrast
+        && saturation === current.saturation && clarity === current.clarity) return state;
+      return { ...state, finetune: { brightness, contrast, saturation, clarity } };
+    }
 
     case 'RESET_FINETUNE':
-      return { ...state, finetune: { ...DEFAULT_FINETUNE } };
+      return imageEditorReducer(state, { type: 'SET_FINETUNE', finetune: DEFAULT_FINETUNE });
 
     case 'SET_REDACT_OPTIONS':
       return { ...state, redactOptions: { ...state.redactOptions, ...action.options } };
@@ -291,12 +307,31 @@ export function imageEditorReducer(
     case 'SELECT_ANNOTATION':
       return { ...state, selectedAnnotationId: action.id };
 
-    case 'APPLY_CROP':
+    case 'APPLY_CROP': {
+      if (action.crop !== undefined) {
+        const crop = action.crop;
+        const current = state.transform.crop;
+        if (crop === null) {
+          if (current === null) return state;
+        } else {
+          const { x, y, width, height } = crop;
+          if (!(x >= 0 && y >= 0 && width >= 1 && height >= 1
+            && x + width <= state.originalWidth && y + height <= state.originalHeight)) return state;
+          if (x === (current?.x ?? 0) && y === (current?.y ?? 0)
+            && width === (current?.width ?? state.originalWidth) && height === (current?.height ?? state.originalHeight)) {
+            return state;
+          }
+        }
+        return { ...state, transform: { ...state.transform, crop }, pendingCrop: null };
+      }
+      if (!state.pendingCrop) return state;
+      const crop = getEffectivePendingCrop(state);
       return {
         ...state,
-        transform: { ...state.transform, crop: state.pendingCrop },
+        transform: crop ? { ...state.transform, crop } : state.transform,
         pendingCrop: null,
       };
+    }
 
     case 'SET_PENDING_CROP': {
       if (!action.crop) return { ...state, pendingCrop: null };
@@ -343,8 +378,16 @@ export function imageEditorReducer(
     case 'FLIP_Y':
       return { ...state, transform: { ...state.transform, flipY: !state.transform.flipY } };
 
-    case 'APPLY_RESIZE':
-      return { ...state, outputSize: action.size };
+    case 'APPLY_RESIZE': {
+      const size = action.size;
+      if (size === null) return state.outputSize === null ? state : { ...state, outputSize: null };
+      const width = Math.round(size.width);
+      const height = Math.round(size.height);
+      if (!fitsRaster(width, height, MAX_EXPORT_DIMENSION, MAX_EXPORT_PIXELS)) return state;
+      const current = getAppliedResizeSize(state);
+      if (width === current.width && height === current.height) return state;
+      return { ...state, outputSize: getBaseDisplayDimensions(width, height, state.transform.rotation) };
+    }
 
     case 'SET_LOADING':
       return { ...state, isLoading: action.isLoading };
@@ -414,11 +457,11 @@ export const UNDOABLE_ACTIONS = new Set<ImageEditorAction['type']>([
 // ---- Undo/redo wrapper ----
 
 export interface UndoableEditorState {
-  present: ImageEditorState;
-  past: ImageEditorState[];
-  future: ImageEditorState[];
+  present: ImageEditorSessionState;
+  past: ImageEditorSessionState[];
+  future: ImageEditorSessionState[];
   /** Scene before the current annotation or dimension-edit gesture. */
-  previewState?: ImageEditorState;
+  previewState?: ImageEditorSessionState;
 }
 
 export type UndoableAction =
@@ -487,6 +530,10 @@ export function undoableReducer(
 
   if (isPreview) {
     if (nextPresent === state.present) return state;
+    if (action.type === 'SET_RESIZE_OPTIONS'
+      && nextPresent.transform === state.present.transform && nextPresent.outputSize === state.present.outputSize) {
+      return { ...state, present: nextPresent };
+    }
     return {
       ...state,
       present: nextPresent,
@@ -523,6 +570,11 @@ export function undoableReducer(
     // returns the identical state): pushing them wastes a history slot
     // and breaks redo expectations.
     if (nextPresent === committed.present) return committed;
+    if ((action.type === 'APPLY_CROP' || action.type === 'COMMIT_RESIZE_SESSION')
+      && nextPresent.transform === committed.present.transform
+      && nextPresent.outputSize === committed.present.outputSize) {
+      return { ...committed, present: nextPresent };
+    }
     return {
       present: nextPresent,
       past: [...committed.past, committed.present].slice(-cap),
@@ -533,14 +585,20 @@ export function undoableReducer(
   return nextPresent === committed.present ? committed : { ...committed, present: nextPresent };
 }
 
+function clampAdjustment(value: number | undefined, current: number, limit: number): number {
+  return value !== undefined && Number.isFinite(value) ? Math.max(-limit, Math.min(limit, value)) : current;
+}
+
 /** True when two states differ only in finetune values (same scene). */
-function statesDifferOnlyInFinetune(a: ImageEditorState, b: ImageEditorState): boolean {
+function statesDifferOnlyInFinetune(a: ImageEditorSessionState, b: ImageEditorSessionState): boolean {
   return (
     a.transform === b.transform
     && a.pendingCrop === b.pendingCrop
     && a.outputSize === b.outputSize
     && a.annotations === b.annotations
     && a.activeTool === b.activeTool
+    && a.activeCustomToolId === b.activeCustomToolId
+    && a.filter === b.filter
   );
 }
 
@@ -571,13 +629,22 @@ function getAppliedResizeSize(state: ImageEditorState): OutputSize {
 }
 
 /** Project the same crop and final integer dimensions for preview and saving. */
-export function commitResizeSession(state: ImageEditorState): ImageEditorState {
+export function commitResizeSession(state: ImageEditorSessionState): ImageEditorSessionState {
+  if (!state.pendingCrop && state.resizeOptions.width <= 0 && state.resizeOptions.height <= 0) return state;
   const width = Math.max(1, Math.round(state.resizeOptions.width));
   const height = Math.max(1, Math.round(state.resizeOptions.height));
+  const crop = getEffectivePendingCrop(state);
+  const appliedSize = getAppliedResizeSize(state);
+  const size = crop || width !== appliedSize.width || height !== appliedSize.height
+    ? getBaseDisplayDimensions(width, height, state.transform.rotation)
+    : state.outputSize;
+  if (!state.pendingCrop && size === state.outputSize
+    && width === state.resizeOptions.width && height === state.resizeOptions.height) return state;
   return {
     ...state,
-    transform: { ...state.transform, crop: state.pendingCrop ?? state.transform.crop },
-    outputSize: getBaseDisplayDimensions(width, height, state.transform.rotation),
+    transform: crop ? { ...state.transform, crop } : state.transform,
+    outputSize: size?.width === state.outputSize?.width && size?.height === state.outputSize?.height
+      ? state.outputSize : size,
     resizeOptions: { ...state.resizeOptions, width, height },
     pendingCrop: null,
   };

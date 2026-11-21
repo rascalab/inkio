@@ -1,69 +1,257 @@
+:root {
+  --nextra-bg: 247, 249, 244;
+  --nextra-content-width: 83rem;
+  --nextra-primary-hue: 82deg;
+  --nextra-primary-saturation: 55%;
+  --nextra-primary-lightness: 41%;
+  --site-bg: rgb(var(--nextra-bg));
+  --site-band: #eef3e9;
+  --site-surface: #fff;
+  --site-line: #ccd7c8;
+  --site-ink: #17211a;
+  --site-muted: #435349;
+  --site-faint: #586859;
+  --site-accent: #3c611a;
+  --site-action: #c8f774;
+  --site-action-hover: #b2e35b;
+  --site-on-action: #080e0e;
+  --site-active: color-mix(in srgb, var(--site-accent) 13%, var(--site-band));
+  --site-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --site-gutter: clamp(1rem, 4.5vw, 4rem);
+  --site-radius: .65rem;
+}
+
+:root.dark {
+  --nextra-bg: 8, 14, 14;
+  --nextra-primary-saturation: 75%;
+  --nextra-primary-lightness: 66%;
+  --site-band: #0c1514;
+  --site-surface: #101918;
+  --site-line: #2a3934;
+  --site-ink: #edf3ed;
+  --site-muted: #afbeb5;
+  --site-faint: #8e9f95;
+  --site-accent: var(--site-action);
+  --site-action-hover: #defba7;
+}
+
 .inkio-docs-root {
-  background:
-    radial-gradient(circle at top, color-mix(in srgb, var(--inkio-primary) 4%, transparent), transparent 28%),
-    color-mix(in srgb, var(--inkio-bg-subtle) 94%, var(--inkio-bg-muted));
-  color: var(--inkio-text);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--site-bg);
+  color: var(--site-ink);
+  font-family: var(--site-sans), system-ui, sans-serif;
 }
 
-.inkio-docs-root::selection {
-  background: var(--inkio-selection-bg);
+.inkio-docs-root ::selection {
+  background: var(--site-active);
 }
 
-.inkio-docs-root .nextra-navbar {
-  background: transparent !important;
+.inkio-site-shell {
+  width: min(100% - 2 * var(--site-gutter), var(--nextra-content-width));
+  margin-inline: auto;
+}
+
+.inkio-docs-layout {
+  width: 100%;
+  max-width: var(--nextra-content-width);
+  margin-inline: auto;
 }
 
 .inkio-docs-root .nextra-navbar-blur {
-  border-bottom: 1px solid var(--inkio-surface-border) !important;
-  background: var(--inkio-surface-shell) !important;
-  box-shadow: var(--inkio-surface-shadow);
-  backdrop-filter: blur(var(--inkio-surface-blur-shell));
+  border-bottom: 1px solid var(--site-line);
+  background: var(--site-bg);
+  backdrop-filter: none;
 }
 
-.inkio-docs-root aside.nextra-sidebar,
-.inkio-docs-root .nextra-mobile-nav,
-.inkio-docs-root .nextra-sidebar-footer {
-  background: var(--inkio-surface-shell) !important;
-  backdrop-filter: blur(var(--inkio-surface-blur-shell));
+.inkio-docs-root .inkio-site-nav {
+  max-width: none;
+  gap: clamp(.55rem, 1.7vw, 1.5rem);
+  padding-inline: 0;
 }
 
-.inkio-docs-root aside.nextra-sidebar {
-  border-inline-end: 1px solid var(--inkio-surface-border);
-  box-shadow: var(--inkio-surface-shadow);
+.inkio-site-brand {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: .625rem;
+  color: var(--site-ink);
+  font-size: 1.125rem;
+  font-weight: 700;
 }
 
-.inkio-docs-root .nextra-sidebar-footer {
-  border-top: 1px solid var(--inkio-surface-border) !important;
+.inkio-site-brand span {
+  display: grid;
+  width: 1.5rem;
+  aspect-ratio: 1;
+  place-content: center;
+  border-radius: .3rem;
+  background: var(--site-action);
+  color: var(--site-on-action);
+  font: 750 .95rem/1 var(--site-mono);
 }
 
-.inkio-docs-root input[type='search'],
-.inkio-docs-root button[title='Change theme'],
-.inkio-docs-root button[title='Change language'],
-.inkio-docs-root button[title='Collapse sidebar'] {
-  border: 1px solid var(--inkio-surface-border) !important;
-  background: var(--inkio-surface-field) !important;
-  color: var(--inkio-text) !important;
-  box-shadow: none !important;
-  backdrop-filter: blur(var(--inkio-surface-blur-field));
+.inkio-site-nav > a:not(:first-child),
+.inkio-site-nav .nextra-hamburger {
+  display: grid;
+  min-width: 44px;
+  min-height: 44px;
+  place-items: center;
+  border-radius: var(--site-radius);
+  color: var(--site-muted);
 }
 
-.inkio-docs-root input[type='search']::placeholder {
-  color: var(--inkio-text-muted);
+@media (min-width: 48rem) {
+  .inkio-site-nav .nextra-hamburger {
+    display: none;
+  }
 }
 
-.inkio-docs-root :is(button, a, input, textarea, select):focus-visible {
-  outline: none;
-  box-shadow: var(--inkio-ring);
+.inkio-site-nav :is(a, .nextra-hamburger):hover {
+  color: var(--site-ink);
 }
 
-.inkio-docs-root [data-rehype-pretty-code-fragment] pre {
-  border: 1px solid var(--inkio-surface-border);
-  border-radius: var(--inkio-radius-lg);
-  box-shadow: var(--inkio-surface-shadow);
+.inkio-site-theme-control {
+  position: relative;
+  display: inline-flex;
+}
+
+.inkio-site-theme-control::after {
+  position: absolute;
+  top: calc(50% - .25rem);
+  inset-inline-end: .82rem;
+  width: .4rem;
+  height: .4rem;
+  border: solid var(--site-faint);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+  pointer-events: none;
+  content: '';
+}
+
+.inkio-site-theme {
+  min-height: 44px;
+  appearance: none;
+  padding-inline: .75rem 1.9rem;
+  border: 1px solid var(--site-line);
+  border-radius: var(--site-radius);
+  background-color: var(--site-band);
+  color: var(--site-ink);
+  font-size: .8rem;
+  cursor: pointer;
+}
+
+.inkio-site-theme option {
+  background: var(--site-surface);
+  color: var(--site-ink);
+}
+
+.inkio-site-footer {
+  margin-top: auto;
+  border-top: 1px solid var(--site-line);
+  background: var(--site-band);
+  color: var(--site-muted);
+  font-size: .875rem;
+}
+
+.inkio-site-footer > div {
+  display: flex;
+  min-height: 5rem;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .5rem 1.5rem;
+  padding-block: .75rem;
+}
+
+.inkio-site-footer a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+}
+
+.inkio-site-footer a:hover {
+  color: var(--site-accent);
+  text-decoration: underline;
+}
+
+.inkio-docs-root :is(.nextra-mobile-nav, .nextra-sidebar-footer) {
+  border-color: var(--site-line);
+  background: var(--site-bg);
+}
+
+.inkio-docs-root :is(.nextra-sidebar, .nextra-mobile-nav) li.active > a {
+  background: var(--site-active);
+  color: var(--site-accent);
+}
+
+.inkio-docs-root :is(.nextra-sidebar, .nextra-mobile-nav, .nextra-toc) li:not(.active) a:hover {
+  color: var(--site-ink);
+}
+
+.inkio-docs-root [type='search'] {
+  min-height: 44px;
+  border: 1px solid var(--site-line);
+  border-radius: var(--site-radius);
+  background: var(--site-surface);
+  color: var(--site-ink);
+  box-shadow: none;
+}
+
+.inkio-docs-root [type='search']::placeholder {
+  color: var(--site-faint);
+}
+
+.inkio-docs-root :is(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--site-accent);
+  outline-offset: 2px;
+}
+
+.inkio-docs-root #nextra-skip-nav {
+  scroll-margin-top: var(--nextra-navbar-height);
+}
+
+.inkio-docs-root main[data-pagefind-body] > h1 {
+  color: var(--site-ink);
+  font-size: clamp(2rem, 3.5vw, 3.5rem);
+  font-weight: 650;
+  letter-spacing: -.055em;
+  line-height: 1.14;
+  text-wrap: balance;
+}
+
+.inkio-docs-root main[data-pagefind-body] > :is(h2, h3, h4) {
+  border-color: var(--site-line);
+  color: var(--site-ink);
+  font-weight: 650;
+  letter-spacing: -.03em;
+}
+
+.inkio-docs-root main[data-pagefind-body] > :is(p, ul, ol) {
+  color: var(--site-muted);
+}
+
+.inkio-docs-root main .nextra-code pre {
+  border: 1px solid var(--site-line);
+  border-radius: var(--site-radius);
+  background-color: var(--site-surface);
+  box-shadow: none;
 }
 
 .inkio-docs-root .nextra-scrollbar {
-  scrollbar-color: color-mix(in srgb, var(--inkio-surface-border-strong) 72%, transparent) transparent;
+  scrollbar-color: var(--site-faint) transparent;
+}
+
+:root .inkio-docs-root :is(.lp-window, .playground-root) :is(.inkio-editor, .inkio-viewer) {
+  --inkio-bg: var(--site-surface);
+  --inkio-bg-subtle: var(--site-band);
+  --inkio-text: var(--site-ink);
+  --inkio-text-heading: var(--site-ink);
+  --inkio-text-muted: var(--site-muted);
+  --inkio-border: var(--site-line);
+  --inkio-code-bg: var(--site-band);
 }
 
 .inkio-docs-root:has(.inkio-docs-playground-page) .nextra-toc {

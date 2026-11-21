@@ -4,6 +4,8 @@ import {
   useState,
   useEffect,
   useMemo,
+  useId,
+  type KeyboardEvent,
   type CSSProperties,
 } from 'react';
 import { Stage } from 'react-konva';
@@ -15,18 +17,7 @@ import { TransformersLayer } from './TransformersLayer';
 import { CropOverlay } from './CropOverlay';
 import { SelectionActionsOverlay } from './SelectionActionsOverlay';
 import { CanvasTextEditor } from './CanvasTextEditor';
-import type {
-  Annotation,
-  CropRect,
-  FreeDrawAnnotation,
-  RectAnnotation,
-  RedactAnnotation,
-  EllipseAnnotation,
-  ArrowAnnotation,
-  LineAnnotation,
-  StickerAnnotation,
-  TextAnnotationData,
-} from '../types';
+import type { Annotation, CropRect, ImageEditorLocale, ImageEditorState, TextAnnotationData } from '../types';
 import { DEFAULT_STICKER_SIZE } from '../constants';
 import {
   normalizeRect,
@@ -39,6 +30,7 @@ import {
 import { isTransformerInteraction } from '../utils/konva-targets';
 import { TEXT_MIN_WIDTH } from '../utils/text-metrics';
 import { clampNumber } from '../utils/math';
+import { getPreviewScale } from '../utils/raster-limits';
 
 const PREVIEW_ZOOM_WHEEL_FACTOR = 1.12;
 const CROP_ZOOM_MAX = 6;
@@ -52,7 +44,15 @@ interface EditorCanvasProps {
   containerWidth: number;
   containerHeight: number;
   previewZoom: number;
-  onPreviewZoomChange: (zoom: number) => void;
+  onPreviewZoomFactor: (factor: number) => void;
+  onCropScaleChange: (control: CropScaleControl | null) => void;
+}
+
+export interface CropScaleControl {
+  value: number;
+  min: number;
+  max: number;
+  set: (value: number) => void;
 }
 
 interface CropViewportState {
@@ -61,17 +61,23 @@ interface CropViewportState {
   panY: number;
 }
 
+const REST_OFFSET = { x: 0, y: 0 };
+const CROP_RETURN_MS = 180;
+const MAX_CROP_OVERSCROLL = 20;
+
 const generateId = () => createId('ann');
 
 export function EditorCanvas({
   containerWidth,
   containerHeight,
   previewZoom,
-  onPreviewZoomChange,
+  onPreviewZoomFactor,
+  onCropScaleChange,
 }: EditorCanvasProps) {
   const { state, dispatch, locale } = useImageEditor();
   const stageRef = useRef<Konva.Stage>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
+  const instructionsId = useId();
 
   const isDrawing = useRef(false);
   const currentAnnotationId = useRef<string | null>(null);
@@ -92,7 +98,27 @@ export function EditorCanvas({
     clientY: number;
     panX: number;
     panY: number;
+    elastic: boolean;
   } | null>(null);
+  const cropReturnFrame = useRef(0);
+  const cropOverscrollRef = useRef(REST_OFFSET);
+  const [cropOverscroll, setCropOverscroll] = useState(REST_OFFSET);
+  const releaseCrop = useCallback(() => {
+    cropPanStartRef.current = null;
+    if (cropReturnFrame.current) return;
+    const from = cropOverscrollRef.current;
+    if (from === REST_OFFSET) return;
+    const start = performance.now();
+    const animate = (now: number) => {
+      const progress = clampNumber((now - start) / CROP_RETURN_MS, 0, 1);
+      const remaining = (1 - progress) ** 3;
+      const next = progress < 1 ? { x: from.x * remaining, y: from.y * remaining } : REST_OFFSET;
+      cropOverscrollRef.current = next;
+      setCropOverscroll(next);
+      cropReturnFrame.current = progress < 1 ? requestAnimationFrame(animate) : 0;
+    };
+    cropReturnFrame.current = requestAnimationFrame(animate);
+  }, []);
   const annotationsRef = useRef(state.annotations);
   annotationsRef.current = state.annotations;
 
@@ -105,6 +131,7 @@ export function EditorCanvas({
   // dispatches into a torn-down editor session.
   useEffect(() => {
     return () => {
+      cancelAnimationFrame(cropReturnFrame.current);
       if (rafId.current) {
         cancelAnimationFrame(rafId.current);
         rafId.current = 0;
@@ -142,20 +169,19 @@ export function EditorCanvas({
     }),
     [state.originalWidth, state.originalHeight, state.transform],
   );
-  const sourceCrop = state.pendingCrop ?? state.transform.crop ?? {
-    x: 0, y: 0, width: state.originalWidth, height: state.originalHeight,
-  };
-  const targetCrop = transformRect(
-    sourceCrop, state.originalWidth, state.originalHeight,
-    state.transform.rotation, state.transform.flipX, state.transform.flipY,
-  );
-  const targetCropSignature = serializeCrop(sourceCrop);
+  const sourceCrop = isCropMode ? state.pendingCrop : null;
+  const { rotation, flipX, flipY } = state.transform;
+  const targetCrop = useMemo(() => sourceCrop ? transformRect(
+    sourceCrop, state.originalWidth, state.originalHeight, rotation, flipX, flipY,
+  ) : null, [sourceCrop, state.originalWidth, state.originalHeight, rotation, flipX, flipY]);
+  const targetCropSignature = sourceCrop ? serializeCrop(sourceCrop) : '';
   const cropAspectRatio = state.cropOptions.aspectRatio
-    ?? (targetCrop.height > 0 ? targetCrop.width / targetCrop.height : 1);
+    ?? (targetCrop && targetCrop.height > 0 ? targetCrop.width / targetCrop.height : 1);
 
   const cropFitScale =
     cropSessionBounds.width > 0 && cropSessionBounds.height > 0
-      ? Math.min(stageSize.width / cropSessionBounds.width, stageSize.height / cropSessionBounds.height)
+      ? Math.min(stageSize.width / cropSessionBounds.width, stageSize.height / cropSessionBounds.height,
+        getPreviewScale(cropSessionBounds.width, cropSessionBounds.height))
       : 1;
 
   const cropFitBounds = useMemo(
@@ -175,22 +201,16 @@ export function EditorCanvas({
     [cropAspectRatio, cropFitBounds, isCropMode, stageSize.height, stageSize.width],
   );
 
-  const cropMinZoom = cropFrame
-    ? Math.max(
-      Math.min(
-        cropFrame.width / Math.max(1, cropSessionBounds.width * cropFitScale),
-        cropFrame.height / Math.max(1, cropSessionBounds.height * cropFitScale),
-      ),
-      0.35,
-    )
-    : 1;
+  // The largest inscribed aperture touches a fit edge, so any lower scale
+  // would leave part of it uncovered. Keep the existing raster ceiling.
+  const cropMaxZoom = cropFrame ? getCropZoomLimit(cropSessionBounds, cropFitScale) : 1;
 
-  const projection = cropFrame
+  const projection = cropFrame && targetCrop
     ? [
       stageSize.width,
       stageSize.height,
       cropFitScale,
-      cropMinZoom,
+      cropMaxZoom,
       serializeCrop(cropSessionBounds),
       serializeCrop(cropFrame),
       serializeCrop(targetCrop),
@@ -201,35 +221,41 @@ export function EditorCanvas({
   // render with new layout geometry, so the old viewport cannot overwrite it.
   if (projection !== cropViewportProjection) {
     setCropViewportProjection(projection);
-    if (cropFrame) {
+    if (cropFrame && targetCrop) {
       const next = buildCropViewportFromCrop(
         cropSessionBounds, targetCrop, cropFrame,
-        stageSize.width, stageSize.height, cropFitScale, cropMinZoom,
+        stageSize.width, stageSize.height, cropFitScale, cropMaxZoom,
       );
       setCropViewport(next);
     }
   }
 
   const resolvedCropViewport = cropFrame
-    ? clampCropViewport(cropViewport, cropFrame, cropSessionBounds, stageSize.width, stageSize.height, cropFitScale, cropMinZoom)
+    ? clampCropViewport(cropViewport, cropFrame, cropSessionBounds, stageSize.width, stageSize.height, cropFitScale, cropMaxZoom)
     : cropViewport;
   const scaleToFit = isCropMode
     ? cropFitScale * resolvedCropViewport.zoom
     : (
       workingDimensions.width > 0 && workingDimensions.height > 0
-        ? Math.min(stageSize.width / workingDimensions.width, stageSize.height / workingDimensions.height)
+        ? Math.min(stageSize.width / workingDimensions.width, stageSize.height / workingDimensions.height,
+          getPreviewScale(workingDimensions.width, workingDimensions.height))
         : 1
     ) * previewZoom;
+  const displayScale = isCropMode ? scaleToFit : Math.min(scaleToFit,
+    getPreviewScale(workingDimensions.width, workingDimensions.height));
 
   const displayBaseWidth = isCropMode ? cropSessionBounds.width : workingDimensions.width;
   const displayBaseHeight = isCropMode ? cropSessionBounds.height : workingDimensions.height;
-  const displayWidth = displayBaseWidth * scaleToFit;
-  const displayHeight = displayBaseHeight * scaleToFit;
+  const displayWidth = displayBaseWidth * displayScale;
+  const displayHeight = displayBaseHeight * displayScale;
 
   const centeredOffsetX = (stageSize.width - displayWidth) / 2;
   const centeredOffsetY = (stageSize.height - displayHeight) / 2;
-  const offsetX = centeredOffsetX + (isCropMode ? resolvedCropViewport.panX : 0);
-  const offsetY = centeredOffsetY + (isCropMode ? resolvedCropViewport.panY : 0);
+  const offsetX = centeredOffsetX + (isCropMode ? resolvedCropViewport.panX + cropOverscroll.x : 0);
+  const offsetY = centeredOffsetY + (isCropMode ? resolvedCropViewport.panY + cropOverscroll.y : 0);
+  const cropAperture = useMemo(() => cropFrame
+    ? { ...cropFrame, x: cropFrame.x - offsetX, y: cropFrame.y - offsetY }
+    : undefined, [cropFrame, offsetX, offsetY]);
 
   // Same scale DesignLayer renders annotations with (used by the live
   // freedraw preview, which bypasses React while a stroke is in progress).
@@ -265,7 +291,7 @@ export function EditorCanvas({
         stageSize.width,
         stageSize.height,
         cropFitScale,
-        cropMinZoom,
+        cropMaxZoom,
       );
 
       return areCropViewportsEqual(previous, next) ? previous : next;
@@ -273,7 +299,7 @@ export function EditorCanvas({
   }, [
     cropFitScale,
     cropFrame,
-    cropMinZoom,
+    cropMaxZoom,
     cropSessionBounds,
     stageSize.height,
     stageSize.width,
@@ -319,53 +345,41 @@ export function EditorCanvas({
     targetCropSignature,
   ]);
 
-  const zoomCropViewportAt = useCallback((factor: number, anchorX: number, anchorY: number) => {
-    if (!cropFrame) {
-      return;
-    }
-
+  const zoomCropViewportAt = useCallback((
+    getZoom: (current: number) => number,
+    anchorX: number,
+    anchorY: number,
+  ) => {
+    const x = anchorX - stageSize.width / 2;
+    const y = anchorY - stageSize.height / 2;
     updateCropViewport((previous) => {
-      const current = clampCropViewport(
-        previous,
-        cropFrame,
-        cropSessionBounds,
-        stageSize.width,
-        stageSize.height,
-        cropFitScale,
-        cropMinZoom,
-      );
+      const zoom = clampNumber(getZoom(previous.zoom), 1, cropMaxZoom);
+      if (previous.zoom === zoom) return previous;
 
-      const currentScale = cropFitScale * current.zoom;
-      const currentDisplayWidth = cropSessionBounds.width * currentScale;
-      const currentDisplayHeight = cropSessionBounds.height * currentScale;
-      const currentLeft = ((stageSize.width - currentDisplayWidth) / 2) + current.panX;
-      const currentTop = ((stageSize.height - currentDisplayHeight) / 2) + current.panY;
-      const imageX = (anchorX - currentLeft) / currentScale;
-      const imageY = (anchorY - currentTop) / currentScale;
-
-      const nextZoom = clampNumber(current.zoom * factor, cropMinZoom, CROP_ZOOM_MAX);
-      const nextScale = cropFitScale * nextZoom;
-      const nextDisplayWidth = cropSessionBounds.width * nextScale;
-      const nextDisplayHeight = cropSessionBounds.height * nextScale;
-      const nextLeft = anchorX - (imageX * nextScale);
-      const nextTop = anchorY - (imageY * nextScale);
-
+      // Preserve the image point under the anchor as its distance from the
+      // image center scales. Pan remains relative to the workspace center.
+      const ratio = zoom / previous.zoom;
       return {
-        zoom: nextZoom,
-        panX: nextLeft - ((stageSize.width - nextDisplayWidth) / 2),
-        panY: nextTop - ((stageSize.height - nextDisplayHeight) / 2),
+        zoom,
+        panX: x - (x - previous.panX) * ratio,
+        panY: y - (y - previous.panY) * ratio,
       };
     });
-  }, [
-    cropFitScale,
-    cropFrame,
-    cropMinZoom,
-    cropSessionBounds.height,
-    cropSessionBounds.width,
-    stageSize.height,
-    stageSize.width,
-    updateCropViewport,
-  ]);
+  }, [cropMaxZoom, stageSize.height, stageSize.width, updateCropViewport]);
+
+  const setCropScale = useCallback((value: number) => {
+    // The aperture is always centered in the workspace.
+    zoomCropViewportAt(() => value, stageSize.width / 2, stageSize.height / 2);
+  }, [stageSize.height, stageSize.width, zoomCropViewportAt]);
+
+  const cropScaleValue = cropFrame ? resolvedCropViewport.zoom : null;
+  useEffect(() => {
+    onCropScaleChange(cropScaleValue === null
+      ? null
+      : { value: cropScaleValue, min: 1, max: cropMaxZoom, set: setCropScale });
+  }, [cropMaxZoom, cropScaleValue, onCropScaleChange, setCropScale]);
+
+  useEffect(() => () => onCropScaleChange(null), [onCropScaleChange]);
 
   const clampStagePoint = useCallback(
     (pos: { x: number; y: number }) =>
@@ -483,9 +497,12 @@ export function EditorCanvas({
     }
   }, [scheduleShapeUpdate, state.activeTool, state.shapeOptions]);
 
-  const finishDrawing = useCallback((pos: { x: number; y: number } | null) => {
-    if (state.activeTool === 'text' && drawStartPos.current && pos) {
-      const start = drawStartPos.current;
+  const finishDrawing = useCallback((
+    pos: { x: number; y: number } | null,
+    origin = drawStartPos.current,
+  ) => {
+    if (state.activeTool === 'text' && origin && pos) {
+      const start = origin;
       const dragWidth = Math.abs(pos.x - start.x);
       const dragHeight = Math.abs(pos.y - start.y);
       const width = dragWidth > 10 ? Math.max(TEXT_MIN_WIDTH, dragWidth) : state.textOptions.width;
@@ -559,24 +576,47 @@ export function EditorCanvas({
     resetDrawing();
   }, [dispatch, flushShapeUpdate, resetDrawing, state.activeTool, state.textOptions]);
 
+  const placeSticker = useCallback((pos: { x: number; y: number }) => {
+    dispatch({
+      type: 'ADD_ANNOTATION',
+      annotation: {
+        id: generateId(), type: 'sticker', x: pos.x, y: pos.y,
+        size: DEFAULT_STICKER_SIZE, emoji: state.stickerOptions.emoji, rotation: 0,
+      },
+      select: true,
+    });
+  }, [dispatch, state.stickerOptions.emoji]);
+
   const handleMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    if (isTransformerInteraction(e.target)) return;
+    workspaceRef.current?.focus({ preventScroll: true });
+    if (editingText) {
+      dispatch({ type: 'SELECT_ANNOTATION', id: null });
+      return;
+    }
     if (isCropMode) {
       const nativeEvent = e.evt;
+      if (!('touches' in nativeEvent) && nativeEvent.button !== 0) return;
       const clientX = 'touches' in nativeEvent ? nativeEvent.touches[0]?.clientX : nativeEvent.clientX;
       const clientY = 'touches' in nativeEvent ? nativeEvent.touches[0]?.clientY : nativeEvent.clientY;
 
       if (typeof clientX === 'number' && typeof clientY === 'number') {
+        cancelAnimationFrame(cropReturnFrame.current);
+        cropReturnFrame.current = 0;
+        cropOverscrollRef.current = REST_OFFSET;
+        setCropOverscroll(REST_OFFSET);
         cropPanStartRef.current = {
           clientX,
           clientY,
           panX: resolvedCropViewport.panX,
           panY: resolvedCropViewport.panY,
+          elastic: !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
         };
       }
       return;
     }
 
-    const { activeTool, shapeOptions, drawOptions, redactOptions, stickerOptions } = state;
+    const { activeTool } = state;
 
     if (!activeTool || activeTool === 'rotate' || activeTool === 'filter') {
       if (e.target === e.target.getStage()) {
@@ -586,9 +626,6 @@ export function EditorCanvas({
     }
 
     const clickedNode = e.target as Konva.Node;
-    if (isTransformerInteraction(clickedNode)) {
-      return;
-    }
     const targetId = clickedNode.id?.() || clickedNode.parent?.id?.();
     if (targetId && state.annotations.some((annotation) => annotation.id === targetId)) return;
 
@@ -597,6 +634,8 @@ export function EditorCanvas({
       return;
     }
 
+    // Resize can show the committed image after Apply, but is not a drawing tool.
+    if (activeTool === 'resize' || activeTool === 'crop') return;
     const pos = getRelativePos();
     isDrawing.current = true;
     drawStartPos.current = pos;
@@ -608,104 +647,26 @@ export function EditorCanvas({
     }
 
     if (activeTool === 'sticker') {
-      const annotation: StickerAnnotation = {
-        id,
-        type: 'sticker',
-        x: pos.x,
-        y: pos.y,
-        size: DEFAULT_STICKER_SIZE,
-        emoji: stickerOptions.emoji,
-        rotation: 0,
-      };
-      dispatch({ type: 'ADD_ANNOTATION', annotation });
-      dispatch({ type: 'SELECT_ANNOTATION', id });
+      placeSticker(pos);
       resetDrawing();
       return;
     }
 
-    if (activeTool === 'redact') {
-      const annotation: RedactAnnotation = {
-        id,
-        type: 'redact',
-        x: pos.x,
-        y: pos.y,
-        width: 0,
-        height: 0,
-        rotation: 0,
-        mode: redactOptions.mode,
-        strength: redactOptions.strength,
-      };
-      dispatch({ type: 'ADD_ANNOTATION', annotation, preview: true });
-    } else if (activeTool === 'draw') {
-      const annotation: FreeDrawAnnotation = {
-        id,
-        type: 'freedraw',
-        points: [pos.x, pos.y],
-        stroke: drawOptions.color,
-        strokeWidth: drawOptions.strokeWidth,
-        opacity: drawOptions.opacity,
-      };
+    if (activeTool === 'draw') {
       freedrawPoints.current = [];
       liveStrokeScale.current = liveAnnotationScale;
       liveStrokeDisplayPoints.current = [pos.x * liveAnnotationScale, pos.y * liveAnnotationScale];
       liveStrokeNode.current = null;
-      dispatch({ type: 'ADD_ANNOTATION', annotation, preview: true });
-    } else if (activeTool === 'shape') {
-      const { shapeType } = shapeOptions;
-      if (shapeType === 'rect') {
-        const annotation: RectAnnotation = {
-          id,
-          type: 'rect',
-          x: pos.x,
-          y: pos.y,
-          width: 0,
-          height: 0,
-          fill: shapeOptions.fill,
-          stroke: shapeOptions.stroke,
-          strokeWidth: shapeOptions.strokeWidth,
-          rotation: 0,
-        };
-        dispatch({ type: 'ADD_ANNOTATION', annotation, preview: true });
-      } else if (shapeType === 'ellipse') {
-        const annotation: EllipseAnnotation = {
-          id,
-          type: 'ellipse',
-          x: pos.x,
-          y: pos.y,
-          radiusX: 0,
-          radiusY: 0,
-          fill: shapeOptions.fill,
-          stroke: shapeOptions.stroke,
-          strokeWidth: shapeOptions.strokeWidth,
-          rotation: 0,
-        };
-        dispatch({ type: 'ADD_ANNOTATION', annotation, preview: true });
-      } else if (shapeType === 'arrow') {
-        const annotation: ArrowAnnotation = {
-          id,
-          type: 'arrow',
-          points: [pos.x, pos.y, pos.x, pos.y],
-          stroke: shapeOptions.stroke,
-          strokeWidth: shapeOptions.strokeWidth,
-        };
-        dispatch({ type: 'ADD_ANNOTATION', annotation, preview: true });
-      } else if (shapeType === 'line') {
-        const annotation: LineAnnotation = {
-          id,
-          type: 'line',
-          points: [pos.x, pos.y, pos.x, pos.y],
-          stroke: shapeOptions.stroke,
-          strokeWidth: shapeOptions.strokeWidth,
-        };
-        dispatch({ type: 'ADD_ANNOTATION', annotation, preview: true });
-      }
     }
+    dispatch({ type: 'ADD_ANNOTATION', annotation: createMark(activeTool, state, id, pos), preview: true });
   }, [
     dispatch,
+    editingText,
     getRelativePos,
     isCropMode,
     liveAnnotationScale,
     resetDrawing,
+    placeSticker,
     resolvedCropViewport.panX,
     resolvedCropViewport.panY,
     state,
@@ -720,17 +681,14 @@ export function EditorCanvas({
   }, [getRelativePos, isCropMode, updateDrawingPoint]);
 
   const handleMouseUp = useCallback(() => {
-    if (isCropMode) {
-      cropPanStartRef.current = null;
-      return;
-    }
+    if (isCropMode) return;
 
     finishDrawing(getRelativePos());
   }, [finishDrawing, getRelativePos, isCropMode]);
 
   useEffect(() => {
     const handleDocumentMove = (event: MouseEvent | TouchEvent) => {
-      if (cropPanStartRef.current && isCropMode) {
+      if (cropPanStartRef.current && cropFrame) {
         const clientX = 'touches' in event ? event.touches[0]?.clientX : event.clientX;
         const clientY = 'touches' in event ? event.touches[0]?.clientY : event.clientY;
         if (typeof clientX !== 'number' || typeof clientY !== 'number') {
@@ -738,11 +696,25 @@ export function EditorCanvas({
         }
 
         const cropStart = cropPanStartRef.current;
-        updateCropViewport((previous) => ({
-          zoom: previous.zoom,
-          panX: cropStart.panX + (clientX - cropStart.clientX),
-          panY: cropStart.panY + (clientY - cropStart.clientY),
-        }));
+        const panX = cropStart.panX + (clientX - cropStart.clientX);
+        const panY = cropStart.panY + (clientY - cropStart.clientY);
+        const bounded = clampCropViewport({ zoom: resolvedCropViewport.zoom, panX, panY }, cropFrame,
+          cropSessionBounds, stageSize.width, stageSize.height, cropFitScale, cropMaxZoom);
+        setCropViewport((previous) => areCropViewportsEqual(previous, bounded) ? previous : bounded);
+        if (cropStart.elastic) {
+          const dx = panX - bounded.panX;
+          const dy = panY - bounded.panY;
+          const next = dx || dy
+            ? {
+              x: (MAX_CROP_OVERSCROLL * dx) / (64 + Math.abs(dx)),
+              y: (MAX_CROP_OVERSCROLL * dy) / (64 + Math.abs(dy)),
+            }
+            : REST_OFFSET;
+          if (cropOverscrollRef.current.x !== next.x || cropOverscrollRef.current.y !== next.y) {
+            cropOverscrollRef.current = next;
+            setCropOverscroll(next);
+          }
+        }
         return;
       }
 
@@ -765,9 +737,7 @@ export function EditorCanvas({
     };
 
     const handleDocumentUp = (event: MouseEvent | TouchEvent) => {
-      if (cropPanStartRef.current) {
-        cropPanStartRef.current = null;
-      }
+      if (cropPanStartRef.current) releaseCrop();
 
       if (!isDrawing.current || isCropMode) {
         return;
@@ -791,14 +761,19 @@ export function EditorCanvas({
     // that only intercepts while actively drawing).
     document.addEventListener('touchmove', handleDocumentMove, { passive: true });
     document.addEventListener('touchend', handleDocumentUp);
+    document.addEventListener('touchcancel', releaseCrop);
+    window.addEventListener('blur', releaseCrop);
 
     return () => {
       document.removeEventListener('mousemove', handleDocumentMove);
       document.removeEventListener('mouseup', handleDocumentUp);
       document.removeEventListener('touchmove', handleDocumentMove);
       document.removeEventListener('touchend', handleDocumentUp);
+      document.removeEventListener('touchcancel', releaseCrop);
+      window.removeEventListener('blur', releaseCrop);
     };
-  }, [finishDrawing, getRelativePosFromClient, isCropMode, updateCropViewport, updateDrawingPoint]);
+  }, [cropFitScale, cropFrame, cropMaxZoom, cropSessionBounds, finishDrawing, getRelativePosFromClient, isCropMode,
+    releaseCrop, resolvedCropViewport.zoom, stageSize.height, stageSize.width, updateDrawingPoint]);
 
   const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     if (isCropMode) {
@@ -830,7 +805,7 @@ export function EditorCanvas({
     width: `${displayWidth}px`,
     height: `${displayHeight}px`,
     // Drag-gesture tools take over touch; otherwise let the browser scroll.
-    touchAction: isDrawGestureTool ? 'none' : 'pan-x pan-y',
+    touchAction: isCropMode || isDrawGestureTool ? 'none' : 'pan-x pan-y',
     cursor: isCropMode
       ? 'grab'
       : state.activeTool === 'draw' || state.activeTool === 'shape'
@@ -842,24 +817,31 @@ export function EditorCanvas({
 
   const handleWheel = useCallback((event: WheelEvent) => {
     const node = workspaceRef.current;
-    if (!node) {
+    if (!node || event.defaultPrevented || event.shiftKey || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
       return;
     }
-
-    event.preventDefault();
+    if (event.target instanceof Element
+      && event.target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) {
+      return;
+    }
 
     const factor = event.deltaY < 0 ? PREVIEW_ZOOM_WHEEL_FACTOR : 1 / PREVIEW_ZOOM_WHEEL_FACTOR;
     const rect = node.getBoundingClientRect();
     const anchorX = event.clientX - rect.left;
     const anchorY = event.clientY - rect.top;
+    // The raster can bleed under chrome, but the wheel gesture belongs only
+    // to the workspace, not to the overflowing part of the stage.
+    if (anchorX < 0 || anchorY < 0 || anchorX >= rect.width || anchorY >= rect.height) return;
+    event.preventDefault();
+    if (cropPanStartRef.current) return;
 
     if (isCropMode && cropFrame) {
-      zoomCropViewportAt(factor, anchorX, anchorY);
+      zoomCropViewportAt((zoom) => zoom * factor, anchorX, anchorY);
       return;
     }
 
-    onPreviewZoomChange(previewZoom * factor);
-  }, [cropFrame, isCropMode, onPreviewZoomChange, previewZoom, zoomCropViewportAt]);
+    onPreviewZoomFactor(factor);
+  }, [cropFrame, isCropMode, onPreviewZoomFactor, zoomCropViewportAt]);
 
   // Attach the wheel handler natively (non-passive) instead of via React's onWheel:
   // synthetic wheel events do not reliably reach handlers inside the dialog portal,
@@ -892,35 +874,113 @@ export function EditorCanvas({
     return () => node.removeEventListener('touchmove', onTouchMove);
   }, []);
 
+  const selected = state.annotations.find((annotation) => annotation.id === visibleSelectedAnnotationId);
+  const handleCanvasKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.ctrlKey || event.metaKey || event.altKey) return;
+    const { key, shiftKey } = event;
+    const dx = key === 'ArrowRight' ? 1 : key === 'ArrowLeft' ? -1 : 0;
+    const dy = key === 'ArrowDown' ? 1 : key === 'ArrowUp' ? -1 : 0;
+    if (cropFrame) {
+      if (!dx && !dy) return;
+      event.preventDefault();
+      if (shiftKey) {
+        zoomCropViewportAt(
+          (zoom) => (dx || -dy) > 0 ? zoom * PREVIEW_ZOOM_WHEEL_FACTOR : zoom / PREVIEW_ZOOM_WHEEL_FACTOR,
+          cropFrame.x + cropFrame.width / 2, cropFrame.y + cropFrame.height / 2,
+        );
+      } else {
+        updateCropViewport((previous) => ({
+          ...previous, panX: previous.panX - dx * 10, panY: previous.panY - dy * 10,
+        }));
+      }
+      return;
+    }
+
+    if (key === ' ' && state.annotations.length) {
+      event.preventDefault();
+      const index = selected ? state.annotations.indexOf(selected) : -1;
+      const count = state.annotations.length;
+      const next = index < 0 ? (shiftKey ? count - 1 : 0) : (index + count + (shiftKey ? -1 : 1)) % count;
+      dispatch({ type: 'SELECT_ANNOTATION', id: state.annotations[next].id });
+      return;
+    }
+    if ((dx || dy) && selected) {
+      event.preventDefault();
+      const from = toAnnotationPoint({ x: displayWidth / 2, y: displayHeight / 2 });
+      const step = shiftKey ? 10 : 1;
+      const to = toAnnotationPoint({ x: displayWidth / 2 + dx * step, y: displayHeight / 2 + dy * step });
+      handleChangeAnnotation(selected.id, 'points' in selected
+        ? { points: selected.points.map((value, index) => value + (index % 2 ? to.y - from.y : to.x - from.x)) }
+        : { x: selected.x + to.x - from.x, y: selected.y + to.y - from.y });
+      return;
+    }
+    if (key !== 'Enter') return;
+    event.preventDefault();
+    if (selected?.type === 'text' && !shiftKey) {
+      setEditingTextId(selected.id);
+      return;
+    }
+    const start = toAnnotationPoint({ x: displayWidth * 0.4, y: displayHeight * 0.4 });
+    const end = toAnnotationPoint({ x: displayWidth * 0.6, y: displayHeight * 0.6 });
+    switch (state.activeTool) {
+      case 'text':
+        finishDrawing(start, start);
+        break;
+      case 'sticker':
+        placeSticker(start);
+        break;
+      case 'shape':
+      case 'draw':
+      case 'redact':
+        dispatch({
+          type: 'ADD_ANNOTATION',
+          annotation: createMark(state.activeTool, state, generateId(), start, end),
+          select: true,
+        });
+        break;
+      case 'resize':
+      case 'crop':
+        dispatch({ type: 'START_RESIZE_SESSION' });
+        break;
+    }
+  };
+
   return (
     <div
       ref={workspaceRef}
       className="inkio-ie-canvas-workspace"
       data-testid="inkio-ie-canvas-workspace"
       tabIndex={0}
-      role="group"
-      aria-label={locale.dialogTitle}
+      role="application"
+      aria-label={locale.canvasLabel ?? 'Image canvas'}
+      aria-describedby={instructionsId}
       onMouseDown={(event) => {
         if (editingText && stageRef.current?.findOne<Konva.Transformer>('Transformer')?.isTransforming()) {
           event.preventDefault();
+        } else if (event.target === event.currentTarget
+          || (event.target instanceof Element && event.target.matches('.inkio-ie-stage-shell, .inkio-ie-stage-frame'))) {
+          event.currentTarget.focus({ preventScroll: true });
         }
       }}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget || event.key !== 'Enter') return;
-        const selected = state.annotations.find((annotation) => annotation.id === state.selectedAnnotationId);
-        if (selected?.type !== 'text') return;
-        event.preventDefault();
-        event.stopPropagation();
-        setEditingTextId(selected.id);
-      }}
+      onKeyDown={handleCanvasKey}
       style={{
         position: 'relative',
         width: stageSize.width,
         height: stageSize.height,
-        overflow: 'hidden',
+        overflow: isCropMode ? 'visible' : 'hidden',
         backgroundColor: 'transparent',
       }}
     >
+      <span id={instructionsId} className="inkio-ie-sr-only">
+        {cropFrame ? locale.cropKeyboardHelp : locale.canvasKeyboardHelp}
+      </span>
+      <span role="status" className="inkio-ie-sr-only">
+        {targetCrop
+          ? `${locale.cropArea}: ${Math.round(targetCrop.width)} × ${Math.round(targetCrop.height)} (${Math.round(targetCrop.x)}, ${Math.round(targetCrop.y)})`
+          : selected && !editingText
+            ? `${getAnnotationName(selected, locale)}, ${state.annotations.indexOf(selected) + 1} / ${state.annotations.length}`
+            : null}
+      </span>
       <div className="inkio-ie-stage-shell" style={STAGE_SHELL_STYLE}>
         <div
           className="inkio-ie-stage-frame"
@@ -929,6 +989,13 @@ export function EditorCanvas({
           data-display-width={Math.round(displayWidth)}
           data-display-height={Math.round(displayHeight)}
         >
+          <div aria-hidden="true" className="inkio-ie-transparency-grid" style={cropAperture && {
+            inset: 'auto',
+            left: cropAperture.x,
+            top: cropAperture.y,
+            width: cropAperture.width,
+            height: cropAperture.height,
+          }} />
           <Stage
             ref={stageRef}
             width={displayWidth}
@@ -948,8 +1015,10 @@ export function EditorCanvas({
               displayWidth={displayWidth}
               displayHeight={displayHeight}
               onSelectAnnotation={handleSelectAnnotation}
+              interactive={!isCropMode}
               onChangeAnnotation={handleChangeAnnotation}
               editingTextId={editingText?.id}
+              cropAperture={cropAperture}
               onEditText={setEditingTextId}
             />
             <TransformersLayer
@@ -968,7 +1037,7 @@ export function EditorCanvas({
           )}
         </div>
 
-        {!editingText && <SelectionActionsOverlay
+        {!editingText && !isCropMode && <SelectionActionsOverlay
           stage={stageRef.current}
           containerWidth={stageSize.width}
           containerHeight={stageSize.height}
@@ -978,11 +1047,7 @@ export function EditorCanvas({
 
         {isCropMode && cropFrame && (
           <>
-            <CropOverlay
-              containerWidth={stageSize.width}
-              containerHeight={stageSize.height}
-              frame={cropFrame}
-            />
+            <CropOverlay frame={cropFrame} />
             <div className="inkio-ie-sr-only" data-testid="inkio-ie-crop-viewport-zoom" aria-hidden="true">
               {resolvedCropViewport.zoom.toFixed(4)}
             </div>
@@ -993,14 +1058,52 @@ export function EditorCanvas({
   );
 }
 
+type MarkPoint = { x: number; y: number };
+
+function createMark(
+  tool: 'shape' | 'draw' | 'redact', state: ImageEditorState, id: string, start: MarkPoint, end?: MarkPoint,
+): Annotation {
+  const { x, y } = start;
+  const dx = end ? end.x - x : 0;
+  const dy = end ? end.y - y : 0;
+  if (tool === 'draw') {
+    const { color: stroke, strokeWidth, opacity } = state.drawOptions;
+    return { id, type: 'freedraw', points: end ? [x, y, end.x, end.y] : [x, y], stroke, strokeWidth, opacity };
+  }
+  if (tool === 'redact') {
+    const { mode, strength } = state.redactOptions;
+    return { id, type: 'redact', ...normalizeRect(x, y, dx, dy), rotation: 0, mode, strength };
+  }
+  const { shapeType: type, stroke, strokeWidth, fill } = state.shapeOptions;
+  if (type === 'rect') {
+    return { id, type, ...normalizeRect(x, y, dx, dy), rotation: 0, fill, stroke, strokeWidth };
+  }
+  if (type === 'ellipse') {
+    return {
+      id, type, x: x + dx / 2, y: y + dy / 2, radiusX: Math.abs(dx) / 2, radiusY: Math.abs(dy) / 2,
+      rotation: 0, fill, stroke, strokeWidth,
+    };
+  }
+  return { id, type, points: [x, y, end?.x ?? x, end?.y ?? y], stroke, strokeWidth };
+}
+
+function getAnnotationName(annotation: Annotation, locale: ImageEditorLocale): string {
+  switch (annotation.type) {
+    case 'text': return `${locale.text}: ${annotation.text}`;
+    case 'sticker': return `${locale.sticker}: ${annotation.emoji}`;
+    case 'rect': return locale.rectangle;
+    case 'freedraw': return locale.draw;
+    default: return locale[annotation.type];
+  }
+}
+
 function serializeCrop(crop: CropRect): string {
   return [crop.x, crop.y, crop.width, crop.height].map((value) => value.toFixed(3)).join(':');
 }
 
 function getCropFrameRect(imageBounds: CropRect, aspectRatio: number): CropRect {
-  const safePadding = Math.min(44, Math.min(imageBounds.width, imageBounds.height) * 0.08);
-  const maxWidth = Math.max(40, imageBounds.width - (safePadding * 2));
-  const maxHeight = Math.max(40, imageBounds.height - (safePadding * 2));
+  const maxWidth = imageBounds.width;
+  const maxHeight = imageBounds.height;
   const ratio = Number.isFinite(aspectRatio) && aspectRatio > 0 ? aspectRatio : 1;
 
   let width = maxWidth;
@@ -1018,6 +1121,10 @@ function getCropFrameRect(imageBounds: CropRect, aspectRatio: number): CropRect 
   };
 }
 
+function getCropZoomLimit(bounds: CropRect, fitScale: number): number {
+  return Math.min(CROP_ZOOM_MAX, getPreviewScale(bounds.width, bounds.height) / fitScale);
+}
+
 function clampCropViewport(
   viewport: CropViewportState,
   frame: CropRect,
@@ -1025,9 +1132,9 @@ function clampCropViewport(
   stageWidth: number,
   stageHeight: number,
   fitScale: number,
-  minZoom: number,
+  maxZoom: number,
 ): CropViewportState {
-  const zoom = clampNumber(viewport.zoom, minZoom, CROP_ZOOM_MAX);
+  const zoom = clampNumber(viewport.zoom, 1, maxZoom);
   const scale = fitScale * zoom;
   const displayWidth = bounds.width * scale;
   const displayHeight = bounds.height * scale;
@@ -1052,10 +1159,10 @@ function buildCropViewportFromCrop(
   stageWidth: number,
   stageHeight: number,
   fitScale: number,
-  minZoom: number,
+  maxZoom: number,
 ): CropViewportState {
   const rawScale = Math.max(frame.width / Math.max(crop.width, 1), frame.height / Math.max(crop.height, 1));
-  const zoom = clampNumber(rawScale / fitScale, minZoom, CROP_ZOOM_MAX);
+  const zoom = clampNumber(rawScale / fitScale, 1, maxZoom);
   const scale = fitScale * zoom;
   const displayWidth = bounds.width * scale;
   const displayHeight = bounds.height * scale;
@@ -1073,7 +1180,7 @@ function buildCropViewportFromCrop(
     stageWidth,
     stageHeight,
     fitScale,
-    minZoom,
+    maxZoom,
   );
 }
 

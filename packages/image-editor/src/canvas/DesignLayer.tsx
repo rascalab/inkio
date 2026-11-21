@@ -1,9 +1,9 @@
 
 import { memo, useMemo } from 'react';
-import { Layer, Group } from 'react-konva';
+import { Layer, Group, Shape } from 'react-konva';
 import { ImageNode } from './ImageNode';
 import { AnnotationRenderer } from '../annotations/AnnotationRenderer';
-import type { ImageEditorState, Annotation, Transform } from '../types';
+import type { ImageEditorState, Annotation, CropRect, Transform } from '../types';
 import { getAnnotationScale, getBaseDisplayDimensions } from '../utils/geometry';
 import { getAnnotationDisplayBounds, isDisplayBoundsOutsideViewport } from '../utils/annotation-bounds';
 
@@ -14,9 +14,11 @@ interface DesignLayerProps {
   transform: Transform;
   displayWidth: number;
   displayHeight: number;
+  interactive: boolean;
   onSelectAnnotation: (id: string) => void;
   onChangeAnnotation: (id: string, updates: Partial<Annotation>) => void;
   editingTextId?: string;
+  cropAperture?: CropRect;
   onEditText?: (id: string) => void;
 }
 
@@ -31,8 +33,10 @@ function DesignLayerInner({
   displayWidth,
   displayHeight,
   onSelectAnnotation,
+  interactive,
   onChangeAnnotation,
   editingTextId,
+  cropAperture,
   onEditText,
 }: DesignLayerProps) {
   const cropX = transform.crop?.x ?? 0;
@@ -107,7 +111,7 @@ function DesignLayerInner({
   if (!state.originalImage) return null;
 
   return (
-    <Layer>
+    <Layer listening={interactive}>
       <ImageNode
         image={state.originalImage}
         displayWidth={displayWidth}
@@ -145,6 +149,26 @@ function DesignLayerInner({
           ))}
         </Group>
       </Group>
+      {cropAperture && (
+        <Shape
+          listening={false}
+          fill="rgba(0, 0, 0, 0.58)"
+          globalCompositeOperation="source-atop"
+          sceneFunc={(context, shape) => {
+            const { x, y, width, height } = cropAperture;
+            // Reverse the aperture winding to cut it out of the raster mask.
+            // Source-atop dims the painted pixels without adding alpha.
+            context.beginPath();
+            context.rect(0, 0, displayWidth, displayHeight);
+            context.moveTo(x, y);
+            context.lineTo(x, y + height);
+            context.lineTo(x + width, y + height);
+            context.lineTo(x + width, y);
+            context.closePath();
+            context.fillShape(shape);
+          }}
+        />
+      )}
     </Layer>
   );
 }

@@ -11,8 +11,8 @@ type WritableStyle = Partial<
 
 export interface OverlayHostOptions {
   /**
-   * The editor's DOM node (usually `view.dom`). Used to mirror the `dark`
-   * class from the nearest `.inkio` ancestor onto the host element.
+   * The editor's DOM node (usually `view.dom`). Used to preserve its
+   * light/dark theme when the host moves outside the editor's subtree.
    */
   editorDom?: Element | null;
   /** Host element class name. Defaults to `'inkio'`. */
@@ -46,7 +46,7 @@ export interface OverlayHost {
   isMounted(): boolean;
   /** Whether `destroy()` has been called. */
   isDestroyed(): boolean;
-  /** Re-mirror the `dark` class from the editor's `.inkio` ancestor. */
+  /** Re-sync light/dark mode from the editor's current DOM ancestry. */
   syncTheme(): void;
   /**
    * Tear down the host. Unmount + element removal are deferred to a
@@ -59,8 +59,8 @@ export interface OverlayHost {
 
 /**
  * Creates a detached-from-React DOM host for a popup rendered by a
- * ProseMirror plugin (or any imperative owner): creates the element, mirrors
- * the editor's dark theme, appends it, lazily creates a React root, guards
+ * ProseMirror plugin (or any imperative owner): creates the element, preserves
+ * the editor's light/dark mode, appends it, lazily creates a React root, guards
  * against resolving after destroy, cleans up on failure, and defers unmount.
  */
 export function createOverlayHost(options: OverlayHostOptions = {}): OverlayHost {
@@ -72,6 +72,7 @@ export function createOverlayHost(options: OverlayHostOptions = {}): OverlayHost
     label = 'overlay',
   } = options;
 
+  const hostParent = parent ?? document.body;
   const element = document.createElement('div');
   element.className = className;
   if (style) {
@@ -80,14 +81,20 @@ export function createOverlayHost(options: OverlayHostOptions = {}): OverlayHost
 
   const syncTheme = () => {
     const editorEl = editorDom?.closest('.inkio');
-    if (editorEl) {
-      element.classList.toggle('dark', editorEl.classList.contains('dark'));
-      element.classList.toggle('light', editorEl.classList.contains('light'));
-    }
+    if (!editorEl) return;
+
+    const explicitDark = editorEl.classList.contains('dark');
+    const explicitLight = editorEl.classList.contains('light');
+    const editorAncestorDark = Boolean(editorEl.parentElement?.closest('.dark, .dark-theme'));
+    const hostAncestorDark = Boolean(hostParent.closest('.dark, .dark-theme'));
+    // Keep inherited mode when the portal shares the same dark ancestor
+    // state, so page-wide theme switches still flow through CSS.
+    element.classList.toggle('dark', explicitDark || (!explicitLight && editorAncestorDark && !hostAncestorDark));
+    element.classList.toggle('light', explicitLight || (!explicitDark && !editorAncestorDark && hostAncestorDark));
   };
   syncTheme();
 
-  (parent ?? document.body).appendChild(element);
+  hostParent.appendChild(element);
 
   let root: Root | null = null;
   let destroyed = false;

@@ -4,7 +4,7 @@ This is the maintainer guide: repository layout, internal conventions, verificat
 
 ## Setup
 
-CI runs Node.js 24; the pnpm version is pinned in the root `packageManager` field.
+Use Node.js 24 for repository development and tests. CI also checks packed consumers on the minimum supported Node.js version, 22.12. The pnpm version is pinned in the root `packageManager` field.
 
 ```bash
 pnpm install
@@ -55,6 +55,7 @@ Focus rings, borders, blur, shadows and field styling follow this shared contrac
 
 - Peers are `react` and `react-dom`. `@inkio/collab` and `@inkio/image-editor` also peer on `@inkio/core`, so they share the app's single copy.
 - The Tiptap runtime Inkio uses goes in each package's `dependencies`; apps never install `@tiptap/*` themselves.
+- Keep Tiptap package versions aligned. The stack includes peers that require the exact same Tiptap release.
 - `@inkio/core` is published, but the docs do not present it as a starting point for apps.
 
 ## Verification
@@ -65,10 +66,12 @@ pnpm test
 pnpm build
 pnpm examples:build
 pnpm e2e
+pnpm collab:smoke
+pnpm security:audit
 pnpm release:smoke
 ```
 
-`pnpm verify` is the quick subset; `pnpm verify:full` runs everything, including Firefox e2e and the package gates (publint, attw, budgets).
+`pnpm verify` is the quick subset and includes the reference collaboration server smoke. `pnpm verify:full` also audits the lockfile, runs Chromium and Firefox E2E and WebKit workbench E2E, and checks package exports and bundle budgets. Package smoke installs tarballs with strict peers on React 19.3 and checks the non-image editor packages on React 18.
 
 ## Releasing
 

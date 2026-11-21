@@ -71,4 +71,23 @@ describe('KeyboardShortcuts extension', () => {
     expect(editor.getHTML()).toBe('<p>one</p><p>one</p>');
     editor.destroy();
   });
+
+  it('moves the selected block one sibling at a time and keeps the caret with it', () => {
+    const editor = new Editor({
+      element: document.createElement('div'),
+      extensions: [Document, Paragraph, Text, KeyboardShortcuts],
+      content: '<p>one</p><p>longer sibling</p><p>three</p>',
+    });
+    try {
+      const shortcuts = KeyboardShortcuts.config.addKeyboardShortcuts!.call({} as never);
+      expect(shortcuts['Mod-Shift-ArrowUp']({ editor })).toBe(false);
+      expect(shortcuts['Mod-Shift-ArrowDown']({ editor })).toBe(true);
+      expect(editor.getHTML()).toBe('<p>longer sibling</p><p>one</p><p>three</p>');
+      expect(editor.state.selection.$from.parent.textContent).toBe('one');
+      expect(shortcuts['Mod-Shift-ArrowUp']({ editor })).toBe(true);
+      expect(editor.getHTML()).toBe('<p>one</p><p>longer sibling</p><p>three</p>');
+    } finally {
+      editor.destroy();
+    }
+  });
 });

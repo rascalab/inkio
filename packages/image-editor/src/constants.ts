@@ -68,6 +68,7 @@ export const DEFAULT_LOCALE: ImageEditorLocale = {
   transparent: 'Transparent',
   opacity: 'Opacity',
   zoom: 'Zoom',
+  scaleLabel: 'Scale',
   fit: 'Fit',
   filter: 'Filter',
   filterNone: 'None',
@@ -100,6 +101,11 @@ export const DEFAULT_LOCALE: ImageEditorLocale = {
   zoomInLabel: 'Zoom in',
   zoomOutLabel: 'Zoom out',
   toolsLabel: 'Image editor tools',
+  canvasLabel: 'Image canvas',
+  canvasKeyboardHelp: 'Enter places an annotation or edits selected text. Shift plus Enter adds another. Space selects the next annotation; Shift plus Space selects the previous one. Arrow keys move the selection. Delete removes it. Draw adds a straight stroke with Enter; use a pointer for freehand drawing.',
+  cropKeyboardHelp: 'Use the arrow keys to move the crop. Shift plus Up shrinks it; Shift plus Down expands it. Use the Apply button to finish.',
+  sourceSizeError: 'The source image exceeds 8,192 px on a side or 32 megapixels.',
+  outputSizeError: 'Use dimensions of at most 4,096 px on a side and 16 megapixels.',
 };
 
 export const DEFAULT_TOOLS: ToolType[] = ['resize', 'draw', 'shape', 'text', 'filter', 'redact', 'sticker', 'rotate'];

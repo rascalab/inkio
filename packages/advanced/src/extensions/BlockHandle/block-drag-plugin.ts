@@ -1,13 +1,7 @@
 import React from 'react';
-import {
-  DOMSerializer,
-  Fragment,
-  Slice,
-  type Node as ProseMirrorNode,
-  type ResolvedPos,
-} from '@tiptap/pm/model';
-import { NodeSelection, Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
-import type { EditorView } from '@tiptap/pm/view';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
+import { NodeSelection, Plugin, PluginKey } from '@tiptap/pm/state';
+import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import type {
   InkioLocaleInput,
   InkioMessageOverrides,
@@ -25,11 +19,13 @@ import {
   editorUiRevision,
   mergeCoreMessages,
   toCoreMessageOverrides,
-  toRectLike,
   type OverlayHost,
-  type RectLike,
 } from '@inkio/core';
-import { BlockHandleActionMenu, fingerprintBlockAt, type BlockFingerprint } from './BlockHandleView';
+import { findHoveredBlock, getVisibleBlockPos, isHTMLElement, isInEditor, positionHandle, type HoveredBlock } from './block-drop';
+import { createBlockMenu } from './block-menu';
+import { createBlockDragVisuals, syncTheme } from './drag-visuals';
+import { createNativeBlockDrag } from './native-drag';
+import { createTouchBlockDrag } from './touch-drag';
 import type { BlockMenuIcons } from './icons';
 
 export interface BlockHandlePluginState {
@@ -46,941 +42,346 @@ interface BlockHandlePluginOptions {
   coreIcons?: Partial<InkioIconRegistry>;
 }
 
-interface HoveredBlock {
-  blockPos: number;
-  blockElement: HTMLElement;
-}
-
-const LIST_ITEM_TYPES = new Set(['listItem', 'taskItem']);
-const LIST_TYPES_SET = new Set(['bulletList', 'orderedList', 'taskList']);
 const HANDLE_CLASS_NAME = 'inkio-block-handle';
 const HIDE_DELAY_MS = 120;
-const HANDLE_SIZE = 24;
-const GRIP_PROPS = { size: 16, strokeWidth: 1.8 };
+const GRIP_PROPS = { size: 20, strokeWidth: 1.8 };
 
+type HandleState = BlockHandlePluginState & { highlight: DecorationSet };
 export const blockHandlePluginKey = new PluginKey<BlockHandlePluginState>('blockHandle');
+const HIGHLIGHT_META = 'inkio:block-handle-highlight';
 
-const isHTMLElement = (value: unknown): value is HTMLElement => value instanceof HTMLElement;
-
-const createHandleElement = (label: string, withDefaultIcon: boolean) => {
-  const handle = document.createElement('div');
-  handle.className = HANDLE_CLASS_NAME;
+const createHandleElement = (doc: Document, label: string, withDefaultIcon: boolean) => {
+  const handle = doc.createElement('button');
+  handle.type = 'button';
+  handle.className = `inkio ${HANDLE_CLASS_NAME}`;
   handle.setAttribute('draggable', 'true');
   handle.setAttribute('data-block-handle', '');
   handle.setAttribute('aria-label', label);
-  handle.style.userSelect = 'none';
+  handle.setAttribute('aria-haspopup', 'menu');
+  handle.setAttribute('aria-expanded', 'false');
+  handle.tabIndex = -1;
+  handle.setAttribute('aria-keyshortcuts', 'Shift+F10');
 
   if (!withDefaultIcon) return handle;
-  handle.appendChild(createInkioIconElement(GripVerticalIconNode, GRIP_PROPS));
+  const icon = createInkioIconElement(GripVerticalIconNode, {
+    ...GRIP_PROPS,
+    className: 'inkio-block-handle-dots',
+  });
+  icon.setAttribute('aria-hidden', 'true');
+  handle.appendChild(icon);
 
   return handle;
 };
 
-const getVisibleBlockPos = ($pos: ResolvedPos): number | null => {
-  if ($pos.depth < 1) {
-    return null;
-  }
-
-  for (let depth = $pos.depth; depth >= 2; depth -= 1) {
-    const node = $pos.node(depth);
-    if (
-      node.type.name === 'listItem'
-      || node.type.name === 'taskItem'
-    ) {
-      return $pos.before(depth);
-    }
-  }
-
-  const topLevelNode = $pos.node(1);
-  if (topLevelNode.isBlock) {
-    return $pos.before(1);
-  }
-
-  return null;
+const updateState = (view: EditorView, next: BlockHandlePluginState) => {
+  const current = blockHandlePluginKey.getState(view.state);
+  if (current?.activeBlockPos === next.activeBlockPos && current?.activeBlockElement === next.activeBlockElement) return;
+  view.dispatch(view.state.tr.setMeta(blockHandlePluginKey, next).setMeta('addToHistory', false));
 };
 
-const findHoveredBlock = (view: EditorView, clientX: number, clientY: number): HoveredBlock | null => {
-  const positionAtCoords = view.posAtCoords({ left: clientX, top: clientY });
-
-  if (!positionAtCoords) {
-    return null;
+const getScrollParent = (element: HTMLElement) => {
+  for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+    const overflow = getComputedStyle(parent).overflowY;
+    if (overflow === 'auto' || overflow === 'scroll') return parent;
   }
-
-  const resolvedPos = view.state.doc.resolve(positionAtCoords.pos);
-  let blockPos = getVisibleBlockPos(resolvedPos);
-
-  // For atom nodes (contentEditable=false), try `inside` first — it points into the node.
-  if (blockPos === null && positionAtCoords.inside != null && positionAtCoords.inside >= 0) {
-    try {
-      const $inside = view.state.doc.resolve(positionAtCoords.inside);
-      blockPos = getVisibleBlockPos($inside);
-    } catch {
-      // Ignore invalid positions.
-    }
-  }
-
-  // For atom nodes, posAtCoords may return pos at the boundary (depth 0).
-  // Check the node at `inside` or scan nearby positions.
-  if (blockPos === null) {
-    const checkPos = positionAtCoords.inside != null && positionAtCoords.inside >= 0
-      ? positionAtCoords.inside
-      : positionAtCoords.pos;
-    if (checkPos >= 0 && checkPos < view.state.doc.content.size) {
-      const node = view.state.doc.nodeAt(checkPos);
-      if (node?.isBlock) {
-        blockPos = checkPos;
-      } else if (checkPos > 0) {
-        const nodeBefore = view.state.doc.nodeAt(checkPos - 1);
-        if (nodeBefore?.isBlock) {
-          blockPos = checkPos - 1;
-        }
-      }
-    }
-  }
-
-  if (blockPos === null) {
-    const domAtCoords = document.elementFromPoint(clientX, clientY);
-    if (domAtCoords) {
-      let element: HTMLElement | null = domAtCoords instanceof HTMLElement ? domAtCoords : domAtCoords.parentElement;
-      while (element && element !== view.dom) {
-        try {
-          const pos = view.posAtDOM(element, 0);
-          if (pos >= 0) {
-            const $pos = view.state.doc.resolve(pos);
-            blockPos = getVisibleBlockPos($pos);
-            if (blockPos !== null) break;
-          }
-        } catch {
-          // Continue walking up.
-        }
-
-        element = element.parentElement;
-      }
-    }
-  }
-
-  if (blockPos === null) {
-    return null;
-  }
-
-  const blockNode = view.state.doc.nodeAt(blockPos);
-  if (!blockNode?.isBlock) {
-    return null;
-  }
-
-  const blockDOM = view.nodeDOM(blockPos);
-  if (!isHTMLElement(blockDOM)) {
-    return null;
-  }
-
-  return {
-    blockPos,
-    blockElement: blockDOM,
-  };
+  return window;
 };
 
-/**
- * ProseMirror puts a dropped block wherever the schema allows nearest the
- * pointer, and a list item accepts paragraphs, so a block dropped on a list
- * became part of an item. It lands between the items instead, splitting the
- * list, or beside the list at either end.
- */
-const dropBesideListItem = (
-  view: EditorView,
-  event: DragEvent,
-  { pos, node }: { pos: number; node: ProseMirrorNode },
-): boolean => {
-  const at = view.posAtCoords({ left: event.clientX, top: event.clientY });
-  if (!at) {
-    return false;
-  }
-
-  const $at = view.state.doc.resolve(at.pos);
-  let listDepth = 0;
-  for (let depth = 1; depth <= $at.depth && !listDepth; depth += 1) {
-    if (LIST_TYPES_SET.has($at.node(depth).type.name)) {
-      listDepth = depth;
-    }
-  }
-  if (!listDepth) {
-    return false;
-  }
-
-  let gap = at.pos;
-  if ($at.depth > listDepth) {
-    const itemPos = $at.before(listDepth + 1);
-    const itemDOM = view.nodeDOM(itemPos);
-    const rect = isHTMLElement(itemDOM) ? itemDOM.getBoundingClientRect() : null;
-    const below = rect ? event.clientY > rect.top + rect.height / 2 : false;
-    gap = below ? $at.after(listDepth + 1) : itemPos;
-  }
-  // A container dragged into its own list stays with the default.
-  if (gap >= pos && gap <= pos + node.nodeSize) {
-    return false;
-  }
-
-  const tr = view.state.tr.delete(pos, pos + node.nodeSize);
-  const $gap = tr.doc.resolve(tr.mapping.map(gap));
-  let target = $gap.pos + 1;
-  if ($gap.index() === 0) {
-    target = $gap.before();
-  } else if ($gap.index() === $gap.parent.childCount) {
-    target = $gap.after();
-  } else {
-    tr.split($gap.pos);
-  }
-
-  const $target = tr.doc.resolve(target);
-  if (!$target.parent.canReplaceWith($target.index(), $target.index(), node.type)) {
-    return false;
-  }
-  tr.insert(target, node);
-  tr.setSelection(TextSelection.near(tr.doc.resolve(target + 1)));
-  view.dispatch(tr.setMeta('uiEvent', 'drop'));
-  view.focus();
-  return true;
-};
-
-const FIRST_TEXT_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, summary, [data-type="toc"]';
-
-const getFirstLineHeight = (blockElement: HTMLElement): number => {
-  // For blocks with nested content (lists, task items with NodeView, etc.), align to the first line
-  const textEl = blockElement.querySelector(FIRST_TEXT_SELECTOR);
-  if (textEl) {
-    const rect = textEl.getBoundingClientRect();
-    if (rect.height > 0) return rect.height;
-  }
-
-  return getStyleLineHeight(blockElement);
-};
-
-const getStyleLineHeight = (blockElement: HTMLElement): number => {
-  // Fallback to computed line-height
-  const style = window.getComputedStyle(blockElement);
-  const lh = parseFloat(style.lineHeight);
-  if (!isNaN(lh) && lh > 0) return lh;
-
-  // Last resort
-  const fs = parseFloat(style.fontSize);
-  if (!isNaN(fs) && fs > 0) return fs * 1.5;
-
-  return HANDLE_SIZE;
-};
-
-const positionHandle = (handle: HTMLElement, blockElement: HTMLElement, handleWidth: number) => {
-  const blockRect = blockElement.getBoundingClientRect();
-
-  let alignTop: number;
-  let alignHeight: number;
-
-  // Void elements (hr, etc.) — center handle vertically on the element
-  const isVoid = blockElement.tagName === 'HR';
-  if (isVoid) {
-    const center = blockRect.top + blockRect.height / 2;
-    alignTop = center - HANDLE_SIZE / 2;
-    alignHeight = HANDLE_SIZE;
-  } else {
-    // Find the first text-containing element for precise vertical alignment.
-    // Uses descendant selector (not :scope >) so it works with NodeView wrappers
-    // like TaskItem (<li> > <div class="inkio-task-content"> > <p>).
-    const firstTextEl = blockElement.querySelector(FIRST_TEXT_SELECTOR);
-    const alignRect = firstTextEl ? firstTextEl.getBoundingClientRect() : null;
-
-    if (alignRect && alignRect.height > 0) {
-      alignTop = alignRect.top;
-      alignHeight = getFirstLineHeight(firstTextEl as HTMLElement);
-    } else {
-      // The FIRST_TEXT_SELECTOR lookup above already found no measurable
-      // text element, so skip straight to the style fallback instead of
-      // re-running the same querySelector + rect via getFirstLineHeight.
-      alignTop = blockRect.top;
-      alignHeight = Math.min(blockRect.height, getStyleLineHeight(blockElement));
-    }
-  }
-
-  // For list items, move handle left of the list markers
-  let leftPos = blockRect.left - handleWidth;
-  if (blockElement.tagName === 'LI') {
-    const parent = blockElement.parentElement;
-    if (parent) {
-      const paddingLeft = parseFloat(getComputedStyle(parent).paddingLeft) || 0;
-      leftPos = blockRect.left - paddingLeft - handleWidth;
-    }
-  }
-
-  handle.style.position = 'fixed';
-  handle.style.top = `${alignTop + Math.max(0, (alignHeight - HANDLE_SIZE) / 2)}px`;
-  handle.style.left = `${Math.max(0, leftPos)}px`;
-  handle.style.width = `${handleWidth}px`;
-  handle.style.height = `${HANDLE_SIZE}px`;
-};
-
-export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
-  let handleElement: HTMLDivElement | null = null;
-  let hideTimer: ReturnType<typeof setTimeout> | null = null;
-  let editorView: EditorView | null = null;
-  let activeBlockPos: number | null = null;
-  let activeBlockElement: HTMLElement | null = null;
-  // A block on its way somewhere; a list item is not, it belongs in a list.
-  let draggedBlock: { pos: number; node: ProseMirrorNode } | null = null;
-
-  let blockSelected = false;
-  let currentBlockCleanup: (() => void) | null = null;
-
-  let menuHost: OverlayHost | null = null;
-  let gripHost: OverlayHost | null = null;
-  let openMenuBlockPos: number | null = null;
-  let openMenuBlockFingerprint: BlockFingerprint | null = null;
-  let abortController: AbortController | null = null;
-  let pendingHover: { x: number; y: number } | null = null;
-  let hoverRaf = 0;
-  let positionRaf = 0;
-  // What the handle was last positioned against; lets view.update skip the
-  // forced layout of positionHandle when nothing relevant changed.
-  let positionedFor: { pos: number; element: HTMLElement; doc: ProseMirrorNode } | null = null;
-
-  const markPositioned = (pos: number, element: HTMLElement, doc: ProseMirrorNode) => {
-    positionedFor = { pos, element, doc };
-  };
-
-  /** rAF-coalesced reposition of the handle against the active block. */
-  const scheduleHandlePosition = () => {
-    if (positionRaf) return;
-
-    positionRaf = requestAnimationFrame(() => {
-      positionRaf = 0;
-      if (handleElement && activeBlockElement && activeBlockPos !== null) {
-        positionHandle(handleElement, activeBlockElement, options.handleWidth);
-        if (editorView) {
-          markPositioned(activeBlockPos, activeBlockElement, editorView.state.doc);
-        }
-      }
-    });
-  };
-
-  const clearHideTimer = () => {
-    if (hideTimer) {
-      clearTimeout(hideTimer);
-      hideTimer = null;
-    }
-  };
-
-  const getHandleAnchorRect = (): RectLike | null => {
-    if (!handleElement) {
-      return null;
-    }
-
-    return toRectLike(handleElement.getBoundingClientRect());
-  };
-
-  const closeMenu = () => {
-    openMenuBlockPos = null;
-    openMenuBlockFingerprint = null;
-    if (menuHost?.isMounted()) {
-      menuHost.render(null);
-    }
-  };
-
-  const ensureMenuRoot = (): Promise<boolean> => {
-    // A host whose root failed to load is destroyed; start over on retry.
-    if (!menuHost || menuHost.isDestroyed()) {
-      if (!editorView) {
-        return Promise.resolve(false);
-      }
-
-      menuHost = createOverlayHost({
-        editorDom: editorView.dom,
-        className: 'inkio inkio-block-handle-portal',
-        label: 'block menu',
-      });
-    }
-
-    return menuHost.ready();
-  };
-
+const mountBlockHandle = (view: EditorView, options: BlockHandlePluginOptions) => {
+  const doc = view.dom.ownerDocument;
+  const controller = new AbortController();
+  const { signal } = controller;
   const currentUi = () => editorUi(options.editor, {
     locale: options.locale,
     messages: options.messages,
     icons: options.coreIcons,
   });
-
-  // Resolved through the same message merge as the React menu so locale
-  // overrides apply to the handle too.
   const handleLabel = () => {
     const ui = currentUi();
     return mergeCoreMessages(ui.locale, toCoreMessageOverrides(ui.messages)).blockHandle.handle;
   };
-  let handleUiRevision = editorUiRevision(options.editor);
+  let uiRevision = editorUiRevision(options.editor);
+  const Grip = currentUi().icons?.grip;
+  const handle = createHandleElement(doc, handleLabel(), !Grip);
+  doc.body.appendChild(handle);
+  let gripHost: OverlayHost | null = null;
+  if (Grip) {
+    gripHost = createOverlayHost({ parent: handle, className: 'inkio-block-handle-grip', label: 'block handle icon' });
+    gripHost.render(React.createElement(Grip, GRIP_PROPS));
+  }
 
-  const renderMenu = () => {
-    if (!menuHost?.isMounted() || openMenuBlockPos === null) {
-      return;
-    }
+  let active: HoveredBlock | null = null;
+  let positioned: { block: HoveredBlock; doc: ProseMirrorNode } | null = null;
+  let hideTimer: ReturnType<typeof setTimeout> | undefined;
+  let pendingHover: PointerEvent | null = null;
+  let hoverFrame = 0;
+  let positionFrame = 0;
 
-    const ui = currentUi();
-    menuHost.render(
-      React.createElement(BlockHandleActionMenu, {
-        editor: options.editor,
-        blockPos: openMenuBlockPos,
-        blockFingerprint: openMenuBlockFingerprint,
-        anchorRect: getHandleAnchorRect(),
-        anchorResolver: getHandleAnchorRect,
-        icons: options.icons,
-        locale: ui.locale,
-        messages: ui.messages,
-        coreIcons: ui.icons,
-        onClose: closeMenu,
-      }),
-    );
+  const clearHideTimer = () => {
+    clearTimeout(hideTimer);
+    hideTimer = undefined;
   };
-
-  const openMenu = (blockPos: number) => {
-    // Defense in depth: the menu is only reachable through the handle
-    // (already gated), but never open it on a read-only view.
-    if (editorView && !editorView.editable) {
-      return;
-    }
-    openMenuBlockPos = blockPos;
-    // Snapshot the target block's identity now; menu actions validate
-    // against it so later doc edits can't redirect onto an adjacent block.
-    try {
-      openMenuBlockFingerprint = fingerprintBlockAt(options.editor.state.doc, blockPos);
-    } catch {
-      openMenuBlockFingerprint = null;
-    }
+  const menu = createBlockMenu({
+    view, handle, signal, editor: options.editor, icons: options.icons, currentUi,
+    onHighlight: (transaction, pos) => view.dispatch(transaction.setMeta(HIGHLIGHT_META, pos).setMeta('addToHistory', false)),
+    onMove: (transaction, movedTo) => {
+      view.dispatch(transaction.setMeta(blockHandlePluginKey, {
+        activeBlockPos: movedTo,
+        activeBlockElement: null,
+      } satisfies BlockHandlePluginState));
+    },
+  });
+  const visuals = createBlockDragVisuals(view);
+  const onLift = () => {
+    menu.close();
+    menu.clearHighlight();
     clearHideTimer();
+    pendingHover = null;
+  };
+  const dragOptions = {
+    view, handle, signal, visuals,
+    getBlock: () => active,
+    onPress: clearHideTimer,
+    onLift,
+    onHide: () => hide(true),
+  };
+  const native = createNativeBlockDrag({
+    ...dragOptions,
+    isTouchPressed: (): boolean => touch.isPressed,
+  });
+  const touch = createTouchBlockDrag({
+    ...dragOptions,
+    hasNativeDrag: () => native.isActive,
+    hasOpenMenu: () => menu.isOpen,
+    onReveal: (block) => {
+      pendingHover = null;
+      clearHideTimer();
+      show(block);
+    },
+  });
 
-    ensureMenuRoot().then((mounted) => {
-      if (openMenuBlockPos !== blockPos) {
-        return;
-      }
-
-      if (!mounted) {
-        // Chunk load failure (logged by the overlay host): reset the pending
-        // open so a later click retries cleanly instead of hanging.
-        openMenuBlockPos = null;
-        return;
-      }
-
-      renderMenu();
-    }).catch(() => {
-      // Chunk load failure must not end as an unhandled rejection: reset
-      // the pending open so a later click retries cleanly instead of hanging.
-      if (openMenuBlockPos !== blockPos) {
-        return;
-      }
-      openMenuBlockPos = null;
+  const dragging = () => native.isActive || touch.isPressed;
+  const retainsHandle = () => dragging() || touch.keepsHandle || menu.isOpen || doc.activeElement === handle;
+  const measure = (block: HoveredBlock) => {
+    positionHandle(handle, block.blockElement, options.handleWidth);
+    positioned = { block, doc: view.state.doc };
+  };
+  const schedulePosition = () => {
+    if (positionFrame) return;
+    positionFrame = requestAnimationFrame(() => {
+      positionFrame = 0;
+      if (active) measure(active);
     });
   };
-
-  const updateState = (view: EditorView, nextState: BlockHandlePluginState) => {
-    const currentState = blockHandlePluginKey.getState(view.state);
-
-    if (
-      currentState?.activeBlockPos === nextState.activeBlockPos
-      && currentState?.activeBlockElement === nextState.activeBlockElement
-    ) {
-      return;
-    }
-
-    const tr = view.state.tr
-      .setMeta(blockHandlePluginKey, nextState)
-      .setMeta('addToHistory', false);
-
-    view.dispatch(tr);
+  const markVisible = (visible: boolean) => {
+    handle.classList.toggle('visible', visible);
+    handle.tabIndex = visible ? 0 : -1;
   };
-
-  const hideHandle = (view: EditorView, force = false) => {
-    if (!force && openMenuBlockPos !== null) {
-      return;
+  function show(block: HoveredBlock) {
+    if (!view.editable) return;
+    const previous = active;
+    active = previous?.blockPos === block.blockPos && previous.blockElement === block.blockElement ? previous : block;
+    syncTheme(handle, view.dom);
+    measure(active);
+    markVisible(true);
+    if (active !== previous) updateState(view, { activeBlockPos: block.blockPos, activeBlockElement: block.blockElement });
+  }
+  function hide(force = false) {
+    if (!force && retainsHandle()) return;
+    touch.forgetHandle();
+    markVisible(false);
+    if (force || active) {
+      active = null;
+      updateState(view, { activeBlockPos: null, activeBlockElement: null });
     }
-
-    if (handleElement) {
-      handleElement.classList.remove('visible');
-    }
-
-    if (activeBlockPos !== null || activeBlockElement !== null) {
-      activeBlockPos = null;
-      activeBlockElement = null;
-      updateState(view, {
-        activeBlockPos: null,
-        activeBlockElement: null,
-      });
-    }
-  };
-
-  const showHandle = (view: EditorView, hovered: HoveredBlock) => {
-    // Read-only surfaces (Viewer) never show the drag handle or block menu.
-    if (!view.editable) {
-      return;
-    }
-    if (!handleElement) {
-      return;
-    }
-
-    positionHandle(handleElement, hovered.blockElement, options.handleWidth);
-    markPositioned(hovered.blockPos, hovered.blockElement, view.state.doc);
-    handleElement.classList.add('visible');
-
-    if (
-      activeBlockPos !== hovered.blockPos
-      || activeBlockElement !== hovered.blockElement
-    ) {
-      activeBlockPos = hovered.blockPos;
-      activeBlockElement = hovered.blockElement;
-      updateState(view, {
-        activeBlockPos,
-        activeBlockElement,
-      });
-    }
-  };
-
-  const scheduleHideHandle = (view: EditorView) => {
-    if (openMenuBlockPos !== null) {
-      return;
-    }
-
+  }
+  const scheduleHide = () => {
+    if (retainsHandle()) return;
     clearHideTimer();
-    hideTimer = setTimeout(() => {
-      hideHandle(view);
-    }, HIDE_DELAY_MS);
+    hideTimer = setTimeout(hide, HIDE_DELAY_MS);
   };
 
-  const ensureHandleElement = () => {
-    if (handleElement || !editorView) {
-      return;
-    }
+  handle.addEventListener('mouseenter', clearHideTimer, { signal });
+  handle.addEventListener('mouseleave', scheduleHide, { signal });
+  handle.addEventListener('blur', scheduleHide, { signal });
+  handle.addEventListener('click', (event) => {
+    if (!view.editable || dragging() || !active) return;
+    event.preventDefault();
+    event.stopPropagation();
+    clearHideTimer();
+    menu.activate(active);
+  }, { signal });
 
-    const Grip = currentUi().icons?.grip;
-    handleElement = createHandleElement(handleLabel(), !Grip);
-    handleUiRevision = editorUiRevision(options.editor);
-    document.body.appendChild(handleElement);
-    // An app's icon is a component; only the default can be built without React.
-    if (Grip) {
-      gripHost = createOverlayHost({
-        parent: handleElement,
-        className: 'inkio-block-handle-grip',
-        label: 'block handle icon',
-      });
-      gripHost.render(React.createElement(Grip, GRIP_PROPS));
-    }
+  const onScroll = () => {
+    if (native.isActive) native.refreshMarker();
+    else if (touch.isPressed) touch.refreshMarker();
+    else schedulePosition();
+  };
+  getScrollParent(view.dom).addEventListener('scroll', onScroll, { passive: true, signal });
 
-    abortController?.abort();
-    abortController = new AbortController();
-    const { signal } = abortController;
-
-    handleElement.addEventListener('mouseenter', () => {
+  return {
+    get hasHighlight() { return view.editable && menu.hasHighlight; },
+    touch,
+    pointerMove(event: PointerEvent) {
+      if (event.pointerType === 'touch') {
+        touch.pointerMove(event);
+        return;
+      }
+      if (!view.editable || dragging() || doc.activeElement === handle) return;
+      touch.forgetHandle();
       clearHideTimer();
-    }, { signal });
-
-    handleElement.addEventListener('mouseleave', () => {
-      if (editorView) {
-        scheduleHideHandle(editorView);
-      }
-    }, { signal });
-
-    let capturedBlockPos: number | null = null;
-
-
-    handleElement.addEventListener('mousedown', (event) => {
-      capturedBlockPos = activeBlockPos;
-      event.stopPropagation();
-    }, { signal });
-
-    // Clear a stale captured position when press-and-hover moves away
-    // without click/dragstart (e.g. mousedown then mouseup off-handle).
-    document.addEventListener('mouseup', () => {
-      if (openMenuBlockPos === null) {
-        capturedBlockPos = null;
-      }
-    }, { signal });
-
-    handleElement.addEventListener('dragstart', (event) => {
-      if (!editorView || !editorView.editable) {
-        event.preventDefault();
+      if (!isInEditor(view, event)) {
+        scheduleHide();
         return;
       }
-      const blockPos = capturedBlockPos ?? activeBlockPos;
-      capturedBlockPos = null;
-      if (!editorView || blockPos === null) {
-        return;
-      }
-
-      const node = editorView.state.doc.nodeAt(blockPos);
-      if (!node) {
-        return;
-      }
-
-      try {
-        const selection = NodeSelection.create(editorView.state.doc, blockPos);
-        const tr = editorView.state.tr.setSelection(selection);
-        editorView.dispatch(tr);
-
-        // For list items, wrap in parent list type to preserve ol/ul/taskList.
-        // openStart=1, openEnd=1 so ProseMirror inserts just the listItem
-        // when dropping inside a list, but preserves the list wrapper outside.
-        let slice: Slice;
-        if (LIST_ITEM_TYPES.has(node.type.name)) {
-          const $pos = editorView.state.doc.resolve(blockPos);
-          const parentList = $pos.parent;
-          if (LIST_TYPES_SET.has(parentList.type.name)) {
-            const wrappedFragment = Fragment.from(
-              parentList.type.create(parentList.attrs, node),
-            );
-            slice = new Slice(wrappedFragment, 1, 1);
-          } else {
-            // Deeply nested item without a recognized list parent — use node directly.
-            slice = selection.content();
-          }
-        } else {
-          slice = selection.content();
-          draggedBlock = { pos: blockPos, node };
+      if (menu.hasHighlight) return;
+      // posAtCoords and handle geometry are read at most once per frame.
+      pendingHover = event;
+      if (hoverFrame) return;
+      hoverFrame = requestAnimationFrame(() => {
+        hoverFrame = 0;
+        const coords = pendingHover;
+        pendingHover = null;
+        if (!coords || dragging() || touch.keepsHandle) return;
+        const block = findHoveredBlock(view, coords.clientX, coords.clientY);
+        if (!block) {
+          scheduleHide();
+          return;
         }
-
-        (editorView as EditorView & { dragging?: unknown }).dragging = {
-          slice,
-          move: true,
-        };
-
-        if (event.dataTransfer) {
-          const serializer = DOMSerializer.fromSchema(editorView.state.schema);
-          const wrap = document.createElement('div');
-          wrap.appendChild(serializer.serializeFragment(slice.content));
-
-          event.dataTransfer.effectAllowed = 'copyMove';
-          event.dataTransfer.setData('text/html', wrap.innerHTML);
-          event.dataTransfer.setData('text/plain', node.textContent || '');
-        }
-      } catch {
-        // Ignore stale positions when drag begins after document updates.
-      }
-    }, { signal });
-
-    handleElement.addEventListener('dragend', () => {
-      draggedBlock = null;
-    }, { signal });
-
-    handleElement.addEventListener('click', (event) => {
-      if (!editorView || !editorView.editable) {
-        return;
-      }
-      const posForMenu = capturedBlockPos ?? activeBlockPos;
-      capturedBlockPos = null;
-      if (!editorView || posForMenu === null) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      // Clean up previous block selection before creating a new one
-      if (currentBlockCleanup) currentBlockCleanup();
-
-      const selectedEl = activeBlockElement;
-      const view = editorView;
-
-      if (selectedEl) {
-        selectedEl.classList.add('inkio-block-selected');
-        blockSelected = true;
-
-        // For atom nodes, set NodeSelection (enables delete/backspace).
-        const nodeAtPos = view.state.doc.nodeAt(posForMenu);
-        if (nodeAtPos?.isAtom || nodeAtPos?.isLeaf) {
-          try {
-            const selection = NodeSelection.create(view.state.doc, posForMenu);
-            view.dispatch(view.state.tr.setSelection(selection));
-          } catch {
-            // Ignore if NodeSelection can't be created.
-          }
-        }
-
-        const cleanup = () => {
-          currentBlockCleanup = null;
-          selectedEl.classList.remove('inkio-block-selected');
-          blockSelected = false;
-          view.dom.removeEventListener('mousedown', cleanup);
-          document.removeEventListener('keydown', onKeyCleanup);
-        };
-        const onKeyCleanup = () => {
-          // Any key previously left `.inkio-block-selected` and the view.dom
-          // mousedown listener behind on Escape — always fully clean up.
-          cleanup();
-        };
-        currentBlockCleanup = cleanup;
-        view.dom.addEventListener('mousedown', cleanup, { once: true });
-        // Once: without it a menu-action click with no subsequent keypress
-        // leaves this listener behind until the next key or block click.
-        document.addEventListener('keydown', onKeyCleanup, { once: true });
-      }
-
-      editorView.focus();
-
-      const anchor = getHandleAnchorRect();
-      if (!anchor) {
-        return;
-      }
-
-      const menuEvent = new CustomEvent('inkio:block-menu', {
-        bubbles: true,
-        detail: {
-          blockPos: posForMenu,
-          position: {
-            top: anchor.bottom,
-            left: anchor.left,
-          },
-        },
+        show(block);
+        if (menu.isOpen) menu.refresh();
       });
-      editorView.dom.dispatchEvent(menuEvent);
+    },
+    pointerLeave(event: PointerEvent) {
+      if (event.pointerType === 'touch') return;
+      if (event.relatedTarget instanceof Node && handle.contains(event.relatedTarget)) return;
+      scheduleHide();
+    },
+    keyDown(event: KeyboardEvent) {
+      const contextKey = event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey);
+      if (!contextKey || event.isComposing || !view.editable || dragging()) return false;
+      const { selection } = view.state;
+      const blockPos = selection instanceof NodeSelection && selection.node.isBlock
+        ? selection.from
+        : getVisibleBlockPos(selection.$head);
+      if (blockPos === null) return false;
+      const blockElement = view.nodeDOM(blockPos);
+      if (!isHTMLElement(blockElement)) return false;
+      event.preventDefault();
+      show({ blockPos, blockElement });
+      handle.click();
+      return true;
+    },
+    handleDrop(event: DragEvent, move: boolean) {
+      if (native.isActive) return native.handleDrop(event, move);
+      menu.close();
+      hide();
+      return false;
+    },
+    update(nextView: EditorView, prevState: EditorView['state']) {
+      native.update();
+      if (touch.update()) active = null;
 
-      openMenu(posForMenu);
-    }, { signal });
+      const revision = editorUiRevision(options.editor);
+      if (revision !== uiRevision) {
+        uiRevision = revision;
+        syncTheme(handle, nextView.dom);
+        visuals.syncTheme();
+        handle.setAttribute('aria-label', handleLabel());
+        const Icon = currentUi().icons?.grip;
+        if (Icon) gripHost?.render(React.createElement(Icon, GRIP_PROPS));
+      }
+      if (nextView.state.doc !== prevState.doc && menu.isOpen) menu.close();
+
+      const nextPos = blockHandlePluginKey.getState(nextView.state)?.activeBlockPos;
+      if (!nextView.editable || !active || nextPos == null) {
+        if (!nextView.editable) menu.clearHighlight();
+        touch.forgetHandle();
+        markVisible(false);
+        active = null;
+        menu.close();
+        return;
+      }
+      const element = nextView.nodeDOM(nextPos);
+      if (!isHTMLElement(element)) {
+        menu.close();
+        hide(true);
+        return;
+      }
+      if (dragging()) return;
+
+      if (active.blockPos !== nextPos || active.blockElement !== element) {
+        active = { blockPos: nextPos, blockElement: element };
+      }
+      // Don't move the anchor under an open menu or read layout on selection-only updates.
+      if (!menu.isOpen && (positioned?.block !== active || positioned.doc !== nextView.state.doc)) {
+        if (handle.classList.contains('visible')) schedulePosition();
+        else measure(active);
+      }
+      markVisible(true);
+      if (menu.isOpen) menu.refresh();
+    },
+    destroy() {
+      controller.abort();
+      native.destroy();
+      touch.destroy();
+      clearHideTimer();
+      if (hoverFrame) cancelAnimationFrame(hoverFrame);
+      if (positionFrame) cancelAnimationFrame(positionFrame);
+      menu.destroy();
+      gripHost?.destroy();
+      handle.remove();
+    },
   };
+};
 
-  return new Plugin<BlockHandlePluginState>({
+export const createBlockHandlePlugin = (options: BlockHandlePluginOptions) => {
+  let handle: ReturnType<typeof mountBlockHandle> | null = null;
+  return new Plugin<HandleState>({
     key: blockHandlePluginKey,
     state: {
-      init: () => ({
-        activeBlockPos: null,
-        activeBlockElement: null,
-      }),
-      apply: (tr, pluginState) => {
+      init: () => ({ activeBlockPos: null, activeBlockElement: null, highlight: DecorationSet.empty }),
+      apply: (tr, current) => {
         const meta = tr.getMeta(blockHandlePluginKey) as BlockHandlePluginState | undefined;
-
-        let nextState = pluginState;
-
-        if (tr.docChanged) {
-          if (nextState.activeBlockPos !== null) {
-            nextState = {
-              ...nextState,
-              activeBlockPos: tr.mapping.map(nextState.activeBlockPos),
-              activeBlockElement: null,
-            };
-          }
+        const selected = tr.getMeta(HIGHLIGHT_META) as number | null | undefined;
+        if (!tr.docChanged && !meta && selected === undefined) return current;
+        const pos = current.activeBlockPos;
+        const mapped = tr.docChanged && pos !== null
+          ? { activeBlockPos: tr.mapping.map(pos), activeBlockElement: null }
+          : current;
+        let highlight = tr.docChanged ? DecorationSet.empty : current.highlight;
+        if (selected !== undefined) {
+          const node = selected === null ? null : tr.doc.nodeAt(selected);
+          // A decoration survives ProseMirror rebuilding the block after focus leaves.
+          highlight = selected !== null && node?.isBlock
+            ? DecorationSet.create(tr.doc, [Decoration.node(selected, selected + node.nodeSize, { class: 'inkio-block-selected' })])
+            : DecorationSet.empty;
         }
-
-        if (meta) {
-          nextState = {
-            ...nextState,
-            ...meta,
-          };
-        }
-
-        return nextState;
+        return { ...mapped, ...meta, highlight };
       },
     },
     props: {
+      decorations(state) {
+        return handle?.hasHighlight ? this.getState(state)?.highlight : null;
+      },
       handleDOMEvents: {
-        mousemove: (view, event) => {
-          if (!handleElement) {
-            return false;
-          }
-
-          const target = event.target;
-          if (target instanceof Node && handleElement.contains(target)) {
-            clearHideTimer();
-            return false;
-          }
-
-          clearHideTimer();
-
-          // Only show handle when mouse is within the editor's content area
-          const editorRect = view.dom.getBoundingClientRect();
-          if (
-            event.clientX < editorRect.left
-            || event.clientX > editorRect.right
-            || event.clientY < editorRect.top
-            || event.clientY > editorRect.bottom
-          ) {
-            scheduleHideHandle(view);
-            return false;
-          }
-
-          // Don't move handle while a block is selected
-          if (blockSelected) {
-            return false;
-          }
-
-          // Throttle layout-heavy hover detection (posAtCoords + rects +
-          // getComputedStyle) to one rAF per frame instead of per pixel move.
-          pendingHover = { x: event.clientX, y: event.clientY };
-          if (!hoverRaf) {
-            hoverRaf = requestAnimationFrame(() => {
-              hoverRaf = 0;
-              const coords = pendingHover;
-              pendingHover = null;
-              if (!coords || !editorView) return;
-
-              const hovered = findHoveredBlock(editorView, coords.x, coords.y);
-              if (!hovered) {
-                scheduleHideHandle(editorView);
-                return;
-              }
-
-              showHandle(editorView, hovered);
-              if (openMenuBlockPos !== null) {
-                renderMenu();
-              }
-            });
-          }
-          return false;
-        },
-        mouseleave: (view, event) => {
-          if (!handleElement) {
-            return false;
-          }
-
-          const relatedTarget = event.relatedTarget;
-          if (relatedTarget instanceof Node && handleElement.contains(relatedTarget)) {
-            return false;
-          }
-
-          scheduleHideHandle(view);
-          return false;
-        },
+        pointerdown: (_view, event) => { handle?.touch.pointerDown(event); return false; },
+        pointerup: (_view, event) => { handle?.touch.pointerUp(event); return false; },
+        pointercancel: (_view, event) => { handle?.touch.pointerCancel(event); return false; },
+        pointermove: (_view, event) => { handle?.pointerMove(event); return false; },
+        pointerleave: (_view, event) => { handle?.pointerLeave(event); return false; },
+        keydown: (_view, event) => handle?.keyDown(event) ?? false,
       },
-      handleDrop: (view, event) => {
-        closeMenu();
-        hideHandle(view);
-        const dragged = draggedBlock;
-        draggedBlock = null;
-        return dragged ? dropBesideListItem(view, event, dragged) : false;
-      },
+      handleDrop: (_view, event, _slice, move) => handle?.handleDrop(event, move) ?? false,
     },
     view: (view) => {
-      editorView = view;
-      ensureHandleElement();
-
-      const scrollParent = (() => {
-        let el: HTMLElement | null = view.dom.parentElement;
-        while (el) {
-          const overflow = getComputedStyle(el).overflowY;
-          if (overflow === 'auto' || overflow === 'scroll') return el;
-          el = el.parentElement;
-        }
-        return window;
-      })();
-
-      const handleScroll = () => {
-        if (!handleElement) return;
-        scheduleHandlePosition();
-      };
-
-      scrollParent.addEventListener('scroll', handleScroll, { passive: true });
-
+      const instance = mountBlockHandle(view, options);
+      handle = instance;
       return {
-        update: (nextView, prevState) => {
-          editorView = nextView;
-
-          const uiRevision = editorUiRevision(options.editor);
-          if (uiRevision !== handleUiRevision) {
-            handleUiRevision = uiRevision;
-            handleElement?.setAttribute('aria-label', handleLabel());
-            const Grip = currentUi().icons?.grip;
-            if (Grip) gripHost?.render(React.createElement(Grip, GRIP_PROPS));
-          }
-
-          // Remap openMenuBlockPos when the document changes.
-          // Done here in the view update (not in plugin state apply) to avoid
-          // mutating closure state inside a pure apply function.
-          // ProseMirror does not expose the transaction in update(), so we close
-          // the menu on doc change; the menu will reopen if the user clicks again.
-          if (prevState && nextView.state.doc !== prevState.doc && openMenuBlockPos !== null) {
-            closeMenu();
-          }
-
-          if (!handleElement) {
-            return;
-          }
-
-          const pluginState = blockHandlePluginKey.getState(nextView.state);
-          const nextActivePos = pluginState?.activeBlockPos;
-
-          // Never display the handle on a read-only view.
-          if (!nextView.editable) {
-            handleElement.classList.remove('visible');
-            activeBlockPos = null;
-            activeBlockElement = null;
-            closeMenu();
-            return;
-          }
-
-          if (nextActivePos === null || nextActivePos === undefined) {
-            handleElement.classList.remove('visible');
-            activeBlockPos = null;
-            activeBlockElement = null;
-            closeMenu();
-            return;
-          }
-
-          const nextBlockDOM = nextView.nodeDOM(nextActivePos);
-          if (!isHTMLElement(nextBlockDOM)) {
-            closeMenu();
-            hideHandle(nextView, true);
-            return;
-          }
-
-          activeBlockPos = nextActivePos;
-          activeBlockElement = nextBlockDOM;
-          // Don't reposition when menu is open — keep handle at original position.
-          // Skip the forced layout entirely when the active block and doc are
-          // unchanged since the last measurement (e.g. selection-only updates);
-          // otherwise coalesce to one measurement per frame.
-          if (
-            openMenuBlockPos === null
-            && !(
-              positionedFor
-              && positionedFor.pos === nextActivePos
-              && positionedFor.element === nextBlockDOM
-              && positionedFor.doc === nextView.state.doc
-            )
-          ) {
-            if (handleElement.classList.contains('visible')) {
-              scheduleHandlePosition();
-            } else {
-              // About to become visible: place it now so it never flashes
-              // at a stale position for a frame.
-              positionHandle(handleElement, nextBlockDOM, options.handleWidth);
-              markPositioned(nextActivePos, nextBlockDOM, nextView.state.doc);
-            }
-          }
-          handleElement.classList.add('visible');
-
-          if (openMenuBlockPos !== null) {
-            renderMenu();
-          }
-        },
+        update: instance.update,
         destroy: () => {
-          scrollParent.removeEventListener('scroll', handleScroll);
-          abortController?.abort();
-          abortController = null;
-          clearHideTimer();
-          if (hoverRaf) {
-            cancelAnimationFrame(hoverRaf);
-            hoverRaf = 0;
-          }
-          if (positionRaf) {
-            cancelAnimationFrame(positionRaf);
-            positionRaf = 0;
-          }
-          positionedFor = null;
-          pendingHover = null;
-          closeMenu();
-
-          menuHost?.destroy();
-          gripHost?.destroy();
-          gripHost = null;
-          menuHost = null;
-
-          if (handleElement) {
-            handleElement.remove();
-            handleElement = null;
-          }
-
-          if (currentBlockCleanup) currentBlockCleanup();
-          activeBlockPos = null;
-          activeBlockElement = null;
-          editorView = null;
-          openMenuBlockPos = null;
+          handle = null;
+          instance.destroy();
         },
       };
     },

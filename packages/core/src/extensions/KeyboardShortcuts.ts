@@ -1,14 +1,12 @@
 import { Extension, type Editor } from '@tiptap/core';
-import { Fragment, type Node as ProseMirrorNode } from '@tiptap/pm/model';
-import { TextSelection, type EditorState } from '@tiptap/pm/state';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
+import { Selection, TextSelection, type EditorState } from '@tiptap/pm/state';
 import { runOptionalChainCommand } from './optional-commands';
+import { planAdjacentBlockMove } from './adjacent-block-move';
 
 interface BlockContext {
-  blockIndex: number;
   blockNode: ProseMirrorNode;
   blockPos: number;
-  parentNode: ProseMirrorNode;
-  parentStart: number;
 }
 
 const findCurrentBlockContext = (state: EditorState): BlockContext | null => {
@@ -35,11 +33,8 @@ const findCurrentBlockContext = (state: EditorState): BlockContext | null => {
       parentName === 'taskList'
     ) {
       return {
-        blockIndex: $from.index(parentDepth),
         blockNode: node,
         blockPos: $from.before(depth),
-        parentNode,
-        parentStart: parentDepth === 0 ? 0 : $from.start(parentDepth),
       };
     }
   }
@@ -88,33 +83,10 @@ const moveCurrentBlock = (editor: Editor, direction: -1 | 1): boolean => {
     return false;
   }
 
-  const targetIndex = context.blockIndex + direction;
-
-  if (targetIndex < 0 || targetIndex >= context.parentNode.childCount) {
-    return false;
-  }
-
-  const children: ProseMirrorNode[] = [];
-  context.parentNode.forEach((child) => {
-    children.push(child);
-  });
-
-  [children[context.blockIndex], children[targetIndex]] = [
-    children[targetIndex],
-    children[context.blockIndex],
-  ];
-
-  const transaction = editor.state.tr.replaceWith(
-    context.parentStart,
-    context.parentStart + context.parentNode.content.size,
-    Fragment.fromArray(children)
-  );
-
-  const newBlockPos =
-    context.parentStart +
-    children.slice(0, targetIndex).reduce((sum, node) => sum + node.nodeSize, 0);
-
-  transaction.setSelection(setNearestSelectionInside(newBlockPos + 1, transaction));
+  const move = planAdjacentBlockMove(editor.state.doc, context.blockPos, direction);
+  if (!move) return false;
+  const transaction = editor.state.tr.step(move.step);
+  transaction.setSelection(Selection.near(transaction.doc.resolve(move.selectionPos)));
   editor.view.dispatch(transaction.scrollIntoView());
 
   return true;

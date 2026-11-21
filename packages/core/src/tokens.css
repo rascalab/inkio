@@ -4,6 +4,8 @@
    ============================ */
 
 .inkio {
+  color-scheme: light;
+
   /* ============================
      Light theme raw values
      Palette based on Radix UI Colors light scales.
@@ -15,10 +17,10 @@
   --inkio-bg-subtle: #f9f9fb;
   --inkio-bg-inverse: #1c2024;
 
-  /* Text — slate 11/12/9/2 */
-  --inkio-text: #60646c;
+  /* Text */
+  --inkio-text: #34373e;
   --inkio-text-heading: #1c2024;
-  --inkio-text-muted: #8b8d98;
+  --inkio-text-muted: #62666f;
   --inkio-text-inverse: #f9f9fb;
 
   /* Border — slate 6 / blue 9 */
@@ -99,6 +101,12 @@
   --inkio-surface-blur-panel: 20px;
   --inkio-surface-blur-field: 12px;
 
+  /* Controls — shared by the document menus and the image workbench */
+  --inkio-control-text: var(--inkio-text-heading);
+  --inkio-control-hover: color-mix(in srgb, var(--inkio-control-text) 6%, var(--inkio-bg));
+  --inkio-control-active: color-mix(in srgb, var(--inkio-control-text) 14%, var(--inkio-bg));
+  --inkio-control-radius: var(--inkio-radius-md);
+
   /* Layer system */
   --inkio-layer-base: 1;
   --inkio-layer-content: 10;
@@ -156,10 +164,10 @@
   --inkio-dark-bg-subtle: #212225;
   --inkio-dark-bg-inverse: #edeef0;
 
-  /* Text — slateDark 12/12/9/1 */
-  --inkio-dark-text: #b0b4ba;
+  /* Text */
+  --inkio-dark-text: #d2d4d8;
   --inkio-dark-text-heading: #edeef0;
-  --inkio-dark-text-muted: #696e77;
+  --inkio-dark-text-muted: #a2a6ae;
   --inkio-dark-text-inverse: #111113;
 
   /* Border — slateDark 6/blueDark 9 */
@@ -293,6 +301,8 @@
    ============================ */
 .inkio.dark,
 :is(.dark, .dark-theme) .inkio:not(.light) {
+  color-scheme: dark;
+
   --inkio-bg: var(--inkio-dark-bg);
   --inkio-bg-muted: var(--inkio-dark-bg-muted);
   --inkio-bg-subtle: var(--inkio-dark-bg-subtle);

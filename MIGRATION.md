@@ -1,5 +1,15 @@
 # Migration
 
+## 0.0.8 → 0.0.9
+
+- **Runtime requirements:** use Node.js 22.12 or later for build and SSR. The standalone image editor now requires React and React DOM `^19.3.0`; apps staying on React 18 can still use the other packages.
+- **Image retention:** remove delete-on-edit storage adapters. `cleanup: 'manual'` is the default and `onDelete` is not called for document edits, even in `immediate` mode. Use application-managed retention and an authorized inventory of saved document references. Explicit `immediate` is only suitable for app-owned, unique uploads that never entered a document.
+- **Image editing limits:** the editor opens sources up to 8,192 px on either side and 32 MP total. Exports are limited to 4,096 px on either side and 16 MP. An image that opens can still exceed the export limits; crop it or use Resize before saving. A browser that cannot encode the requested format (for example, WebP) now reports an error instead of returning bytes in another format.
+- **Document imports:** oversized tables and Markdown can be rejected, and oversized HTML tables are omitted in the live editor. Treat import failure as an error, not as a replacement to autosave. Split tables beyond 512 rows, 128 columns, or 16,384 expanded cells.
+- **Collaborative offline cache:** replace `offline: true` with `offline: { accountId, deploymentId }`. Low-level IndexedDB helpers use the same scope. Sync pending legacy changes with the original account and server before upgrading; unscoped caches cannot be assigned safely to a new account.
+- **Collaborative seeding:** `SEED_CLIENT_ID` is removed; seed authors are content-derived. Provision shared documents on the server during a mixed-version rollout.
+- **Reference server snapshots:** stop writers and back up the old store. Copy each known room to `v2-<SHA-256 hex of exact UTF-8 room ID>.ydoc`; the file contents do not change. Compose now uses the writable `examples/collab-server/data` directory instead of its old named volume. Configure document-specific authentication before starting.
+
 ## 0.0.7 → 0.0.8
 
 No API is removed. These changes in behavior may need a look:

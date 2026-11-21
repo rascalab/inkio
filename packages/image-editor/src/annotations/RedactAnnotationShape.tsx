@@ -3,6 +3,7 @@ import { Image as KonvaImage } from 'react-konva';
 import Konva from 'konva';
 import type { RedactAnnotation } from '../types';
 import { useAnnotationShapeHandlers, type AnnotationShapeProps } from './use-annotation-shape-handlers';
+import { getRedactionCacheRatio } from '../utils/raster-limits';
 
 interface Props extends AnnotationShapeProps<RedactAnnotation> {
   image: HTMLImageElement | null;
@@ -45,13 +46,14 @@ export function RedactAnnotationShape({ image, ...props }: Props) {
           width: Math.max(1, node.width() * node.scaleX() / scale),
           height: Math.max(1, node.height() * node.scaleY() / scale),
         });
+        const pixelRatio = getRedactionCacheRatio(node.width(), node.height());
         if (annotation.mode === 'blur') {
-          node.blurRadius(Math.max(0.5, annotation.strength * 0.75));
+          node.blurRadius(Math.max(1, annotation.strength * 0.75 * pixelRatio));
         } else {
-          node.pixelSize(Math.max(2, Math.round(annotation.strength)));
+          node.pixelSize(Math.max(2, Math.round(annotation.strength * pixelRatio)));
         }
         node.filters(redactFilters(annotation.mode));
-        node.cache();
+        node.cache({ pixelRatio });
         node.getLayer()?.batchDraw();
       });
     };

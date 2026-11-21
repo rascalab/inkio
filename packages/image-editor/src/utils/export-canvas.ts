@@ -1,18 +1,23 @@
-import Konva from 'konva';
-import type { ImageEditorState, Annotation } from '../types';
-import { getAnnotationScale, getTransformedDimensions, getBaseDisplayDimensions } from './geometry';
-import { getTextAnnotationHeight, resolveTextFontSizePx, TEXT_DEFAULT_FONT_FAMILY } from './text-metrics';
-import { applyImageFilter, resolveEffectiveFilter } from './filters';
+import type { CropRect, ImageEditorState } from '../types';
+import { getTransformedDimensions } from './geometry';
 import { clampNumber } from './math';
 import { isImageTainted } from './image-loader';
-import type { CropRect } from '../types';
-import { STICKER_FONT_FAMILY } from '../constants';
+import { MAX_EXPORT_PIXELS, MAX_EXPORT_DIMENSION } from './raster-limits';
+import {
+  encodeExportCanvas, renderExportScene, verifyEncodedBlob,
+  type ExportOutput, type ExportResult, type ExportScene, type ExportWithPreview, type RasterCanvas,
+} from './export-raster';
+import type { ExportWorkerRequest } from './export-raster.worker';
+import { createExportWorker } from './export-worker-launcher';
+import { renderFilteredBase, yieldExportTask } from './export-filter-bands';
+import { resolveEffectiveFilter } from './filters';
+
+const WORKER_MIN_PIXELS = 2_000_000;
+const WORKER_TIMEOUT_MS = 30_000;
 
 export type ExportFormat = 'png' | 'jpeg' | 'webp';
 
-/** Hard cap: 100 MP RGBA ≈ 400 MiB pixel buffer; refuse before allocating. */
-export const MAX_EXPORT_PIXELS = 100_000_000;
-export const MAX_EXPORT_DIMENSION = 16_000;
+export { MAX_EXPORT_DIMENSION, MAX_EXPORT_PIXELS } from './raster-limits';
 
 export function validateExportFormat(format: string): ExportFormat {
   if (format === 'png' || format === 'jpeg' || format === 'webp') {
@@ -29,16 +34,16 @@ export function validateExportQuality(quality: number): number {
 }
 
 export function validateExportDimensions(width: number, height: number): void {
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-    throw new Error(`Invalid export dimensions ${String(width)}x${String(height)}`);
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0) {
+    throw new RangeError(`Invalid export dimensions ${String(width)}x${String(height)}`);
   }
   if (width > MAX_EXPORT_DIMENSION || height > MAX_EXPORT_DIMENSION) {
-    throw new Error(
+    throw new RangeError(
       `Export ${Math.round(width)}x${Math.round(height)} exceeds max side ${MAX_EXPORT_DIMENSION}px`,
     );
   }
   if (width * height > MAX_EXPORT_PIXELS) {
-    throw new Error(
+    throw new RangeError(
       `Export ${Math.round(width)}x${Math.round(height)} exceeds ${MAX_EXPORT_PIXELS}-pixel limit`,
     );
   }
@@ -69,167 +74,96 @@ export function normalizeExportCrop(
   return { x, y, width, height };
 }
 
-/** Yield to the main thread so a large export doesn't freeze input handling. */
-function yieldToMain(): Promise<void> {
-  return new Promise((resolve) => { setTimeout(resolve, 0); });
+function canRenderInWorker(scene: ExportScene): boolean {
+  if (scene.width * scene.height < WORKER_MIN_PIXELS
+    || typeof Worker === 'undefined' || typeof createImageBitmap !== 'function'
+    || typeof OffscreenCanvas === 'undefined' || typeof OffscreenCanvas.prototype.convertToBlob !== 'function') {
+    return false;
+  }
+  // Workers do not inherit document @font-face faces or direction. Keep
+  // text and emoji on the DOM backend when those inputs can affect glyphs.
+  return !scene.annotations.some((annotation) => annotation.type === 'text' || annotation.type === 'sticker')
+    || (!document.fonts?.size && getComputedStyle(document.documentElement).direction !== 'rtl');
 }
 
-function applyAnnotationToGroup(
-  container: Konva.Group | Konva.Layer,
-  ann: Annotation,
-  scale: number,
-  sourceImage: HTMLImageElement | null,
-): void {
-  switch (ann.type) {
-    case 'rect': {
-      const shape = new Konva.Rect({
-        x: ann.x * scale,
-        y: ann.y * scale,
-        width: ann.width * scale,
-        height: ann.height * scale,
-        fill: ann.fill,
-        stroke: ann.stroke,
-        strokeWidth: ann.strokeWidth * scale,
-        rotation: ann.rotation,
-      });
-      container.add(shape);
-      break;
-    }
-    case 'ellipse': {
-      const shape = new Konva.Ellipse({
-        x: ann.x * scale,
-        y: ann.y * scale,
-        radiusX: ann.radiusX * scale,
-        radiusY: ann.radiusY * scale,
-        fill: ann.fill,
-        stroke: ann.stroke,
-        strokeWidth: ann.strokeWidth * scale,
-        rotation: ann.rotation,
-      });
-      container.add(shape);
-      break;
-    }
-    case 'arrow': {
-      const shape = new Konva.Arrow({
-        points: ann.points.map((p) => p * scale),
-        stroke: ann.stroke,
-        strokeWidth: ann.strokeWidth * scale,
-        fill: ann.stroke,
-        pointerLength: 10 * scale,
-        pointerWidth: 10 * scale,
-      });
-      container.add(shape);
-      break;
-    }
-    case 'line': {
-      const shape = new Konva.Line({
-        points: ann.points.map((p) => p * scale),
-        stroke: ann.stroke,
-        strokeWidth: ann.strokeWidth * scale,
-        lineCap: 'round',
-        lineJoin: 'round',
-      });
-      container.add(shape);
-      break;
-    }
-    case 'text': {
-      const fontSizePx = resolveTextFontSizePx(ann.fontSize);
-      const shape = new Konva.Text({
-        x: ann.x * scale,
-        y: ann.y * scale,
-        text: ann.text,
-        fontSize: fontSizePx * scale,
-        fontFamily: ann.fontFamily || TEXT_DEFAULT_FONT_FAMILY,
-        fill: ann.fill,
-        fontStyle: ann.fontStyle,
-        rotation: ann.rotation,
-        width: ann.width ? ann.width * scale : undefined,
-        height: getTextAnnotationHeight(ann) * scale,
-      });
-      container.add(shape);
-      break;
-    }
-    case 'freedraw': {
-      const shape = new Konva.Line({
-        points: ann.points.map((p) => p * scale),
-        stroke: ann.stroke,
-        strokeWidth: ann.strokeWidth * scale,
-        opacity: ann.opacity,
-        tension: 0.5,
-        lineCap: 'round',
-        lineJoin: 'round',
-        globalCompositeOperation: 'source-over',
-      });
-      container.add(shape);
-      break;
-    }
-    case 'redact': {
-      // Re-render the source region with the same filter pipeline as the
-      // live RedactAnnotationShape so export matches the preview.
-      if (!sourceImage) break;
-      const region = new Konva.Image({
-        image: sourceImage,
-        x: ann.x * scale,
-        y: ann.y * scale,
-        width: Math.max(1, ann.width * scale),
-        height: Math.max(1, ann.height * scale),
-        rotation: ann.rotation,
-        crop: {
-          x: ann.x,
-          y: ann.y,
-          width: Math.max(1, ann.width),
-          height: Math.max(1, ann.height),
-        },
-      });
-      if (ann.mode === 'blur') {
-        region.blurRadius(Math.max(0.5, ann.strength * 0.75));
-        region.filters([Konva.Filters.Blur]);
-      } else {
-        region.pixelSize(Math.max(2, Math.round(ann.strength)));
-        region.filters([Konva.Filters.Pixelate]);
-      }
-      region.cache();
-      container.add(region);
-      break;
-    }
-    case 'sticker': {
-      const shape = new Konva.Text({
-        x: ann.x * scale,
-        y: ann.y * scale,
-        text: ann.emoji,
-        fontSize: Math.max(1, ann.size * scale),
-        fontFamily: STICKER_FONT_FAMILY,
-        rotation: ann.rotation,
-      });
-      container.add(shape);
-      break;
-    }
+async function decodeLocalExportImage(image: HTMLImageElement): Promise<ImageBitmap | undefined> {
+  const { currentSrc: src, naturalWidth, naturalHeight } = image;
+  if (!/^(?:data|blob):/i.test(src) || typeof createImageBitmap !== 'function') return;
+  // A Blob takes the browser's background decode path without refetching a remote URL.
+  try {
+    const response = await fetch(src);
+    const bitmap = await createImageBitmap(await response.blob());
+    if (bitmap.width === naturalWidth && bitmap.height === naturalHeight) return bitmap;
+    bitmap.close();
+  } catch {
+    // The local URL may be revoked or excluded by connect-src; the image is already loaded.
   }
 }
 
+async function renderInWorker(
+  image: HTMLImageElement,
+  scene: ExportScene,
+  mimeType: string,
+  quality: number,
+  output: ExportOutput,
+): Promise<ExportResult | null> {
+  let bitmap: ImageBitmap | undefined;
+  let worker: Worker | undefined;
+  let timeout: number | undefined;
+  try {
+    bitmap = (await decodeLocalExportImage(image)) ?? await createImageBitmap(image);
+    if (bitmap.width !== image.naturalWidth || bitmap.height !== image.naturalHeight) return null;
+    worker = await createExportWorker();
+    const request: ExportWorkerRequest = { scene, image: bitmap, mimeType, quality, output };
+    const exportWorker = worker;
+    return await new Promise<ExportResult | null>((resolve) => {
+      timeout = window.setTimeout(() => resolve(null), WORKER_TIMEOUT_MS);
+      exportWorker.onmessage = ({ data }: MessageEvent<ExportResult | null>) => resolve(data);
+      exportWorker.onmessageerror = exportWorker.onerror = () => resolve(null);
+      exportWorker.postMessage(request, [request.image]);
+    });
+  } catch {
+    // Creation/transfer can throw (e.g. CSP or browser support). The same
+    // scene is rendered once on the DOM backend rather than retried.
+    return null;
+  } finally {
+    window.clearTimeout(timeout);
+    worker?.terminate();
+    bitmap?.close();
+  }
+}
+
+export function encodeCanvas(canvas: Pick<HTMLCanvasElement, 'toBlob'>, mimeType: string, quality: number): Promise<Blob> {
+  return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, mimeType, quality))
+    .then((blob) => verifyEncodedBlob(blob, mimeType));
+}
+
+export function exportCanvas(state: ImageEditorState, format?: ExportFormat, quality?: number): Promise<string>;
+export function exportCanvas(state: ImageEditorState, format: ExportFormat, quality: number, output: 'blob'): Promise<Blob>;
+export function exportCanvas(state: ImageEditorState, format: ExportFormat, quality: number, output: 'blob-with-preview'): Promise<ExportWithPreview>;
 export async function exportCanvas(
   state: ImageEditorState,
-  format: 'png' | 'jpeg' | 'webp' = 'png',
+  format: ExportFormat = 'png',
   quality = 0.92,
-): Promise<string> {
-  if (!state.originalImage) {
+  output: ExportOutput = 'data-url',
+): Promise<ExportResult> {
+  const image = state.originalImage;
+  if (!image) {
     throw new Error('No image loaded');
   }
 
   const safeFormat = validateExportFormat(format);
   const safeQuality = validateExportQuality(quality);
 
-  const { width: outW, height: outH } = getTransformedDimensions(
+  const size = getTransformedDimensions(
     state.originalWidth,
     state.originalHeight,
     state.transform,
     state.outputSize,
   );
+  const outW = Math.round(size.width);
+  const outH = Math.round(size.height);
   validateExportDimensions(outW, outH);
-
-  const { width: baseW, height: baseH } = getBaseDisplayDimensions(
-    outW, outH, state.transform.rotation,
-  );
 
   if (typeof document === 'undefined') {
     throw new Error('Export requires a browser environment');
@@ -242,130 +176,55 @@ export async function exportCanvas(
   );
 
   // Fail before the heavy offscreen raster work: a CORS-fallback source
-  // taints the canvas and toDataURL would throw a bare SecurityError.
-  if (isImageTainted(state.originalImage)) {
+  // taints the canvas and would throw a bare SecurityError when encoded.
+  if (isImageTainted(image)) {
     throw new Error(
       'Cannot export: the source image was loaded without CORS approval ' +
         '(canvas is tainted). Serve the image with Access-Control-Allow-Origin or load it from a data: URL.',
     );
   }
 
-  // Let input/paint run before the heavy synchronous raster work below.
-  await yieldToMain();
+  const scene: ExportScene = {
+    width: outW,
+    height: outH,
+    originalWidth: state.originalWidth,
+    originalHeight: state.originalHeight,
+    transform: { ...state.transform, crop: exportCrop },
+    annotations: state.annotations,
+    filter: state.filter,
+    finetune: state.finetune,
+  };
+  const mimeType = `image/${safeFormat}`;
+  if (canRenderInWorker(scene)) {
+    const result = await renderInWorker(image, scene, mimeType, safeQuality, output);
+    if (result !== null) return result;
+  }
 
-  const container = document.createElement('div');
-  container.style.cssText = 'position:fixed;left:-9999px;top:-9999px;pointer-events:none';
-  document.body.appendChild(container);
-
-  let stage: Konva.Stage | null = null;
+  // Even without a worker, decode large local sources off the main thread.
+  const large = outW * outH >= WORKER_MIN_PIXELS;
+  const bitmap = large ? await decodeLocalExportImage(image) : undefined;
+  let canvas: RasterCanvas;
+  let filtered: RasterCanvas | undefined;
   try {
-    stage = new Konva.Stage({
-      container,
-      width: outW,
-      height: outH,
-    });
-
-    const layer = new Konva.Layer();
-    stage.add(layer);
-
-    // Draw image with transforms
-    const imageNode = new Konva.Image({
-      image: state.originalImage,
-      x: outW / 2,
-      y: outH / 2,
-      width: baseW,
-      height: baseH,
-      offsetX: baseW / 2,
-      offsetY: baseH / 2,
-      rotation: state.transform.rotation,
-      scaleX: state.transform.flipX ? -1 : 1,
-      scaleY: state.transform.flipY ? -1 : 1,
-    });
-
-    if (exportCrop) {
-      imageNode.crop({
-        x: exportCrop.x,
-        y: exportCrop.y,
-        width: exportCrop.width,
-        height: exportCrop.height,
-      });
-      imageNode.width(baseW);
-      imageNode.height(baseH);
-      imageNode.x(outW / 2);
-      imageNode.y(outH / 2);
-      imageNode.offsetX(baseW / 2);
-      imageNode.offsetY(baseH / 2);
-    }
-
-    // Same filter pipeline as the live preview (ImageNode) so the saved
-    // image matches what the user sees. Like ImageNode's neutral branch,
-    // skip it when nothing would filter: cache() allocates a full-res canvas.
-    if (resolveEffectiveFilter(state.filter, state.finetune).filters.length > 0) {
-      applyImageFilter(imageNode, state.filter, state.finetune);
-    }
-
-    layer.add(imageNode);
-
-    // Render annotations
-    // Annotations use original-image-space coordinates.
-    // With crop, offset by crop origin and scale to output size.
-    const cropX = exportCrop?.x ?? 0;
-    const cropY = exportCrop?.y ?? 0;
-    const annotationScale = getAnnotationScale(
-      { ...state.transform, crop: exportCrop },
-      state.originalWidth, state.originalHeight, outW, outH,
-    );
-    const annScale = annotationScale.x;
-
-    const rotation = state.transform.rotation ?? 0;
-    const flipX = state.transform.flipX ? -1 : 1;
-    const flipY = state.transform.flipY ? -1 : 1;
-
-    // Wrap annotations in a transform group matching the image node so that
-    // rotation and flip are applied consistently on export.
-    const transformGroup = new Konva.Group({
-      x: outW / 2,
-      y: outH / 2,
-      rotation,
-      scaleX: flipX,
-      scaleY: flipY,
-      offsetX: baseW / 2,
-      offsetY: baseH / 2,
-    });
-
-    const annotationGroup = new Konva.Group({
-      x: -cropX * annScale,
-      y: -cropY * annotationScale.y,
-      scaleY: annotationScale.y / annScale,
-    });
-    transformGroup.add(annotationGroup);
-    layer.add(transformGroup);
-
-    for (const ann of state.annotations) {
-      applyAnnotationToGroup(annotationGroup, ann, annScale, state.originalImage);
-    }
-
-    // No layer.batchDraw() needed: stage.toDataURL re-renders every layer.
-    const mimeType =
-      safeFormat === 'jpeg' ? 'image/jpeg' : safeFormat === 'webp' ? 'image/webp' : 'image/png';
-
-    // Large lossy exports can OOM inside the encoder: retry once at a lower
-    // quality before surfacing the error instead of a blank-page crash.
-    try {
-      return stage.toDataURL({ mimeType, quality: safeQuality });
-    } catch (err) {
-      if (safeFormat === 'png' || safeQuality <= 0.6) throw err;
-      await yieldToMain();
-      return stage.toDataURL({ mimeType, quality: 0.6 });
+    await yieldExportTask();
+    const source = bitmap ?? image;
+    const effective = large ? resolveEffectiveFilter(scene.filter, scene.finetune) : undefined;
+    if (effective?.filters.length) filtered = await renderFilteredBase(scene, source, effective);
+    if (filtered && !scene.annotations.length && scene.transform.rotation % 360 === 0
+        && !scene.transform.flipX && !scene.transform.flipY) {
+      canvas = filtered;
+      filtered = undefined;
+    } else {
+      if (filtered) await yieldExportTask();
+      canvas = renderExportScene(scene, source, filtered);
     }
   } finally {
-    // Always release the offscreen stage, even when toDataURL throws
-    // (e.g. tainted canvas or oversized output).
-    try {
-      stage?.destroy();
-    } catch {
-      // Best-effort cleanup only.
-    }
-    container.remove();
+    bitmap?.close();
+    if (filtered) filtered.width = filtered.height = 0;
   }
+  // Do not stack the encoder's buffer snapshot on the rasterization task.
+  if (large) await yieldExportTask();
+  return encodeExportCanvas(canvas, output, async (target) => 'convertToBlob' in target
+    ? verifyEncodedBlob(await target.convertToBlob({ type: mimeType, quality: safeQuality }), mimeType)
+    : encodeCanvas(target, mimeType, safeQuality));
 }

@@ -3,14 +3,14 @@ import {
   undoableReducer,
   makeInitialUndoableState,
   type ImageEditorAction,
+  type ImageEditorSessionState,
   type UndoableAction,
 } from './reducer';
-import type { ImageEditorState } from './types';
 import type { ImageEditorLocale } from './types';
 import { MAX_UNDO_STEPS } from './constants';
 
 export interface ImageEditorContextValue {
-  state: ImageEditorState;
+  state: ImageEditorSessionState;
   locale: ImageEditorLocale;
   dispatch: (action: ImageEditorAction) => void;
   undo: () => void;

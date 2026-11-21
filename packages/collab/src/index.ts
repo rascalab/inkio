@@ -1,11 +1,12 @@
 export { MAX_DOC_ID_LENGTH, assertValidDocId } from './doc-id';
 export { createYDoc, isYDocEmpty, encodeDocState } from './ydoc';
-export { SEED_CLIENT_ID, DEFAULT_COLLAB_FIELD, createSeedUpdate, seedYDoc } from './seed';
+export { DEFAULT_COLLAB_FIELD, createSeedUpdate, seedYDoc } from './seed';
 export {
   createCollabProvider,
   getCollabStatus,
   onCollabStatus,
   isReadOnly,
+  retryCollabAuthentication,
 } from './provider';
 export type {
   CollabProvider,
@@ -40,4 +41,5 @@ export type {
 } from './hooks';
 export { CollabPresence } from './presence';
 export type { CollabPresenceProps } from './presence';
-export { persistDocToIndexedDB, loadIndexedDBState } from './persistence';
+export { persistDocToIndexedDB, loadIndexedDBState, clearCollabCache, getCollabCacheKey } from './persistence';
+export type { CollabCacheScope } from './persistence';

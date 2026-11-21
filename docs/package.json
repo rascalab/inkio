@@ -1,11 +1,11 @@
 {
   "name": "docs",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "private": true,
   "scripts": {
     "dev": "INKIO_USE_SOURCE_PACKAGES=1 next dev --webpack -H 0.0.0.0",
     "build": "next build --webpack",
-    "postbuild": "node ./scripts/postbuild-pagefind.mjs",
+    "postbuild": "node ./scripts/postbuild-pagefind.mjs && node ./scripts/check-landing-budget.mjs",
     "start": "next start",
     "lint": "next typegen && tsc --noEmit -p tsconfig.build.json",
     "typecheck": "next typegen && tsc --noEmit -p tsconfig.build.json"
@@ -17,7 +17,7 @@
     "@inkio/image-editor": "workspace:*",
     "@inkio/simple": "workspace:*",
     "@stackblitz/sdk": "^1.11.1",
-    "next": "^16.3.8",
+    "next": "^16.4.6",
     "next-themes": "^0.4.6",
     "nextra": "^4.6.1",
     "nextra-theme-docs": "^4.6.1",
@@ -35,6 +35,6 @@
     "pagefind": "^1.5.2",
     "postcss": "^8.5.29",
     "tailwindcss": "^4.3.3",
-    "typescript": "npm:@typescript/typescript6@^6.0.2"
+    "typescript": "^5.9.3"
   }
 }

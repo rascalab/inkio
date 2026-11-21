@@ -1,4 +1,5 @@
 @import "./tokens.css";
+@import "./hljs.css";
 
 /* ============================
    inkio Core Styles
@@ -32,13 +33,15 @@
   min-height: 0;
 }
 
-.inkio-editor--fill .inkio-content {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  height: 100%;
-  min-height: 100%;
+.inkio-editor--fill > .inkio-editor-body {
+  flex: 1 1 0;
+  min-height: 0;
   overflow-y: auto;
+}
+
+.inkio-editor--fill > .inkio-editor-body > .inkio-content {
+  box-sizing: border-box;
+  min-height: 100%;
 }
 
 
@@ -380,7 +383,7 @@
 }
 
 .inkio .inkio-content .selectedCell {
-  background-color: rgba(0, 144, 255, 0.12);
+  background-color: color-mix(in srgb, var(--inkio-primary) 12%, transparent);
 }
 
 /* The cell shows the selection; the browser's text highlight would double it. */
@@ -415,18 +418,19 @@
    Editor Container - Minimal structure
    ============================ */
 
-.inkio-editor {
-  border: 1px solid;
-  border-radius: var(--inkio-radius-lg);
-}
-
 .inkio-toolbar {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--inkio-surface-border, var(--inkio-border));
+  flex: none;
+  border-block-end: 1px solid var(--inkio-surface-border, var(--inkio-border));
   flex-wrap: wrap;
+}
+
+.inkio-toolbar[data-placement="bottom"] {
+  border-block-end: 0;
+  border-block-start: 1px solid var(--inkio-surface-border, var(--inkio-border));
 }
 
 .inkio-toolbar--ssr-placeholder {
@@ -497,7 +501,7 @@
 }
 
 .inkio-color-swatch.is-active {
-  outline: 2px solid var(--inkio-ring, #3b82f6);
+  outline: 2px solid var(--inkio-border-focus);
   outline-offset: 1px;
 }
 
@@ -526,14 +530,6 @@
   background: transparent;
 }
 
-.inkio-container-default {
-  border: none;
-  border-radius: 0;
-  background-color: transparent;
-  box-shadow: none;
-}
-
-
 /* Note: This file provides only functional structure without visual design.
    Consumers should customize colors, fonts, spacing, and visual appearance.
    For ready-to-use styles, import './style.css' instead. */
@@ -545,13 +541,13 @@
 .inkio-bubble-btn:focus-visible,
 .inkio-bubble-btn.is-focused,
 .inkio-table-trigger:focus-visible {
-  outline: 2px solid var(--inkio-ring, #3b82f6);
+  outline: 2px solid var(--inkio-border-focus);
   outline-offset: 2px;
   border-radius: var(--inkio-radius-sm, 4px);
 }
 
 .inkio-suggestion-item:focus-visible {
-  outline: 2px solid var(--inkio-ring, #3b82f6);
+  outline: 2px solid var(--inkio-border-focus);
   outline-offset: -2px;
 }
 

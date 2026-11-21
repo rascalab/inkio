@@ -2,21 +2,14 @@ import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
-const outputDirs = ['.next-pages', 'out', '.next'];
-const siteDir = outputDirs
-  .map((dir) => path.join(process.cwd(), dir))
-  .find((dir) => existsSync(path.join(dir, 'index.html')));
+// Only the Pages build produces the static export. A local build must
+// not index an old export directory left behind by a previous build.
+if (process.env.GITHUB_PAGES !== 'true') process.exit(0);
 
-// next.config.mjs only static-exports for GitHub Pages (GITHUB_PAGES=true,
-// distDir .next-pages): a missing export dir is fatal there, and an
-// expected skip for local `next build` runs.
-if (!siteDir) {
-  if (process.env.GITHUB_PAGES === 'true') {
-    console.error('[pagefind] static export directory missing for a GitHub Pages build');
-    process.exit(1);
-  }
-  console.warn('[pagefind] skipped: no static export directory found');
-  process.exit(0);
+const siteDir = path.resolve('.next-pages');
+if (!existsSync(path.join(siteDir, 'index.html'))) {
+  console.error('[pagefind] static export directory missing for a GitHub Pages build');
+  process.exit(1);
 }
 
 const pagefindBin = path.join(

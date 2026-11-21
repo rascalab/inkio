@@ -4,6 +4,7 @@ import { loadImage } from '../image-loader';
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 describe('loadImage', () => {
@@ -39,6 +40,20 @@ describe('loadImage', () => {
     const assertion = expect(pending).rejects.toThrow(/Timed out/);
     await vi.advanceTimersByTimeAsync(30_001);
     await assertion;
+  });
+
+  it('does not put the image URL in timeout or network errors', async () => {
+    const url = 'https://cdn.example.test/p.png?signature=private-marker';
+    vi.useFakeTimers();
+    const timeout = expect(loadImage(url)).rejects.toThrow(/^Timed out loading image$/);
+    await vi.advanceTimersByTimeAsync(30_001);
+    await timeout;
+
+    vi.stubGlobal('Image', class {
+      onerror?: () => void;
+      set src(_url: string) { queueMicrotask(() => this.onerror?.()); }
+    });
+    await expect(loadImage(url)).rejects.toThrow(/^Failed to load image \(CORS and non-CORS requests failed\)$/);
   });
 
   it('shares one fetch between concurrent loads of the same src', async () => {

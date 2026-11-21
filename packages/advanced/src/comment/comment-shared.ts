@@ -41,6 +41,43 @@ export function normalizeCommentId(value: unknown): string | null {
   return trimmed ? trimmed : null;
 }
 
+/** Host thread data is separate from document marks; a mark is not evidence of access. */
+export function isKnownCommentThread(value: unknown, expectedId?: string): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const { id, resolved, messages } = value as Record<string, unknown>;
+  if (typeof id !== 'string' || normalizeCommentId(id) !== id ||
+      (expectedId !== undefined && id !== expectedId) ||
+      typeof resolved !== 'boolean' || !Array.isArray(messages)) {
+    return false;
+  }
+  if (messages.length === 0) return true;
+  const ids = new Set<string>();
+  for (const message of messages) {
+    if (typeof message !== 'object' || message === null) return false;
+    const { id: messageId, author, text, createdAt } = message as Record<string, unknown>;
+    if (typeof messageId !== 'string' || !messageId.trim() || ids.has(messageId) ||
+        typeof author !== 'string' || typeof text !== 'string' ||
+        !(createdAt instanceof Date || typeof createdAt === 'string' || typeof createdAt === 'number')) {
+      return false;
+    }
+    ids.add(messageId);
+  }
+  return true;
+}
+
+export function readCommentThread(
+  getThread: CommentOptions['getThread'],
+  id: string,
+): CommentThreadData | null {
+  try {
+    const thread = getThread?.(id);
+    return thread && isKnownCommentThread(thread, id) ? thread : null;
+  } catch {
+    // An unavailable host lookup must not turn into a writable thread.
+    return null;
+  }
+}
+
 // ─── Options ────────────────────────────────────────────────
 
 export interface CommentOptions {
@@ -55,9 +92,13 @@ export interface CommentOptions {
   onCommentUnresolve?: (threadId: string) => void;
   /** Called when user deletes a thread */
   onCommentDelete?: (threadId: string) => void;
-  /** Retrieve thread data for the popover display */
+  /**
+   * Retrieve only threads belonging to this document that the active user may
+   * see. Existing-thread mutations are gated on this lookup; the host must
+   * still authenticate and authorize every operation against its own store.
+   */
   getThread?: (threadId: string) => CommentThreadData | null;
-  /** Custom ID generator for new comment threads */
+  /** Custom ID generator; must return a unique ID in the host's thread store. */
   generateId?: () => string;
   /** Display name for the current user */
   currentUser?: string;
@@ -89,6 +130,7 @@ export interface CommentConfig {
   onResolve?: (commentId: string) => void;
   onUnresolve?: (commentId: string) => void;
   onDelete?: (commentId: string) => void;
+  /** Document-scoped lookup; the host must authorize every mutation independently. */
   getComments?: (commentId: string) => CommentData | null;
   generateId?: () => string;
 }
@@ -101,7 +143,7 @@ export function toCommentOptions(config: CommentConfig): Partial<CommentOptions>
     onCommentResolve: config.onResolve,
     onCommentUnresolve: config.onUnresolve,
     onCommentDelete: config.onDelete,
-    getThread: config.getComments as CommentOptions['getThread'],
+    getThread: config.getComments,
     generateId: config.generateId,
   };
 }

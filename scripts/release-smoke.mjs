@@ -140,8 +140,8 @@ try {
       '@inkio/editor': `file:../tarballs/${editorTarball}`,
       '@inkio/image-editor': `file:../tarballs/${imageEditorTarball}`,
       '@inkio/collab': `file:../tarballs/${collabTarball}`,
-      react: '^19.2.4',
-      'react-dom': '^19.2.4',
+      react: '19.3.0',
+      'react-dom': '19.3.0',
     },
     devDependencies: {
       '@types/react': '^19.2.14',
@@ -434,8 +434,44 @@ createRoot(document.getElementById('root')!).render(
 `,
   );
 
-  run('pnpm', ['install'], appDir);
+  run('pnpm', ['install', '--strict-peer-dependencies'], appDir);
   run('pnpm', ['build'], appDir);
+
+  const react18Dir = path.join(tempRoot, 'react18');
+  mkdirSync(react18Dir);
+  const manifest = JSON.parse(readFileSync(path.join(appDir, 'package.json'), 'utf-8'));
+  const react18Dependencies = Object.fromEntries(Object.entries(manifest.dependencies)
+    .filter(([name]) => name.startsWith('@inkio/') && name !== '@inkio/image-editor'));
+  writeJson(path.join(react18Dir, 'package.json'), {
+    name: 'inkio-release-smoke-react18',
+    private: true,
+    type: 'module',
+    dependencies: {
+      ...react18Dependencies,
+      react: '18.0.0',
+      'react-dom': '18.0.0',
+    },
+  });
+  writeFileSync(
+    path.join(react18Dir, 'pnpm-workspace.yaml'),
+    `overrides:\n${Object.entries(react18Dependencies)
+      .map(([name, spec]) => `  '${name}': '${spec}'`)
+      .join('\n')}\n`,
+  );
+  run('pnpm', ['install', '--strict-peer-dependencies'], react18Dir);
+  run('node', ['--input-type=module', '-e', `
+    import assert from 'node:assert/strict';
+    import { createElement } from 'react';
+    import { renderToStaticMarkup } from 'react-dom/server';
+    import { Editor as CoreEditor } from '@inkio/core';
+    import { Editor as SimpleEditor } from '@inkio/simple';
+    import { Editor as PresetEditor } from '@inkio/editor';
+    import { CollabPresence } from '@inkio/collab';
+    for (const Editor of [CoreEditor, SimpleEditor, PresetEditor]) {
+      assert.match(renderToStaticMarkup(createElement(Editor, { content: '<p>React 18 smoke</p>' })), /React 18 smoke/);
+    }
+    assert.equal(renderToStaticMarkup(createElement(CollabPresence, { provider: null })), '');
+  `], react18Dir);
 
   // Success: remove the temp dir (best-effort). Failures keep it for inspection.
   try {

@@ -1,0 +1,31 @@
+/* GitHub syntax palette (highlight.js github / github-dark, github.com and @Hirse). */
+.inkio {
+  --inkio-syntax-keyword: light-dark(#d73a49, #ff7b72);
+  --inkio-syntax-title: light-dark(#6f42c1, #d2a8ff);
+  --inkio-syntax-value: light-dark(#005cc5, #79c0ff);
+  --inkio-syntax-string: light-dark(#032f62, #a5d6ff);
+  --inkio-syntax-builtin: light-dark(#e36209, #ffa657);
+  --inkio-syntax-comment: light-dark(#6a737d, #8b949e);
+  --inkio-syntax-selector: light-dark(#22863a, #7ee787);
+  --inkio-syntax-bullet: light-dark(#735c0f, #f2cc60);
+  --inkio-syntax-section: light-dark(#005cc5, #1f6feb);
+  --inkio-syntax-added: light-dark(#22863a, #aff5b4);
+  --inkio-syntax-added-bg: light-dark(#f0fff4, #033a16);
+  --inkio-syntax-deleted: light-dark(#b31d28, #ffdcd7);
+  --inkio-syntax-deleted-bg: light-dark(#ffeef0, #67060c);
+}
+
+.inkio .inkio-content pre :is(.hljs-attr, .hljs-attribute, .hljs-literal, .hljs-meta, .hljs-number, .hljs-operator, .hljs-variable, .hljs-selector-attr, .hljs-selector-class, .hljs-selector-id) { color: var(--inkio-syntax-value); }
+.inkio .inkio-content pre :is(.hljs-doctag, .hljs-keyword, .hljs-template-tag, .hljs-template-variable, .hljs-type, .hljs-variable.language_) { color: var(--inkio-syntax-keyword); }
+.inkio .inkio-content pre .hljs-title { color: var(--inkio-syntax-title); }
+.inkio .inkio-content pre :is(.hljs-regexp, .hljs-string) { color: var(--inkio-syntax-string); }
+.inkio .inkio-content pre :is(.hljs-built_in, .hljs-symbol) { color: var(--inkio-syntax-builtin); }
+.inkio .inkio-content pre :is(.hljs-comment, .hljs-code, .hljs-formula) { color: var(--inkio-syntax-comment); }
+.inkio .inkio-content pre :is(.hljs-name, .hljs-quote, .hljs-selector-tag, .hljs-selector-pseudo) { color: var(--inkio-syntax-selector); }
+.inkio .inkio-content pre :is(.hljs-subst, .hljs-emphasis, .hljs-strong) { color: var(--inkio-text); }
+.inkio .inkio-content pre .hljs-section { color: var(--inkio-syntax-section); font-weight: bold; }
+.inkio .inkio-content pre .hljs-bullet { color: var(--inkio-syntax-bullet); }
+.inkio .inkio-content pre .hljs-emphasis { font-style: italic; }
+.inkio .inkio-content pre .hljs-strong { font-weight: bold; }
+.inkio .inkio-content pre .hljs-addition { color: var(--inkio-syntax-added); background: var(--inkio-syntax-added-bg); }
+.inkio .inkio-content pre .hljs-deletion { color: var(--inkio-syntax-deleted); background: var(--inkio-syntax-deleted-bg); }

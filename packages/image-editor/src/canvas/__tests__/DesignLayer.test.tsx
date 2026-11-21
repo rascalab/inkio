@@ -8,6 +8,9 @@ import { initialState } from '../../reducer';
 vi.mock('react-konva', () => ({
   Layer: ({ children }: any) => <div data-testid="layer">{children}</div>,
   Group: ({ children }: any) => <div>{children}</div>,
+  Shape: ({ globalCompositeOperation }: { globalCompositeOperation: string }) => (
+    <div data-testid="crop-shading" data-composite={globalCompositeOperation} />
+  ),
 }));
 
 vi.mock('../ImageNode', () => ({
@@ -63,6 +66,7 @@ describe('DesignLayer', () => {
         }}
         displayWidth={800}
         displayHeight={600}
+        interactive
         onSelectAnnotation={vi.fn()}
         onChangeAnnotation={vi.fn()}
       />,
@@ -72,5 +76,30 @@ describe('DesignLayer', () => {
       'bottom',
       'top',
     ]);
+  });
+
+  it('shades the crop on the original raster layer without rendering a second image', () => {
+    render(
+      <DesignLayer
+        transform={initialState.transform}
+        state={{
+          ...initialState,
+          originalImage: {} as HTMLImageElement,
+          originalWidth: 800,
+          originalHeight: 600,
+        }}
+        displayWidth={800}
+        displayHeight={600}
+        cropAperture={{ x: 100, y: 50, width: 600, height: 500 }}
+        interactive={false}
+        onSelectAnnotation={vi.fn()}
+        onChangeAnnotation={vi.fn()}
+      />,
+    );
+
+    const image = screen.getByTestId('image-node');
+    const shading = screen.getByTestId('crop-shading');
+    expect(shading.parentElement).toBe(image.parentElement);
+    expect(shading.getAttribute('data-composite')).toBe('source-atop');
   });
 });

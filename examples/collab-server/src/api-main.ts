@@ -1,23 +1,16 @@
 import 'reflect-metadata';
-import { Module } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
-import { VerifyController } from './nest/verify.controller';
-
-// Split hosting mode, API half: serves access checks (and your app routes)
-// but no WebSocket traffic. Pair with sync-main.ts (or the compose file).
-@Module({ controllers: [VerifyController] })
-class ApiModule {}
+import { createLocalVerify, listenOptions, requiredEnv } from './env';
+import { createVerifyApplication } from './nest/verify.controller';
 
 async function bootstrap() {
-  const portRaw = process.env.PORT ?? '3100';
-  const port = Number(portRaw);
-  if (!Number.isInteger(port) || port <= 0 || port >= 65536) {
-    throw new Error(`[collab] invalid PORT: ${JSON.stringify(portRaw)}`);
-  }
-  const app = await NestFactory.create(ApiModule);
-  app.enableShutdownHooks();
-  await app.listen(port);
-  console.log(`[collab] verify API on http://localhost:${port}/collab/verify`);
+  const { port, host } = listenOptions(3100);
+  const app = await createVerifyApplication(createLocalVerify(), requiredEnv('COLLAB_VERIFY_KEY'));
+  app.enableShutdownHooks(['SIGINT', 'SIGTERM']);
+  await app.listen(port, host);
+  console.log(`[collab] private verifier listening on ${await app.getUrl()}`);
 }
 
-void bootstrap();
+void bootstrap().catch((error) => {
+  console.error(error instanceof Error ? error.message : '[collab] verifier startup failed');
+  process.exitCode = 1;
+});

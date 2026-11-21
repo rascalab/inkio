@@ -11,21 +11,29 @@ Inkio는 Next.js App Router 환경에서 SSR을 지원합니다.
 1. **서버**: `generateHTML`(`@tiptap/html`)로 정적 HTML 생성
 2. **클라이언트**: 정적 HTML을 SSR shell로 표시 → Tiptap 에디터가 hydration 후 대체
 
-SSR shell은 클라이언트와 동일한 HTML을 생성하므로 hydration mismatch가 발생하지 않습니다.
+서버와 클라이언트의 첫 렌더에서 같은 초기 콘텐츠와 확장 스키마를 사용하면 같은 셸이 나옵니다.
 
 ## 설정
 
-별도 설정 없이 동작합니다. `Editor`와 `Viewer` 컴포넌트가 자동으로 SSR을 처리합니다.
+직접적인 SSR 설정은 필요하지 않습니다. `Editor`와 프리셋의 `Viewer`는 서버에서 정적 셸을
+렌더링하고, 브라우저에서 인터랙티브 인스턴스를 마운트합니다. 인터랙션이 필요 없다면
+`@inkio/core/static`의 `StaticViewer`를 사용하세요.
 
 ```tsx
-// Next.js App Router — 자동 SSR
+// app/documents/[id]/page.tsx — Server Component
 import { Editor } from '@inkio/editor';
 import '@inkio/editor/style.css';
 
 export default function Page() {
-  return <Editor content={content} />;
+  return <Editor content="<p>서버에서 전달한 초기 문서</p>" />;
 }
 ```
+
+위처럼 직렬화 가능한 props만 넘기면 Server Component에서 렌더링해도 됩니다.
+`onUpdate`, `onCreate`, `onImageUpload`, 슬롯의 이벤트 처리기 등 브라우저에서 실행할
+함수는 `'use client'` 래퍼 안에서 구성하세요. 인터랙티브 `Editor` 전체에 `ssr: false`를
+쓰면 정적 셸까지 빠집니다. 캔버스 편집기만 지연 로드하는 예는
+[Next App Router 레시피](/recipes/next-app-router)를 참고하세요.
 
 ## HTML 문자열 입력
 
@@ -41,10 +49,13 @@ export default function Page() {
 - HTML 문자열: `sanitize-html` 화이트리스트 기반 필터링
 - 허용된 스타일: `color`, `background-color`, `text-align`만 허용
 - 차단된 프로토콜: `javascript:`, `vbscript:`, 활성 콘텐츠 `data:` URL(`image/svg+xml`, `text/html` 등). 안전한 래스터 이미지(`png`/`jpeg`/`gif`/`webp` 등) `data:` URL은 에디터 노드 레이어에서만 허용됩니다
-- 정적 HTML의 `<img src>`는 `http(s)`/`blob`만 허용됩니다
+- 정적 HTML의 `<img src>`는 상대 URL과 `http(s)`/`blob`을 허용합니다. 공유·재접속할 문서에는 일시적인 `blob:` URL 대신 영구 URL을 사용하세요.
 - `target`이 있는 링크에는 `rel="noopener noreferrer"`가 자동 적용됩니다 (reverse tabnabbing 방지)
+- 정적 HTML은 할 일 목록 표시용으로 비활성화된 체크박스만 허용합니다.
+- 라이브 편집과 SSR 모두 표 크기를 제한합니다. 큰 표는 512행, 128열, 병합을 펼친 그리드 16,384칸 이하로 나눠 주세요. 각 셀의 행·열 span도 128 이하입니다. 가져오기가 거부됐을 때에는 기존 원본을 자동 저장으로 덮어쓰지 마세요.
 
 ## 주의사항
 
-- `parseMarkdown`은 DOM이 필요하므로 모듈 레벨에서 호출할 수 없습니다
-- `'use client'` 지시어는 Editor/Viewer 컴포넌트에 이미 포함되어 있습니다
+- `parseMarkdown`은 별도 `/markdown` 경로에서 제공되며 DOM 없이 구문을 처리합니다.
+- 서버가 렌더링한 최초 콘텐츠와 화면 첫 렌더에 사용할 콘텐츠를 같게 유지하세요.
+  `localStorage` 등 브라우저에서만 읽을 수 있는 초안은 마운트 이후 불러와 적용합니다.

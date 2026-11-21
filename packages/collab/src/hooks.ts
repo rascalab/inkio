@@ -1,16 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { Content, Editor as TiptapEditor, Extensions, JSONContent } from '@tiptap/react';
 import { useEditor } from '@tiptap/react';
 import type { HocuspocusProviderWebsocket } from '@hocuspocus/provider';
 import * as Y from 'yjs';
 import { resolveInkioExtensions, useCoalescedDocUpdate, useStableCallback } from '@inkio/core';
 import { createCollabExtensions, removeConflictingExtensions } from './extensions';
-import { persistDocToIndexedDB } from './persistence';
+import { getCollabCacheKey, persistDocToIndexedDB, type CollabCacheScope } from './persistence';
+import { FALLBACK_PRESENCE_USER, normalizePresenceUser } from './presence-user';
 import {
   createCollabProvider,
   getCollabStatus,
   isReadOnly,
   onCollabStatus,
+  retryCollabAuthentication,
   type CollabProvider,
   type CollabStatus,
   type CollabToken,
@@ -33,8 +35,8 @@ export interface UseCollabProviderOptions {
   /** Read on every (re)connect: rotating it never tears down the session. */
   token?: CollabToken;
   user?: CollabUser;
-  /** Cache the doc in IndexedDB so edits survive reloads while offline. */
-  offline?: boolean;
+  /** Opt in to an IndexedDB cache isolated by account and deployment. */
+  offline?: false | CollabCacheScope;
 }
 
 /**
@@ -43,20 +45,28 @@ export interface UseCollabProviderOptions {
  * first client render.
  */
 export function useCollabProvider(options: UseCollabProviderOptions): CollabProvider | null {
-  const { docId, url, websocketProvider, doc, token, user, offline = false } = options;
-  const [provider, setProvider] = useState<CollabProvider | null>(null);
+  const { docId, url, websocketProvider, doc, token, user, offline } = options;
+  const accountId = offline ? offline.accountId : undefined;
+  const deploymentId = offline ? offline.deploymentId : undefined;
+  if (offline) getCollabCacheKey(docId, offline);
+  const session = useMemo(
+    () => ({ docId, url, websocketProvider, doc, accountId, deploymentId }),
+    [docId, url, websocketProvider, doc, accountId, deploymentId],
+  );
+  const [active, setActive] = useState<{ session: typeof session; provider: CollabProvider } | null>(null);
+  const provider = active?.session === session ? active.provider : null;
   const tokenRef = useRef(token);
   tokenRef.current = token;
   const userRef = useRef(user);
   userRef.current = user;
 
   useEffect(() => {
-    const document = doc ?? new Y.Doc();
-    const offlineStore = offline ? persistDocToIndexedDB(docId, document) : null;
+    const document = session.doc ?? new Y.Doc();
+    const { accountId, deploymentId } = session;
     const next = createCollabProvider({
-      docId,
-      url,
-      websocketProvider,
+      docId: session.docId,
+      url: session.url,
+      websocketProvider: session.websocketProvider,
       doc: document,
       token: () => {
         const current = tokenRef.current;
@@ -64,33 +74,38 @@ export function useCollabProvider(options: UseCollabProviderOptions): CollabProv
       },
       user: userRef.current,
     });
-    setProvider(next);
+    const offlineStore = accountId && deploymentId && typeof indexedDB !== 'undefined'
+      ? persistDocToIndexedDB(session.docId, document, { accountId, deploymentId })
+      : null;
+    setActive({ session, provider: next });
     return () => {
       next.destroy();
-      offlineStore?.destroy();
-      if (!doc) document.destroy();
-      setProvider(null);
+      void offlineStore?.destroy().catch(() => {});
+      if (!session.doc) document.destroy();
     };
-  }, [docId, url, websocketProvider, doc, offline]);
+  }, [session]);
+
+  const staticToken = typeof token === 'string' ? token : undefined;
+  useEffect(() => {
+    if (provider) retryCollabAuthentication(provider);
+  }, [provider, staticToken]);
 
   useEffect(() => {
-    if (provider && user) provider.setAwarenessField('user', user);
+    provider?.setAwarenessField('user', normalizePresenceUser(user) ?? FALLBACK_PRESENCE_USER);
   }, [provider, user?.name, user?.color]);
 
   return provider;
 }
 
+const disconnected = (): CollabStatus => 'disconnected';
+
 export function useCollabStatus(provider: CollabProvider | null): CollabStatus {
-  const [status, setStatus] = useState<CollabStatus>('disconnected');
-  useEffect(() => {
-    if (!provider) {
-      setStatus('disconnected');
-      return;
-    }
-    setStatus(getCollabStatus(provider));
-    return onCollabStatus(provider, setStatus);
-  }, [provider]);
-  return status;
+  const subscribe = useCallback(
+    (notify: () => void) => provider ? onCollabStatus(provider, notify) : () => {},
+    [provider],
+  );
+  const snapshot = useCallback((): CollabStatus => provider ? getCollabStatus(provider) : 'disconnected', [provider]);
+  return useSyncExternalStore(subscribe, snapshot, disconnected);
 }
 
 export interface CollabPeer {
@@ -99,21 +114,18 @@ export interface CollabPeer {
 }
 
 export function useCollabPeers(provider: CollabProvider | null): CollabPeer[] {
-  const [peers, setPeers] = useState<CollabPeer[]>([]);
+  const [presence, setPresence] = useState<{ provider: CollabProvider; peers: CollabPeer[] } | null>(null);
   useEffect(() => {
     const awareness = provider?.awareness;
-    if (!awareness) {
-      setPeers([]);
-      return;
-    }
+    if (!provider || !awareness) return;
     const read = () => {
       const next: CollabPeer[] = [];
       awareness.getStates().forEach((state, clientId) => {
         if (clientId !== awareness.clientID) {
-          next.push({ clientId, user: (state as { user?: CollabUser }).user });
+          next.push({ clientId, user: normalizePresenceUser(state?.user) });
         }
       });
-      setPeers(next);
+      setPresence({ provider, peers: next });
     };
     read();
     awareness.on('change', read);
@@ -121,7 +133,7 @@ export function useCollabPeers(provider: CollabProvider | null): CollabPeer[] {
       awareness.off('change', read);
     };
   }, [provider]);
-  return peers;
+  return presence && presence.provider === provider ? presence.peers : [];
 }
 
 export interface UseInkioCollaborativeEditorOptions extends UseCollabProviderOptions {
@@ -132,6 +144,7 @@ export interface UseInkioCollaborativeEditorOptions extends UseCollabProviderOpt
    */
   content?: Content;
   editable?: boolean;
+  ariaLabel?: string;
   onUpdate?: (content: JSONContent) => void;
   onCreate?: (editor: TiptapEditor) => void;
 }
@@ -148,27 +161,26 @@ export function useInkioCollaborativeEditor({
   extensions,
   content: seedContent,
   editable = true,
+  ariaLabel = 'Rich text editor',
   onUpdate,
   onCreate,
   ...providerOptions
 }: UseInkioCollaborativeEditorOptions): CollaborativeEditor {
   const provider = useCollabProvider(providerOptions);
   const status = useCollabStatus(provider);
-  const [readOnly, setReadOnly] = useState(false);
+  const readOnly = provider ? isReadOnly(provider) : false;
+  const lastWritableSync = useRef<CollabProvider | null>(null);
+  useEffect(() => {
+    if (status === 'synced') lastWritableSync.current = readOnly ? null : provider;
+    else if (status === 'unauthorized') lastWritableSync.current = null;
+  }, [provider, readOnly, status]);
+  const canEdit = !!provider && editable && !readOnly && status !== 'unauthorized' && (
+    status === 'synced' || (!!providerOptions.offline && lastWritableSync.current === provider)
+  );
   const handleCreate = useStableCallback(onCreate);
   // Remote Yjs frames fire onUpdate too: serialize the doc at most once per
   // microtask burst, and not at all without a listener.
   const emitUpdate = useCoalescedDocUpdate(onUpdate);
-
-  useEffect(() => {
-    if (!provider) return;
-    const sync = () => setReadOnly(isReadOnly(provider));
-    sync();
-    provider.on('authenticated', sync);
-    return () => {
-      provider.off('authenticated', sync);
-    };
-  }, [provider]);
 
   const finalExtensions = useMemo(() => {
     const base = removeConflictingExtensions(resolveInkioExtensions(extensions));
@@ -185,9 +197,16 @@ export function useInkioCollaborativeEditor({
     {
       immediatelyRender: false,
       extensions: finalExtensions,
-      editable: editable && !readOnly,
-      editorProps: { attributes: { class: 'inkio-content' } },
-      onCreate: ({ editor: instance }) => handleCreate?.(instance),
+      editable: canEdit,
+      editorProps: { attributes: {
+        class: 'inkio-content',
+        role: 'textbox',
+        'aria-label': ariaLabel,
+        'aria-multiline': 'true',
+      } },
+      onCreate: ({ editor: instance }) => {
+        if (provider && getCollabStatus(provider) !== 'unauthorized') handleCreate?.(instance);
+      },
       // setEditable emits 'update' with an empty transaction: only document
       // changes (local or remote) reach onUpdate (see core useInkioEditor).
       onUpdate: ({ editor: instance, transaction, appendedTransactions }) => {
@@ -199,16 +218,22 @@ export function useInkioCollaborativeEditor({
   );
 
   useEffect(() => {
-    if (editor && !editor.isDestroyed) editor.setEditable(editable && !readOnly);
-  }, [editor, editable, readOnly]);
+    if (editor && !editor.isDestroyed) editor.setEditable(canEdit);
+  }, [editor, canEdit]);
+
+  // useEditor can retain the previous view until its effect swaps extensions.
+  // Do not expose that view under another room, account or deployment.
+  const currentEditor = provider && status !== 'unauthorized' && editor?.extensionManager.extensions.some(
+    (extension) => extension.name === 'collaborationCaret' && extension.options.provider === provider,
+  ) ? editor : null;
 
   useEffect(() => {
-    if (!provider || !editor || editor.isDestroyed || status !== 'synced') return;
+    if (!provider || !currentEditor || currentEditor.isDestroyed || status !== 'synced') return;
     if (seedContent === undefined || readOnly) return;
-    seedYDoc(provider.document, editor.schema, seedContent);
+    seedYDoc(provider.document, currentEditor.schema, seedContent);
     // Seed once per synced session; later seed prop changes are ignored.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider, editor, status, readOnly]);
+  }, [provider, currentEditor, status, readOnly]);
 
-  return { editor, provider, status, readOnly };
+  return { editor: currentEditor, provider, status, readOnly };
 }

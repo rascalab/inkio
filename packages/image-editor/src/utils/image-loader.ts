@@ -1,7 +1,10 @@
 import { isSafeUrl } from '@inkio/core';
+import { fitsRaster, MAX_SOURCE_DIMENSION, MAX_SOURCE_PIXELS } from './raster-limits';
 
 const imageCache = new Map<string, HTMLImageElement>();
 const MAX_CACHE_SIZE = 10;
+const MAX_CACHE_PIXELS = 12_000_000;
+let cachedPixels = 0;
 /** In-flight loads keyed by src so concurrent requests share one fetch. */
 const pendingLoads = new Map<string, Promise<HTMLImageElement>>();
 
@@ -22,16 +25,16 @@ function validateImageSrc(src: string): void {
     // Relative URLs resolve against the page; only the scheme matters here.
     protocol = new URL(src, 'http://localhost').protocol;
   } catch {
-    throw new Error(`Cannot load image: invalid URL ${describeSrc(src)}`);
+    throw new Error('Cannot load image: invalid URL');
   }
   if (NON_IMAGE_SCHEMES.has(protocol) || !isSafeUrl(src)) {
-    throw new Error(`Cannot load image: blocked URL scheme ${protocol} (${describeSrc(src)})`);
+    throw new Error('Cannot load image: blocked URL scheme');
   }
 }
 
 /**
  * Images that fell back to a non-CORS load taint every canvas they touch,
- * so exportCanvas.toDataURL throws late with no cause. The taint is recorded
+ * so raster export would throw late with no cause. The taint is recorded
  * at load time (WeakSet: no lifetime extension) and export fails early with
  * the actual reason instead of a bare SecurityError.
  */
@@ -41,36 +44,26 @@ export function isImageTainted(image: HTMLImageElement): boolean {
   return taintedImages.has(image);
 }
 
-function evictOldest(): void {
-  if (imageCache.size >= MAX_CACHE_SIZE) {
-    const firstKey = imageCache.keys().next().value;
-    if (firstKey !== undefined) {
-      imageCache.delete(firstKey);
-    }
+function cacheImage(src: string, image: HTMLImageElement): void {
+  const pixels = image.naturalWidth * image.naturalHeight;
+  if (pixels > MAX_CACHE_PIXELS) return;
+  while (imageCache.size >= MAX_CACHE_SIZE || cachedPixels + pixels > MAX_CACHE_PIXELS) {
+    const first = imageCache.entries().next().value;
+    if (!first) break;
+    cachedPixels -= first[1].naturalWidth * first[1].naturalHeight;
+    imageCache.delete(first[0]);
   }
+  imageCache.set(src, image);
+  cachedPixels += pixels;
 }
 
-function describeSrc(src: string): string {
-  return src.length > 80 ? `${src.slice(0, 80)}…` : src;
-}
-
-function loadImageWithCORS(src: string): Promise<HTMLImageElement> {
+/** Failures reach the console; never include a source that may contain credentials. */
+function loadImageElement(src: string, cors = false): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    if (cors) img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
-    img.onerror = () =>
-      reject(new Error(`Failed to load image (CORS or network): ${describeSrc(src)}`));
-    img.src = src;
-  });
-}
-
-function loadImageRaw(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () =>
-      reject(new Error(`Failed to load image (unreachable URL): ${describeSrc(src)}`));
+    img.onerror = () => reject(new Error('Failed to load image (network or invalid image)'));
     img.src = src;
   });
 }
@@ -109,7 +102,7 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
       fn();
     };
     timeoutId = setTimeout(() => {
-      settle(() => rejectTask(new Error(`Timed out loading image ${describeSrc(src)}`)));
+      settle(() => rejectTask(new Error('Timed out loading image')));
     }, IMAGE_LOAD_TIMEOUT_MS);
     const load = cacheableLoad(src);
     load.then(
@@ -122,27 +115,24 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 function cacheableLoad(src: string): Promise<HTMLImageElement> {
-  // Data URLs never taint and the caller already holds the bytes: caching
-  // them only pins decoded bitmaps with no byte-size eviction.
-  const cacheable = !src.startsWith('data:');
-  const load = cacheable
-    ? loadImageWithCORS(src).catch((corsError: unknown) =>
-        loadImageRaw(src).then((img) => {
+  const inline = /^data:/i.test(src);
+  const load = !inline
+    ? loadImageElement(src, true).catch(() => loadImageElement(src).then(
+        (img) => {
           taintedImages.add(img);
           return img;
-        }).catch((rawError: unknown) => {
-          throw new Error(
-            `Failed to load image (CORS fallback also failed): ${describeSrc(src)}: ${String(corsError)} / ${String(rawError)}`,
-          );
-        }),
-      )
-    : loadImageRaw(src);
+        },
+        () => { throw new Error('Failed to load image (CORS and non-CORS requests failed)'); },
+      ))
+    : loadImageElement(src);
 
   return load.then((img) => {
-    if (cacheable) {
-      evictOldest();
-      imageCache.set(src, img);
+    const { naturalWidth, naturalHeight } = img;
+    if (!fitsRaster(naturalWidth, naturalHeight, MAX_SOURCE_DIMENSION, MAX_SOURCE_PIXELS)) {
+      throw new RangeError(`Unsupported source image dimensions: ${naturalWidth}×${naturalHeight}`);
     }
+    // Do not pin caller-owned inline assets or revoked object URLs.
+    if (!inline && !/^blob:/i.test(src)) cacheImage(src, img);
     return img;
   });
 }

@@ -1,195 +1,92 @@
-'use client';
-
 import Link from 'next/link';
-import { useState } from 'react';
-import { Editor } from '@inkio/editor';
-import '@inkio/editor/style.css';
+import { SkipNavContent } from 'nextra/components';
+import LandingDemo from './LandingDemo';
+import LandingInstall from './LandingInstall';
 import './landing-page.css';
 
-const INSTALL_CMDS = {
-  pnpm: 'pnpm add @inkio/editor react react-dom',
-  npm: 'npm install @inkio/editor react react-dom',
-  yarn: 'yarn add @inkio/editor react react-dom',
-} as const;
+const GUIDES = [
+  { title: '문서 편집', label: 'Editor', detail: '기본 툴바가 있는 Simple과 슬래시 메뉴·블록 이동이 있는 Editor를 비교하세요.', href: '/components' },
+  { title: '이미지 편집', label: 'Canvas', detail: '문서에 넣은 이미지를 브라우저에서 자르고, 필터나 주석을 적용합니다.', href: '/image-editor' },
+  { title: '실시간 공동 편집', label: 'Yjs', detail: '여러 사람이 같은 문서를 편집하고 서로의 커서를 볼 수 있도록 연결합니다.', href: '/collaboration' },
+  { title: '댓글과 멘션', label: 'Review', detail: '선택한 문장에 댓글을 달고, 앱의 사용자 목록과 댓글 저장소를 연결합니다.', href: '/recipes/comments' },
+  { title: '마크다운 가져오기·내보내기', label: 'Markdown', detail: 'Markdown 어댑터는 필요한 화면에서만 불러올 수 있습니다.', href: '/serialization' },
+  { title: '읽기 전용 문서', label: 'Viewer', detail: 'StaticViewer로 편집 엔진을 불러오지 않고 저장한 문서를 표시합니다.', href: '/components#inkiocore--staticviewer-읽기-전용-경량-경로' },
+];
 
-type PkgManager = keyof typeof INSTALL_CMDS;
-
-const DEMO_DOC = {
-  type: 'doc',
-  content: [
-    {
-      type: 'heading',
-      attrs: { level: 2 },
-      content: [{ type: 'text', text: '만져보세요, 진짜입니다' }],
-    },
-    {
-      type: 'paragraph',
-      content: [
-        { type: 'text', text: '밑에 있는 게 진짜 에디터입니다. ' },
-        { type: 'text', marks: [{ type: 'bold' }], text: '고쳐 쓰고' },
-        { type: 'text', text: ', ' },
-        { type: 'text', marks: [{ type: 'code' }], text: '/' },
-        { type: 'text', text: ' 를 눌러 보세요.' },
-      ],
-    },
-    {
-      type: 'taskList',
-      content: [
-        {
-          type: 'taskItem',
-          attrs: { checked: true },
-          content: [{ type: 'paragraph', content: [{ type: 'text', text: '설치 30초' }] }],
-        },
-        {
-          type: 'taskItem',
-          attrs: { checked: false },
-          content: [{ type: 'paragraph', content: [{ type: 'text', text: '붙여넣기 10초' }] }],
-        },
-      ],
-    },
-    {
-      type: 'codeBlock',
-      attrs: { language: 'tsx' },
-      content: [{ type: 'text', text: "<Editor content=\"<p>Hello</p>\" />" }],
-    },
-  ],
-};
-
-function Icon({ d }: { d: string }) {
+function Arrow({ diagonal = false }: { diagonal?: boolean }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d={d} />
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.35" aria-hidden="true">
+      <path d={diagonal ? 'M4 12 12 4M4 4h8v8' : 'M2 8h11M8 3l5 5-5 5'} />
     </svg>
   );
 }
 
 export default function LandingPage() {
-  const [pm, setPm] = useState<PkgManager>('pnpm');
   return (
     <div className="lp">
-      <header className="lp-nav">
-        <Link className="lp-brand" href="./">
-          <span className="lp-brand-mark" aria-hidden="true" />
-          <span>Inkio</span>
-        </Link>
-        <nav className="lp-nav-links" aria-label="주요 링크">
-          <Link href="./getting-started">문서</Link>
-          <Link href="./playground">플레이그라운드</Link>
-          <Link href="./recipes/comments">댓글 연동</Link>
-          <a href="https://github.com/rascalab/inkio">GitHub</a>
-        </nav>
-        <Link className="lp-nav-cta" href="./getting-started">시작하기</Link>
-      </header>
-
       <main>
-        <section className="lp-hero">
-          <div className="lp-hero-grid">
-            <div className="lp-hero-copy">
-              <p className="lp-kicker">Tiptap 기반 · MIT 라이선스</p>
-              <h1 className="lp-title">
-                에디터는 그만 만들고,
-                <br />
-                <span className="lp-grad">제품을 만드세요.</span>
-              </h1>
-              <p className="lp-sub">
-                Inkio는 겹겹이 쌓는 리치 텍스트 키트입니다. 가벼운 위지윅부터
-                노션 스타일 풀 에디터, 브라우저 이미지 편집까지 — 필요한 것만 얹으세요.
-              </p>
-              <div className="lp-install">
-                <div className="lp-pm-tabs" role="tablist" aria-label="패키지 매니저">
-                  {(Object.keys(INSTALL_CMDS) as PkgManager[]).map((key) => (
-                    <button
-                      key={key}
-                      role="tab"
-                      aria-selected={pm === key}
-                      className={pm === key ? 'is-active' : undefined}
-                      onClick={() => setPm(key)}
-                    >
-                      {key}
-                    </button>
-                  ))}
-                </div>
-                <code className="lp-install-cmd">{INSTALL_CMDS[pm]}</code>
-              </div>
-              <div className="lp-hero-actions">
-                <Link className="lp-btn-primary" href="./getting-started">5분 안에 붙이기</Link>
-                <Link className="lp-btn-ghost" href="./playground">직접 만져보기</Link>
-                <Link className="lp-btn-ghost" href="./troubleshooting">에러 났어요?</Link>
-              </div>
-              <dl className="lp-stats">
-                <div><dt>패키지</dt><dd>6</dd></div>
-                <div><dt>타입</dt><dd>TS 우선</dd></div>
-                <div><dt>렌더링</dt><dd>SSR 대응</dd></div>
-                <div><dt>라이선스</dt><dd>MIT</dd></div>
-              </dl>
+        <SkipNavContent />
+        <section className="lp-hero-grid inkio-site-shell" aria-labelledby="lp-title">
+          <div className="lp-hero-copy">
+            <p className="lp-kicker">오픈소스 React SDK</p>
+            <h1 className="lp-title" id="lp-title">React용<br />문서 에디터</h1>
+            <p className="lp-sub">
+              기본 툴바가 있는 에디터와 노션처럼 블록을 옮기는 에디터 중 하나를 고르세요.
+              메뉴와 도구는 앱에 맞게 바꿀 수 있습니다.
+            </p>
+            <div className="lp-actions">
+              <Link className="lp-btn-primary" href="/getting-started" prefetch={false}>설치 가이드 <Arrow /></Link>
+              <a className="lp-btn-ghost" href="#demo">직접 편집해 보기</a>
             </div>
-            <div className="lp-hero-demo">
-              <div className="lp-window dark">
-                <div className="lp-window-bar" aria-hidden="true">
-                  <span /><span /><span />
-                  <em>demo.tsx — live</em>
-                </div>
-                <Editor content={DEMO_DOC} theme="dark" />
-              </div>
-            </div>
+            <dl className="lp-stats">
+              <div><dt>프리셋</dt><dd>2종</dd></div>
+              <div><dt>문서 포맷</dt><dd>HTML · JSON</dd></div>
+              <div><dt>서버 렌더링</dt><dd>SSR 지원</dd></div>
+              <div><dt>라이선스</dt><dd>MIT</dd></div>
+            </dl>
           </div>
+          <LandingDemo />
         </section>
 
-        <section className="lp-section">
-          <h2 className="lp-h2">필요한 것만 얹으세요</h2>
-          <div className="lp-bento">
-            <Link className="lp-card lp-span2" href="./getting-started">
-              <span className="lp-card-ic"><Icon d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></span>
-              <h3>@inkio/editor — 노션 스타일</h3>
-              <p>슬래시 메뉴, 블록 핸들, 버블·플로팅 메뉴. advanced 전체 포함.</p>
-              <span className="lp-card-go">문서 보기 →</span>
-            </Link>
-            <Link className="lp-card" href="./image-editor">
-              <span className="lp-card-ic"><Icon d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /></span>
-              <h3>이미지 에디터</h3>
-              <p>크롭·필터·모자이크·스티커. 서버 없이 브라우저에서.</p>
-              <span className="lp-card-go">문서 보기 →</span>
-            </Link>
-            <Link className="lp-card" href="./recipes/comments">
-              <span className="lp-card-ic"><Icon d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></span>
-              <h3>댓글·멘션</h3>
-              <p>스레드 4개 콜백으로 서버 연동. 레시피 포함.</p>
-              <span className="lp-card-go">레시피 보기 →</span>
-            </Link>
-            <Link className="lp-card" href="./serialization">
-              <span className="lp-card-ic"><Icon d="m16 18 6-6-6-6M8 6l-6 6 6 6" /></span>
-              <h3>마크다운 입출력</h3>
-              <p><kbd>/markdown</kbd> 서브패스. 번들에 remark를 끌고 오지 않음.</p>
-              <span className="lp-card-go">문서 보기 →</span>
-            </Link>
-            <Link className="lp-card" href="./components">
-              <span className="lp-card-ic"><Icon d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" /></span>
-              <h3>가벼운 읽기 전용</h3>
-              <p>엔진 없는 <kbd>StaticViewer</kbd>. 목록·SEO용.</p>
-              <span className="lp-card-go">문서 보기 →</span>
-            </Link>
-            <Link className="lp-card" href="./collaboration">
-              <span className="lp-card-ic"><Icon d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></span>
-              <h3>실시간 협업</h3>
-              <p>Yjs 기반 동기화·presence. 서버는 직접 구현.</p>
-              <span className="lp-card-go">문서 보기 →</span>
-            </Link>
-          </div>
-        </section>
+        <div className="lp-band" id="toolkit">
+          <section className="lp-section inkio-site-shell" aria-labelledby="lp-toolkit-title">
+            <div className="lp-section-intro">
+              <p className="lp-kicker">01 / 기능 가이드</p>
+              <h2 className="lp-h2" id="lp-toolkit-title">에디터와 확장 기능</h2>
+              <p>편집기를 고른 뒤 프로젝트에 필요한 기능의 설정 방법을 확인하세요.</p>
+            </div>
+            <ol className="lp-guide-list">
+              {GUIDES.map(({ title, label, detail, href }) => (
+                <li key={label}>
+                  <Link className="lp-guide" href={href} prefetch={false}>
+                    <span className="lp-guide-label" aria-hidden="true">{label}</span>
+                    <div>
+                      <h3>{title}</h3>
+                      <p>{detail}</p>
+                    </div>
+                    <Arrow diagonal />
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          </section>
+        </div>
 
-        <section className="lp-final">
-          <h2 className="lp-h2">붙여넣으면 끝입니다.</h2>
-          <div className="lp-hero-actions lp-center">
-            <Link className="lp-btn-primary" href="./getting-started">문서 읽기</Link>
-            <a className="lp-btn-ghost" href="https://github.com/rascalab/inkio">GitHub에서 보기</a>
+        <section className="lp-section inkio-site-shell" aria-labelledby="lp-install-title">
+          <div className="lp-section-intro">
+            <p className="lp-kicker">02 / 시작하기</p>
+            <h2 className="lp-h2" id="lp-install-title">React 프로젝트에 설치</h2>
+            <p>아래 명령은 블록 에디터를 설치합니다. 클래식 툴바를 원한다면 <code>@inkio/simple</code>을 선택하세요.</p>
+          </div>
+          <div>
+            <LandingInstall />
+            <div className="lp-actions">
+              <Link className="lp-btn-primary" href="/getting-started" prefetch={false}>앱에 연결하기 <Arrow /></Link>
+              <Link className="lp-text-link" href="/troubleshooting" prefetch={false}>문제 해결 <Arrow diagonal /></Link>
+            </div>
           </div>
         </section>
       </main>
-
-      <footer className="lp-footer">
-        <span>Inkio — MIT licensed.</span>
-        <span>Tiptap · ProseMirror 위에서 동작합니다.</span>
-      </footer>
     </div>
   );
 }

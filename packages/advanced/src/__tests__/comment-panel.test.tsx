@@ -11,18 +11,29 @@ function thread(id = 't-1', resolved = false): CommentThreadData {
   };
 }
 
+const markType = {
+  isInSet(marks: { type: unknown }[]) {
+    return marks.find((mark) => mark.type === this);
+  },
+};
+const schema = { marks: { comment: markType } };
+
 /** An editor whose document holds `markedIds`, one commented text node each. */
 function createMockEditor(onCommentResolve?: (id: string) => void, markedIds: string[] = ['t-1']) {
-  const resolveComment = vi.fn();
-  const markType = {};
+  const resolveComment = vi.fn(() => true);
   const editor = {
+    isEditable: true,
     extensionManager: {
-      extensions: [{ name: 'comment', options: { onCommentResolve } }],
+      extensions: [{
+        name: 'comment',
+        options: { onCommentResolve, getThread: (id: string) => thread(id) },
+      }],
     },
     commands: { resolveComment },
     state: {
-      schema: { marks: { comment: markType } },
+      schema,
       doc: {
+        type: { schema },
         descendants: (visit: (node: unknown, pos: number) => void) => {
           markedIds.forEach((commentId, index) => {
             visit({
@@ -139,7 +150,6 @@ describe('CommentPanel single source of truth', () => {
   });
 
   it('ignores scroll-to for stale mark positions instead of throwing', () => {
-    const markType = {};
     const staleNode = {
       isText: true,
       nodeSize: 5,
@@ -154,8 +164,9 @@ describe('CommentPanel single source of truth', () => {
       extensionManager: { extensions: [{ name: 'comment', options: {} }] },
       commands: {},
       state: {
-        schema: { marks: { comment: markType } },
+        schema,
         doc: {
+          type: { schema },
           content: { size: 5 },
           descendants: (fn: (node: unknown, pos: number) => void) => {
             fn(staleNode, 9999);
@@ -180,7 +191,6 @@ describe('CommentPanel single source of truth', () => {
   });
 
   it('still selects when the position maps but has no DOM node', () => {
-    const markType = {};
     const remappedNode = {
       isText: true,
       nodeSize: 3,
@@ -196,8 +206,9 @@ describe('CommentPanel single source of truth', () => {
       extensionManager: { extensions: [{ name: 'comment', options: {} }] },
       commands: {},
       state: {
-        schema: { marks: { comment: markType } },
+        schema,
         doc: {
+          type: { schema },
           content: { size: 20 },
           descendants: (fn: (node: unknown, pos: number) => void) => {
             fn(remappedNode, 2);
@@ -230,5 +241,37 @@ describe('CommentPanel single source of truth', () => {
     expect(screen.getAllByText('thread message')).toHaveLength(1);
     expect(container.querySelector('.inkio-comment-reply-row')).toBeNull();
     expect(container.querySelector('.inkio-comment-thread-actions')).toBeNull();
+  });
+
+  it('shows the document quote without mutations when host data is invalid or unavailable', () => {
+    const { editor } = createMockEditor(undefined, ['t-1', 't-missing']);
+    const { container } = render(
+      <CommentPanel
+        editor={editor}
+        threads={[{ id: 't-1', resolved: false, messages: null } as never]}
+        onReply={vi.fn()}
+        onResolve={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    expect(container.querySelectorAll('.inkio-comment-thread-quote')).toHaveLength(2);
+    expect(screen.queryByPlaceholderText(/reply/i)).toBeNull();
+    expect(container.querySelector('.inkio-comment-thread-actions')).toBeNull();
+  });
+
+  it('keeps panel actions hidden in a read-only editor even if callbacks are provided', () => {
+    const { editor } = createMockEditor();
+    render(
+      <CommentPanel
+        editor={{ ...editor, isEditable: false } as Editor}
+        threads={[thread()]}
+        onReply={vi.fn()}
+        onResolve={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('thread message')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/reply/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /delete/i })).toBeNull();
   });
 });

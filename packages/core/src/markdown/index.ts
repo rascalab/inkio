@@ -28,6 +28,7 @@ type MdastNode = {
   alt?: string | null;
   name?: string;
   attributes?: Record<string, string | null | undefined>;
+  position?: { start: { offset?: number; column: number }; end: { offset?: number } };
   children?: MdastNode[];
 };
 
@@ -37,6 +38,35 @@ const markdownParser = unified()
   .use(remarkParse)
   .use(remarkGfm, { singleTilde: false })
   .use(remarkDirective);
+
+// Recognize details tags as inline HTML so a tag doesn't hide a nearby fenced
+// block in an opaque CommonMark HTML block during marker discovery.
+const detailsScanner = unified()
+  .use(remarkParse)
+  .data('micromarkExtensions', [{ disable: { null: ['htmlFlow'] } }])
+  .use(remarkDirective);
+
+const MAX_MARKDOWN_CHARS = 1_000_000;
+const MAX_MARKDOWN_DEPTH = 128;
+const MAX_MARKDOWN_NODES = 500_000;
+
+function walkMdast(root: MdastNode, visit?: (node: MdastNode) => void): void {
+  const stack = [{ children: [root], index: 0 }];
+  let remaining = MAX_MARKDOWN_NODES;
+  while (stack.length > 0) {
+    const frame = stack[stack.length - 1];
+    if (frame.index === frame.children.length) {
+      stack.pop();
+      continue;
+    }
+    if (stack.length > MAX_MARKDOWN_DEPTH + 1 || --remaining < 0) {
+      throw new RangeError('Cannot read Markdown: the document is too deeply nested or has too many nodes.');
+    }
+    const node = frame.children[frame.index++];
+    visit?.(node);
+    if (node.children?.length) stack.push({ children: node.children, index: 0 });
+  }
+}
 
 // Escapes remark adds that nothing needs: a lone tilde between other characters
 // and an underscore inside a word cannot open anything. At the edge of a text
@@ -58,6 +88,19 @@ const createMarkdownStringifier = (gfm: { tablePipeAlign: boolean }) => unified(
           .safe(node.value, info)
           .replace(NEEDLESS_TILDE_ESCAPE_RE, '~')
           .replace(NEEDLESS_UNDERSCORE_ESCAPE_RE, '_'),
+      // Serialize only actual details nodes. A text or code example stays in
+      // the normal remark handlers and is never a candidate for replacement.
+      // https://github.com/syntax-tree/mdast-util-to-markdown#handle
+      html: (node, _parent, state, info) => {
+        const html = node as MdastNode;
+        if (html.name !== 'details') return html.value ?? '';
+        const summary = escapeHtml(html.title ?? '').replace(/[\r\n]/g, (char) => char === '\r' ? '&#13;' : '&#10;');
+        const body = state.containerFlow(node, {
+          ...info,
+          now: { line: info.now.line + 3, column: 1 + info.lineShift },
+        });
+        return `<details>\n<summary>${summary}</summary>\n\n${body ? `${body}\n` : ''}</details>`;
+      },
     },
   })
   .use(remarkGfm, gfm)
@@ -67,53 +110,126 @@ const markdownStringifier = createMarkdownStringifier({ tablePipeAlign: true });
 // Columns padded to their widest cell read well, and cost rows × width.
 const compactTableStringifier = createMarkdownStringifier({ tablePipeAlign: false });
 
-const DETAILS_BLOCK_RE = /<details>\s*<summary>([\s\S]*?)<\/summary>\s*([\s\S]*?)<\/details>/gi;
-const DETAILS_DIRECTIVE_RE = /:::details(?:\{([^}]*)\})?\n([\s\S]*?)\n:::/g;
-const DIRECTIVE_ATTR_RE = /(\w+)="((?:\\.|[^"])*)"/g;
+const DETAILS_START = 'inkio-details-start';
+const DETAILS_END = '<!-- inkio:details-end -->';
+const DETAILS_LINE_PREFIX = /(?:[ \t>]|(?:[-+*]|\d{1,9}[.)])(?=[ \t]))*/y;
+const DETAILS_LINE_END = /[ \t]*(?=\r|\n|$)/y;
 
-function escapeDirectiveValue(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-}
+type DetailsMarker = {
+  start: number;
+  end: number;
+  opening?: string;
+  pair?: DetailsMarker;
+};
 
-function decodeDirectiveValue(value: string): string {
-  return value.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-}
+function findDetailsMarkers(markdown: string): DetailsMarker[] {
+  const markers: DetailsMarker[] = [];
+  const pending: DetailsMarker[] = [];
+  let opener: { start: number; end: number; summaryStart?: number } | undefined;
+  let previousLineStart = -1;
+  let prefixEnd = -1;
 
-function parseDirectiveAttributes(raw?: string): Record<string, string> {
-  if (!raw) {
-    return {};
-  }
-
-  const attrs: Record<string, string> = {};
-  for (const match of raw.matchAll(DIRECTIVE_ATTR_RE)) {
-    attrs[match[1]] = decodeDirectiveValue(match[2]);
-  }
-  return attrs;
-}
-
-function preprocessMarkdown(markdown: string): string {
-  return markdown.replace(DETAILS_BLOCK_RE, (_match, rawSummary, rawBody) => {
-    const summary = rawSummary.replace(/<[^>]*>/g, '').trim();
-    const body = rawBody.trim();
-    const summaryAttr = `summary="${escapeDirectiveValue(summary)}"`;
-    return body.length > 0
-      ? `:::details{${summaryAttr}}\n${body}\n:::`
-      : `:::details{${summaryAttr}}\n\n:::`;
-  });
-}
-
-function postprocessMarkdown(markdown: string): string {
-  return markdown.replace(DETAILS_DIRECTIVE_RE, (_match, rawAttrs, rawBody) => {
-    const attrs = parseDirectiveAttributes(rawAttrs);
-    const summary = attrs.summary ?? '';
-    const body = rawBody.trim();
-
-    if (body.length === 0) {
-      return `<details>\n<summary>${escapeHtml(summary)}</summary>\n\n</details>`;
+  walkMdast(detailsScanner.parse(markdown) as MdastNode, (node) => {
+    const tag = node.type === 'html' ? node.value?.toLowerCase() : undefined;
+    if (tag !== '<details>' && tag !== '<summary>' && tag !== '</summary>' && tag !== '</details>') return;
+    const startPoint = node.position?.start;
+    const start = startPoint?.offset;
+    const end = node.position?.end.offset;
+    if (!startPoint || start === undefined || end === undefined) return;
+    const lineStart = start - startPoint.column + 1;
+    if (lineStart !== previousLineStart) {
+      previousLineStart = lineStart;
+      DETAILS_LINE_PREFIX.lastIndex = lineStart;
+      DETAILS_LINE_PREFIX.test(markdown);
+      prefixEnd = DETAILS_LINE_PREFIX.lastIndex;
     }
+    DETAILS_LINE_END.lastIndex = end;
+    const endsLine = DETAILS_LINE_END.test(markdown);
 
-    return `<details>\n<summary>${escapeHtml(summary)}</summary>\n\n${body}\n</details>`;
+    if (tag === '<details>' && start <= prefixEnd) {
+      opener = { start, end };
+    } else if (tag === '<summary>' && opener && opener.summaryStart === undefined) {
+      if (/^[\t >\r\n]*$/.test(markdown.slice(opener.end, start))) opener.summaryStart = end;
+      else opener = undefined;
+    } else if (tag === '</summary>' && opener?.summaryStart !== undefined) {
+      if (endsLine) {
+        // Follow the old plain-text summary semantics. Keep existing HTML
+        // references for remark to decode once, and encode attribute syntax.
+        const summary = markdown.slice(opener.summaryStart, start)
+          .replace(/<[^<>]*>/g, '').trim()
+          .replace(/["\\\r\n]/g, (char) => `&#${char.charCodeAt(0)};`);
+        const marker = { start: opener.start, end, opening: `::${DETAILS_START}{summary="${summary}"}` };
+        markers.push(marker);
+        pending.push(marker);
+      }
+      opener = undefined;
+    } else if (tag === '</details>' && start <= prefixEnd && endsLine) {
+      opener = undefined;
+      const open = pending.pop();
+      if (open) {
+        const close = { start, end, pair: open };
+        open.pair = close;
+        markers.push(close);
+      }
+    }
   });
+  return markers;
+}
+
+function parseDetails(markdown: string): MdastNode {
+  const markers = findDetailsMarkers(markdown);
+  const positions = new Map<number, DetailsMarker>();
+  const parts: string[] = [];
+  // Leaf directives and comments cannot steal an enclosing `:::` fence.
+  let offset = 0;
+  let cursor = 0;
+  for (const marker of markers) {
+    if (!marker.pair) continue;
+    const unchanged = markdown.slice(cursor, marker.start);
+    const replacement = marker.opening ?? DETAILS_END;
+    parts.push(unchanged, replacement);
+    offset += unchanged.length;
+    positions.set(offset, marker);
+    offset += replacement.length;
+    cursor = marker.end;
+  }
+  if (parts.length === 0) return markdownParser.parse(markdown) as MdastNode;
+
+  parts.push(markdown.slice(cursor));
+  const root = markdownParser.parse(parts.join('')) as MdastNode;
+  // Pair markers only as siblings, so enclosing blockquotes, lists, and
+  // directives keep exactly their original Markdown container boundaries.
+  walkMdast(root, (node) => {
+    if (!node.children?.some((child) => positions.has(child.position?.start.offset ?? -1))) return;
+    const result: MdastNode[] = [];
+    const open: { marker: DetailsMarker; index: number }[] = [];
+    for (const child of node.children) {
+      const offset = child.position?.start.offset ?? -1;
+      const marker = positions.get(offset);
+      const isOpening = child.type === 'leafDirective' && child.name === DETAILS_START;
+      const isClosing = child.type === 'html' && child.value?.trim() === DETAILS_END;
+      if (!marker || (marker.opening ? !isOpening : !isClosing)) {
+        result.push(child);
+        continue;
+      }
+      positions.delete(offset);
+      if (isOpening) {
+        open.push({ marker, index: result.length });
+      } else {
+        const last = open[open.length - 1];
+        if (last && last.marker === marker.pair) {
+          open.pop();
+          const [start, ...children] = result.splice(last.index);
+          result.push({ type: 'containerDirective', name: 'details', attributes: start.attributes, children });
+          continue;
+        }
+      }
+      result.push({ ...child, type: 'html', value: markdown.slice(marker.start, marker.end) });
+    }
+    node.children = result;
+  });
+  // Don't leave synthetic text behind if a marker was inside opaque HTML.
+  return positions.size > 0 ? markdownParser.parse(markdown) as MdastNode : root;
 }
 
 function createTextNode(text: string, marks?: JsonMark[]): JSONContent | null {
@@ -167,35 +283,38 @@ function withMark(marks: JsonMark[], mark: JsonMark): JsonMark[] {
   return [...marks, mark];
 }
 
-const WIKI_LINK_RE = /\[\[([^\]]+)\]\]/g;
-
 /**
- * Split `[[name]]` segments into wikiLink atoms. `@user` / `#tag` are
- * deliberately NOT parsed: they are ambiguous in plain prose (emails),
- * so mention/hashtag degrade to text on import by design.
+ * Scan `[[name]]` in a single pass; brackets or line breaks end a candidate.
+ * A later opener can start a complete link even after an incomplete one.
+ * Mentions and hashtags deliberately stay text because they're ambiguous.
  */
 function textWithWikiLinks(value: string, marks: JsonMark[]): JSONContent[] {
   const out: JSONContent[] = [];
-  let last = 0;
-  WIKI_LINK_RE.lastIndex = 0;
-  for (let match = WIKI_LINK_RE.exec(value); match; match = WIKI_LINK_RE.exec(value)) {
-    if (match.index > last) {
-      const text = createTextNode(value.slice(last, match.index), marks);
-      if (text) out.push(text);
+  let textStart = 0;
+  let open = -1;
+  for (let index = value.indexOf('[['); index >= 0 && index < value.length; index += 1) {
+    const char = value[index];
+    if (char === '[') {
+      open = value[index + 1] === '[' ? index : -1;
+      if (open !== -1) index += 1;
+    } else if (char === ']') {
+      if (open !== -1 && index > open + 2 && value[index + 1] === ']') {
+        const href = value.slice(open + 2, index).trim();
+        if (isSafeUrl(href)) {
+          const text = createTextNode(value.slice(textStart, open), marks);
+          if (text) out.push(text);
+          out.push({ type: 'wikiLink', attrs: { href } });
+          textStart = index + 2;
+        }
+        index += 1;
+      }
+      open = -1;
+    } else if (char === '\n' || char === '\r') {
+      open = -1;
     }
-    const href = match[1].trim();
-    if (href && isSafeUrl(href)) {
-      out.push({ type: 'wikiLink', attrs: { href } });
-    } else {
-      const text = createTextNode(match[0], marks);
-      if (text) out.push(text);
-    }
-    last = match.index + match[0].length;
   }
-  if (last < value.length) {
-    const text = createTextNode(value.slice(last), marks);
-    if (text) out.push(text);
-  }
+  const text = createTextNode(value.slice(textStart), marks);
+  if (text) out.push(text);
   return out;
 }
 
@@ -273,12 +392,11 @@ function isStandaloneImage(node: MdastNode): boolean {
 
 function imageNodeToJson(node: MdastNode): JSONContent {
   const src = node.url ?? '';
-  // Drop unsafe image sources instead of persisting javascript:/etc. in JSON.
+  // Rejected URLs never become image nodes. An empty alt needs an empty
+  // paragraph, not a text node with an empty string (invalid in ProseMirror).
   if (!isSafeUrl(src)) {
-    return {
-      type: 'paragraph',
-      content: [{ type: 'text', text: node.alt ?? src }],
-    };
+    const alt = createTextNode(node.alt ?? '');
+    return alt ? { type: 'paragraph', content: [alt] } : { type: 'paragraph' };
   }
   return {
     type: 'imageBlock',
@@ -290,8 +408,8 @@ function imageNodeToJson(node: MdastNode): JSONContent {
   };
 }
 
-function listItemToJson(node: MdastNode, task: boolean): JSONContent {
-  const content = ensureBlockContent(mdastBlocksToJson(node.children ?? []));
+function listItemToJson(node: MdastNode, task: boolean, budget: MarkdownReadBudget): JSONContent {
+  const content = ensureBlockContent(mdastBlocksToJson(node.children, budget));
   return {
     type: task ? 'taskItem' : 'listItem',
     ...(task ? { attrs: { checked: Boolean(node.checked) } } : {}),
@@ -327,7 +445,7 @@ function tableCellToJson(node: MdastNode, type: 'tableHeader' | 'tableCell'): JS
   };
 }
 
-function directiveToJson(node: MdastNode): JSONContent[] {
+function directiveToJson(node: MdastNode, budget: MarkdownReadBudget): JSONContent[] {
   if (node.name === 'callout') {
     // Same write boundary as the callout commands: markdown import must not
     // persist payloads that renderHTML alone would have to catch.
@@ -337,21 +455,20 @@ function directiveToJson(node: MdastNode): JSONContent[] {
         icon: normalizeCalloutIcon(node.attributes?.icon) ?? null,
         color: normalizeCalloutColor(node.attributes?.color) ?? null,
       },
-      content: ensureBlockContent(mdastBlocksToJson(node.children ?? [])),
+      content: ensureBlockContent(mdastBlocksToJson(node.children, budget)),
     }];
   }
 
   if (node.name === 'details') {
-    const summary = node.attributes?.summary ?? '';
-    const bodyContent = ensureBlockContent(mdastBlocksToJson(node.children ?? []));
-    const summaryContent = mdastInlineToJson([{ type: 'text', value: summary }]);
+    const summary = createTextNode(node.attributes?.summary ?? '');
+    const bodyContent = ensureBlockContent(mdastBlocksToJson(node.children, budget));
 
     return [{
       type: 'details',
       attrs: { open: false },
       content: [
-        summaryContent.length > 0
-          ? { type: 'detailsSummary', content: summaryContent }
+        summary
+          ? { type: 'detailsSummary', content: [summary] }
           : { type: 'detailsSummary' },
         {
           type: 'detailsContent',
@@ -373,56 +490,78 @@ function directiveToJson(node: MdastNode): JSONContent[] {
 }
 
 type TableSpan = { row: number; column: number; colspan: number; rowspan: number };
+type MarkdownReadBudget = { spanEntries: number; spanCells: number };
+const MAX_READ_SPAN_ENTRIES = 100_000;
+const MAX_READ_SPAN_CELLS = 1_000_000;
 
 /**
  * GFM has no merged cells. The writer keeps every column in place with empty
  * cells, so other tools show an aligned table, and notes the merges in a comment
  * they don't show, so this reader restores them.
  */
-const TABLE_SPANS_COMMENT = /^<!--\s*inkio:table-spans((?:\s+\d+,\d+,\d+,\d+)+)\s*-->$/;
+const TABLE_SPANS_COMMENT_START = /^<!--\s*inkio:table-spans(?=\s)/;
+const TABLE_SPAN_ENTRY = /\s+(\d+),(\d+),(\d+),(\d+)/y;
 
-function parseTableSpansComment(value: string | undefined): TableSpan[] | null {
-  const match = TABLE_SPANS_COMMENT.exec(value?.trim() ?? '');
-  if (!match) return null;
-  return match[1].trim().split(/\s+/).map((entry) => {
-    const [row, column, colspan, rowspan] = entry.split(',').map(Number);
-    return { row, column, colspan, rowspan };
-  });
+function parseTableSpansComment(value: string | undefined, budget: MarkdownReadBudget): TableSpan[] | null {
+  const comment = value?.trim() ?? '';
+  const prefix = TABLE_SPANS_COMMENT_START.exec(comment);
+  if (!prefix || !comment.endsWith('-->')) return null;
+  const body = comment.slice(prefix[0].length, -3).trimEnd();
+  if (body.length === 0) return null;
+
+  const spans: TableSpan[] = [];
+  TABLE_SPAN_ENTRY.lastIndex = 0;
+  while (TABLE_SPAN_ENTRY.lastIndex < body.length) {
+    const entry = TABLE_SPAN_ENTRY.exec(body);
+    if (!entry) return null;
+    if (--budget.spanEntries < 0) throw new RangeError('Cannot read Markdown: too many table spans.');
+    const row = Number(entry[1]);
+    const column = Number(entry[2]);
+    const colspan = Number(entry[3]);
+    const rowspan = Number(entry[4]);
+    if (Number.isSafeInteger(row) && Number.isSafeInteger(column)
+      && Number.isSafeInteger(colspan) && Number.isSafeInteger(rowspan)) {
+      spans.push({ row, column, colspan, rowspan });
+    }
+  }
+  return spans;
 }
 
-/** Merges the cells each span covers. A span the table can't hold is ignored, as is one over text. */
-function applyTableSpans(rows: JSONContent[], spans: TableSpan[]): JSONContent[] {
-  const covered = new Set<string>();
-
+/** Merges valid rectangles of cells without discarding data or rescanning unbounded areas. */
+function applyTableSpans(rows: JSONContent[], spans: TableSpan[], budget: MarkdownReadBudget): JSONContent[] {
+  if (spans.length === 0) return rows;
+  const covered = { type: 'covered' };
+  const width = rows.reduce((max, row) => Math.max(max, row.content?.length ?? 0), 0);
   for (const { row, column, colspan, rowspan } of spans) {
-    const keys: string[] = [];
-    let fits = colspan >= 1 && rowspan >= 1 && colspan * rowspan > 1;
+    const area = colspan * rowspan;
+    if (colspan < 1 || rowspan < 1 || area < 2 || row + rowspan > rows.length || column + colspan > width) {
+      continue;
+    }
+    // Charge the proposal even if a cell later invalidates it.
+    budget.spanCells -= area;
+    if (budget.spanCells < 0) throw new RangeError('Cannot read Markdown: table spans cover too many cells.');
+
+    let fits = true;
     for (let r = row; fits && r < row + rowspan; r += 1) {
       for (let c = column; fits && c < column + colspan; c += 1) {
-        const cell = rows[r]?.content?.[c];
+        const cell = rows[r].content?.[c];
         const isOrigin = r === row && c === column;
-        const isEmpty = !cell?.content?.some((block) => (block.content?.length ?? 0) > 0);
-        const key = `${r},${c}`;
-        fits = Boolean(cell) && !covered.has(key) && (isOrigin || isEmpty);
-        if (!isOrigin) keys.push(key);
+        fits = Boolean(cell && cell !== covered && !cell.attrs
+          && (isOrigin || !cell.content?.some((block) => block.content?.length)));
       }
     }
     if (!fits) continue;
 
-    const origin = rows[row].content![column];
-    origin.attrs = { ...origin.attrs, colspan, rowspan };
-    covered.add(`${row},${column}`);
-    keys.forEach((key) => covered.add(key));
-    keys.forEach((key) => {
-      const [r, c] = key.split(',').map(Number);
-      rows[r].content![c] = { type: 'covered' };
-    });
+    rows[row].content![column].attrs = { colspan, rowspan };
+    for (let r = row; r < row + rowspan; r += 1) {
+      for (let c = column; c < column + colspan; c += 1) {
+        if (r !== row || c !== column) rows[r].content![c] = covered;
+      }
+    }
   }
 
-  return rows.map((row) => ({
-    ...row,
-    content: row.content?.filter((cell) => cell.type !== 'covered'),
-  }));
+  for (const row of rows) row.content = row.content?.filter((cell) => cell !== covered);
+  return rows;
 }
 
 /**
@@ -545,11 +684,11 @@ function jsonTableToMdast(node: JSONContent): TableLayout {
   return layout;
 }
 
-function mdastBlocksToJson(nodes: MdastNode[] = []): JSONContent[] {
+function mdastBlocksToJson(nodes: MdastNode[] | undefined, budget: MarkdownReadBudget): JSONContent[] {
   const content: JSONContent[] = [];
   let tableSpans: TableSpan[] | null = null;
 
-  for (const [index, node] of nodes.entries()) {
+  for (const [index, node] of (nodes ?? []).entries()) {
     switch (node.type) {
       case 'heading':
         content.push({
@@ -569,7 +708,7 @@ function mdastBlocksToJson(nodes: MdastNode[] = []): JSONContent[] {
       case 'blockquote':
         content.push({
           type: 'blockquote',
-          content: ensureBlockContent(mdastBlocksToJson(node.children ?? [])),
+          content: ensureBlockContent(mdastBlocksToJson(node.children, budget)),
         });
         break;
       case 'list': {
@@ -577,7 +716,7 @@ function mdastBlocksToJson(nodes: MdastNode[] = []): JSONContent[] {
           content.push({
             type: group.task ? 'taskList' : (node.ordered ? 'orderedList' : 'bulletList'),
             ...(group.task || !node.ordered ? {} : { attrs: { start: node.start && node.start > 1 ? node.start : null } }),
-            content: group.children.map((child) => listItemToJson(child, group.task)),
+            content: group.children.map((child) => listItemToJson(child, group.task, budget)),
           });
         }
         break;
@@ -603,17 +742,17 @@ function mdastBlocksToJson(nodes: MdastNode[] = []): JSONContent[] {
         }));
         content.push({
           type: 'table',
-          content: tableSpans ? applyTableSpans(rows, tableSpans) : rows,
+          content: tableSpans ? applyTableSpans(rows, tableSpans, budget) : rows,
         });
         tableSpans = null;
         break;
       }
       case 'containerDirective':
-        directiveToJson(node).forEach((child) => content.push(child));
+        directiveToJson(node, budget).forEach((child) => content.push(child));
         break;
       case 'html':
-        if (nodes[index + 1]?.type === 'table') {
-          tableSpans = parseTableSpansComment(node.value);
+        if (nodes?.[index + 1]?.type === 'table') {
+          tableSpans = parseTableSpansComment(node.value, budget);
           if (tableSpans) break;
         }
         content.push({
@@ -626,7 +765,7 @@ function mdastBlocksToJson(nodes: MdastNode[] = []): JSONContent[] {
         break;
       default:
         if (node.children) {
-          mdastBlocksToJson(node.children).forEach((child) => content.push(child));
+          mdastBlocksToJson(node.children, budget).forEach((child) => content.push(child));
         } else if (node.value) {
           content.push({
             type: 'paragraph',
@@ -718,13 +857,17 @@ function jsonInlineToMdast(nodes: JSONContent[] = []): MdastNode[] {
         if (!name) {
           break;
         }
-        // A name containing ']]' would split the syntax on re-import (the
-        // splitter cannot represent it): fall back to plain text so no
-        // phantom link boundary is produced.
-        // Emitted as raw `html` because text nodes escape `[[` to `\[\[`,
-        // which other markdown tools (Obsidian, wikis) no longer read as a
-        // link; re-import still sees plain `[[name]]` text.
-        content.push(name.includes(']]') ? { type: 'text', value: name } : { type: 'html', value: `[[${name}]]` });
+        if (/[[\]\r\n]/.test(name) || !isSafeUrl(name)) {
+          content.push({ type: 'text', value: name });
+          break;
+        }
+        // The delimiters stay literal for other wiki readers. The payload is
+        // HTML-escaped and Markdown punctuation that could change its meaning
+        // is encoded as references; remark decodes those as text on import.
+        const label = escapeHtml(name)
+          .replace(/[\\`*~:|]/g, (char) => `&#${char.charCodeAt(0)};`)
+          .replace(/(?<![\p{L}\p{N}])_|_(?![\p{L}\p{N}])/gu, '&#95;');
+        content.push({ type: 'html', value: `[[${label}]]` });
         break;
       }
       default:
@@ -794,11 +937,10 @@ function jsonDetailsToMdast(node: JSONContent): MdastNode {
   const contentNode = node.content?.find((child) => child.type === 'detailsContent');
 
   return {
-    type: 'containerDirective',
+    type: 'html',
     name: 'details',
-    attributes: {
-      summary: textFromJson(summaryNode).trim(),
-    },
+    value: '<details>',
+    title: textFromJson(summaryNode).trim(),
     children: jsonBlocksToMdast(contentNode?.content ?? [{ type: 'paragraph' }]),
   };
 }
@@ -962,21 +1104,30 @@ function toMdastRoot(content: JSONContent): MdastNode {
 }
 
 function parseToMdast(markdown: string): MdastNode {
-  return markdownParser.parse(preprocessMarkdown(markdown)) as MdastNode;
+  if (markdown.length > MAX_MARKDOWN_CHARS) {
+    throw new RangeError('Cannot read Markdown: the document exceeds 1,000,000 characters.');
+  }
+  const root = /<details>/i.test(markdown)
+    ? parseDetails(markdown)
+    : markdownParser.parse(markdown) as MdastNode;
+  walkMdast(root);
+  return root;
 }
 
 function stringifyFromMdast(root: MdastNode): string {
   const stringifier = alignedTableChars > MAX_ALIGNED_TABLE_CHARS ? compactTableStringifier : markdownStringifier;
-  return postprocessMarkdown(String(stringifier.stringify(root as Parameters<typeof stringifier.stringify>[0])).trim());
+  return String(stringifier.stringify(root as Parameters<typeof stringifier.stringify>[0])).trim();
 }
 
+/** Creates an adapter with the same input limits and HTML rules as {@link parseMarkdown}. */
 export function createMarkdownAdapter(options: MarkdownAdapterOptions = {}) {
   void options.extensions;
 
   return {
     parse(markdown: string): JSONContent {
       const root = parseToMdast(markdown);
-      const content = ensureBlockContent(mdastBlocksToJson(root.children ?? []));
+      const budget = { spanEntries: MAX_READ_SPAN_ENTRIES, spanCells: MAX_READ_SPAN_CELLS };
+      const content = ensureBlockContent(mdastBlocksToJson(root.children, budget));
       return {
         type: 'doc',
         content,
@@ -988,21 +1139,35 @@ export function createMarkdownAdapter(options: MarkdownAdapterOptions = {}) {
   };
 }
 
+/**
+ * Reads Markdown as editor content. Unknown HTML is literal text; supported
+ * `<details>` blocks use plain-text summaries, and unsupported standalone
+ * images become paragraphs containing their alt text, if any.
+ *
+ * @throws {RangeError} For more than 1,000,000 UTF-16 code units, 128 AST
+ * levels below the root, 500,000 AST nodes, 100,000 table span entries, or
+ * 1,000,000 candidate table span cells across the document.
+ */
 export function parseMarkdown(markdown: string): JSONContent {
   return createMarkdownAdapter().parse(markdown);
 }
 
+/**
+ * Writes supported Markdown constructs, with escaped wiki labels and details
+ * summaries. Only details nodes get HTML wrappers; fenced examples stay code.
+ */
 export function stringifyMarkdown(content: JSONContent): string {
   return createMarkdownAdapter().stringify(content);
 }
 
 // Markdown copied as plain text: a block marker at the start of a line, or a
 // span only Markdown writes. Prose with a stray `*` or `-` stays prose.
-const MARKDOWN_PASTE_RE = /^ *(?:#{1,6} |[-*+] |\d+\. |> |```|\|.*\|$|-{3,} *$)|\*\*\S|~~\S|\[[^\]\n]+\]\(\S+\)/m;
+const MARKDOWN_PASTE_RE = /^ *(?:#{1,6} |[-*+] |\d+\. |> |```|\|.*\|$|-{3,} *$)|\*\*\S|~~\S|\[[^[\]\r\n]+\]\([^\s[\]]+\)/m;
 
 /**
  * Turns Markdown pasted as plain text into document content. It lives here so
  * the parser stays out of the editor bundle: add it with `extensions`.
+ * Input outside the Markdown limits is left to normal paste handling.
  */
 export const MarkdownPaste = Extension.create({
   name: 'markdownPaste',
@@ -1016,7 +1181,7 @@ export const MarkdownPaste = Extension.create({
           handlePaste: (view, event) => {
             const clipboard = event.clipboardData;
             const text = clipboard?.getData('text/plain');
-            if (!text || clipboard?.getData('text/html') || !MARKDOWN_PASTE_RE.test(text)) {
+            if (!text || text.length > MAX_MARKDOWN_CHARS || clipboard?.getData('text/html') || !MARKDOWN_PASTE_RE.test(text)) {
               return false;
             }
             // Paste-as-plain-text and code blocks keep every character. The
@@ -1025,12 +1190,20 @@ export const MarkdownPaste = Extension.create({
             if (input?.shiftKey || view.state.selection.$from.parent.type.spec.code) {
               return false;
             }
-            const { content = [] } = parseMarkdown(text);
+            let content: JSONContent[];
+            try {
+              content = parseMarkdown(text).content ?? [];
+            } catch {
+              // Declining lets ProseMirror use the original clipboard slice.
+              return false;
+            }
             // One paragraph is a span: inserted as a block it would split the
             // paragraph the caret is in.
             const [first] = content;
-            const inline = content.length === 1 && first.type === 'paragraph';
-            return editor.commands.insertContent(inline ? (first.content ?? []) : content);
+            if (content.length === 1 && first.type === 'paragraph') {
+              return first.content?.length ? editor.commands.insertContent(first.content) : false;
+            }
+            return editor.commands.insertContent(content);
           },
         },
       }),

@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import '@inkio/simple/minimal.css';
+import '@inkio/simple/style.css';
 import './app.css';
 import App from './App';
 
