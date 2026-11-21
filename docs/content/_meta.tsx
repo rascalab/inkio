@@ -9,7 +9,7 @@ export default {
   'image-editor': '이미지 에디터',
   ssr: 'SSR',
   serialization: '직렬화',
-  adapter: '어댑터',
+  adapter: { title: '어댑터 마이그레이션', display: 'hidden' },
   'i18n-locale': 'i18n & Locale',
   'overlay-positioning': 'Overlay Positioning',
   frameworks: '프레임워크 통합',

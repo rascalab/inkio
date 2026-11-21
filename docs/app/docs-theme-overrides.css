@@ -113,12 +113,12 @@
   color: var(--site-ink);
 }
 
-.inkio-site-theme-control {
+.inkio-site-select-control {
   position: relative;
   display: inline-flex;
 }
 
-.inkio-site-theme-control::after {
+.inkio-site-select-control::after {
   position: absolute;
   top: calc(50% - .25rem);
   inset-inline-end: .82rem;
@@ -131,7 +131,7 @@
   content: '';
 }
 
-.inkio-site-theme {
+.inkio-site-select {
   min-height: 44px;
   appearance: none;
   padding-inline: .75rem 1.9rem;
@@ -143,27 +143,83 @@
   cursor: pointer;
 }
 
-.inkio-site-theme option {
+.inkio-site-select option {
   background: var(--site-surface);
   color: var(--site-ink);
+}
+
+.inkio-docs-version {
+  position: relative;
+}
+
+.inkio-docs-version summary {
+  display: flex;
+  align-items: center;
+  list-style: none;
+}
+
+.inkio-docs-version summary::-webkit-details-marker {
+  display: none;
+}
+
+.inkio-docs-version-menu {
+  position: absolute;
+  z-index: 2;
+  inset-inline-end: 0;
+  display: grid;
+  min-width: 9.5rem;
+  margin-top: .375rem;
+  padding: .25rem;
+  border: 1px solid var(--site-line);
+  border-radius: var(--site-radius);
+  background: var(--site-surface);
+}
+
+.inkio-docs-version-menu > span {
+  padding: .5rem .625rem .125rem;
+  color: var(--site-faint);
+  font-size: .75rem;
+}
+
+.inkio-docs-version-menu a {
+  display: grid;
+  min-height: 2.5rem;
+  align-items: center;
+  padding-inline: .625rem;
+  border-radius: .375rem;
+  font-size: .875rem;
+}
+
+.inkio-docs-version-menu a:is(:hover, :focus-visible, [aria-current]) {
+  background: var(--site-active);
+  color: var(--site-accent);
 }
 
 .inkio-site-footer {
   margin-top: auto;
   border-top: 1px solid var(--site-line);
-  background: var(--site-band);
   color: var(--site-muted);
-  font-size: .875rem;
+  font-size: .8125rem;
+}
+
+.inkio-site-footer > div,
+.inkio-site-footer nav {
+  display: flex;
+  align-items: center;
 }
 
 .inkio-site-footer > div {
-  display: flex;
-  min-height: 5rem;
-  align-items: center;
+  min-height: 3.5rem;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: .5rem 1.5rem;
-  padding-block: .75rem;
+  gap: .75rem;
+}
+
+.inkio-site-footer nav {
+  gap: clamp(.75rem, 2vw, 1.5rem);
+}
+
+.inkio-site-footer strong {
+  color: var(--site-ink);
 }
 
 .inkio-site-footer a {
@@ -175,6 +231,40 @@
 .inkio-site-footer a:hover {
   color: var(--site-accent);
   text-decoration: underline;
+}
+
+.inkio-docs-archive-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: .45rem;
+  margin-block: 0 .675rem;
+  padding: .25rem .55rem;
+  border: 1px solid var(--site-line);
+  border-radius: var(--site-radius);
+  font-size: .75rem;
+}
+
+.inkio-docs-archive-label strong {
+  color: var(--site-ink);
+  font-family: var(--site-mono);
+}
+
+@media (max-width: 47.9375rem) {
+  .inkio-docs-root .inkio-site-nav {
+    gap: .375rem;
+  }
+
+  .inkio-site-nav > a[href="https://github.com/rascalab/inkio"] {
+    display: none;
+  }
+
+  .inkio-site-select-control::after {
+    inset-inline-end: .65rem;
+  }
+
+  .inkio-site-select {
+    padding-inline: .5rem 1.5rem;
+  }
 }
 
 .inkio-docs-root :is(.nextra-mobile-nav, .nextra-sidebar-footer) {
@@ -204,7 +294,7 @@
   color: var(--site-faint);
 }
 
-.inkio-docs-root :is(a, button, input, textarea, select, [tabindex]):focus-visible {
+.inkio-docs-root :is(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--site-accent);
   outline-offset: 2px;
 }

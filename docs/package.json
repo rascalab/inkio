@@ -3,8 +3,8 @@
   "version": "0.0.9",
   "private": true,
   "scripts": {
-    "dev": "INKIO_USE_SOURCE_PACKAGES=1 next dev --webpack -H 0.0.0.0",
-    "build": "next build --webpack",
+    "dev": "node ./scripts/generate-version-docs.mjs && INKIO_USE_SOURCE_PACKAGES=1 next dev --webpack -H 0.0.0.0",
+    "build": "node ./scripts/generate-version-docs.mjs && next build --webpack",
     "postbuild": "node ./scripts/postbuild-pagefind.mjs && node ./scripts/check-landing-budget.mjs",
     "start": "next start",
     "lint": "next typegen && tsc --noEmit -p tsconfig.build.json",

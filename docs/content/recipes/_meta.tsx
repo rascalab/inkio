@@ -4,4 +4,5 @@ export default {
   'next-app-router': 'Next App Router',
   'react-router': 'React Router',
   comments: '댓글 서버 연동',
+  'yjs-collaboration': 'Yjs 실시간 협업',
 };

@@ -94,6 +94,12 @@ Pushing the tag runs `Publish Packages`:
 
 Pushing to main does not deploy the docs site. To ship a docs-only fix between releases, run `Deploy Docs` manually from the Actions tab; it deploys the selected branch as is, so check that it documents nothing unreleased.
 
+The latest guide is unversioned; release snapshots live at `/versions/vX.Y.Z/`
+and are generated from each release tag's `docs/content` during `docs:build`
+and docs dev. Fetch release tags (`git fetch --tags`) before building. Do not
+edit the generated files. Snapshots keep the tagged guide text and code
+examples, but do not run old interactive playgrounds on the current SDK.
+
 ## Open work: extension adapter
 
 Third-party `@tiptap/*` extensions are currently passed raw through `extensions`, and version conflicts are the user's problem (BlockNote wraps them with a `createExtension` adapter). A `defineExtension`-style adapter is tracked as a separate goal. When it lands, delete this section and the extension compatibility table in the docs.

@@ -2,27 +2,12 @@
 title: 어댑터 마이그레이션
 ---
 
-import { Callout } from 'nextra/components'
-
 # 어댑터 마이그레이션
 
-<Callout type="warning">
-  어댑터 API는 v0.0.5에서 제거됐습니다. `@inkio/editor`와 `@inkio/simple`에서는 옵션을 컴포넌트에 직접 전달하세요.
-</Callout>
-
-## 이전 방식 → 현재 방식
-
-이전에는 `ExtensionsAdapter` 객체를 구성해서 전달했지만, 이제는 Editor 컴포넌트에 직접 props로 전달합니다:
+어댑터 API는 v0.0.5에서 제거됐습니다. 지금은 옵션을 `@inkio/editor` 또는
+`@inkio/simple`의 `Editor`에 직접 전달하세요.
 
 ```tsx
-// Before (removed)
-const adapter = {
-  suggestion: { hashtagItems, mentionItems },
-  navigation: { onWikiLinkClick },
-};
-<Editor adapter={adapter} />
-
-// After (current)
 <Editor
   hashtagItems={hashtagItems}
   mentionItems={mentionItems}
@@ -30,4 +15,5 @@ const adapter = {
 />
 ```
 
-자세한 API는 [컴포넌트](/components/) 문서를 참고하세요.
+현재 옵션은 [컴포넌트 문서](/components/)에 있습니다. 이전 어댑터의 옵션과 예제는
+[v0.0.3 어댑터 문서](/versions/v0.0.3/adapter/)를 보세요.

@@ -1,4 +1,4 @@
-import LandingPage from '../components/LandingPage';
+import LandingPage from '../../components/LandingPage';
 
 export const metadata = {
   title: { absolute: 'Inkio — React용 문서 에디터' },

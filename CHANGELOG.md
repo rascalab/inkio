@@ -6,6 +6,8 @@ Versioning is unified across the publishable Inkio packages.
 
 ## [Unreleased]
 
+- Docs: browse release-tagged documentation with version-scoped navigation and search, and follow a Yjs recipe to run and verify a local collaboration session.
+
 ## [0.0.9] - 2026-11-22
 
 See [MIGRATION.md](./MIGRATION.md#008--009) for runtime, image storage, and collaboration changes.

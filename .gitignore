@@ -7,6 +7,7 @@ packages/*/dist/
 docs/out/
 docs/.next/
 docs/.next-pages/
+/docs/content/versions/
 examples/*/.next/
 dist/
 

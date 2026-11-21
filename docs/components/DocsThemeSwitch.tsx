@@ -12,9 +12,9 @@ export default function DocsThemeSwitch() {
   }, []);
 
   return (
-    <span className="inkio-site-theme-control">
+    <span className="inkio-site-select-control">
       <select
-        className="inkio-site-theme"
+        className="inkio-site-select"
         aria-label="테마"
         value={mounted ? theme ?? 'dark' : 'dark'}
         onChange={(event) => setTheme(event.target.value)}
