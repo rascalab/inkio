@@ -47,13 +47,14 @@ describe('SuggestionPopup loading passes', () => {
   function open() {
     const instance = createSuggestionRenderer({ header: 'Test' })();
     const base = {
-      editor: { view: { dom: document.createElement('div') } },
+      editor: { isEditable: true, view: { dom: document.createElement('div') } },
       clientRect: () => null,
-      command: () => {},
+      mount: vi.fn(() => vi.fn()),
+      command: vi.fn(),
     };
     const pass = (loading: boolean, list: unknown[]) => ({ ...base, loading, items: list }) as any;
     instance.onStart?.(pass(true, []));
-    return { instance, pass };
+    return { instance, pass, base };
   }
 
   afterEach(() => {
@@ -81,6 +82,44 @@ describe('SuggestionPopup loading passes', () => {
     instance.onExit?.(pass(false, []));
   });
 
+  it('rejects retained rows and queued clicks from a superseded or closed query', () => {
+    const { instance, pass, base } = open();
+    instance.onUpdate?.(pass(false, items));
+    const oldCommand = hostRender.mock.lastCall![0].props.command;
+    instance.onUpdate?.(pass(true, []));
+    oldCommand(items[0]);
+    hostRender.mock.lastCall![0].props.command(items[0]);
+    expect(base.command).not.toHaveBeenCalled();
+
+    const current = [{ id: 'b', label: 'B' }];
+    instance.onUpdate?.(pass(false, current));
+    const command = hostRender.mock.lastCall![0].props.command;
+    oldCommand(items[0]);
+    command(current[0]);
+    instance.onExit?.(pass(false, current));
+    command(current[0]);
+    expect(base.command.mock.calls).toEqual([[current[0]]]);
+  });
+
+  it('does not apply a visible result after the editor becomes read-only', () => {
+    const { instance, pass, base } = open();
+    instance.onUpdate?.(pass(false, items));
+    base.editor.isEditable = false;
+    hostRender.mock.lastCall![0].props.command(items[0]);
+    expect(base.command).not.toHaveBeenCalled();
+    instance.onExit?.(pass(false, items));
+  });
+
+  it('allows explicitly supplied initial items on the loading pass', () => {
+    const { instance, pass, base } = open();
+    instance.onUpdate?.(pass(true, items));
+    const props = hostRender.mock.lastCall![0].props;
+    expect(props.items).toEqual(items);
+    props.command(items[0]);
+    expect(base.command).toHaveBeenCalledWith(items[0]);
+    instance.onExit?.(pass(false, items));
+  });
+
   it('starts hidden again after the popup closes', () => {
     const { instance, pass } = open();
     instance.onUpdate?.(pass(false, items));
@@ -101,6 +140,7 @@ describe('SuggestionPopup words', () => {
       items: [],
       command: () => {},
       clientRect: () => null,
+      mount: () => () => {},
     } as never);
     return hostRender.mock.calls[0][0].props;
   }

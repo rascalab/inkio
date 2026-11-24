@@ -3,9 +3,26 @@ import { render, waitFor } from '@testing-library/react';
 import { hydrateRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
 import { Editor } from '../Editor';
+import { Markdown } from '../../markdown';
 import { isEqualStaticContent } from '../../utils/static-content';
 
 describe('Editor component', () => {
+  it('registers Markdown alongside the core schema without restating the defaults', async () => {
+    const created = vi.fn();
+    const changed = vi.fn();
+    render(<Editor
+      extensions={[Markdown]}
+      content="<h2>Heading</h2>"
+      onCreate={(editor) => {
+        created(editor.markdown);
+        editor.commands.setContent('<p>Changed</p>');
+      }}
+      onChange={(editor) => changed(editor.markdown)}
+    />);
+    await waitFor(() => expect(created).toHaveBeenCalledWith('## Heading'));
+    await waitFor(() => expect(changed).toHaveBeenCalledWith('Changed'));
+  });
+
   it('names the editable textbox and updates its label without replacing its content', async () => {
     const { findByRole, rerender } = render(<Editor content="<p>Hello</p>" locale="ko" />);
     const textbox = await findByRole('textbox', { name: '문서 편집기' });

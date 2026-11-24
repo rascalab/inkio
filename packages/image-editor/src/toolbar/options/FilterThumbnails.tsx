@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import Konva from 'konva';
+import { Image as KonvaImage } from 'konva/lib/shapes/Image.js';
 import { useImageEditor } from '../../hooks/use-image-editor';
 import type { FilterPresetId } from '../../types';
 import { FILTER_PRESETS, applyImageFilter } from '../../utils/filters';
@@ -45,7 +45,7 @@ export function FilterThumbnails() {
       const preset = FILTER_PRESETS[index];
       if (!preset) return;
 
-      const node = new Konva.Image({ image: source, width: THUMB_WIDTH, height });
+      const node = new KonvaImage({ image: source, width: THUMB_WIDTH, height });
       try {
         if (preset.id !== 'none') applyImageFilter(node, preset.id);
         const dataUrl = node.toDataURL({ x: 0, y: 0, width: THUMB_WIDTH, height, mimeType: 'image/png', pixelRatio: 1 });

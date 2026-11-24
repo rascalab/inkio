@@ -1,11 +1,17 @@
-import type { JSONContent } from '@tiptap/core';
 import type { Mark, Node as ProseMirrorNode } from '@tiptap/pm/model';
-import { normalizeCommentId } from './comment-shared';
+import type { Transaction } from '@tiptap/pm/state';
+import type { EditorView } from '@tiptap/pm/view';
 
 export interface CommentRange {
   from: number;
   to: number;
   mark: Mark;
+}
+
+/** Restore the native selection now, not on a frame that may belong to a reply field. */
+export function focusCommentSelection(view: EditorView): void {
+  view.focus();
+  view.dispatch(view.state.tr.scrollIntoView());
 }
 
 /** Walk a document once for the target ID; coalesce adjacent equal marks. */
@@ -24,6 +30,23 @@ export function findCommentRanges(doc: ProseMirrorNode, id: string, resolved?: b
     else ranges.push({ from: pos, to: end, mark });
   });
   return ranges;
+}
+
+/** Update the document only; the initiating surface selects the one host callback. */
+export function updateCommentResolution(
+  tr: Transaction,
+  id: string,
+  resolved: boolean,
+  apply: boolean,
+): boolean {
+  const ranges = findCommentRanges(tr.doc, id, !resolved);
+  if (apply) {
+    for (const { from, to, mark } of ranges) {
+      tr.removeMark(from, to, mark);
+      tr.addMark(from, to, mark.type.create({ ...mark.attrs, resolved }));
+    }
+  }
+  return ranges.length > 0;
 }
 
 export function visitCommentableText(
@@ -64,22 +87,4 @@ export function getInitials(name: string): string {
     .join('')
     .toUpperCase();
   return Array.from(initials).slice(0, 2).join('');
-}
-
-/**
- * The comment threads a saved document still holds, for clearing the ones it
- * doesn't. Text deleted before saving no longer counts, and undo can't bring it
- * back once its editor is gone: compare on save, not on every change.
- */
-export function getCommentIds(doc: JSONContent): string[] {
-  const ids = new Set<string>();
-  const visit = (node: JSONContent) => {
-    for (const mark of node.marks ?? []) {
-      const id = mark.type === 'comment' && normalizeCommentId(mark.attrs?.commentId);
-      if (id) ids.add(id);
-    }
-    node.content?.forEach(visit);
-  };
-  visit(doc);
-  return [...ids];
 }

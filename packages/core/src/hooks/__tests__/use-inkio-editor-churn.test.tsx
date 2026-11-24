@@ -10,7 +10,7 @@ function Harness({ burst }: { burst: boolean }) {
   // render, mimicking inline extension props.
   const extensions = useMemo(() => [Document, Paragraph, Text], []);
   const unstable = burst ? [...extensions] : extensions;
-  const editor = useInkioEditor({ content: '<p>hi</p>', extensions: unstable });
+  const editor = useInkioEditor({ content: '<p>hi</p>', extensions: { items: unstable, replace: true } });
   return <div data-ready={editor ? 'yes' : 'no'} />;
 }
 

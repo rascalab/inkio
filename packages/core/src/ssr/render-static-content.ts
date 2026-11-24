@@ -1,7 +1,7 @@
 import { type Extensions, type JSONContent } from '@tiptap/core';
 import { generateHTML } from '@tiptap/html';
 import sanitizeHtml from 'sanitize-html';
-import { getHeadingsFromContent, slugifyHeading, type HeadingItem } from '../headings/headings';
+import { slugifyHeading, type HeadingItem } from '../headings/headings';
 import { escapeHtml } from '../utils/html';
 import { assertTableSize, clampTableSpan, normalizeJsonTables, TableBounds, TableContentError } from '../utils/table-bounds';
 import {
@@ -14,6 +14,20 @@ import {
   StaticContentLimitError,
   stripHtmlMarkup,
 } from './static-content-bounds';
+
+declare const module: { require?: (specifier: string) => unknown } | undefined;
+
+function generateStaticHtml(json: JSONContent, extensions: Extensions): string {
+  if (typeof window === 'undefined' && typeof module !== 'undefined') {
+    // @tiptap/html has conditional ESM exports, but its CommonJS entry is
+    // browser-only. Load the server implementation only in Node CJS so
+    // browser builds don't pull in Happy DOM.
+    const nodeModule = module;
+    const server = nodeModule.require?.('@tiptap/html/server') as { generateHTML: typeof generateHTML } | undefined;
+    if (server) return server.generateHTML(json, extensions);
+  }
+  return generateHTML(json, extensions);
+}
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] };
 
@@ -67,98 +81,60 @@ export function normalizeInkioContent(
   return createParagraphDoc(stripHtmlMarkup(trimmed).replace(/\s+/g, ' ').trim());
 }
 
-function decodeHtmlEntities(value: string): string {
-  return value
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-}
+type RenderedHeading = { position: number; level: number; text: string; id?: string };
 
-function stripHtml(value: string): string {
-  return decodeHtmlEntities(stripHtmlMarkup(value)).replace(/\s+/g, ' ').trim();
-}
-
-function extractHeadingsFromHtml(html: string): HeadingItem[] {
+function applyHeadingAnchors(html: string, rendered: RenderedHeading[], reserved: Set<string>) {
   const headings: HeadingItem[] = [];
-  const usedIds = new Set<string>();
-  const headingPattern = /<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi;
-  let match: RegExpExecArray | null = null;
-  let index = 0;
+  if (!rendered.length) return { html, headings };
 
-  while ((match = headingPattern.exec(html)) !== null) {
-    const level = Number(match[1] ?? 1);
-    const text = stripHtml(match[2] ?? '');
-
-    headings.push({
-      level,
-      text,
-      index,
-      id: slugifyHeading(text || `section-${index + 1}`, usedIds),
-    });
-    index += 1;
+  const parts: string[] = [];
+  let start = 0;
+  // The sanitizer supplies offsets in its output, not the potentially unsafe
+  // input. All authored ids are now known, including those later on the page.
+  for (const { position, level, text, id } of rendered.sort((a, b) => a.position - b.position)) {
+    const index = headings.length;
+    const anchor = id || slugifyHeading(text || `section-${index + 1}`, reserved);
+    headings.push({ level, text, index, id: anchor });
+    const afterTagName = position + 3; // <h1 … <h6
+    parts.push(html.slice(start, afterTagName));
+    if (!id) parts.push(` id="${anchor}"`);
+    parts.push(` data-inkio-heading-index="${index}"`);
+    start = afterTagName;
   }
-
-  return headings;
+  parts.push(html.slice(start));
+  return { html: parts.join(''), headings };
 }
 
-function injectHeadingIds(html: string, headings: HeadingItem[]): string {
-  if (!html || headings.length === 0) {
-    return html;
-  }
-
-  // Pair by document order with the same full-element pattern the extractor
-  // uses: the i-th match is the same element on both sides, so one stray
-  // tag can no longer misalign every later id. Tags that already carry an
-  // id keep it (still consuming their slot).
-  let index = 0;
-  return html.replace(
-    /<h([1-6])(\b[^>]*)>([\s\S]*?)<\/h\1>/gi,
-    (element, level: string, attrs: string, inner: string) => {
-      const heading = headings[index++];
-      if (!heading || /\sid=/.test(attrs)) {
-        return element;
-      }
-      return `<h${level}${attrs} id="${heading.id}" data-inkio-heading-index="${heading.index}">${inner}</h${level}>`;
-    },
-  );
-}
+// Literal colors only, including when used as the callout background variable.
+const colorValues = [/^#[\da-f]{3,8}$/i, /^rgba?\([-+\d\s.,%/]+\)$/i, /^hsla?\([-+\d\s.,%/deg]+\)$/i, /^[a-z]{1,20}$/i];
 
 const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
   allowedTags: sanitizeHtml.defaults.allowedTags.concat([
-    'img', 'mark', 'sub', 'sup', 'pre', 'details', 'summary', 'input', 'figure', 'figcaption',
+    'img', 'mark', 'sub', 'sup', 'pre', 'details', 'summary', 'input', 'label', 'figure', 'figcaption',
   ]),
   allowedAttributes: {
     ...sanitizeHtml.defaults.allowedAttributes,
-    '*': ['class', 'id'],
+    '*': ['class', 'id', 'style'],
+    details: ['open'],
     a: ['href', 'target', 'rel'],
     img: ['src', 'alt', 'title', 'width', 'height'],
     input: ['type', 'checked', 'disabled'],
     ol: ['start', 'type'],
     span: ['data-comment-id', 'data-comment-resolved', 'data-wiki-link', 'data-color', 'data-id', 'data-label', 'data-mention-suggestion-char'],
-    div: ['data-bookmark-url', 'data-bookmark-title', 'data-bookmark-description', 'data-bookmark-image', 'data-bookmark-favicon', 'data-type'],
+    div: ['data-bookmark-url', 'data-bookmark-title', 'data-bookmark-description', 'data-bookmark-image', 'data-bookmark-favicon', 'data-type', 'data-callout-color', 'data-callout-icon'],
     ul: ['data-type'],
     li: ['data-type', 'data-checked'],
     td: ['colspan', 'rowspan'],
     th: ['colspan', 'rowspan'],
     figure: ['data-type', 'data-align', 'data-width'],
-    h1: ['data-inkio-heading-index'],
-    h2: ['data-inkio-heading-index'],
-    h3: ['data-inkio-heading-index'],
-    h4: ['data-inkio-heading-index'],
-    h5: ['data-inkio-heading-index'],
-    h6: ['data-inkio-heading-index'],
   },
   allowedStyles: {
     '*': {
-      // Tight allowlist: hex/rgb/hsl/named colors only. The old /.*/ permitted
-      // `expression(...)` and `url(...)` CSS exfil vectors.
-      color: [/^#(?:[0-9a-f]{3,8})$/i, /^rgba?\([^)]*\)$/i, /^hsla?\([^)]*\)$/i, /^[a-z]+$/i],
-      'background-color': [/^#(?:[0-9a-f]{3,8})$/i, /^rgba?\([^)]*\)$/i, /^hsla?\([^)]*\)$/i, /^[a-z]+$/i],
+      color: colorValues,
+      'background-color': colorValues,
       'text-align': [/^(left|center|right)$/],
     },
+    div: { '--inkio-callout-bg': colorValues },
   },
   allowedSchemes: ['http', 'https', 'mailto', 'tel', 'blob'],
   allowedSchemesByTag: {
@@ -185,8 +161,8 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
   },
 } as sanitizeHtml.IOptions;
 
-function sanitizeInkioHtml(html: string): string {
-  if (!html) return '';
+function sanitizeInkioHtml(html: string): Pick<StaticContentRenderResult, 'html' | 'headings'> {
+  if (!html) return { html: '', headings: [] };
   assertStaticHtmlLength(html);
 
   const tables: { bounds: TableBounds; inRow: boolean; columns: number; columnGroupStart: number }[] = [];
@@ -196,8 +172,10 @@ function sanitizeInkioHtml(html: string): string {
   let depth = 0;
   let elements = 0;
   let headings = 0;
+  const rendered: RenderedHeading[] = [];
+  const reserved = new Set<string>();
 
-  return sanitizeHtml(html, {
+  const clean = sanitizeHtml(html, {
     ...SANITIZE_OPTIONS,
     onOpenTag(name, attrs) {
       if (++depth > MAX_STATIC_DEPTH || ++elements > MAX_STATIC_ELEMENTS ||
@@ -247,11 +225,20 @@ function sanitizeInkioHtml(html: string): string {
         if (slots > MAX_STATIC_TABLE_SLOTS) throw new StaticContentLimitError();
       }
     },
+    exclusiveFilter(frame) {
+      if (frame.tag === 'input' && frame.attribs.type !== 'checkbox') return true;
+      const id = frame.attribs.id;
+      if (id) reserved.add(id);
+      if (/^h[1-6]$/.test(frame.tag)) {
+        rendered.push({ position: frame.tagPosition, level: Number(frame.tag[1]), text: frame.text.trim(), id });
+      }
+      return false;
+    },
     transformTags: {
       ...SANITIZE_OPTIONS.transformTags,
       input: (tagName, attrs) => {
         if (!inTaskItem || attrs.type?.toLowerCase() !== 'checkbox') {
-          return { tagName: 'inkio-discard-input', attribs: {} };
+          return { tagName, attribs: {} };
         }
         return { tagName, attribs: { ...attrs, type: 'checkbox', disabled: '' } };
       },
@@ -259,6 +246,7 @@ function sanitizeInkioHtml(html: string): string {
       th: normalizeCellSpans,
     },
   });
+  return applyHeadingAnchors(clean, rendered, reserved);
 }
 
 function normalizeCellSpans(tagName: string, attribs: Record<string, string>) {
@@ -277,14 +265,7 @@ export function renderInkioStaticContent(
 ): StaticContentRenderResult {
   if (typeof content === 'string') {
     const json = normalizeInkioContent(content);
-    const rawHtml = sanitizeInkioHtml(content.trim());
-    const headings = extractHeadingsFromHtml(rawHtml);
-    return {
-      json,
-      html: injectHeadingIds(rawHtml, headings),
-      headings,
-      shellOnly: false,
-    };
+    return { json, ...sanitizeInkioHtml(content.trim()), shellOnly: false };
   }
 
   assertStaticJsonBudget(content);
@@ -294,15 +275,13 @@ export function renderInkioStaticContent(
     if (slots > MAX_STATIC_TABLE_SLOTS) throw new StaticContentLimitError();
   });
 
-  // generateHTML from @tiptap/html uses happy-dom internally.
+  // Tiptap serializes using a browser DOM or Happy DOM on the server.
   // Text nodes are properly escaped via DOM APIs, but extension renderHTML can
   // still emit unsafe attrs — always sanitize the output. Other malformed
   // content still falls back to the shell, but limits are reported explicitly.
   try {
-    const jsonHeadings = getHeadingsFromContent(json);
-    const raw = isEmptyDoc(json) ? '' : generateHTML(json, extensions);
-    const html = sanitizeInkioHtml(raw);
-    return { json, html: injectHeadingIds(html, jsonHeadings), headings: jsonHeadings, shellOnly: false };
+    const raw = isEmptyDoc(json) ? '' : generateStaticHtml(json, extensions);
+    return { json, ...sanitizeInkioHtml(raw), shellOnly: false };
   } catch (error) {
     if (error instanceof StaticContentLimitError || error instanceof TableContentError) throw error;
     return { json: EMPTY_DOC, html: '', headings: [], shellOnly: true };

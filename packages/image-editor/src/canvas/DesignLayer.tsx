@@ -1,7 +1,6 @@
 
-import { memo, useMemo } from 'react';
-import { Layer, Group, Shape } from 'react-konva';
-import { ImageNode } from './ImageNode';
+import { memo, useMemo, type ReactNode } from 'react';
+import { Layer, Group, Shape } from 'react-konva/lib/ReactKonvaCore.js';
 import { AnnotationRenderer } from '../annotations/AnnotationRenderer';
 import type { ImageEditorState, Annotation, CropRect, Transform } from '../types';
 import { getAnnotationScale, getBaseDisplayDimensions } from '../utils/geometry';
@@ -15,6 +14,7 @@ interface DesignLayerProps {
   displayWidth: number;
   displayHeight: number;
   interactive: boolean;
+  children?: ReactNode;
   onSelectAnnotation: (id: string) => void;
   onChangeAnnotation: (id: string, updates: Partial<Annotation>) => void;
   editingTextId?: string;
@@ -34,6 +34,7 @@ function DesignLayerInner({
   displayHeight,
   onSelectAnnotation,
   interactive,
+  children,
   onChangeAnnotation,
   editingTextId,
   cropAperture,
@@ -62,17 +63,10 @@ function DesignLayerInner({
   // are hidden via `visible={false}`. Box shapes have O(1) bounds; point
   // clouds (freedraw/line/arrow) would need an O(n) scan per render, so they
   // always render. The selected annotation is never culled.
-  const visibility = useMemo(() => {
-    const map = new Map<string, boolean>();
+  const hidden = useMemo(() => {
+    const ids = new Set<string>();
     for (const ann of state.annotations) {
-      if (ann.id === state.selectedAnnotationId) {
-        map.set(ann.id, true);
-        continue;
-      }
-      if (ann.type === 'freedraw' || ann.type === 'line' || ann.type === 'arrow') {
-        map.set(ann.id, true);
-        continue;
-      }
+      if (ann.id === state.selectedAnnotationId || 'points' in ann) continue;
       const bounds = getAnnotationDisplayBounds(ann, {
         annotationScale: annScale,
         annotationScaleY: annotationScale.y,
@@ -83,15 +77,12 @@ function DesignLayerInner({
         originalWidth: state.originalWidth,
         originalHeight: state.originalHeight,
         rotation,
-        flipX: state.transform.flipX,
-        flipY: state.transform.flipY,
+        flipX: transform.flipX,
+        flipY: transform.flipY,
       });
-      map.set(
-        ann.id,
-        !isDisplayBoundsOutsideViewport(bounds, displayWidth, displayHeight, CULL_MARGIN),
-      );
+      if (isDisplayBoundsOutsideViewport(bounds, displayWidth, displayHeight, CULL_MARGIN)) ids.add(ann.id);
     }
-    return map;
+    return ids;
   }, [
     state.annotations,
     state.selectedAnnotationId,
@@ -112,14 +103,7 @@ function DesignLayerInner({
 
   return (
     <Layer listening={interactive}>
-      <ImageNode
-        image={state.originalImage}
-        displayWidth={displayWidth}
-        displayHeight={displayHeight}
-        transform={transform}
-        filter={state.filter}
-        finetune={state.finetune}
-      />
+      {children}
       <Group
         x={displayWidth / 2}
         y={displayHeight / 2}
@@ -135,7 +119,7 @@ function DesignLayerInner({
           scaleY={annotationScale.y / annScale}
         >
           {state.annotations.map((ann) => (
-            <Group key={ann.id} visible={visibility.get(ann.id) !== false}>
+            <Group key={ann.id} visible={!hidden.has(ann.id)}>
               <MemoizedAnnotationRenderer
                 annotation={ann}
                 image={state.originalImage}

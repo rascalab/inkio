@@ -1,4 +1,4 @@
-import Konva from 'konva';
+import { Konva } from 'konva/lib/Global.js';
 
 // Keep decoded assets and 32-bit canvas backing stores within different budgets.
 export const MAX_SOURCE_DIMENSION = 8192;

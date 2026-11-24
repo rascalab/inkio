@@ -13,8 +13,9 @@ src/
 ├── seed.ts        # seedYDoc: seeds an empty shared doc, no-op when doc has content
 ├── ydoc.ts        # Y.Doc helpers (empty-check, encode)
 ├── doc-id.ts      # assertValidDocId + MAX_DOC_ID_LENGTH
-├── persistence.ts # IndexedDB save/load, one live persistence per docId
-└── presence.tsx   # peer presence UI
+├── persistence.ts # IndexedDB save/load scoped by deployment, account and room
+├── presence.tsx   # peer presence UI
+└── vite.ts        # optional Vite app-shell cache plugin (Node only)
 ```
 
 ## WHERE TO LOOK
@@ -26,11 +27,11 @@ src/
 | Conflicting extensions | src/extensions.ts | strip before collab wiring |
 
 ## CONVENTIONS
-- Single subpath: `.` only; no CSS.
+- Client API at `.`; optional Node-only Vite build plugin at `./vite`. No CSS entry.
 - Transport is `@hocuspocus/provider` (+ yjs, y-protocols, y-indexeddb); no socket.io anywhere.
-- All browser work behind `isBrowser()`; Node/SSR import is side-effect free.
+- React creates the provider in an effect, not during SSR. Use the Vite plugin only in build configuration.
 
 ## ANTI-PATTERNS
-- Never pass `content` alongside a shared doc; seed applies to an empty doc once per synced session.
-- Never open two live persistences for one docId (dual writers race on the same Y.Doc).
-- Rejected (unauthorized) providers must not reconnect.
+- `content` is a seed for an empty shared fragment after writable sync, not a controlled document. All clients seeding a room should agree on schema, field and content.
+- Do not open two live persistences for the same scoped cache key on one Y.Doc.
+- Retry transient failures per room. An explicit denial suppresses automatic auth retries for the current handshake; refresh credentials before retrying.

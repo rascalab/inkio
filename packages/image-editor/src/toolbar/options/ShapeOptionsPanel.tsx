@@ -1,52 +1,21 @@
-import { useMemo } from 'react';
 import { useImageEditor } from '../../hooks/use-image-editor';
-import { COLOR_PRESETS } from '../../color-presets';
-import type { ShapeType } from '../../types';
-import { getSelectedAnnotation, isShapeAnnotation, type ShapeAnnotation } from '../../utils/annotation-types';
-import { ColorField, PanelSection, SegmentedControl, SliderRow, ToolPanel } from '../control-groups';
+import { isShapeAnnotation } from '../../utils/annotation-types';
+import { ColorPickerButton } from '../ColorPickerButton';
+import { PanelSection, SegmentedControl, SliderRow, ToolPanel } from '../control-groups';
+import { optionFields, selectedFor } from './annotation-fields';
 import { LayerOrderControls } from './LayerOrderControls';
 
-interface ShapeButton {
-  type: ShapeType;
-  label: string;
-}
+const SHAPES = ['rect', 'ellipse', 'arrow', 'line'] as const;
 
 export function ShapeOptionsPanel() {
   const { state, dispatch, locale } = useImageEditor();
   const { shapeOptions } = state;
-  const selectedAnnotation = getSelectedAnnotation(state.annotations, state.selectedAnnotationId);
-  const selectedShape = isShapeAnnotation(selectedAnnotation) ? selectedAnnotation : null;
+  const selectedShape = selectedFor(state, isShapeAnnotation);
+  const field = optionFields(dispatch, 'SET_SHAPE_OPTIONS', selectedShape);
   const canEditFill = !selectedShape || selectedShape.type === 'rect' || selectedShape.type === 'ellipse';
-  const currentShapeType = selectedShape?.type ?? shapeOptions.shapeType;
   const fill = selectedShape && 'fill' in selectedShape ? selectedShape.fill : shapeOptions.fill;
   const stroke = selectedShape?.stroke ?? shapeOptions.stroke;
   const strokeWidth = selectedShape?.strokeWidth ?? shapeOptions.strokeWidth;
-
-  const shapeButtons = useMemo<ShapeButton[]>(
-    () => [
-      { type: 'rect', label: locale.rectangle },
-      { type: 'ellipse', label: locale.ellipse },
-      { type: 'arrow', label: locale.arrow },
-      { type: 'line', label: locale.line },
-    ],
-    [locale.arrow, locale.ellipse, locale.line, locale.rectangle],
-  );
-
-  const updateSelectedPreview = (updates: Partial<ShapeAnnotation>) => {
-    if (!selectedShape) {
-      return;
-    }
-
-    dispatch({ type: 'UPDATE_ANNOTATION', id: selectedShape.id, updates });
-  };
-
-  const updateSelectedCommit = (updates: Partial<ShapeAnnotation>) => {
-    if (!selectedShape) {
-      return;
-    }
-
-    dispatch({ type: 'UPDATE_ANNOTATION_COMMIT', id: selectedShape.id, updates });
-  };
 
   return (
     <ToolPanel title={selectedShape ? locale.selectedShape : locale.shapeDefaults}>
@@ -54,10 +23,10 @@ export function ShapeOptionsPanel() {
         <PanelSection label={locale.shapes}>
           <SegmentedControl
             label={locale.shapes}
-            items={shapeButtons.map(({ type, label }) => ({
+            items={SHAPES.map((type) => ({
               key: type,
-              label,
-              active: currentShapeType === type,
+              label: locale[type === 'rect' ? 'rectangle' : type],
+              active: shapeOptions.shapeType === type,
               onClick: () => dispatch({ type: 'SET_SHAPE_OPTIONS', options: { shapeType: type } }),
               testId: `inkio-ie-shape-${type}`,
             }))}
@@ -67,50 +36,28 @@ export function ShapeOptionsPanel() {
 
       {canEditFill && (
         <PanelSection label={locale.fill}>
-          <ColorField
+          <ColorPickerButton
             label={locale.fill}
             value={fill}
-            presets={COLOR_PRESETS}
-            pickerTestId="inkio-ie-shape-fill-picker"
+            locale={locale}
+            testId="inkio-ie-shape-fill-picker"
             allowTransparent
             transparentLabel={`Color: ${locale.transparent}`}
-            enableAlpha
-            hexLabel={locale.colorHex}
-            alphaLabel={locale.colorAlpha}
-            paletteLabel={locale.colorPalette}
-            onChange={(nextColor) => {
-              if (selectedShape) {
-                updateSelectedCommit({ fill: nextColor });
-                return;
-              }
-
-              dispatch({ type: 'SET_SHAPE_OPTIONS', options: { fill: nextColor } });
-            }}
+            onChange={field('fill')}
           />
         </PanelSection>
       )}
 
       <PanelSection>
-        <ColorField
+        <ColorPickerButton
           label={locale.stroke}
           value={stroke}
-          presets={COLOR_PRESETS}
-          pickerTestId="inkio-ie-shape-color-picker"
+          locale={locale}
+          testId="inkio-ie-shape-color-picker"
           allowTransparent
-          enableAlpha
           transparentLabel={`${locale.stroke}: ${locale.transparent}`}
           transparentTestId="inkio-ie-shape-stroke-transparent"
-          hexLabel={locale.colorHex}
-          alphaLabel={locale.colorAlpha}
-          paletteLabel={locale.colorPalette}
-          onChange={(nextColor) => {
-            if (selectedShape) {
-              updateSelectedCommit({ stroke: nextColor });
-              return;
-            }
-
-            dispatch({ type: 'SET_SHAPE_OPTIONS', options: { stroke: nextColor } });
-          }}
+          onChange={field('stroke')}
         />
         <SliderRow
           presentation="popover"
@@ -121,35 +68,8 @@ export function ShapeOptionsPanel() {
           value={strokeWidth}
           rangeTestId="inkio-ie-shape-stroke-width-range"
           numberTestId="inkio-ie-shape-stroke-width-number"
-          onPreviewChange={(nextStrokeWidth) => {
-            if (selectedShape) {
-              updateSelectedPreview({ strokeWidth: nextStrokeWidth });
-              return;
-            }
-
-            dispatch({
-              type: 'SET_SHAPE_OPTIONS',
-              options: { strokeWidth: nextStrokeWidth },
-            });
-          }}
-          onCommitChange={(nextStrokeWidth) => {
-            if (!selectedShape) {
-              return;
-            }
-
-            updateSelectedCommit({ strokeWidth: nextStrokeWidth });
-          }}
-          onDirectChange={(nextStrokeWidth) => {
-            if (selectedShape) {
-              updateSelectedCommit({ strokeWidth: nextStrokeWidth });
-              return;
-            }
-
-            dispatch({
-              type: 'SET_SHAPE_OPTIONS',
-              options: { strokeWidth: nextStrokeWidth },
-            });
-          }}
+          onChange={field('strokeWidth')}
+          commitOnRelease={!!selectedShape}
         />
       </PanelSection>
       <LayerOrderControls annotationId={selectedShape?.id ?? null} />

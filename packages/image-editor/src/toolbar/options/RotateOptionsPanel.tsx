@@ -1,6 +1,13 @@
 import { useImageEditor } from '../../hooks/use-image-editor';
 import { FlipHIcon, FlipVIcon, RotateCCWIcon, RotateCWIcon } from '../../icons';
-import { IconActionRow, PanelSection, ToolPanel } from '../control-groups';
+import { PanelSection, ToolPanel } from '../control-groups';
+
+const TRANSFORM_ACTIONS = [
+  ['ROTATE_CCW', 'rotateCCW', RotateCCWIcon, 'inkio-ie-rotate-ccw'],
+  ['ROTATE_CW', 'rotateCW', RotateCWIcon, 'inkio-ie-rotate-cw'],
+  ['FLIP_X', 'flipH', FlipHIcon, 'inkio-ie-flip-horizontal'],
+  ['FLIP_Y', 'flipV', FlipVIcon, 'inkio-ie-flip-vertical'],
+] as const;
 
 export function RotateOptionsPanel() {
   const { dispatch, locale } = useImageEditor();
@@ -8,39 +15,21 @@ export function RotateOptionsPanel() {
   return (
     <ToolPanel title={locale.rotate}>
       <PanelSection>
-        <IconActionRow
-          label={locale.rotate}
-          actions={[
-            {
-              key: 'rotate-ccw',
-              label: locale.rotateCCW,
-              icon: <RotateCCWIcon size={18} />,
-              testId: 'inkio-ie-rotate-ccw',
-              onClick: () => dispatch({ type: 'ROTATE_CCW' }),
-            },
-            {
-              key: 'rotate-cw',
-              label: locale.rotateCW,
-              icon: <RotateCWIcon size={18} />,
-              testId: 'inkio-ie-rotate-cw',
-              onClick: () => dispatch({ type: 'ROTATE_CW' }),
-            },
-            {
-              key: 'flip-horizontal',
-              label: locale.flipH,
-              icon: <FlipHIcon size={18} />,
-              testId: 'inkio-ie-flip-horizontal',
-              onClick: () => dispatch({ type: 'FLIP_X' }),
-            },
-            {
-              key: 'flip-vertical',
-              label: locale.flipV,
-              icon: <FlipVIcon size={18} />,
-              testId: 'inkio-ie-flip-vertical',
-              onClick: () => dispatch({ type: 'FLIP_Y' }),
-            },
-          ]}
-        />
+        <div className="inkio-ie-icon-action-row" role="group" aria-label={locale.rotate}>
+          {TRANSFORM_ACTIONS.map(([type, label, Icon, testId]) => (
+            <button
+              key={type}
+              type="button"
+              className="inkio-ie-icon-action-btn"
+              title={locale[label]}
+              aria-label={locale[label]}
+              data-testid={testId}
+              onClick={() => dispatch({ type })}
+            >
+              <Icon size={18} />
+            </button>
+          ))}
+        </div>
       </PanelSection>
     </ToolPanel>
   );

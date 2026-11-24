@@ -1,5 +1,37 @@
 # Migration
 
+## 0.0.9 → 0.1.0
+
+- **Extension lists now add to the defaults**, including in `@inkio/core`. If you supplied a complete schema (or intentionally removed a default extension), pass `extensions={{ items: extensions, replace: true }}`. To add Markdown, pass only `extensions={[Markdown]}`.
+- **Preset menus have one switch per menu.** Replace `ui={{ showToolbar: true, toolbar: options }}` with `ui={{ toolbar: options }}`. Use `true` for the default toolbar or `false` to hide it. The same rule applies to `bubbleMenu`, `floatingMenu` and `tableMenu`.
+- **Saved document text:** plain text, counts and summaries include inline reference labels. `summary(n)` counts the suffix within `n`. Regenerate stored previews or search indexes if they need to match newly saved documents.
+- **Change notifications:** `onUpdate(json)` keeps its JSON contract. To read the live document without serializing it, use `onChange={editor => …}`. The two callbacks are not interchangeable.
+- **Comments:** a panel inherits registered actions unless overridden; pass `false` to hide one. Remove unused write callbacks from `Viewer`'s `comment` options. `editor.commentIds` reports document references, not which threads the user may access.
+- **Standalone Markdown:** replace `createMarkdownAdapter({ extensions })` with `createMarkdownAdapter()` and remove `MarkdownAdapterOptions` imports. The removed argument never changed the conversion rules.
+- **Image editor translations:** remove `editCrop`, `doneCropping`, `customColor`, `fontFamilyPlaceholder`, `smallViewportTitle` and `smallViewportBody` from message overrides. The UI no longer rendered those labels; no replacement is required.
+
+### Reading saved JSON without an editor
+
+The standalone JSON getters were removed, including the reference extractors from `@inkio/advanced`. Import `read` from `@inkio/editor`, `@inkio/simple` or `@inkio/core` instead:
+
+```ts
+import { read } from '@inkio/editor';
+
+const doc = read(json);
+```
+
+| Removed call | Replacement |
+| --- | --- |
+| `toPlainText(json)` | `doc.text` |
+| `toSummary(json, n)` | `doc.summary(n)` (or `doc.summary()` for the default) |
+| `getContentStats(json)` | `doc.stats` |
+| `extractMentions(json)` | `doc.mentions` |
+| `extractHashtags(json)` | `doc.hashTags` |
+| `getCommentIds(json)` | `doc.commentIds` |
+| `getHeadingsFromContent(json)` | `doc.headings` |
+
+Reuse the read-only `InkioDocument` for as long as its input JSON is unchanged. Values are computed on demand and cached per reader; treat the input as immutable and create a new reader for changed JSON. If you already have the live editor, read the same members directly, without `getJSON()`. `getHeadingsFromDoc` remains available from `@inkio/core` for callers with a ProseMirror node.
+
 ## 0.0.8 → 0.0.9
 
 - **Runtime requirements:** use Node.js 22.12 or later for build and SSR. The standalone image editor now requires React and React DOM `^19.3.0`; apps staying on React 18 can still use the other packages.

@@ -1,6 +1,5 @@
 import { useId, useRef, useState } from 'react';
 import { BoldIcon, CloseIcon, ItalicIcon, LockIcon, UnlockIcon } from '../icons';
-import { ColorPickerButton } from './ColorPickerButton';
 import { OptionPopover } from './OptionPopover';
 
 /** Shared labeled controls for the contextual tool options. */
@@ -76,9 +75,8 @@ interface SliderRowProps {
   max: number;
   step?: number;
   value: number;
-  onPreviewChange: (value: number) => void;
-  onCommitChange?: (value: number) => void;
-  onDirectChange: (value: number) => void;
+  onChange: (value: number, preview?: boolean) => void;
+  commitOnRelease?: boolean;
   rangeTestId?: string;
   numberTestId?: string;
 }
@@ -91,13 +89,15 @@ export function SliderRow({
   max,
   step,
   value,
-  onPreviewChange,
-  onCommitChange,
-  onDirectChange,
+  onChange,
+  commitOnRelease,
   rangeTestId,
   numberTestId,
 }: SliderRowProps) {
   const inputId = useId();
+  const commitRange = commitOnRelease
+    ? (event: React.SyntheticEvent<HTMLInputElement>) => onChange(Number(event.currentTarget.value))
+    : undefined;
 
   const control = (
     <div className="inkio-ie-slider-row">
@@ -115,9 +115,9 @@ export function SliderRow({
           step={step}
           value={value}
           aria-valuetext={valueLabel}
-          onChange={(event) => onPreviewChange(Number(event.target.value))}
-          onPointerUp={(event) => onCommitChange?.(Number((event.target as HTMLInputElement).value))}
-          onKeyUp={(event) => onCommitChange?.(Number((event.target as HTMLInputElement).value))}
+          onChange={(event) => onChange(Number(event.target.value), true)}
+          onPointerUp={commitRange}
+          onKeyUp={commitRange}
         />
         <input
           type="number"
@@ -133,7 +133,7 @@ export function SliderRow({
               return;
             }
 
-            onDirectChange(nextValue);
+            onChange(nextValue);
           }}
           aria-label={`${label} value`}
         />
@@ -150,53 +150,6 @@ export function SliderRow({
       {control}
     </OptionPopover>
   ) : control;
-}
-
-interface ColorFieldProps {
-  label: string;
-  value: string;
-  presets: string[];
-  onChange: (value: string) => void;
-  pickerTestId?: string;
-  allowTransparent?: boolean;
-  enableAlpha?: boolean;
-  transparentLabel?: string;
-  transparentTestId?: string;
-  hexLabel?: string;
-  alphaLabel?: string;
-  paletteLabel?: string;
-}
-
-export function ColorField({
-  label,
-  value,
-  presets,
-  onChange,
-  pickerTestId,
-  allowTransparent = false,
-  enableAlpha = true,
-  transparentLabel,
-  transparentTestId,
-  hexLabel = 'Hex color',
-  alphaLabel = 'Opacity',
-  paletteLabel = 'Color palette',
-}: ColorFieldProps) {
-  return (
-    <ColorPickerButton
-      value={value}
-      label={label}
-      testId={pickerTestId}
-      presets={presets}
-      allowTransparent={allowTransparent}
-      enableAlpha={enableAlpha}
-      transparentLabel={transparentLabel}
-      transparentTestId={transparentTestId}
-      hexLabel={hexLabel}
-      alphaLabel={alphaLabel}
-      paletteLabel={paletteLabel}
-      onChange={onChange}
-    />
-  );
 }
 
 interface SelectFieldProps {
@@ -351,67 +304,6 @@ export function DimensionsField({
       >
         {lockAspectRatio ? <LockIcon size={16} /> : <UnlockIcon size={16} />}
       </button>
-    </div>
-  );
-}
-
-interface IconActionRowProps {
-  label: string;
-  actions: Array<{
-    key: string;
-    label: string;
-    icon: React.ReactNode;
-    testId?: string;
-    onClick: () => void;
-  }>;
-}
-
-export function IconActionRow({ label, actions }: IconActionRowProps) {
-  return (
-    <div className="inkio-ie-icon-action-row" role="group" aria-label={label}>
-      {actions.map((action) => (
-        <button
-          key={action.key}
-          type="button"
-          className="inkio-ie-icon-action-btn"
-          title={action.label}
-          aria-label={action.label}
-          data-testid={action.testId}
-          onClick={action.onClick}
-        >
-          {action.icon}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-interface LayerOrderRowProps {
-  label: string;
-  items: Array<{
-    key: string;
-    label: string;
-    testId?: string;
-    disabled?: boolean;
-    onClick: () => void;
-  }>;
-}
-
-export function LayerOrderRow({ label, items }: LayerOrderRowProps) {
-  return (
-    <div className="inkio-ie-layer-row" role="group" aria-label={label}>
-      {items.map((item) => (
-        <button
-          key={item.key}
-          type="button"
-          className="inkio-ie-chip"
-          onClick={item.onClick}
-          disabled={item.disabled}
-          data-testid={item.testId}
-        >
-          {item.label}
-        </button>
-      ))}
     </div>
   );
 }

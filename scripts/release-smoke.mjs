@@ -184,9 +184,11 @@ try {
     path.join(appDir, 'vite.config.ts'),
     `import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { inkioOffline } from '@inkio/collab/vite';
 
 export default defineConfig({
-  plugins: [react()],
+  base: '/preview/',
+  plugins: [react(), inkioOffline({ routes: ['/'] })],
   build: {
     chunkSizeWarningLimit: 800,
     rollupOptions: {
@@ -263,6 +265,8 @@ import { createRoot } from 'react-dom/client';
 import {
   Editor,
   Viewer as InkioViewer,
+  read,
+  type InkioDocument,
   type InkioMessageOverrides,
   type TiptapEditor,
 } from '@inkio/editor';
@@ -308,6 +312,7 @@ function App() {
   const [coreContent] = useState(parseCoreMarkdown(coreMarkdown));
   const [editorContent, setEditorContent] = useState(parseEditorMarkdown(editorMarkdown));
   const [simpleContent, setSimpleContent] = useState(parseSimpleMarkdown(simpleMarkdown));
+  const saved: InkioDocument = read(editorContent);
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
   const [collabEmpty] = useState(() => isYDocEmpty(createYDoc()));
   const [comments, setComments] = useState<CommentData[]>([]);
@@ -376,6 +381,7 @@ function App() {
         <h1>Inkio layered release smoke</h1>
         <p>{stringifyCoreMarkdown(coreContent)}</p>
         <p>{stringifyEditorMarkdown(editorContent)}</p>
+        <p>{saved.summary()}</p>
         <p>{stringifySimpleMarkdown(simpleContent)}</p>
         <p>collab doc empty: {String(collabEmpty)}</p>
       </section>
@@ -392,7 +398,7 @@ function App() {
           onImageUpload={async (file: File) => URL.createObjectURL(file)}
           imageBlock={{ imageEditor: ImageEditorModal }}
           comment={comment}
-          ui={{ showBubbleMenu: true, showFloatingMenu: true, messages, icons }}
+          ui={{ bubbleMenu: true, floatingMenu: true, messages, icons }}
           onCreate={setEditorInstance}
           onUpdate={setEditorContent}
         />
@@ -417,7 +423,7 @@ function App() {
           placeholder="Simple smoke"
           onImageUpload={async (file: File) => URL.createObjectURL(file)}
           imageBlock={{ imageEditor: ImageEditorModal }}
-          ui={{ showToolbar: true }}
+          ui={{ toolbar: true }}
           onUpdate={setSimpleContent}
         />
         <SimpleViewer content={simpleContent} />
@@ -435,7 +441,46 @@ createRoot(document.getElementById('root')!).render(
   );
 
   run('pnpm', ['install', '--strict-peer-dependencies'], appDir);
+  const entrypoints = PACKAGE_FILTERS.flatMap((pkg) => {
+    const config = JSON.parse(readFileSync(path.join(getPackageDir(pkg), 'package.json'), 'utf-8'));
+    return Object.keys(config.exports).map((key) => key === '.' ? pkg : pkg + key.slice(1));
+  });
+  run('node', ['--input-type=commonjs', '-e', `
+    const assert = require('node:assert/strict');
+    const { createElement } = require('react');
+    const { renderToStaticMarkup } = require('react-dom/server');
+    require('@inkio/image-editor');
+    assert.ok(!Object.keys(require.cache).some(path => path.includes('/@tiptap/')),
+      'The standalone image editor loaded the document editor runtime');
+    const { StaticViewer } = require('@inkio/core/static');
+    assert.ok(!Object.keys(require.cache).some(path => path.includes('/@tiptap/react/')),
+      'The standalone static entry loaded the Tiptap React editor runtime');
+    for (const entry of ${JSON.stringify(entrypoints)}) {
+      if (entry.endsWith('.css')) require.resolve(entry);
+      else require(entry);
+    }
+    assert.equal(require('@inkio/core/ui').InkioProvider, require('@inkio/core').InkioProvider,
+      'An embedded image editor must share its host provider');
+    const content = { type: 'doc', content: [
+      { type: 'paragraph', content: [{ type: 'text', text: 'CommonJS smoke' }] },
+      { type: 'codeBlock', attrs: { language: 'text' }, content: [{ type: 'text', text: 'code' }] },
+    ] };
+    for (const entry of ['@inkio/core', '@inkio/simple', '@inkio/editor']) {
+      assert.equal(require(entry).read(content).stats.words, 3);
+    }
+    const { Editor } = require('@inkio/simple');
+    for (const Component of [StaticViewer, Editor]) {
+      const html = renderToStaticMarkup(createElement(Component, { content }));
+      assert.match(html, /CommonJS smoke/);
+      assert.match(html, /<pre\\b[^>]*><code\\b[^>]*>code<\\/code><\\/pre>/);
+    }
+  `], appDir);
   run('pnpm', ['build'], appDir);
+  for (const file of ['inkio-offline-sw.js', 'inkio-offline-register.js']) {
+    if (!existsSync(path.join(appDir, 'dist', file))) {
+      throw new Error(`Packed @inkio/collab/vite did not emit ${file}`);
+    }
+  }
 
   const react18Dir = path.join(tempRoot, 'react18');
   mkdirSync(react18Dir);

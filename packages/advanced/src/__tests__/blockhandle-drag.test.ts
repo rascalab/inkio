@@ -117,9 +117,10 @@ describe('block handle pickup', () => {
     expect(editor.view.dom.querySelector('.ProseMirror-selectednode')?.textContent).toBe('First');
     expect(editor.view.dom).toHaveClass('inkio-block-pickup');
 
-    fireEvent(item, dragEvent('dragover', 67, dataTransfer));
+    const second = editor.view.dom.querySelectorAll('li')[1];
+    fireEvent(second, dragEvent('dragover', 76, dataTransfer));
     expect(document.querySelector('.inkio-block-drop-marker')).not.toBeNull();
-    fireEvent(handle, dragEvent('dragend', 67, dataTransfer));
+    fireEvent(handle, dragEvent('dragend', 76, dataTransfer));
 
     expect(editor.view.dom).not.toHaveClass('inkio-block-pickup');
     expect(document.querySelector('.inkio-block-drop-marker')).toBeNull();
@@ -143,6 +144,24 @@ describe('block handle pickup', () => {
 
     expect(editor.getHTML()).toBe('<ul><li><p>First</p></li></ul><p>Source</p><ul><li><p>Second</p></li></ul>');
     expect(document.querySelector('.inkio-block-drop-marker')).toBeNull();
+  });
+
+  it('moves a list item with its wrapper to the root gap shown by the marker', () => {
+    const before = editor.getHTML();
+    const paragraph = editor.view.dom.querySelector('p')!;
+    const [, second] = editor.view.dom.querySelectorAll('li');
+    const { dataTransfer } = pickUp(second, 68);
+
+    fireEvent(paragraph, dragEvent('dragover', 4, dataTransfer));
+    const marker = document.querySelector<HTMLElement>('.inkio-block-drop-marker');
+    expect(marker).toHaveStyle({ top: '0px', left: '50px', width: '300px' });
+
+    fireEvent(paragraph, dragEvent('drop', 4, dataTransfer));
+    expect(editor.getHTML()).toBe('<ul><li><p>Second</p></li></ul><p>Source</p><ul><li><p>First</p></li></ul>');
+    expect(marker).not.toBeInTheDocument();
+    expect(undoDepth(editor.state)).toBe(1);
+    expect(undo(editor.state, editor.view.dispatch)).toBe(true);
+    expect(editor.getHTML()).toBe(before);
   });
 
   it('clears the pickup on a document edit and does not paste stale drag data back', () => {

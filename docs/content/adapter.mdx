@@ -4,10 +4,12 @@ title: 어댑터 마이그레이션
 
 # 어댑터 마이그레이션
 
-어댑터 API는 v0.0.5에서 제거됐습니다. 지금은 옵션을 `@inkio/editor` 또는
-`@inkio/simple`의 `Editor`에 직접 전달하세요.
+v0.0.5부터 두 프리셋의 `Editor`는 `adapter` prop을 받지 않습니다. `@inkio/editor`에서
+제안 목록과 위키 링크 동작은 다음처럼 직접 전달합니다. `@inkio/simple`에는 이 세 prop이 없습니다.
 
 ```tsx
+import { Editor } from '@inkio/editor';
+
 <Editor
   hashtagItems={hashtagItems}
   mentionItems={mentionItems}
@@ -15,5 +17,10 @@ title: 어댑터 마이그레이션
 />
 ```
 
-현재 옵션은 [컴포넌트 문서](/components/)에 있습니다. 이전 어댑터의 옵션과 예제는
+`@inkio/advanced` 루트에는 확장을 직접 조합할 때 쓰는 `ExtensionsAdapter` 타입과
+`isExtensionsAdapter`, `mapExtensionsAdapterToOptions`, `applyExtensionsAdapter`가 남아 있습니다.
+예를 들어 `applyExtensionsAdapter(extensions, adapter)`는 이미 구성한 확장 목록에 옵션을 적용해
+새 목록을 반환합니다. 이 함수들이 프리셋의 `adapter` prop을 복원하는 것은 아닙니다.
+
+현재 프리셋 옵션은 [컴포넌트 문서](/components/)에 있습니다. 이전 프리셋 사용법은
 [v0.0.3 어댑터 문서](/versions/v0.0.3/adapter/)를 보세요.

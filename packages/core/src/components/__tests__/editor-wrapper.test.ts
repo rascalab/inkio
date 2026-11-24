@@ -4,9 +4,14 @@ describe('editor wrapper mappers', () => {
   it('applies visibility defaults only when ui leaves them unset', () => {
     const defaults = { showToolbar: true, showBubbleMenu: false, showFloatingMenu: false, showTableMenu: true };
     expect(mapEditorUiToCoreProps(undefined, defaults)).toMatchObject(defaults);
-    expect(mapEditorUiToCoreProps({ showToolbar: false, className: 'x' }, defaults)).toMatchObject({
+    expect(mapEditorUiToCoreProps({ toolbar: false, bubbleMenu: {}, floatingMenu: true, tableMenu: false, className: 'x' }, defaults)).toMatchObject({
       ...defaults,
       showToolbar: false,
+      showBubbleMenu: true,
+      showFloatingMenu: true,
+      showTableMenu: false,
+      bubbleMenu: {},
+      floatingMenu: undefined,
       className: 'x',
     });
   });

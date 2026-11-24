@@ -706,7 +706,8 @@
 .inkio-floating-overlay {
   position: fixed;
   z-index: var(--inkio-layer-overlay);
-  transition: opacity var(--inkio-transition-fast), visibility var(--inkio-transition-fast);
+  /* Focusability follows the open state immediately, even before the first paint. */
+  transition: opacity var(--inkio-transition-fast);
   pointer-events: none;
   visibility: hidden;
   opacity: 0;

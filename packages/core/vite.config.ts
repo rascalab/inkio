@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import dts from 'vite-plugin-dts';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { copyCss } from '../../scripts/vite-css-plugin';
+import { copyCss } from '../../scripts/vite-css-plugin.ts';
 import { createRequire } from 'module';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -52,6 +52,10 @@ export default defineConfig({
         index: resolve(__dirname, 'src/index.ts'),
         icons: resolve(__dirname, 'src/icons/index.ts'),
         markdown: resolve(__dirname, 'src/markdown/index.ts'),
+        // Isolate document reads from React, node views and editor registration.
+        'read-document': resolve(__dirname, 'src/read-document.ts'),
+        'interactive-viewer': resolve(__dirname, 'src/interactive-viewer.ts'),
+        ui: resolve(__dirname, 'src/ui.ts'),
         static: resolve(__dirname, 'src/static.tsx'),
       },
     },
@@ -76,6 +80,9 @@ export default defineConfig({
         },
         {
           format: 'cjs',
+          // Keep Tiptap's callout registration out of the shared CJS helper
+          // chunk that the standalone ui and icons entries require.
+          codeSplitting: { groups: [{ name: 'callout-schema', test: /\/extensions\/callout-schema\.ts$/ }] },
           // Keep react-dom/client lazy with a literal require. Next's SWC
           // lowers an import() template literal in .cjs to require(expression).
           dynamicImportInCjs: false,

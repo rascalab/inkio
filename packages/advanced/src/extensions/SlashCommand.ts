@@ -1,4 +1,4 @@
-import { Extension, type Editor, type Range } from '@tiptap/core';
+import { Extension, type Editor, type EditorEvents, type Range } from '@tiptap/core';
 import Suggestion, { type SuggestionOptions } from '@tiptap/suggestion';
 import { PluginKey, Selection } from '@tiptap/pm/state';
 import { createElement, type ComponentType, type ReactNode } from 'react';
@@ -79,6 +79,7 @@ export interface SlashCommandItemSource {
 export async function resolveSlashCommandItems(
   context: SlashCommandContext,
   source: SlashCommandItemSource,
+  signal?: AbortSignal,
 ): Promise<SlashCommandItem[]> {
   const { items, transformItems, onError, defaults = defaultSlashCommands, latest } = source;
   // No debounce: the slash menu resolves synchronously-cheap defaults and
@@ -107,7 +108,7 @@ export async function resolveSlashCommandItems(
       return filterSlashCommandItems(transformed, query, editor);
     },
   });
-  return resolve(context);
+  return resolve(context, signal);
 }
 
 function hasSchemaNode(editor: Editor, name: string): boolean {
@@ -191,111 +192,32 @@ export function filterSlashCommandItems(
   return result;
 }
 
-// Default slash commands
+function chainItem(id: keyof typeof enCoreMessages.slashCommand, command: string, args?: object): SlashCommandItem {
+  return {
+    id,
+    label: enCoreMessages.slashCommand[id],
+    command: ({ editor, range }) => {
+      runOptionalChainCommand(editor, command, { args, prepare: (chain) => chain.deleteRange(range) });
+    },
+  };
+}
+
 export const defaultSlashCommands: SlashCommandItem[] = [
+  chainItem('heading1', 'setHeading', { level: 1 }),
+  chainItem('heading2', 'setHeading', { level: 2 }),
+  chainItem('heading3', 'setHeading', { level: 3 }),
+  chainItem('bulletList', 'toggleBulletList'),
+  chainItem('numberedList', 'toggleOrderedList'),
+  chainItem('taskList', 'toggleTaskList'),
   {
-    id: 'heading1',
-    label: enCoreMessages.slashCommand.heading1,
-    command: ({ editor, range }) => {
-      runOptionalChainCommand(editor, 'setHeading', {
-        args: { level: 1 },
-        prepare: (chain) => chain.deleteRange(range),
-      });
-    },
-  },
-  {
-    id: 'heading2',
-    label: enCoreMessages.slashCommand.heading2,
-    command: ({ editor, range }) => {
-      runOptionalChainCommand(editor, 'setHeading', {
-        args: { level: 2 },
-        prepare: (chain) => chain.deleteRange(range),
-      });
-    },
-  },
-  {
-    id: 'heading3',
-    label: enCoreMessages.slashCommand.heading3,
-    command: ({ editor, range }) => {
-      runOptionalChainCommand(editor, 'setHeading', {
-        args: { level: 3 },
-        prepare: (chain) => chain.deleteRange(range),
-      });
-    },
-  },
-  {
-    id: 'bulletList',
-    label: enCoreMessages.slashCommand.bulletList,
-    command: ({ editor, range }) => {
-      runOptionalChainCommand(editor, 'toggleBulletList', {
-        prepare: (chain) => chain.deleteRange(range),
-      });
-    },
-  },
-  {
-    id: 'numberedList',
-    label: enCoreMessages.slashCommand.numberedList,
-    command: ({ editor, range }) => {
-      runOptionalChainCommand(editor, 'toggleOrderedList', {
-        prepare: (chain) => chain.deleteRange(range),
-      });
-    },
-  },
-  {
-    id: 'taskList',
-    label: enCoreMessages.slashCommand.taskList,
-    command: ({ editor, range }) => {
-      runOptionalChainCommand(editor, 'toggleTaskList', {
-        prepare: (chain) => chain.deleteRange(range),
-      });
-    },
-  },
-  {
-    id: 'table',
-    label: enCoreMessages.slashCommand.table,
-    command: ({ editor, range }) => {
-      runOptionalChainCommand(editor, 'insertTable', {
-        args: { rows: 3, cols: 3, withHeaderRow: true },
-        prepare: (chain) => chain.deleteRange(range),
-      });
-    },
+    ...chainItem('table', 'insertTable', { rows: 3, cols: 3, withHeaderRow: true }),
     isAvailable: (editor) => hasSchemaNode(editor, 'table') && !isInsideTable(editor),
   },
+  chainItem('codeBlock', 'toggleCodeBlock'),
+  chainItem('horizontalRule', 'setHorizontalRule'),
+  chainItem('callout', 'setCallout'),
   {
-    id: 'codeBlock',
-    label: enCoreMessages.slashCommand.codeBlock,
-    command: ({ editor, range }) => {
-      runOptionalChainCommand(editor, 'toggleCodeBlock', {
-        prepare: (chain) => chain.deleteRange(range),
-      });
-    },
-  },
-  {
-    id: 'horizontalRule',
-    label: enCoreMessages.slashCommand.horizontalRule,
-    command: ({ editor, range }) => {
-      runOptionalChainCommand(editor, 'setHorizontalRule', {
-        prepare: (chain) => chain.deleteRange(range),
-      });
-    },
-  },
-  {
-    id: 'callout',
-    label: enCoreMessages.slashCommand.callout,
-    command: ({ editor, range }) => {
-      runOptionalChainCommand(editor, 'setCallout', {
-        prepare: (chain) => chain.deleteRange(range),
-      });
-    },
-  },
-  {
-    id: 'toggleList',
-    label: enCoreMessages.slashCommand.toggleList,
-    command: ({ editor, range }) => {
-      runOptionalChainCommand(editor, 'setDetails', {
-        prepare: (chain) => chain.deleteRange(range),
-      });
-    },
+    ...chainItem('toggleList', 'setDetails'),
     isAvailable: (editor) => hasSchemaNode(editor, 'details'),
   },
   {
@@ -314,26 +236,36 @@ export const defaultSlashCommands: SlashCommandItem[] = [
     id: 'image',
     label: enCoreMessages.slashCommand.image,
     command: ({ editor, range }) => {
+      if (!editor.isEditable || typeof editor.commands.uploadImageBlock !== 'function') return;
+      const trigger = editor.state.doc.slice(range.from, range.to);
+      let target: Range | null = { ...range };
+      const track = ({ transaction, appendedTransactions }: EditorEvents['transaction']) => {
+        for (const tr of [transaction, ...appendedTransactions]) {
+          if (!target || !tr.docChanged) continue;
+          const from = tr.mapping.mapResult(target.from, 1);
+          const to = tr.mapping.mapResult(target.to, -1);
+          target = from.deleted || to.deleted || from.pos >= to.pos ? null : { from: from.pos, to: to.pos };
+        }
+      };
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
-      input.onchange = (e) => {
-        const files = (e.target as HTMLInputElement).files;
-        if (files && files.length > 0) {
-          const fileArray = Array.from(files);
-          requestAnimationFrame(() => {
-            if (editor.isDestroyed) {
-              return;
-            }
-
-            editor.chain().focus().deleteRange(range).run();
-            const commands = editor.commands as { uploadImageBlock?: (uploadFiles: File[], pos?: number) => boolean };
-            if (typeof commands.uploadImageBlock === 'function') {
-              commands.uploadImageBlock(fileArray, range.from);
-            }
-          });
+      const cleanup = () => { editor.off('transaction', track); };
+      input.oncancel = cleanup;
+      input.onchange = () => {
+        const files = Array.from(input.files ?? []);
+        if (!files.length) {
+          cleanup();
+          return;
         }
+        requestAnimationFrame(() => {
+          cleanup();
+          if (!target || editor.isDestroyed || !editor.isEditable
+            || !trigger.eq(editor.state.doc.slice(target.from, target.to))) return;
+          editor.chain().focus().deleteRange(target).uploadImageBlock(files, target.from).run();
+        });
       };
+      editor.on('transaction', track);
       input.click();
     },
   },
@@ -386,22 +318,24 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
     // interleaved editors never drop each other's results.
     const latest = { value: 0 };
 
-    let lastResultCount = 0;
-    const resolvedItems = async ({ query, editor }: SlashCommandContext) => {
+    // Only a settled renderer update belongs to the current query: the
+    // provider also resolves stale/aborted requests with an empty list.
+    let unmatched: { from: number; text: string } | null = null;
+    const render = this.options.suggestion?.render ?? createSuggestionRenderer<SlashCommandItem>({
+      locale, messages, pluginKey: this.options.suggestion?.pluginKey ?? SlashCommandPluginKey,
+    });
+    const resolvedItems = ({ query, editor, signal }: SlashCommandContext & { signal: AbortSignal }) => {
       const ui = editorUi(editor, { locale, messages, icons });
       const defaults = localizedSlashCommands(ui.locale, ui.messages, ui.icons);
-      const results = await resolveSlashCommandItems({ query, editor }, { items, transformItems, onError, defaults, latest });
-      lastResultCount = results.length;
-      return results;
+      return resolveSlashCommandItems({ query, editor }, { items, transformItems, onError, defaults, latest }, signal);
     };
 
     return [
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Extension.create erases items' return type to unknown[]; Suggestion expects SlashCommandItem[]
       Suggestion<SlashCommandItem, SlashCommandItem>({
         editor: this.editor,
         char: '/',
         pluginKey: SlashCommandPluginKey,
-        items: resolvedItems as any,
+        items: resolvedItems,
         allowSpaces: true,
         command: ({ editor, range, props }) => {
           try {
@@ -427,13 +361,23 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
         },
         // Any paragraph that starts with the slash: lists, quotes and cells too.
         allow: ({ state, range }) => {
-          const { parent } = state.doc.resolve(range.from);
-          if (parent.type.name !== 'paragraph' || parent.textContent.charAt(0) !== '/') return false;
-          // A space after a query nothing matched: this is a sentence, not a command.
-          return lastResultCount > 0 || !/\s/.test(state.doc.textBetween(range.from, range.to));
+          const $from = state.doc.resolve(range.from);
+          if ($from.parent.type.name !== 'paragraph' || $from.parentOffset !== 0) return false;
+          if (unmatched?.from !== range.from) return true;
+          const text = state.doc.textBetween(range.from, range.to);
+          return !text.startsWith(unmatched.text) || !/\s/.test(text.charAt(unmatched.text.length));
         },
-        render: createSuggestionRenderer<SlashCommandItem>({ locale, messages }),
         ...this.options.suggestion,
+        render: () => {
+          const renderer = render();
+          return {
+            ...renderer,
+            onUpdate(props) {
+              unmatched = !props.loading && !props.items.length ? { from: props.range.from, text: props.text } : null;
+              renderer.onUpdate?.(props);
+            },
+          };
+        },
       }),
     ];
   },

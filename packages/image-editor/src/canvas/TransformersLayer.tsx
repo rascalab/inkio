@@ -1,7 +1,12 @@
-import { useRef, useEffect, type RefObject } from 'react';
-import { Layer, Transformer } from 'react-konva';
+import { useRef, useEffect, useLayoutEffect, type ComponentProps, type RefObject } from 'react';
+import { Layer, Transformer } from 'react-konva/lib/ReactKonvaCore.js';
+import 'konva/lib/shapes/Transformer.js';
 import type Konva from 'konva';
 import { getIEColors } from '../theme';
+
+const BORDER_DASH = [3, 3];
+const constrainTransformer: ComponentProps<typeof Transformer>['boundBoxFunc'] = (oldBox, newBox) =>
+  newBox.width < 5 || newBox.height < 5 ? oldBox : newBox;
 
 interface TransformersLayerProps {
   selectedAnnotationId: string | null;
@@ -16,13 +21,7 @@ export function TransformersLayer({
 
   useEffect(() => {
     const tr = transformerRef.current;
-    if (!tr) return;
-
-    if (!selectedAnnotationId) {
-      tr.nodes([]);
-      tr.getLayer()?.batchDraw();
-      return;
-    }
+    if (!tr || !selectedAnnotationId) return;
 
     const stage = stageRef.current;
     if (!stage) return;
@@ -39,21 +38,24 @@ export function TransformersLayer({
     tr.getLayer()?.batchDraw();
   }, [selectedAnnotationId, stageRef]);
 
-  const colors = getIEColors(stageRef.current?.container() ?? undefined);
+  useLayoutEffect(() => {
+    const tr = transformerRef.current;
+    if (!tr || !selectedAnnotationId) return;
+    // Read after DOM updates so editor-local CSS overrides (including theme) win.
+    const colors = getIEColors(tr.getStage()?.container());
+    tr.setAttrs({ anchorFill: colors.handle, anchorStroke: colors.primary, borderStroke: colors.primary });
+  });
+
+  // An empty Konva Layer still owns full-size scene and hit canvases.
+  if (!selectedAnnotationId) return null;
 
   return (
     <Layer>
       <Transformer
         ref={transformerRef}
-        boundBoxFunc={(oldBox, newBox) => {
-          if (newBox.width < 5 || newBox.height < 5) return oldBox;
-          return newBox;
-        }}
-        anchorFill={colors.handle}
-        anchorStroke={colors.primary}
+        boundBoxFunc={constrainTransformer}
         anchorSize={8}
-        borderStroke={colors.primary}
-        borderDash={[3, 3]}
+        borderDash={BORDER_DASH}
         keepRatio={false}
         // Flipping via anchors would persist negative scaleX/scaleY into
         // annotation width/height (Konva renders negative sizes unpredictably).

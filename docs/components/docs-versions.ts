@@ -1,8 +1,6 @@
 import { getPageMap } from 'nextra/page-map';
 import { generateStaticParamsFor } from 'nextra/pages';
-import manifest from '../package.json';
 
-export const currentRelease = `v${manifest.version}`;
 export const archiveSegment = 'versions';
 
 export type DocVersion = { release: string; paths: string[] };

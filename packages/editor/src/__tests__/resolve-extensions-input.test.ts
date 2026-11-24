@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { EditorProps as CoreEditorProps } from '@inkio/core';
+import type { CoreExtensions as Extensions } from '@inkio/core';
 import { resolveExtensionsInput } from '@inkio/core';
 
-type Extensions = NonNullable<CoreEditorProps['extensions']>;
 type Extension = Extensions[number];
 
 function makeExt(name: string): Extension {
@@ -34,6 +33,13 @@ describe('resolveExtensionsInput', () => {
     const items: Extensions = [makeExt('custom')];
     const result = resolveExtensionsInput({ items, replace: true }, defaults);
     expect(result).toBe(items);
+  });
+
+  it('does not construct unused defaults for an empty replacement', () => {
+    const items = [] as const;
+    expect(resolveExtensionsInput({ items, replace: true }, () => {
+      throw new Error('Unused defaults were built');
+    })).toBe(items);
   });
 
   it('merges when object without replace', () => {

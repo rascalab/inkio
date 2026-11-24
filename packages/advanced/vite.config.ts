@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import dts from 'vite-plugin-dts';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { copyCss } from '../../scripts/vite-css-plugin.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -11,6 +12,7 @@ const enableDts = process.env.INKIO_VITE_SKIP_DTS !== '1';
 
 const entries = {
   index: resolve(__dirname, 'src/index.ts'),
+  'viewer-extensions': resolve(__dirname, 'src/viewer-extensions.ts'),
   'block-handle': resolve(__dirname, 'src/entries/block-handle.ts'),
   bookmark: resolve(__dirname, 'src/entries/bookmark.ts'),
   mention: resolve(__dirname, 'src/entries/mention.ts'),
@@ -23,6 +25,7 @@ const entries = {
 export default defineConfig(({ command }) => ({
   plugins: [
     react(),
+    copyCss(__dirname, ['style.css']),
     ...(enableDts
       ? [
           dts({

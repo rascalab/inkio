@@ -15,7 +15,7 @@ const themeProbe = '<pre><code class="language-javascript">const color = 1;</cod
 const customMenuLayout: EditorProps['ui'] = {
   fill: true,
   style: { height: 360 },
-  showToolbar: true,
+
   toolbar: { placement: 'bottom' },
   bubbleMenu: { position: { placement: 'bottom', offset: 16, flip: false } },
   floatingMenu: { position: { placement: 'right', offset: 24, flip: false } },

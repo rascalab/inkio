@@ -1,6 +1,6 @@
 {
   "name": "inkio",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "private": true,
   "homepage": "https://rascalab.github.io/inkio/",
   "type": "module",
@@ -34,7 +34,7 @@
     "release:version:check": "node ./scripts/release-version.mjs check",
     "package:attw": "node ./scripts/check-attw.mjs",
     "security:audit": "pnpm audit",
-    "package:budgets": "node ./scripts/check-budgets.mjs",
+    "package:budgets": "node ./scripts/check-budgets.mjs && node ./scripts/check-editor-consumers.mjs",
     "package:gates": "pnpm package:publint && pnpm package:attw && pnpm package:budgets",
     "package:publint": "pnpm -r --parallel --filter @inkio/core --filter @inkio/advanced --filter @inkio/simple --filter @inkio/editor --filter @inkio/image-editor --filter @inkio/collab exec publint .",
     "publish:core": "pnpm --filter @inkio/core publish --access public --provenance --no-git-checks --registry https://registry.npmjs.org/",

@@ -1,13 +1,16 @@
 'use client';
 
 import { useMemo } from 'react';
-import type { Extensions, JSONContent } from '@tiptap/react';
-import { resolveInkioExtensions } from '../extensions/resolve-extensions';
+import type { JSONContent } from '@tiptap/core';
+import { resolveExtensionsInput, type ExtensionsInput } from '../utils/extensions-input';
+import { getSchemaExtensions } from '../extensions/schema-extensions';
 import { renderInkioStaticContent } from '../ssr/render-static-content';
+
+const defaultViewerExtensions = getSchemaExtensions();
 
 export type ViewerProps = {
   content: string | JSONContent;
-  extensions?: Extensions;
+  extensions?: ExtensionsInput;
   theme?: 'light' | 'dark';
   className?: string;
   style?: React.CSSProperties;
@@ -28,20 +31,17 @@ export function Viewer({
   style,
   bordered = true,
 }: ViewerProps) {
-  const resolved = useMemo(
-    () => resolveInkioExtensions(extensions, undefined),
-    [extensions],
-  );
+  const schema = useMemo(() => resolveExtensionsInput(extensions, defaultViewerExtensions), [extensions]);
   const html = useMemo(() => {
     try {
-      return renderInkioStaticContent(content, resolved).html || '<p></p>';
+      return renderInkioStaticContent(content, schema).html || '<p></p>';
     } catch (error) {
       // Schema/content mismatches (e.g. foreign JSON pasted as content)
       // otherwise render as an undebuggable empty paragraph.
       console.error('[inkio] Viewer failed to render content:', error);
       return '<p></p>';
     }
-  }, [content, resolved]);
+  }, [content, schema]);
 
   return (
     <div

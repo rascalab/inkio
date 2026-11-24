@@ -2,11 +2,12 @@ import type { Extensions } from '@tiptap/core';
 
 export type CoreExtensions = Extensions;
 
+/** Lists add to the surface defaults by name. Use `replace: true` for an exact schema. */
 export type ExtensionsInput =
-  | CoreExtensions
-  | { items: CoreExtensions; replace?: boolean };
+  | Readonly<CoreExtensions>
+  | { items: Readonly<CoreExtensions>; replace?: boolean };
 
-export function mergeExtensions(defaults: CoreExtensions, userExtensions: CoreExtensions): CoreExtensions {
+export function mergeExtensions(defaults: CoreExtensions, userExtensions: Readonly<CoreExtensions>): CoreExtensions {
   if (!Array.isArray(userExtensions) || userExtensions.length === 0) return defaults;
   // Deduplicate by name (last wins): tiptap errors on duplicate extension
   // names, and sparse/nullish holes must not throw on .name access.
@@ -18,23 +19,20 @@ export function mergeExtensions(defaults: CoreExtensions, userExtensions: CoreEx
     seen.add(ext.name);
     deduped.unshift(ext);
   }
-  const userNames = new Set(deduped.map((ext) => ext.name));
-  const filtered = defaults.filter((ext) => !userNames.has(ext.name));
+  const filtered = defaults.filter((ext) => !seen.has(ext.name));
   return [...filtered, ...deduped];
 }
 
 export function resolveExtensionsInput(
   input: ExtensionsInput | undefined,
-  defaults: CoreExtensions,
+  defaults: CoreExtensions | (() => CoreExtensions),
 ): CoreExtensions {
-  if (!input) return defaults;
-  if (Array.isArray(input)) return mergeExtensions(defaults, input as CoreExtensions);
-  if ((input as { replace?: boolean }).replace) {
-    // replace:true with missing items cannot yield undefined extensions
-    // (tiptap would crash): fall back to defaults.
-    return (input as { items?: CoreExtensions }).items ?? defaults;
+  if (input && 'items' in input && input.replace && input.items) {
+    // Tiptap declares a mutable list, but does not mutate the supplied extensions.
+    return input.items as CoreExtensions;
   }
-  return mergeExtensions(defaults, (input as { items: CoreExtensions }).items);
+  const base = typeof defaults === 'function' ? defaults() : defaults;
+  return input ? mergeExtensions(base, 'items' in input ? input.items : input) : base;
 }
 
 // Re-export the raw Extensions type without forcing consumers to depend on @tiptap/core.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment, type KeyboardEvent } from 'react';
 import { Editor } from '@tiptap/react';
 import { Selection } from '@tiptap/pm/state';
 import {
@@ -19,7 +19,6 @@ import {
   buttonRefSetter,
   renderActionIcon,
   resolveActionLabel,
-  rovingTabIndex,
 } from './menu-buttons';
 import {
   autoUpdateOverlayPosition,
@@ -28,24 +27,10 @@ import {
   type InkioMenuPosition,
 } from '../overlay/positioning';
 
-
-/**
- * Whether the floating menu should hijack an ArrowLeft/ArrowRight keydown.
- * Normal cursor movement must keep working while the user is typing in the
- * editor: arrow keys only drive menu focus once focus is inside the menu or
- * keyboard navigation of the menu has already started.
- */
-export function shouldFloatingMenuHandleArrow(
-  menuFocusedIndex: number,
-  focusInMenu: boolean,
-): boolean {
-  return focusInMenu || menuFocusedIndex !== -1;
-}
-
 export interface FloatingMenuProps {
   editor: Editor | null;
   className?: string;
-  /** Locale input (string, array, accept-language, Intl.Locale, etc.) */
+  /** Locale tag or Accept-Language string. */
   locale?: InkioLocaleInput;
   /** Message overrides for core floating menu labels */
   messages?: InkioCoreMessageOverrides | InkioMessageOverrides;
@@ -70,6 +55,7 @@ export const FloatingMenu = ({
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
   const blurRafRef = useRef<number>(0);
+  const dismissed = useRef(false);
   const ui = useInkioCoreUi({
     locale,
     messages: messageOverrides,
@@ -77,14 +63,18 @@ export const FloatingMenu = ({
   });
 
   const updateVisibility = useCallback(() => {
-    if (!editor) {
+    const menu = menuRef.current;
+    if (!editor || editor.isDestroyed || !editor.isEditable
+      || (!editor.isFocused && !menu?.contains(menu.ownerDocument.activeElement))) {
+      dismissed.current = false;
+      setIsVisible(false);
       return;
     }
 
     const { selection, doc } = editor.state;
     const { from, empty } = selection;
 
-    if (!empty) {
+    if (!empty || dismissed.current) {
       setIsVisible(false);
       return;
     }
@@ -149,29 +139,30 @@ export const FloatingMenu = ({
     }
     blurRafRef.current = requestAnimationFrame(() => {
       blurRafRef.current = 0;
-      if (menuRef.current?.contains(document.activeElement)) return;
-      setIsVisible(false);
+      updateVisibility();
     });
-  }, []);
-
-  // Cancel pending blur rAF on unmount
-  useEffect(() => {
-    return () => {
-      cancelAnimationFrame(blurRafRef.current);
-    };
-  }, []);
+  }, [updateVisibility]);
 
   useEffect(() => {
     if (!editor) {
       return;
     }
 
-    editor.on('selectionUpdate', updateVisibility);
+    const onSelection = () => {
+      dismissed.current = false;
+      updateVisibility();
+    };
+    updateVisibility();
+    editor.on('selectionUpdate', onSelection);
+    editor.on('update', updateVisibility);
     editor.on('focus', updateVisibility);
     editor.on('blur', handleBlur);
 
     return () => {
-      editor.off('selectionUpdate', updateVisibility);
+      cancelAnimationFrame(blurRafRef.current);
+      dismissed.current = false;
+      editor.off('selectionUpdate', onSelection);
+      editor.off('update', updateVisibility);
       editor.off('focus', updateVisibility);
       editor.off('blur', handleBlur);
     };
@@ -202,101 +193,62 @@ export const FloatingMenu = ({
   );
 
   const [focusedIndex, setFocusedIndex] = useState(-1);
-  const focusedIndexRef = useRef(-1);
-  const buttonRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
-
-  // Keep focusedIndexRef in sync with state
-  useEffect(() => {
-    focusedIndexRef.current = focusedIndex;
-  }, [focusedIndex]);
-
+  const buttons = useRef<Map<number, HTMLButtonElement>>(new Map());
   // Reset focus index when menu hides
   useEffect(() => {
     if (!isVisible) setFocusedIndex(-1);
   }, [isVisible]);
 
-  // Document-level keydown: capture arrow keys when menu is visible
-  useEffect(() => {
-    if (!isVisible || allActions.length === 0) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const focusInMenu = menuRef.current?.contains(document.activeElement) ?? false;
-      // Only handle keys when the editor or menu has focus
-      if (!editor?.isFocused && !focusInMenu) return;
-
-      // Arrow left/right: only control menu focus once focus is inside the
-      // menu or keyboard navigation has started. Otherwise the editor keeps
-      // normal cursor movement (menu visible != menu relevant).
-      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-        if (!shouldFloatingMenuHandleArrow(focusedIndexRef.current, focusInMenu)) return;
-        e.preventDefault();
-        e.stopPropagation();
-        if (focusedIndexRef.current === -1) {
-          // Enter the menu
-          const startIdx = e.key === 'ArrowLeft' ? allActions.length - 1 : 0;
-          setFocusedIndex(startIdx);
-          buttonRefs.current.get(startIdx)?.focus();
-        } else {
-          const dir = e.key === 'ArrowRight' ? 1 : -1;
-          setFocusedIndex((prev) => {
-            const next = (prev + dir + allActions.length) % allActions.length;
-            buttonRefs.current.get(next)?.focus();
-            return next;
-          });
-        }
-      } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && focusedIndexRef.current !== -1) {
-        e.preventDefault();
-        setFocusedIndex(-1);
-        if (editor) {
-          const { state } = editor;
-          const { from } = state.selection;
-          const $pos = state.doc.resolve(from);
-          if (e.key === 'ArrowUp') {
-            const before = $pos.before(1);
-            if (before > 0) {
-              const targetPos = Math.max(0, before - 1);
-              const $target = state.doc.resolve(targetPos);
-              const sel = Selection.near($target, -1);
-              editor.chain().focus().setTextSelection(sel.from).run();
-            } else {
-              editor.commands.focus();
-            }
-          } else {
-            const after = $pos.after(1);
-            if (after < state.doc.content.size) {
-              const targetPos = Math.min(state.doc.content.size, after + 1);
-              const $target = state.doc.resolve(targetPos);
-              const sel = Selection.near($target, 1);
-              editor.chain().focus().setTextSelection(sel.from).run();
-            } else {
-              editor.commands.focus();
-            }
-          }
-        }
-      } else if (e.key === 'Escape' && !e.isComposing && focusedIndexRef.current !== -1) {
-        e.preventDefault();
-        setFocusedIndex(-1);
-        editor?.commands.focus();
-      } else if (e.key === 'Enter' && focusedIndexRef.current !== -1) {
-        e.preventDefault();
-        const action = allActions[focusedIndexRef.current];
-        if (action && editor) {
-          action.run(editor);
+  function handleButtonKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    if (!editor || !isVisible || event.nativeEvent.isComposing || event.keyCode === 229) return;
+    const { key } = event;
+    if (key === 'ArrowRight' || key === 'ArrowLeft') {
+      event.preventDefault();
+      event.stopPropagation();
+      const dir = key === 'ArrowRight' ? 1 : -1;
+      for (let step = 1; step <= allActions.length; step++) {
+        const next = buttons.current.get((index + dir * step + allActions.length) % allActions.length);
+        if (next && !next.disabled) {
+          next.focus();
+          break;
         }
       }
-    };
-
-    document.addEventListener('keydown', handleKeyDown, true);
-    return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [isVisible, allActions, editor]);
+    } else if (key === 'ArrowUp' || key === 'ArrowDown') {
+      event.preventDefault();
+      const { doc, selection: { $from } } = editor.state;
+      const up = key === 'ArrowUp';
+      const boundary = up ? $from.before(1) : $from.after(1);
+      if (up ? boundary > 0 : boundary < doc.content.size) {
+        const direction = up ? -1 : 1;
+        const selection = Selection.near(doc.resolve(boundary + direction), direction);
+        editor.chain().focus().setTextSelection(selection.from).run();
+      } else {
+        editor.commands.focus();
+      }
+    } else if (key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      dismissed.current = true;
+      editor.view.focus();
+      setIsVisible(false);
+    }
+  }
 
   if (!editor) {
     return null;
   }
 
+  const tabStop = focusedIndex >= 0 && allActions[focusedIndex] && !allActions[focusedIndex].isDisabled?.(editor)
+    ? focusedIndex : allActions.findIndex((action) => !action.isDisabled?.(editor));
+
   return (
     <div
       ref={menuRef}
+      onBlur={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget)) return;
+        setFocusedIndex(-1);
+        handleBlur();
+      }}
       className={`inkio-floating-overlay ${isVisible ? 'is-visible' : ''} ${className || ''}`}
       style={{
         top: position.top,
@@ -320,16 +272,12 @@ export const FloatingMenu = ({
               return (
                 <button
                   key={action.id}
-                  ref={buttonRefSetter(buttonRefs.current, idx)}
+                  ref={buttonRefSetter(buttons.current, idx)}
                   type="button"
-                  tabIndex={rovingTabIndex(idx, focusedIndex)}
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    if (isDisabled) {
-                      return;
-                    }
-                    action.run(editor);
-                  }}
+                  tabIndex={isVisible && idx === tabStop ? 0 : -1}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => { if (editor.isEditable) action.run(editor); }}
+                  onKeyDown={(event) => handleButtonKeyDown(event, idx)}
                   onFocus={() => setFocusedIndex(idx)}
                   className={`inkio-bubble-btn ${action.isActive?.(editor) ? 'is-active' : ''}${focusedIndex === idx ? ' is-focused' : ''}`}
                   title={label}

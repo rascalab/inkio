@@ -1,4 +1,13 @@
-import Konva from 'konva';
+import { Blur } from 'konva/lib/filters/Blur.js';
+import { Pixelate } from 'konva/lib/filters/Pixelate.js';
+import { Group } from 'konva/lib/Group.js';
+import { Arrow } from 'konva/lib/shapes/Arrow.js';
+import { Ellipse } from 'konva/lib/shapes/Ellipse.js';
+import { Image as KonvaImage } from 'konva/lib/shapes/Image.js';
+import { Line } from 'konva/lib/shapes/Line.js';
+import { Rect } from 'konva/lib/shapes/Rect.js';
+import { Text } from 'konva/lib/shapes/Text.js';
+import { Util } from 'konva/lib/Util.js';
 import type { Annotation, ImageEditorState } from '../types';
 import { STICKER_FONT_FAMILY } from '../constants';
 import { applyImageFilter, resolveEffectiveFilter } from './filters';
@@ -53,7 +62,7 @@ export async function encodeExportCanvas(
       if ('convertToBlob' in canvas) {
         previewCanvas = new OffscreenCanvas(width, height);
       } else {
-        previewCanvas = Konva.Util.createCanvasElement();
+        previewCanvas = Util.createCanvasElement();
         previewCanvas.width = width;
         previewCanvas.height = height;
       }
@@ -70,14 +79,14 @@ export async function encodeExportCanvas(
 }
 
 function applyAnnotationToGroup(
-  container: Konva.Group,
+  container: Group,
   ann: Annotation,
   scale: number,
   sourceImage: ExportImage,
 ): void {
   switch (ann.type) {
     case 'rect': {
-      const shape = new Konva.Rect({
+      const shape = new Rect({
         x: ann.x * scale,
         y: ann.y * scale,
         width: ann.width * scale,
@@ -91,7 +100,7 @@ function applyAnnotationToGroup(
       break;
     }
     case 'ellipse': {
-      const shape = new Konva.Ellipse({
+      const shape = new Ellipse({
         x: ann.x * scale,
         y: ann.y * scale,
         radiusX: ann.radiusX * scale,
@@ -105,7 +114,7 @@ function applyAnnotationToGroup(
       break;
     }
     case 'arrow': {
-      const shape = new Konva.Arrow({
+      const shape = new Arrow({
         points: ann.points.map((p) => p * scale),
         stroke: ann.stroke,
         strokeWidth: ann.strokeWidth * scale,
@@ -117,7 +126,7 @@ function applyAnnotationToGroup(
       break;
     }
     case 'line': {
-      const shape = new Konva.Line({
+      const shape = new Line({
         points: ann.points.map((p) => p * scale),
         stroke: ann.stroke,
         strokeWidth: ann.strokeWidth * scale,
@@ -129,7 +138,7 @@ function applyAnnotationToGroup(
     }
     case 'text': {
       const fontSizePx = resolveTextFontSizePx(ann.fontSize);
-      const shape = new Konva.Text({
+      const shape = new Text({
         x: ann.x * scale,
         y: ann.y * scale,
         text: ann.text,
@@ -145,7 +154,7 @@ function applyAnnotationToGroup(
       break;
     }
     case 'freedraw': {
-      const shape = new Konva.Line({
+      const shape = new Line({
         points: ann.points.map((p) => p * scale),
         stroke: ann.stroke,
         strokeWidth: ann.strokeWidth * scale,
@@ -161,7 +170,7 @@ function applyAnnotationToGroup(
     case 'redact': {
       // Re-render the source region with the same filter pipeline as the
       // live RedactAnnotationShape so export matches the preview.
-      const region = new Konva.Image({
+      const region = new KonvaImage({
         image: sourceImage,
         x: ann.x * scale,
         y: ann.y * scale,
@@ -178,17 +187,17 @@ function applyAnnotationToGroup(
       const pixelRatio = getRedactionCacheRatio(region.width(), region.height());
       if (ann.mode === 'blur') {
         region.blurRadius(Math.max(1, ann.strength * 0.75 * pixelRatio));
-        region.filters([Konva.Filters.Blur]);
+        region.filters([Blur]);
       } else {
         region.pixelSize(Math.max(2, Math.round(ann.strength * pixelRatio)));
-        region.filters([Konva.Filters.Pixelate]);
+        region.filters([Pixelate]);
       }
       region.cache({ pixelRatio });
       container.add(region);
       break;
     }
     case 'sticker': {
-      const shape = new Konva.Text({
+      const shape = new Text({
         x: ann.x * scale,
         y: ann.y * scale,
         text: ann.emoji,
@@ -211,7 +220,7 @@ export function renderExportScene(state: ExportScene, sourceImage: ExportImage, 
 
   // The same detached scene runs on the DOM and worker canvas backends.
   // It needs no Stage/Layer hit surfaces or device-DPR backing stores.
-  const scene = new Konva.Group();
+  const scene = new Group();
   try {
     const placement = {
       x: outW / 2,
@@ -222,7 +231,7 @@ export function renderExportScene(state: ExportScene, sourceImage: ExportImage, 
       scaleX: flipX,
       scaleY: flipY,
     };
-    const imageNode = new Konva.Image({
+    const imageNode = new KonvaImage({
       ...placement,
       image: filteredBase ?? sourceImage,
       width: baseW,
@@ -242,8 +251,8 @@ export function renderExportScene(state: ExportScene, sourceImage: ExportImage, 
       transform, state.originalWidth, state.originalHeight, outW, outH,
     );
     const annScale = annotationScale.x;
-    const transformGroup = new Konva.Group(placement);
-    const annotationGroup = new Konva.Group({
+    const transformGroup = new Group(placement);
+    const annotationGroup = new Group({
       x: -(crop?.x ?? 0) * annScale,
       y: -(crop?.y ?? 0) * annotationScale.y,
       scaleY: annotationScale.y / annScale,

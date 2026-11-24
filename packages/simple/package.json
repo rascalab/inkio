@@ -1,6 +1,6 @@
 {
   "name": "@inkio/simple",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "description": "Classic WYSIWYG entry point for Inkio",
   "license": "MIT",
   "homepage": "https://rascalab.github.io/inkio/",

@@ -1,4 +1,4 @@
-import { getCommentIds } from '../utils';
+import { read } from '@inkio/core';
 
 const commented = (commentId: string) => ({
   type: 'text',
@@ -6,18 +6,18 @@ const commented = (commentId: string) => ({
   marks: [{ type: 'bold' }, { type: 'comment', attrs: { commentId } }],
 });
 
-describe('getCommentIds', () => {
+describe('saved comment IDs', () => {
   it('lists each thread once, at any depth', () => {
-    expect(getCommentIds({
+    expect(read({
       type: 'doc',
       content: [
         { type: 'paragraph', content: [commented('a'), { type: 'text', text: 'plain' }, commented('a')] },
         { type: 'blockquote', content: [{ type: 'paragraph', content: [commented('b')] }] },
       ],
-    })).toEqual(['a', 'b']);
+    }).commentIds).toEqual(['a', 'b']);
   });
 
   it('finds nothing in a document without comments', () => {
-    expect(getCommentIds({ type: 'doc', content: [{ type: 'paragraph' }] })).toEqual([]);
+    expect(read({ type: 'doc', content: [{ type: 'paragraph' }] }).commentIds).toEqual([]);
   });
 });

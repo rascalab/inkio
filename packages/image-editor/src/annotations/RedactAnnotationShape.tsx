@@ -1,6 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { Image as KonvaImage } from 'react-konva';
-import Konva from 'konva';
+import { Image as KonvaImage } from 'react-konva/lib/ReactKonvaCore.js';
+import 'konva/lib/shapes/Image.js';
+import type KonvaTypes from 'konva';
+import { Blur } from 'konva/lib/filters/Blur.js';
+import { Pixelate } from 'konva/lib/filters/Pixelate.js';
 import type { RedactAnnotation } from '../types';
 import { useAnnotationShapeHandlers, type AnnotationShapeProps } from './use-annotation-shape-handlers';
 import { getRedactionCacheRatio } from '../utils/raster-limits';
@@ -10,12 +13,12 @@ interface Props extends AnnotationShapeProps<RedactAnnotation> {
 }
 
 function redactFilters(mode: RedactAnnotation['mode']) {
-  return mode === 'blur' ? [Konva.Filters.Blur] : [Konva.Filters.Pixelate];
+  return mode === 'blur' ? [Blur] : [Pixelate];
 }
 
 export function RedactAnnotationShape({ image, ...props }: Props) {
   const { annotation, scale } = props;
-  const handlers = useAnnotationShapeHandlers<Konva.Image>(props, (node) => {
+  const handlers = useAnnotationShapeHandlers<KonvaTypes.Image>(props, (node) => {
     const scaleXNode = node.scaleX();
     const scaleYNode = node.scaleY();
     node.scaleX(1);

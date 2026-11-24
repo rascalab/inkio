@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
 import { Search } from 'nextra/components';
 import { Layout, Navbar } from 'nextra-theme-docs';
-import { archiveSegment, currentRelease, getDocVersions } from './docs-versions';
+import { archiveSegment, getDocVersions } from './docs-versions';
 import DocsThemeSwitch from './DocsThemeSwitch';
 import DocsVersionSelect from './DocsVersionSelect';
 
@@ -39,7 +39,7 @@ export default async function DocsSite({ children, release }: { children: ReactN
           projectLink={repository}
         >
           {versions.length > 0 && (
-            <DocsVersionSelect release={release} currentRelease={currentRelease} currentPaths={currentPaths} versions={versions} />
+            <DocsVersionSelect release={release} currentPaths={currentPaths} versions={versions} />
           )}
           <DocsThemeSwitch />
         </Navbar>

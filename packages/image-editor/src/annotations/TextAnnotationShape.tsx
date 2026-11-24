@@ -1,5 +1,7 @@
 import { useRef, useCallback } from 'react';
-import { Group, Rect, Text } from 'react-konva';
+import { Group, Rect, Text } from 'react-konva/lib/ReactKonvaCore.js';
+import 'konva/lib/shapes/Rect.js';
+import 'konva/lib/shapes/Text.js';
 import type Konva from 'konva';
 import type { TextAnnotationData, Annotation } from '../types';
 import { handleCursorPointer, handleCursorDefault } from '../theme';

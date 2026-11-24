@@ -56,6 +56,28 @@ describe('loadImage', () => {
     await expect(loadImage(url)).rejects.toThrow(/^Failed to load image \(CORS and non-CORS requests failed\)$/);
   });
 
+  it('does not let a late timed-out request replace a successful retry in the cache', async () => {
+    vi.useFakeTimers();
+    const images: Array<{ onload?: () => void }> = [];
+    vi.stubGlobal('Image', class {
+      naturalWidth = 32;
+      naturalHeight = 24;
+      onload?: () => void;
+      constructor() { images.push(this); }
+    });
+    const url = '/late-retry.png';
+    const timeout = expect(loadImage(url)).rejects.toThrow(/Timed out/);
+    await vi.advanceTimersByTimeAsync(30_001);
+    await timeout;
+
+    const retry = loadImage(url);
+    images[1].onload?.();
+    const latest = await retry;
+    images[0].onload?.();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await loadImage(url)).toBe(latest);
+  });
+
   it('shares one fetch between concurrent loads of the same src', async () => {
     vi.useFakeTimers();
     const first = loadImage('http://x.test/shared.png');

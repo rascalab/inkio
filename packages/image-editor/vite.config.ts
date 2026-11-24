@@ -90,6 +90,7 @@ export default defineConfig(({ command }) => ({
         ? []
         : [
             { find: /^@inkio\/core\/icons$/, replacement: resolve(import.meta.dirname, '../core/src/icons/index.ts') },
+            { find: /^@inkio\/core\/ui$/, replacement: resolve(import.meta.dirname, '../core/src/ui.ts') },
             { find: /^@inkio\/core$/, replacement: resolve(import.meta.dirname, '../core/src/index.ts') },
           ]),
       { find: '@', replacement: resolve(import.meta.dirname, 'src') },

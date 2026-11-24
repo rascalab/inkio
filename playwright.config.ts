@@ -7,6 +7,7 @@ export default defineConfig({
   outputDir: 'test-results',
   fullyParallel: true,
   retries: process.env.CI ? 2 : 0,
+  failOnFlakyTests: true,
   reporter: 'line',
   // Pinned explicitly (equal to Playwright defaults): timeouts must be a
   // deliberate choice, and traces stay failure-only so passing runs leave

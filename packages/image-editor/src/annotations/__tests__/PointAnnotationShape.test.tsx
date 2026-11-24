@@ -29,7 +29,7 @@ let lineNode = createMutableNode({ x: 24, y: 12, scaleX: 2, scaleY: 1, rotation:
 let latestArrowProps: any = null;
 let latestLineProps: any = null;
 
-vi.mock('react-konva', async () => {
+vi.mock('react-konva/lib/ReactKonvaCore.js', async () => {
   const React = await import('react');
 
   return {

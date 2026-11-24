@@ -12,8 +12,10 @@ Inkio is a layered React rich-text editor family built on Tiptap.
   - toolbar-first, core-only default surface
 - `@inkio/advanced`
   - advanced extensions: slash command, block handle, mention, hashtag, wiki link, bookmark, comment UI
+- `@inkio/collab`
+  - realtime and offline Yjs document editing; `@inkio/collab/vite` optionally caches the app shell
 - `@inkio/image-editor`
-  - optional image editing UI for `ImageBlock`
+  - canvas image editor, standalone or integrated with `ImageBlock`
 - `@inkio/core`
   - low-level foundation package used internally by the higher-level packages
   - published, but not the recommended starting point for app developers
@@ -46,6 +48,8 @@ If app code imports `CommentPanel`, comment i18n, or other advanced exports dire
 npm install @inkio/advanced
 ```
 
+For Yjs collaboration, install `@inkio/collab` and its `@inkio/core` peer. See the [client and reference server recipe](./docs/content/recipes/yjs-collaboration.mdx).
+
 Inkio owns the Tiptap runtime packages it uses. Normal consumers only need to install the Inkio package they use plus the React peers.
 
 ## Quick Start
@@ -74,7 +78,7 @@ export function EditorPage() {
       hashtagItems={({ query }) => [
         { id: query || 'inkio', label: `#${query || 'inkio'}` },
       ]}
-      ui={{ showBubbleMenu: true, showFloatingMenu: true }}
+      ui={{ bubbleMenu: true, floatingMenu: true }}
     />
   );
 }
@@ -91,12 +95,13 @@ import '@inkio/image-editor/style.css';
 export function EditorWithImages() {
   return (
     <Editor
-      onImageUpload={async (file) => URL.createObjectURL(file)}
       imageBlock={{ imageEditor: ImageEditorModal }}
     />
   );
 }
 ```
+
+Without an upload handler Inkio embeds the image as a data URL. For persistent storage, provide `onImageUpload` and return a durable URL; a `blob:` URL stops working after the page closes.
 
 ## Markdown
 
@@ -106,12 +111,12 @@ Markdown lives in the package subpaths:
 - `@inkio/editor/markdown`
 - `@inkio/core/markdown`
 
-Supported round-trip scope is `core`. Advanced-only nodes degrade to plain text or HTML fallback.
+Core Markdown nodes support round trips. Advanced structures have [node-specific conversion rules](./docs/content/serialization.mdx). Register `Markdown` to read and write `editor.markdown` / `editor.setMarkdown(source)`; for standalone conversion, use the functions below.
 
 ```tsx
 import { parseMarkdown, stringifyMarkdown } from '@inkio/simple/markdown';
 
-const initialContent = parseMarkdown('## Hello\\n\\n- one\\n- two');
+const initialContent = parseMarkdown('## Hello\n\n- one\n- two');
 const markdown = stringifyMarkdown(initialContent);
 ```
 
@@ -145,4 +150,5 @@ Key examples:
 
 - `examples/basic-react` -> `@inkio/simple`
 - `examples/next-app-router` -> `@inkio/editor`
-- `examples/react-router` -> `@inkio/simple` with route-based edit/read views
+- `examples/react-router` -> route-based editing, offline app shell and authenticated collaboration
+- `examples/collab-server` -> run the local Hocuspocus server used by the collaboration recipes

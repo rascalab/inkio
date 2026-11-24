@@ -3,27 +3,31 @@ import {
   useCallback,
   useState,
   useEffect,
+  useEffectEvent,
+  useLayoutEffect,
   useMemo,
   useId,
   type KeyboardEvent,
   type CSSProperties,
 } from 'react';
-import { Stage } from 'react-konva';
-import { createId } from '@inkio/core';
+import { Layer, Stage } from 'react-konva/lib/ReactKonvaCore.js';
+import { createId } from '@inkio/core/ui';
 import type Konva from 'konva';
 import { useImageEditor } from '../hooks/use-image-editor';
 import { DesignLayer } from './DesignLayer';
+import { ImageNode } from './ImageNode';
 import { TransformersLayer } from './TransformersLayer';
 import { CropOverlay } from './CropOverlay';
 import { SelectionActionsOverlay } from './SelectionActionsOverlay';
 import { CanvasTextEditor } from './CanvasTextEditor';
-import type { Annotation, CropRect, ImageEditorLocale, ImageEditorState, TextAnnotationData } from '../types';
+import type { Annotation, ImageEditorLocale, ImageEditorState, TextAnnotationData } from '../types';
 import { DEFAULT_STICKER_SIZE } from '../constants';
 import {
   normalizeRect,
   getAnnotationScale,
   getTransformedDimensions,
   canvasSpaceToImageSpace,
+  getBaseDisplayDimensions,
   clampToRect,
   transformRect,
 } from '../utils/geometry';
@@ -31,14 +35,18 @@ import { isTransformerInteraction } from '../utils/konva-targets';
 import { TEXT_MIN_WIDTH } from '../utils/text-metrics';
 import { clampNumber } from '../utils/math';
 import { getPreviewScale } from '../utils/raster-limits';
+import {
+  areSameCropViewport,
+  areSameSourceCrop,
+  clampCropViewport,
+  planCropPlacement,
+  projectSourceCrop,
+  type CropGeometry,
+  type CropPlacement,
+  type CropViewport,
+} from './crop-viewport';
 
 const PREVIEW_ZOOM_WHEEL_FACTOR = 1.12;
-const CROP_ZOOM_MAX = 6;
-
-const STAGE_SHELL_STYLE: CSSProperties = {
-  position: 'absolute',
-  inset: 0,
-};
 
 interface EditorCanvasProps {
   containerWidth: number;
@@ -55,11 +63,7 @@ export interface CropScaleControl {
   set: (value: number) => void;
 }
 
-interface CropViewportState {
-  zoom: number;
-  panX: number;
-  panY: number;
-}
+const FIT_CROP_VIEWPORT: CropViewport = { zoom: 1, panX: 0, panY: 0 };
 
 const REST_OFFSET = { x: 0, y: 0 };
 const CROP_RETURN_MS = 180;
@@ -103,6 +107,16 @@ export function EditorCanvas({
   const cropReturnFrame = useRef(0);
   const cropOverscrollRef = useRef(REST_OFFSET);
   const [cropOverscroll, setCropOverscroll] = useState(REST_OFFSET);
+  const clearCropOverscroll = useCallback(() => {
+    if (cropReturnFrame.current) {
+      cancelAnimationFrame(cropReturnFrame.current);
+      cropReturnFrame.current = 0;
+    }
+    if (cropOverscrollRef.current !== REST_OFFSET) {
+      cropOverscrollRef.current = REST_OFFSET;
+      setCropOverscroll(REST_OFFSET);
+    }
+  }, []);
   const releaseCrop = useCallback(() => {
     cropPanStartRef.current = null;
     if (cropReturnFrame.current) return;
@@ -120,11 +134,16 @@ export function EditorCanvas({
     cropReturnFrame.current = requestAnimationFrame(animate);
   }, []);
   const annotationsRef = useRef(state.annotations);
-  annotationsRef.current = state.annotations;
+  useLayoutEffect(() => {
+    annotationsRef.current = state.annotations;
+  }, [state.annotations]);
 
-  const [stageSize, setStageSize] = useState({ width: containerWidth, height: containerHeight });
-  const [cropViewport, setCropViewport] = useState<CropViewportState>({ zoom: 1, panX: 0, panY: 0 });
-  const [cropViewportProjection, setCropViewportProjection] = useState<string | null>(null);
+  const stageSize = useMemo(
+    () => ({ width: containerWidth, height: containerHeight }),
+    [containerWidth, containerHeight],
+  );
+  const [cropInteraction, setCropInteraction] = useState<CropPlacement | null>(null);
+  const cropPlacementRef = useRef<CropPlacement | null>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
 
   // Drop pending drawing batches on unmount so the rAF callback never
@@ -158,96 +177,77 @@ export function EditorCanvas({
     state.outputSize,
   );
 
-  // Crop gestures use the rotated full-image viewport. Persisted crop
-  // rectangles remain in original-image coordinates in both directions.
-  const cropSessionBounds = useMemo(
-    () => ({
-      x: 0, y: 0,
-      ...getTransformedDimensions(
-        state.originalWidth, state.originalHeight, { ...state.transform, crop: null }, null,
-      ),
-    }),
-    [state.originalWidth, state.originalHeight, state.transform],
-  );
-  const sourceCrop = isCropMode ? state.pendingCrop : null;
   const { rotation, flipX, flipY } = state.transform;
+  const cropLayout = useMemo(() => ({
+    image: state.originalImage,
+    imageWidth: state.originalWidth,
+    imageHeight: state.originalHeight,
+    rotation,
+    flipX,
+    flipY,
+    stageWidth: stageSize.width,
+    stageHeight: stageSize.height,
+  }), [state.originalImage, state.originalWidth, state.originalHeight, rotation, flipX, flipY,
+    stageSize]);
+  const sourceCrop = isCropMode ? state.pendingCrop : null;
   const targetCrop = useMemo(() => sourceCrop ? transformRect(
     sourceCrop, state.originalWidth, state.originalHeight, rotation, flipX, flipY,
   ) : null, [sourceCrop, state.originalWidth, state.originalHeight, rotation, flipX, flipY]);
-  const targetCropSignature = sourceCrop ? serializeCrop(sourceCrop) : '';
-  const cropAspectRatio = state.cropOptions.aspectRatio
-    ?? (targetCrop && targetCrop.height > 0 ? targetCrop.width / targetCrop.height : 1);
-
-  const cropFitScale =
-    cropSessionBounds.width > 0 && cropSessionBounds.height > 0
-      ? Math.min(stageSize.width / cropSessionBounds.width, stageSize.height / cropSessionBounds.height,
-        getPreviewScale(cropSessionBounds.width, cropSessionBounds.height))
-      : 1;
-
-  const cropFitBounds = useMemo(
-    () => ({
-      x: (stageSize.width - cropSessionBounds.width * cropFitScale) / 2,
-      y: (stageSize.height - cropSessionBounds.height * cropFitScale) / 2,
-      width: cropSessionBounds.width * cropFitScale,
-      height: cropSessionBounds.height * cropFitScale,
-    }),
-    [cropFitScale, cropSessionBounds, stageSize],
-  );
-
-  const cropFrame = useMemo(
-    () => (isCropMode && stageSize.width > 0 && stageSize.height > 0
-      ? getCropFrameRect(cropFitBounds, cropAspectRatio)
-      : null),
-    [cropAspectRatio, cropFitBounds, isCropMode, stageSize.height, stageSize.width],
-  );
-
-  // The largest inscribed aperture touches a fit edge, so any lower scale
-  // would leave part of it uncovered. Keep the existing raster ceiling.
-  const cropMaxZoom = cropFrame ? getCropZoomLimit(cropSessionBounds, cropFitScale) : 1;
-
-  const projection = cropFrame && targetCrop
-    ? [
-      stageSize.width,
-      stageSize.height,
-      cropFitScale,
-      cropMaxZoom,
-      serializeCrop(cropSessionBounds),
-      serializeCrop(cropFrame),
-      serializeCrop(targetCrop),
-    ].join('|')
-    : null;
-
-  // A crop is stored in image coordinates. Reproject it before committing a
-  // render with new layout geometry, so the old viewport cannot overwrite it.
-  if (projection !== cropViewportProjection) {
-    setCropViewportProjection(projection);
-    if (cropFrame && targetCrop) {
-      const next = buildCropViewportFromCrop(
-        cropSessionBounds, targetCrop, cropFrame,
-        stageSize.width, stageSize.height, cropFitScale, cropMaxZoom,
-      );
-      setCropViewport(next);
+  const cropPlacement = useMemo(() => {
+    if (!sourceCrop) return null;
+    // Keep the viewport that produced our own crop. Only a new source draft
+    // or layout (including rotation, flip or preset) needs a forward projection.
+    if (cropInteraction?.geometry.layout === cropLayout && areSameSourceCrop(cropInteraction.crop, sourceCrop)) {
+      return cropInteraction;
     }
+    return planCropPlacement(cropLayout, sourceCrop);
+  }, [cropInteraction, cropLayout, sourceCrop]);
+  const cropGeometry = cropPlacement?.geometry;
+  const cropFrame = cropGeometry?.frame;
+  const resolvedCropViewport = cropPlacement?.viewport ?? FIT_CROP_VIEWPORT;
+
+  let displayScale: number;
+  if (cropGeometry) {
+    displayScale = cropGeometry.fitScale * resolvedCropViewport.zoom;
+  } else {
+    const rasterScale = getPreviewScale(workingDimensions.width, workingDimensions.height);
+    const fitScale = workingDimensions.width > 0 && workingDimensions.height > 0
+      ? Math.min(stageSize.width / workingDimensions.width, stageSize.height / workingDimensions.height, rasterScale)
+      : 1;
+    displayScale = Math.min(fitScale * previewZoom, rasterScale);
   }
 
-  const resolvedCropViewport = cropFrame
-    ? clampCropViewport(cropViewport, cropFrame, cropSessionBounds, stageSize.width, stageSize.height, cropFitScale, cropMaxZoom)
-    : cropViewport;
-  const scaleToFit = isCropMode
-    ? cropFitScale * resolvedCropViewport.zoom
-    : (
-      workingDimensions.width > 0 && workingDimensions.height > 0
-        ? Math.min(stageSize.width / workingDimensions.width, stageSize.height / workingDimensions.height,
-          getPreviewScale(workingDimensions.width, workingDimensions.height))
-        : 1
-    ) * previewZoom;
-  const displayScale = isCropMode ? scaleToFit : Math.min(scaleToFit,
-    getPreviewScale(workingDimensions.width, workingDimensions.height));
-
-  const displayBaseWidth = isCropMode ? cropSessionBounds.width : workingDimensions.width;
-  const displayBaseHeight = isCropMode ? cropSessionBounds.height : workingDimensions.height;
+  const displayBaseWidth = cropGeometry?.boundsWidth ?? workingDimensions.width;
+  const displayBaseHeight = cropGeometry?.boundsHeight ?? workingDimensions.height;
   const displayWidth = displayBaseWidth * displayScale;
   const displayHeight = displayBaseHeight * displayScale;
+  // Rotate the photo as one surface. Annotations keep an independent stage
+  // in display coordinates so their pointer targets stay aligned.
+  let rasterWidth = displayWidth;
+  let rasterHeight = displayHeight;
+  let rotationTransform: string | undefined;
+  const rotating = state.activeTool === 'rotate' && displayWidth > 0 && displayHeight > 0;
+  if (rotating) {
+    const base = getBaseDisplayDimensions(workingDimensions.width, workingDimensions.height, rotation);
+    const scale = Math.min(getPreviewScale(base.width, base.height),
+      previewZoom * Math.max(stageSize.width, stageSize.height) / Math.max(base.width, base.height));
+    rasterWidth = base.width * scale;
+    rasterHeight = base.height * scale;
+    const fit = displayScale / scale;
+    rotationTransform = `translate(-50%, -50%) rotate(${rotation}deg) scale(${flipX ? -fit : fit}, ${flipY ? -fit : fit})`;
+  }
+  const { originalImage, filter, finetune } = state;
+  const { crop } = renderedTransform;
+  const flat = useMemo(() => ({ rotation: 0, flipX: false, flipY: false, crop }), [crop]);
+  const photoTransform = rotating ? flat : renderedTransform;
+  const photo = useMemo(() => {
+    if (!originalImage) return null;
+    const node = <ImageNode image={originalImage} displayWidth={rasterWidth} displayHeight={rasterHeight}
+      transform={photoTransform} filter={filter} finetune={finetune} />;
+    return rotating ? <Stage width={rasterWidth} height={rasterHeight} listening={false}>
+      <Layer listening={false}>{node}</Layer>
+    </Stage> : node;
+  }, [rotating, originalImage, rasterWidth, rasterHeight, photoTransform, filter, finetune]);
 
   const centeredOffsetX = (stageSize.width - displayWidth) / 2;
   const centeredOffsetY = (stageSize.height - displayHeight) / 2;
@@ -272,114 +272,84 @@ export function EditorCanvas({
     && state.selectedAnnotationId === editingTextId ? editingAnnotation : null;
   const visibleSelectedAnnotationId = isCropMode ? null : state.selectedAnnotationId;
 
-  useEffect(() => {
-    if (containerWidth > 0 && containerHeight > 0) {
-      setStageSize({ width: containerWidth, height: containerHeight });
+  const { updateCropViewport, zoomCropViewportAt, reprojectCropViewport } = useMemo(() => {
+    function setCropScale(value: number) {
+      zoomCropViewportAt(() => value);
     }
-  }, [containerHeight, containerWidth]);
 
-  const updateCropViewport = useCallback((recipe: (previous: CropViewportState) => CropViewportState) => {
-    setCropViewport((previous) => {
-      if (!cropFrame) {
-        return previous;
+    function publishScale(placement: CropPlacement | null) {
+      onCropScaleChange(placement ? {
+        value: placement.viewport.zoom,
+        min: 1,
+        max: placement.geometry.maxZoom,
+        set: setCropScale,
+      } : null);
+    }
+
+    function commitCropViewport(placement: CropPlacement, viewport: CropViewport) {
+      const crop = projectSourceCrop(placement.geometry, viewport);
+      if (areSameSourceCrop(placement.crop, crop)) return;
+
+      // The viewport, draft, dimensions and scale control advance together.
+      // The ref also lets successive events accumulate before React renders.
+      const next = { geometry: placement.geometry, viewport, crop };
+      cropPlacementRef.current = next;
+      setCropInteraction(next);
+      dispatch({ type: 'SET_PENDING_CROP', crop });
+      if (viewport.zoom !== placement.viewport.zoom) publishScale(next);
+    }
+
+    function updateCropViewport(recipe: (viewport: CropViewport, geometry: CropGeometry) => CropViewport) {
+      const placement = cropPlacementRef.current;
+      if (!placement) return null;
+      const next = clampCropViewport(placement.geometry, recipe(placement.viewport, placement.geometry));
+      if (!areSameCropViewport(placement.viewport, next)) commitCropViewport(placement, next);
+      return next;
+    }
+
+    function zoomCropViewportAt(getZoom: (current: number) => number, anchorX?: number, anchorY?: number) {
+      updateCropViewport((previous, { maxZoom, layout: { stageWidth, stageHeight } }) => {
+        const zoom = clampNumber(getZoom(previous.zoom), 1, maxZoom);
+        if (previous.zoom === zoom) return previous;
+
+        // Preserve the point under the pointer (or aperture center for the
+        // ruler and keyboard). Pan is relative to the workspace center.
+        const x = (anchorX ?? stageWidth / 2) - stageWidth / 2;
+        const y = (anchorY ?? stageHeight / 2) - stageHeight / 2;
+        const ratio = zoom / previous.zoom;
+        return {
+          zoom,
+          panX: x - (x - previous.panX) * ratio,
+          panY: y - (y - previous.panY) * ratio,
+        };
+      });
+    }
+
+    function reprojectCropViewport(placement: CropPlacement | null) {
+      const previous = cropPlacementRef.current;
+      if (previous === placement) return; // No echo for a gesture's own commit.
+      cropPlacementRef.current = placement;
+      cropPanStartRef.current = null;
+      clearCropOverscroll();
+
+      // Reprojection changes only the preview, never the draft it represents.
+      if (previous?.viewport.zoom !== placement?.viewport.zoom
+        || previous?.geometry.maxZoom !== placement?.geometry.maxZoom) {
+        publishScale(placement);
       }
-
-      const next = clampCropViewport(
-        recipe(previous),
-        cropFrame,
-        cropSessionBounds,
-        stageSize.width,
-        stageSize.height,
-        cropFitScale,
-        cropMaxZoom,
-      );
-
-      return areCropViewportsEqual(previous, next) ? previous : next;
-    });
-  }, [
-    cropFitScale,
-    cropFrame,
-    cropMaxZoom,
-    cropSessionBounds,
-    stageSize.height,
-    stageSize.width,
-  ]);
-
-  useEffect(() => {
-    if (!isCropMode || !cropFrame) {
-      return;
     }
 
-    const viewportCrop = getCropRectFromViewport(
-      cropSessionBounds,
-      cropFrame,
-      stageSize.width,
-      stageSize.height,
-      cropFitScale,
-      resolvedCropViewport,
-    );
-    const nextCrop = transformRect(
-      viewportCrop, state.originalWidth, state.originalHeight,
-      state.transform.rotation, state.transform.flipX, state.transform.flipY, true,
-    );
-    const nextSignature = serializeCrop(nextCrop);
-    if (targetCropSignature === nextSignature) {
-      return;
-    }
+    return { updateCropViewport, zoomCropViewportAt, reprojectCropViewport };
+  }, [clearCropOverscroll, dispatch, onCropScaleChange]);
 
-    dispatch({ type: 'SET_PENDING_CROP', crop: nextCrop });
-  }, [
-    cropFitScale,
-    cropFrame,
-    cropSessionBounds,
-    dispatch,
-    isCropMode,
-    resolvedCropViewport,
-    state.originalWidth,
-    state.originalHeight,
-    state.transform.rotation,
-    state.transform.flipX,
-    state.transform.flipY,
-    stageSize.height,
-    stageSize.width,
-    targetCropSignature,
-  ]);
+  useLayoutEffect(() => {
+    reprojectCropViewport(cropPlacement);
+  }, [cropPlacement, reprojectCropViewport]);
 
-  const zoomCropViewportAt = useCallback((
-    getZoom: (current: number) => number,
-    anchorX: number,
-    anchorY: number,
-  ) => {
-    const x = anchorX - stageSize.width / 2;
-    const y = anchorY - stageSize.height / 2;
-    updateCropViewport((previous) => {
-      const zoom = clampNumber(getZoom(previous.zoom), 1, cropMaxZoom);
-      if (previous.zoom === zoom) return previous;
-
-      // Preserve the image point under the anchor as its distance from the
-      // image center scales. Pan remains relative to the workspace center.
-      const ratio = zoom / previous.zoom;
-      return {
-        zoom,
-        panX: x - (x - previous.panX) * ratio,
-        panY: y - (y - previous.panY) * ratio,
-      };
-    });
-  }, [cropMaxZoom, stageSize.height, stageSize.width, updateCropViewport]);
-
-  const setCropScale = useCallback((value: number) => {
-    // The aperture is always centered in the workspace.
-    zoomCropViewportAt(() => value, stageSize.width / 2, stageSize.height / 2);
-  }, [stageSize.height, stageSize.width, zoomCropViewportAt]);
-
-  const cropScaleValue = cropFrame ? resolvedCropViewport.zoom : null;
-  useEffect(() => {
-    onCropScaleChange(cropScaleValue === null
-      ? null
-      : { value: cropScaleValue, min: 1, max: cropMaxZoom, set: setCropScale });
-  }, [cropMaxZoom, cropScaleValue, onCropScaleChange, setCropScale]);
-
-  useEffect(() => () => onCropScaleChange(null), [onCropScaleChange]);
+  useLayoutEffect(() => () => {
+    cropPlacementRef.current = null;
+    onCropScaleChange(null);
+  }, [onCropScaleChange]);
 
   const clampStagePoint = useCallback(
     (pos: { x: number; y: number }) =>
@@ -533,7 +503,8 @@ export function EditorCanvas({
     }
 
     if (!isDrawing.current) return;
-    isDrawing.current = false;
+    // Browsers can coalesce moves; size the shape at the release point.
+    if (pos && state.activeTool !== 'draw') updateDrawingPoint(pos);
 
     if (rafId.current) {
       cancelAnimationFrame(rafId.current);
@@ -561,8 +532,7 @@ export function EditorCanvas({
         : committed;
       let tooSmall = false;
       if (annotation) {
-        if (annotation.type === 'rect' && annotation.width < 3 && annotation.height < 3) tooSmall = true;
-        if (annotation.type === 'redact' && annotation.width < 3 && annotation.height < 3) tooSmall = true;
+        if (annotation.type === 'rect' || annotation.type === 'redact') tooSmall = annotation.width < 3 && annotation.height < 3;
         if (annotation.type === 'ellipse' && annotation.radiusX < 2 && annotation.radiusY < 2) tooSmall = true;
       }
 
@@ -574,7 +544,7 @@ export function EditorCanvas({
     }
 
     resetDrawing();
-  }, [dispatch, flushShapeUpdate, resetDrawing, state.activeTool, state.textOptions]);
+  }, [dispatch, flushShapeUpdate, resetDrawing, state.activeTool, state.textOptions, updateDrawingPoint]);
 
   const placeSticker = useCallback((pos: { x: number; y: number }) => {
     dispatch({
@@ -589,6 +559,8 @@ export function EditorCanvas({
 
   const handleMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     if (isTransformerInteraction(e.target)) return;
+    // Keep the browser's mousedown default from moving focus back off the workspace.
+    if (e.evt.type === 'mousedown') e.evt.preventDefault();
     workspaceRef.current?.focus({ preventScroll: true });
     if (editingText) {
       dispatch({ type: 'SELECT_ANNOTATION', id: null });
@@ -600,16 +572,14 @@ export function EditorCanvas({
       const clientX = 'touches' in nativeEvent ? nativeEvent.touches[0]?.clientX : nativeEvent.clientX;
       const clientY = 'touches' in nativeEvent ? nativeEvent.touches[0]?.clientY : nativeEvent.clientY;
 
-      if (typeof clientX === 'number' && typeof clientY === 'number') {
-        cancelAnimationFrame(cropReturnFrame.current);
-        cropReturnFrame.current = 0;
-        cropOverscrollRef.current = REST_OFFSET;
-        setCropOverscroll(REST_OFFSET);
+      const viewport = cropPlacementRef.current?.viewport;
+      if (viewport && typeof clientX === 'number' && typeof clientY === 'number') {
+        clearCropOverscroll();
         cropPanStartRef.current = {
           clientX,
           clientY,
-          panX: resolvedCropViewport.panX,
-          panY: resolvedCropViewport.panY,
+          panX: viewport.panX,
+          panY: viewport.panY,
           elastic: !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
         };
       }
@@ -660,6 +630,7 @@ export function EditorCanvas({
     }
     dispatch({ type: 'ADD_ANNOTATION', annotation: createMark(activeTool, state, id, pos), preview: true });
   }, [
+    clearCropOverscroll,
     dispatch,
     editingText,
     getRelativePos,
@@ -667,8 +638,6 @@ export function EditorCanvas({
     liveAnnotationScale,
     resetDrawing,
     placeSticker,
-    resolvedCropViewport.panX,
-    resolvedCropViewport.panY,
     state,
   ]);
 
@@ -686,94 +655,74 @@ export function EditorCanvas({
     finishDrawing(getRelativePos());
   }, [finishDrawing, getRelativePos, isCropMode]);
 
-  useEffect(() => {
-    const handleDocumentMove = (event: MouseEvent | TouchEvent) => {
-      if (cropPanStartRef.current && cropFrame) {
-        const clientX = 'touches' in event ? event.touches[0]?.clientX : event.clientX;
-        const clientY = 'touches' in event ? event.touches[0]?.clientY : event.clientY;
-        if (typeof clientX !== 'number' || typeof clientY !== 'number') {
-          return;
-        }
+  const handleDocumentMove = useEffectEvent((event: MouseEvent | TouchEvent) => {
+    const cropStart = cropPanStartRef.current;
+    if (!cropStart && !isDrawing.current) return;
 
-        const cropStart = cropPanStartRef.current;
-        const panX = cropStart.panX + (clientX - cropStart.clientX);
-        const panY = cropStart.panY + (clientY - cropStart.clientY);
-        const bounded = clampCropViewport({ zoom: resolvedCropViewport.zoom, panX, panY }, cropFrame,
-          cropSessionBounds, stageSize.width, stageSize.height, cropFitScale, cropMaxZoom);
-        setCropViewport((previous) => areCropViewportsEqual(previous, bounded) ? previous : bounded);
-        if (cropStart.elastic) {
-          const dx = panX - bounded.panX;
-          const dy = panY - bounded.panY;
-          const next = dx || dy
-            ? {
-              x: (MAX_CROP_OVERSCROLL * dx) / (64 + Math.abs(dx)),
-              y: (MAX_CROP_OVERSCROLL * dy) / (64 + Math.abs(dy)),
-            }
-            : REST_OFFSET;
-          if (cropOverscrollRef.current.x !== next.x || cropOverscrollRef.current.y !== next.y) {
-            cropOverscrollRef.current = next;
-            setCropOverscroll(next);
+    const clientX = 'touches' in event ? event.touches[0]?.clientX : event.clientX;
+    const clientY = 'touches' in event ? event.touches[0]?.clientY : event.clientY;
+    if (typeof clientX !== 'number' || typeof clientY !== 'number') return;
+
+    if (cropStart) {
+      const panX = cropStart.panX + (clientX - cropStart.clientX);
+      const panY = cropStart.panY + (clientY - cropStart.clientY);
+      const bounded = updateCropViewport(({ zoom }) => ({ zoom, panX, panY }));
+      if (bounded && cropStart.elastic) {
+        const dx = panX - bounded.panX;
+        const dy = panY - bounded.panY;
+        const next = dx || dy
+          ? {
+            x: (MAX_CROP_OVERSCROLL * dx) / (64 + Math.abs(dx)),
+            y: (MAX_CROP_OVERSCROLL * dy) / (64 + Math.abs(dy)),
           }
+          : REST_OFFSET;
+        if (cropOverscrollRef.current.x !== next.x || cropOverscrollRef.current.y !== next.y) {
+          cropOverscrollRef.current = next;
+          setCropOverscroll(next);
         }
-        return;
       }
+      return;
+    }
 
-      if (!isDrawing.current) {
-        return;
-      }
+    const pos = getRelativePosFromClient(clientX, clientY);
+    if (pos) updateDrawingPoint(pos);
+  });
 
-      const clientX = 'touches' in event ? event.touches[0]?.clientX : event.clientX;
-      const clientY = 'touches' in event ? event.touches[0]?.clientY : event.clientY;
-      if (typeof clientX !== 'number' || typeof clientY !== 'number') {
-        return;
-      }
+  const handleDocumentUp = useEffectEvent((event: MouseEvent | TouchEvent) => {
+    if (cropPanStartRef.current) releaseCrop();
+    if (!isDrawing.current || isCropMode) return;
 
-      const pos = getRelativePosFromClient(clientX, clientY);
-      if (!pos) {
-        return;
-      }
+    const changedTouch = 'changedTouches' in event ? event.changedTouches[0] : undefined;
+    const clientX = changedTouch?.clientX ?? ('clientX' in event ? event.clientX : undefined);
+    const clientY = changedTouch?.clientY ?? ('clientY' in event ? event.clientY : undefined);
+    const pos =
+      typeof clientX === 'number' && typeof clientY === 'number'
+        ? getRelativePosFromClient(clientX, clientY)
+        : null;
 
-      updateDrawingPoint(pos);
-    };
+    finishDrawing(pos);
+  });
 
-    const handleDocumentUp = (event: MouseEvent | TouchEvent) => {
-      if (cropPanStartRef.current) releaseCrop();
-
-      if (!isDrawing.current || isCropMode) {
-        return;
-      }
-
-      const changedTouch = 'changedTouches' in event ? event.changedTouches[0] : undefined;
-      const clientX = changedTouch?.clientX ?? ('clientX' in event ? event.clientX : undefined);
-      const clientY = changedTouch?.clientY ?? ('clientY' in event ? event.clientY : undefined);
-      const pos =
-        typeof clientX === 'number' && typeof clientY === 'number'
-          ? getRelativePosFromClient(clientX, clientY)
-          : null;
-
-      finishDrawing(pos);
-    };
-
-    document.addEventListener('mousemove', handleDocumentMove);
-    document.addEventListener('mouseup', handleDocumentUp);
-    // Passive so page/panel scroll stays smooth on mobile: this handler never
-    // calls preventDefault (see the non-passive workspace touchmove below
-    // that only intercepts while actively drawing).
-    document.addEventListener('touchmove', handleDocumentMove, { passive: true });
-    document.addEventListener('touchend', handleDocumentUp);
+  useEffect(() => {
+    const onMove = (event: MouseEvent | TouchEvent) => handleDocumentMove(event);
+    const onUp = (event: MouseEvent | TouchEvent) => handleDocumentUp(event);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    // Passive: only the workspace's touchmove below intercepts active strokes.
+    document.addEventListener('touchmove', onMove, { passive: true });
+    document.addEventListener('touchend', onUp);
     document.addEventListener('touchcancel', releaseCrop);
     window.addEventListener('blur', releaseCrop);
 
     return () => {
-      document.removeEventListener('mousemove', handleDocumentMove);
-      document.removeEventListener('mouseup', handleDocumentUp);
-      document.removeEventListener('touchmove', handleDocumentMove);
-      document.removeEventListener('touchend', handleDocumentUp);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
       document.removeEventListener('touchcancel', releaseCrop);
       window.removeEventListener('blur', releaseCrop);
     };
-  }, [cropFitScale, cropFrame, cropMaxZoom, cropSessionBounds, finishDrawing, getRelativePosFromClient, isCropMode,
-    releaseCrop, resolvedCropViewport.zoom, stageSize.height, stageSize.width, updateDrawingPoint]);
+  }, [releaseCrop]);
 
   const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     if (isCropMode) {
@@ -799,11 +748,10 @@ export function EditorCanvas({
     state.activeTool === 'draw' || state.activeTool === 'shape' || state.activeTool === 'redact';
 
   const stageFrameStyle: CSSProperties = {
-    position: 'absolute',
-    left: `${offsetX}px`,
-    top: `${offsetY}px`,
-    width: `${displayWidth}px`,
-    height: `${displayHeight}px`,
+    left: offsetX,
+    top: offsetY,
+    width: displayWidth,
+    height: displayHeight,
     // Drag-gesture tools take over touch; otherwise let the browser scroll.
     touchAction: isCropMode || isDrawGestureTool ? 'none' : 'pan-x pan-y',
     cursor: isCropMode
@@ -815,7 +763,7 @@ export function EditorCanvas({
           : 'default',
   };
 
-  const handleWheel = useCallback((event: WheelEvent) => {
+  const handleWheel = useEffectEvent((event: WheelEvent) => {
     const node = workspaceRef.current;
     if (!node || event.defaultPrevented || event.shiftKey || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
       return;
@@ -841,7 +789,7 @@ export function EditorCanvas({
     }
 
     onPreviewZoomFactor(factor);
-  }, [cropFrame, isCropMode, onPreviewZoomFactor, zoomCropViewportAt]);
+  });
 
   // Attach the wheel handler natively (non-passive) instead of via React's onWheel:
   // synthetic wheel events do not reliably reach handlers inside the dialog portal,
@@ -852,9 +800,10 @@ export function EditorCanvas({
       return;
     }
 
-    node.addEventListener('wheel', handleWheel, { passive: false });
-    return () => node.removeEventListener('wheel', handleWheel);
-  }, [handleWheel]);
+    const onWheel = (event: WheelEvent) => handleWheel(event);
+    node.addEventListener('wheel', onWheel, { passive: false });
+    return () => node.removeEventListener('wheel', onWheel);
+  }, []);
 
   // Scroll-vs-draw branching for touch: intercept scrolling only while a
   // stroke is in progress so plain panel/page scroll stays native + smooth.
@@ -886,7 +835,6 @@ export function EditorCanvas({
       if (shiftKey) {
         zoomCropViewportAt(
           (zoom) => (dx || -dy) > 0 ? zoom * PREVIEW_ZOOM_WHEEL_FACTOR : zoom / PREVIEW_ZOOM_WHEEL_FACTOR,
-          cropFrame.x + cropFrame.width / 2, cropFrame.y + cropFrame.height / 2,
         );
       } else {
         updateCropViewport((previous) => ({
@@ -959,6 +907,7 @@ export function EditorCanvas({
           event.preventDefault();
         } else if (event.target === event.currentTarget
           || (event.target instanceof Element && event.target.matches('.inkio-ie-stage-shell, .inkio-ie-stage-frame'))) {
+          event.preventDefault();
           event.currentTarget.focus({ preventScroll: true });
         }
       }}
@@ -981,7 +930,7 @@ export function EditorCanvas({
             ? `${getAnnotationName(selected, locale)}, ${state.annotations.indexOf(selected) + 1} / ${state.annotations.length}`
             : null}
       </span>
-      <div className="inkio-ie-stage-shell" style={STAGE_SHELL_STYLE}>
+      <div className="inkio-ie-stage-shell">
         <div
           className="inkio-ie-stage-frame"
           style={stageFrameStyle}
@@ -996,7 +945,8 @@ export function EditorCanvas({
             width: cropAperture.width,
             height: cropAperture.height,
           }} />
-          <Stage
+          {rotating && <div className="inkio-ie-rotation-raster" style={{ transform: rotationTransform }}>{photo}</div>}
+          {(!rotating || state.annotations.length > 0) && <Stage
             ref={stageRef}
             width={displayWidth}
             height={displayHeight}
@@ -1011,7 +961,7 @@ export function EditorCanvas({
           >
             <DesignLayer
               state={state}
-              transform={isCropMode ? renderedTransform : state.transform}
+              transform={renderedTransform}
               displayWidth={displayWidth}
               displayHeight={displayHeight}
               onSelectAnnotation={handleSelectAnnotation}
@@ -1020,12 +970,14 @@ export function EditorCanvas({
               editingTextId={editingText?.id}
               cropAperture={cropAperture}
               onEditText={setEditingTextId}
-            />
+            >
+              {!rotating && photo}
+            </DesignLayer>
             <TransformersLayer
               selectedAnnotationId={visibleSelectedAnnotationId}
               stageRef={stageRef}
             />
-          </Stage>
+          </Stage>}
           {editingText && (
             <CanvasTextEditor
               annotation={editingText}
@@ -1037,7 +989,7 @@ export function EditorCanvas({
           )}
         </div>
 
-        {!editingText && !isCropMode && <SelectionActionsOverlay
+        {selected && !editingText && !isCropMode && <SelectionActionsOverlay
           stage={stageRef.current}
           containerWidth={stageSize.width}
           containerHeight={stageSize.height}
@@ -1097,121 +1049,3 @@ function getAnnotationName(annotation: Annotation, locale: ImageEditorLocale): s
   }
 }
 
-function serializeCrop(crop: CropRect): string {
-  return [crop.x, crop.y, crop.width, crop.height].map((value) => value.toFixed(3)).join(':');
-}
-
-function getCropFrameRect(imageBounds: CropRect, aspectRatio: number): CropRect {
-  const maxWidth = imageBounds.width;
-  const maxHeight = imageBounds.height;
-  const ratio = Number.isFinite(aspectRatio) && aspectRatio > 0 ? aspectRatio : 1;
-
-  let width = maxWidth;
-  let height = width / ratio;
-  if (height > maxHeight) {
-    height = maxHeight;
-    width = height * ratio;
-  }
-
-  return {
-    x: imageBounds.x + (imageBounds.width - width) / 2,
-    y: imageBounds.y + (imageBounds.height - height) / 2,
-    width,
-    height,
-  };
-}
-
-function getCropZoomLimit(bounds: CropRect, fitScale: number): number {
-  return Math.min(CROP_ZOOM_MAX, getPreviewScale(bounds.width, bounds.height) / fitScale);
-}
-
-function clampCropViewport(
-  viewport: CropViewportState,
-  frame: CropRect,
-  bounds: CropRect,
-  stageWidth: number,
-  stageHeight: number,
-  fitScale: number,
-  maxZoom: number,
-): CropViewportState {
-  const zoom = clampNumber(viewport.zoom, 1, maxZoom);
-  const scale = fitScale * zoom;
-  const displayWidth = bounds.width * scale;
-  const displayHeight = bounds.height * scale;
-  const centeredLeft = (stageWidth - displayWidth) / 2;
-  const centeredTop = (stageHeight - displayHeight) / 2;
-  const minPanX = frame.x + frame.width - centeredLeft - displayWidth;
-  const maxPanX = frame.x - centeredLeft;
-  const minPanY = frame.y + frame.height - centeredTop - displayHeight;
-  const maxPanY = frame.y - centeredTop;
-
-  return {
-    zoom,
-    panX: displayWidth <= frame.width ? (minPanX + maxPanX) / 2 : clampNumber(viewport.panX, minPanX, maxPanX),
-    panY: displayHeight <= frame.height ? (minPanY + maxPanY) / 2 : clampNumber(viewport.panY, minPanY, maxPanY),
-  };
-}
-
-function buildCropViewportFromCrop(
-  bounds: CropRect,
-  crop: CropRect,
-  frame: CropRect,
-  stageWidth: number,
-  stageHeight: number,
-  fitScale: number,
-  maxZoom: number,
-): CropViewportState {
-  const rawScale = Math.max(frame.width / Math.max(crop.width, 1), frame.height / Math.max(crop.height, 1));
-  const zoom = clampNumber(rawScale / fitScale, 1, maxZoom);
-  const scale = fitScale * zoom;
-  const displayWidth = bounds.width * scale;
-  const displayHeight = bounds.height * scale;
-  const imageLeft = frame.x - ((crop.x - bounds.x) * scale);
-  const imageTop = frame.y - ((crop.y - bounds.y) * scale);
-
-  return clampCropViewport(
-    {
-      zoom,
-      panX: imageLeft - ((stageWidth - displayWidth) / 2),
-      panY: imageTop - ((stageHeight - displayHeight) / 2),
-    },
-    frame,
-    bounds,
-    stageWidth,
-    stageHeight,
-    fitScale,
-    maxZoom,
-  );
-}
-
-function getCropRectFromViewport(
-  bounds: CropRect,
-  frame: CropRect,
-  stageWidth: number,
-  stageHeight: number,
-  fitScale: number,
-  viewport: CropViewportState,
-): CropRect {
-  const scale = fitScale * viewport.zoom;
-  const displayWidth = bounds.width * scale;
-  const displayHeight = bounds.height * scale;
-  const left = ((stageWidth - displayWidth) / 2) + viewport.panX;
-  const top = ((stageHeight - displayHeight) / 2) + viewport.panY;
-  const width = Math.min(bounds.width, frame.width / scale);
-  const height = Math.min(bounds.height, frame.height / scale);
-
-  return {
-    x: clampNumber(bounds.x + ((frame.x - left) / scale), bounds.x, bounds.x + bounds.width - width),
-    y: clampNumber(bounds.y + ((frame.y - top) / scale), bounds.y, bounds.y + bounds.height - height),
-    width,
-    height,
-  };
-}
-
-function areCropViewportsEqual(a: CropViewportState, b: CropViewportState): boolean {
-  return (
-    Math.abs(a.zoom - b.zoom) < 0.0001
-    && Math.abs(a.panX - b.panX) < 0.01
-    && Math.abs(a.panY - b.panY) < 0.01
-  );
-}

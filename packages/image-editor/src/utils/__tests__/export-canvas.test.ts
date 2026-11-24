@@ -1,4 +1,4 @@
-import Konva from 'konva';
+import { Util } from 'konva/lib/Util.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createInitialState } from '../../reducer';
 import {
@@ -91,7 +91,7 @@ describe('save preview', () => {
     const fullCanvas = { width: 3000, height: 4000 } as HTMLCanvasElement;
     const drawImage = vi.fn();
     const previewCanvas = { width: 0, height: 0, getContext: () => ({ drawImage }) } as unknown as HTMLCanvasElement;
-    vi.spyOn(Konva.Util, 'createCanvasElement').mockReturnValue(previewCanvas);
+    vi.spyOn(Util, 'createCanvasElement').mockReturnValue(previewCanvas);
     const full = new Blob(['original bytes'], { type: 'image/png' });
     const preview = new Blob(['preview bytes'], { type: 'image/png' });
 

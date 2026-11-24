@@ -1,5 +1,5 @@
 import React from 'react';
-import { SuggestionProps, SuggestionKeyDownProps, type SuggestionOptions } from '@tiptap/suggestion';
+import { exitSuggestion, type SuggestionProps, type SuggestionKeyDownProps, type SuggestionOptions } from '@tiptap/suggestion';
 import { SuggestionList, SuggestionItem, SuggestionListRef } from './SuggestionList';
 import { editorUi } from '../context/editor-ui';
 import {
@@ -11,20 +11,21 @@ import {
   type InkioMessageOverrides,
 } from '../i18n/messages';
 import {
-  autoUpdateOverlayPosition,
   computeOverlayPosition,
   toRectLike,
 } from '../overlay/positioning';
 import { createOverlayHost, type OverlayHost } from '../utils/overlay-host';
 
 export interface CreateSuggestionRendererOptions {
+  /** Match the Suggestion plugin's key so keyboard dismissal exits the right popup. */
+  pluginKey?: SuggestionOptions['pluginKey'];
   /** Custom header text, or a pick from the locale's suggestion messages */
   header?: string | ((messages: InkioCoreMessages['suggestion']) => string);
   /** Empty state message */
   emptyMessage?: string;
   /** Custom render function for items */
   renderItem?: (item: SuggestionItem, isSelected: boolean) => React.ReactNode;
-  /** Locale input (string, array, accept-language, Intl.Locale, etc.) */
+  /** Locale tag or Accept-Language string. */
   locale?: InkioLocaleInput;
   /** Message overrides for core suggestion labels */
   messages?: InkioCoreMessageOverrides | InkioMessageOverrides;
@@ -39,9 +40,9 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
 ): NonNullable<SuggestionOptions<I>['render']> {
   return () => {
     let host: OverlayHost | null = null;
-    let component: SuggestionListRef | null = null;
+    let component: { ref: SuggestionListRef; props: SuggestionProps<I, I> } | null = null;
     let cleanupAutoUpdate: (() => void) | null = null;
-    let latestProps: SuggestionProps<any, I> | null = null;
+    let latestProps: SuggestionProps<I, I> | null = null;
     let settledItems: I[] | null = null;
 
     const updatePopupPosition = () => {
@@ -73,7 +74,7 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
       popup.style.top = `${next.top}px`;
     };
 
-    const renderList = (props: SuggestionProps<any, I>) => {
+    const renderList = (props: SuggestionProps<I, I>) => {
       latestProps = props;
 
       if (!host) {
@@ -87,7 +88,10 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
       if (!props.loading) {
         settledItems = props.items;
       }
-      if (!settledItems) {
+      const stale = props.loading && !props.items.length;
+      const visibleItems = stale ? settledItems : props.items;
+      host.element.inert = stale;
+      if (!visibleItems) {
         return;
       }
 
@@ -102,10 +106,17 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
       host.render(
         <SuggestionList
           ref={(ref) => {
-            component = ref;
+            if (ref) component = { ref, props };
+            else if (component?.props === props) component = null;
           }}
-          items={settledItems as SuggestionItem[]}
-          command={props.command as unknown as (item: SuggestionItem) => void}
+          items={visibleItems}
+          command={(item) => {
+            // React may not have committed the new rows (or unmounted the old
+            // root) yet. Never apply an item against an obsolete editor range.
+            if (!stale && latestProps === props && !props.editor.isDestroyed && props.editor.isEditable) {
+              props.command(item as I);
+            }
+          }}
           header={header}
           emptyMessage={options.emptyMessage}
           renderItem={options.renderItem}
@@ -118,7 +129,7 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
     };
 
     return {
-      onStart: (props: SuggestionProps<any, I>) => {
+      onStart: (props: SuggestionProps<I, I>) => {
         latestProps = props;
 
         host = createOverlayHost({
@@ -130,28 +141,38 @@ export function createSuggestionRenderer<I extends SuggestionItem = SuggestionIt
           },
         });
 
-        cleanupAutoUpdate = autoUpdateOverlayPosition({
-          update: updatePopupPosition,
-          elements: [props.editor.view.dom, host.element],
-        });
+        // Let the plugin own outside-pointer dismissal and observer cleanup;
+        // retain Inkio's fixed, viewport-clamped positioning.
+        cleanupAutoUpdate = props.mount(host.element, { onPosition: updatePopupPosition });
 
         renderList(props);
       },
 
-      onUpdate: (props: SuggestionProps<any, I>) => {
-        latestProps = props;
-
+      onUpdate: (props: SuggestionProps<I, I>) => {
         if (host) {
           renderList(props);
         }
       },
 
       onKeyDown: (props: SuggestionKeyDownProps): boolean => {
-        if (props.event.key === 'Escape') {
+        if (host && props.event.key === 'Tab' && !props.event.isComposing && !props.view.composing) {
+          const currentHost = host;
+          // Tab can also indent a list or move between cells. Let the editor
+          // handle it; dismiss only if the browser actually moved focus out.
+          requestAnimationFrame(() => {
+            if (host === currentHost && !props.view.hasFocus()
+              && !host.element.contains(props.view.dom.ownerDocument.activeElement)) {
+              exitSuggestion(props.view, options.pluginKey);
+            }
+          });
+          return false;
+        }
+        if (!component || component.props !== latestProps || host?.element.inert
+          || !component.props.editor.isEditable || props.view.composing || props.event.key === 'Escape') {
           return false;
         }
 
-        return component?.onKeyDown(props) ?? false;
+        return component.ref.onKeyDown(props);
       },
 
       onExit: () => {

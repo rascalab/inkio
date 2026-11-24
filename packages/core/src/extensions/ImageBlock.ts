@@ -1,4 +1,4 @@
-import { mergeAttributes, Node, type Editor } from '@tiptap/core';
+import type { Editor } from '@tiptap/core';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { closeHistory } from '@tiptap/pm/history';
 import type { Node as ProseMirrorNode, Slice } from '@tiptap/pm/model';
@@ -11,6 +11,8 @@ import {
   reportImageUploadError,
   uploadImageFile,
   getImageValidationError,
+  uploadsByView,
+  type PendingImageUpload,
   type ImageUploadOptions,
 } from './image-block-upload';
 import { discardAbandonedImageUpload, type ImageCleanupOptions } from './image-block-cleanup';
@@ -20,6 +22,7 @@ import {
   UPLOAD_PLACEHOLDER_PREFIX,
   type ImageEditorComponent,
 } from './image-block-shared';
+import { ImageBlockSchema, type ImageBlockSchemaOptions } from './image-block-schema';
 import { ImageBlockView } from './ImageBlockView';
 
 export {
@@ -44,8 +47,7 @@ export function clampImageBlockWidthPercent(width: number): number | null {
   );
 }
 
-export interface ImageBlockOptions extends ImageUploadOptions, ImageCleanupOptions {
-  HTMLAttributes: Record<string, any>;
+export interface ImageBlockOptions extends ImageBlockSchemaOptions, ImageUploadOptions, ImageCleanupOptions {
   /** Optional image editor component. When provided, an edit button appears on the image toolbar. */
   imageEditor?: ImageEditorComponent;
 }
@@ -137,6 +139,7 @@ function queueImageFiles(
   pos: number,
   restoreFocus = false,
 ) {
+  const { view } = editor;
   const id = `${UPLOAD_PLACEHOLDER_PREFIX}${createId('image')}`;
   const label = editorMessages(editor).imageBlock.uploading;
   const clamped = Number.isFinite(pos) ? Math.max(0, Math.min(Math.trunc(pos), tr.doc.content.size)) : tr.selection.from;
@@ -144,8 +147,24 @@ function queueImageFiles(
 
   // Tiptap has to dispatch the outer command transaction (if any) first.
   queueMicrotask(async () => {
-    if (editor.isDestroyed) return;
-    const { view } = editor;
+    if (view.isDestroyed || editor.isDestroyed) return;
+    const pending = uploadsByView.get(view);
+    if (!pending) return;
+    let controller: AbortController | undefined;
+    const removeMarker = () => {
+      if (!view.isDestroyed && findUploadMarker(view, id)) view.dispatch(setUploadMarker(view.state.tr, { id }));
+    };
+    const target: PendingImageUpload = {
+      checkTarget() {
+        if (!view.editable || !findUploadMarker(view, id)) target.cancel();
+      },
+      cancel() {
+        pending.delete(target);
+        controller?.abort();
+        // A read-only transition can leave an otherwise live decoration.
+        if (!view.isDestroyed && findUploadMarker(view, id)) queueMicrotask(removeMarker);
+      },
+    };
     try {
       const initialMarker = findUploadMarker(view, id);
       if (!initialMarker) return;
@@ -158,7 +177,11 @@ function queueImageFiles(
 
       for (const [index, file] of files.entries()) {
         if (editor.isDestroyed || !editor.isEditable || !findUploadMarker(view, id)) return;
+        controller = new AbortController();
+        const { signal } = controller;
+        pending.add(target);
         const validationError = await getImageValidationError(file, options);
+        if (signal.aborted) return;
         if (validationError) {
           reportImageUploadError(options, validationError, 'imageBlock.validation');
           continue;
@@ -167,13 +190,14 @@ function queueImageFiles(
 
         let attrs;
         try {
-          attrs = await uploadImageFile(file, options, { blockId: `${id}-${index}` }, file.name);
+          attrs = await uploadImageFile(file, options, { blockId: `${id}-${index}`, signal }, file.name);
         } catch (error) {
+          if (signal.aborted) return;
           reportImageUploadError(options, error, 'imageBlock.upload');
           continue;
         }
 
-        const marker = !editor.isDestroyed && editor.isEditable ? findUploadMarker(view, id) : undefined;
+        const marker = !signal.aborted && !editor.isDestroyed && editor.isEditable ? findUploadMarker(view, id) : undefined;
         const insertion = marker
           ? insertImageNode(view, marker.from, view.state.schema.nodes.imageBlock.create(attrs))
           : null;
@@ -182,6 +206,7 @@ function queueImageFiles(
           return;
         }
 
+        pending.delete(target);
         const { tr: insert, after, moveCaret } = insertion;
         setUploadMarker(insert, index + 1 < files.length
           ? { id, placement: { pos: after, stepIndex: insert.mapping.maps.length, label } }
@@ -192,11 +217,10 @@ function queueImageFiles(
         if (syncCaret && !editor.isDestroyed && (view.hasFocus() || chooserLeftFocusUnclaimed(view))) view.focus();
       }
     } catch (error) {
-      reportImageUploadError(options, error, 'imageBlock.upload');
+      if (!controller?.signal.aborted) reportImageUploadError(options, error, 'imageBlock.upload');
     } finally {
-      if (!editor.isDestroyed && findUploadMarker(view, id)) {
-        view.dispatch(setUploadMarker(view.state.tr, { id }));
-      }
+      pending.delete(target);
+      removeMarker();
     }
   });
 }
@@ -230,18 +254,10 @@ declare module '@tiptap/core' {
   }
 }
 
-export const ImageBlock = Node.create<ImageBlockOptions>({
-  name: 'imageBlock',
-
-  group: 'block',
-
-  atom: true,
-
-  draggable: true,
-
+export const ImageBlock = ImageBlockSchema.extend<ImageBlockOptions>({
   addOptions() {
     return {
-      HTMLAttributes: {},
+      HTMLAttributes: this.parent?.().HTMLAttributes ?? {},
       onUpload: undefined,
       resolveFileUrl: undefined,
       allowedMimeTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
@@ -252,115 +268,6 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
       cleanup: 'manual',
       onDelete: undefined,
     };
-  },
-
-  addAttributes() {
-    return {
-      src: {
-        default: null,
-        parseHTML: (element: HTMLElement) => {
-          const raw = element.getAttribute('src');
-          if (!raw) return null;
-          if (!isSafeUrl(raw)) return null;
-          return raw;
-        },
-      },
-      alt: {
-        default: null,
-      },
-      title: {
-        default: null,
-      },
-      width: {
-        default: '100%',
-        renderHTML: (attributes) => ({
-          width: attributes.width,
-        }),
-      },
-      align: {
-        default: 'center',
-        renderHTML: (attributes) => ({
-          'data-align': attributes.align,
-        }),
-      },
-      caption: {
-        default: null,
-        rendered: false,
-      },
-    };
-  },
-
-  parseHTML() {
-    return [
-      {
-        tag: 'figure[data-type="imageBlock"]',
-        getAttrs: (dom: HTMLElement) => {
-          const img = dom.querySelector('img');
-          if (!img) return false;
-          const rawSrc = img.getAttribute('src');
-          if (rawSrc && !isSafeUrl(rawSrc)) return false;
-          const figcaption = dom.querySelector('figcaption');
-          return {
-            src: rawSrc,
-            alt: img.getAttribute('alt'),
-            title: img.getAttribute('title'),
-            width: img.getAttribute('width') || dom.getAttribute('data-width'),
-            align: dom.getAttribute('data-align'),
-            caption: figcaption?.textContent || null,
-          };
-        },
-      },
-      {
-        tag: 'figure',
-        getAttrs: (dom: HTMLElement) => {
-          const img = dom.querySelector('img');
-          if (!img) return false;
-          const rawSrc = img.getAttribute('src');
-          if (rawSrc && !isSafeUrl(rawSrc)) return false;
-          const figcaption = dom.querySelector('figcaption');
-          return {
-            src: rawSrc,
-            alt: img.getAttribute('alt'),
-            title: img.getAttribute('title'),
-            caption: figcaption?.textContent || null,
-          };
-        },
-      },
-      {
-        tag: 'img[src]',
-      },
-    ];
-  },
-
-  renderHTML({ HTMLAttributes }) {
-    const { src, alt, title, width, caption, 'data-align': align, ...rest } = mergeAttributes(
-      this.options.HTMLAttributes,
-      HTMLAttributes,
-    );
-    // A placeholder `src` is a transient sentinel, not a real URL. Emitting it
-    // as an `<img src>` makes the browser fetch a bogus relative path (e.g. via
-    // `generateHTML` static rendering). Render a loading box instead.
-    if (typeof src === 'string' && src.startsWith(UPLOAD_PLACEHOLDER_PREFIX)) {
-      return [
-        'figure',
-        { 'data-type': 'imageBlock', 'data-align': align, ...rest },
-        ['div', { class: 'inkio-image-block-placeholder', role: 'img', 'aria-label': alt || 'Uploading image' }],
-      ];
-    }
-    const safeSrc = typeof src === 'string' && isSafeUrl(src) ? src : null;
-    if (!safeSrc) {
-      return [
-        'figure',
-        { 'data-type': 'imageBlock', 'data-align': align, ...rest },
-        ['div', { class: 'inkio-image-block-placeholder', role: 'img', 'aria-label': alt || 'Blocked image' }],
-      ];
-    }
-    return [
-      'figure',
-      { 'data-type': 'imageBlock', 'data-align': align, ...rest },
-      ['img', { src: safeSrc, alt, title, width }],
-      ['figcaption', {}, caption || ''],
-    ];
   },
 
   addCommands() {
@@ -439,6 +346,50 @@ export const ImageBlock = Node.create<ImageBlockOptions>({
         state: {
           init: () => DecorationSet.empty,
           apply: mapUploadMarkers,
+        },
+        view(view) {
+          // ProseMirror recreates plugin views when unrelated plugins change.
+          // Keep live targets in that case; a remounted EditorView has no live jobs.
+          const existing = uploadsByView.get(view);
+          const pending = existing ?? new Set<PendingImageUpload>();
+          uploadsByView.set(view, pending);
+          const abortAll = () => {
+            for (const target of pending) target.cancel();
+            pending.clear();
+          };
+          if (!existing) {
+            editor.once('unmount', abortAll);
+            const inherited = imageBlockPluginKey.getState(view.state);
+            if (inherited && inherited !== DecorationSet.empty) {
+              queueMicrotask(() => {
+                if (view.isDestroyed) return;
+                const tr = view.state.tr;
+                for (const { spec } of inherited.find()) {
+                  if (findUploadMarker(view, spec.key)) setUploadMarker(tr, { id: spec.key });
+                }
+                if (tr.getMeta(imageBlockPluginKey)) view.dispatch(tr);
+              });
+            }
+          }
+          return {
+            update(view, previous) {
+              if (!pending.size || (view.editable && previous.doc === view.state.doc &&
+                  imageBlockPluginKey.getState(view.state) === imageBlockPluginKey.getState(previous))) return;
+              for (const target of pending) target.checkTarget();
+            },
+            destroy() {
+              if (!pending.size) return;
+              if (!imageBlockPluginKey.getState(view.state)) {
+                abortAll();
+                return;
+              }
+              // PM doesn't mark a directly destroyed view as destroyed until
+              // after plugin teardown. A reconfigured view remains live.
+              queueMicrotask(() => {
+                if (view.isDestroyed) abortAll();
+              });
+            },
+          };
         },
         props: {
           decorations: (state) => imageBlockPluginKey.getState(state),

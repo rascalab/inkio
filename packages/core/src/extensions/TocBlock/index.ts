@@ -1,1 +1,2 @@
-export { TocBlock, type TocBlockOptions } from './TocBlock';
+export { TocBlock } from './TocBlock';
+export type { TocBlockOptions } from './toc-block-schema';

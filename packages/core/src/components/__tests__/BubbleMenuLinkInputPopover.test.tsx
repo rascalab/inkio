@@ -1,4 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { Editor } from '@tiptap/react';
+import Document from '@tiptap/extension-document';
+import Link from '@tiptap/extension-link';
+import Paragraph from '@tiptap/extension-paragraph';
+import Text from '@tiptap/extension-text';
+import { BubbleMenu } from '../BubbleMenu';
+import { Toolbar } from '../Toolbar';
 import { BubbleMenuLinkInputPopover } from '../BubbleMenuLinkInputPopover';
 
 describe('BubbleMenuLinkInputPopover', () => {
@@ -55,3 +62,45 @@ describe('BubbleMenuLinkInputPopover', () => {
     expect(screen.getByRole('alert')).toBeInTheDocument();
   });
 });
+
+it.each([['toolbar', Toolbar], ['bubble', BubbleMenu]] as const)(
+  '%s restores the edited link selection without taking focus from a reopened field',
+  async (_surface, Menu) => {
+    const mount = document.body.appendChild(document.createElement('div'));
+    const editor = new Editor({
+      element: mount,
+      extensions: [Document, Paragraph, Text, Link],
+      content: '<p><a href="/old">linked text</a></p>',
+    });
+    vi.spyOn(editor.view, 'coordsAtPos').mockReturnValue(new DOMRect());
+    const ui = render(<Menu editor={editor} />);
+    try {
+      act(() => {
+        editor.commands.setTextSelection({ from: 2, to: 5 });
+        editor.view.focus();
+      });
+      const trigger = ui.getByRole('button', { name: 'Add link' });
+      fireEvent.click(trigger);
+      const field = within(await ui.findByRole('dialog')).getByRole('textbox');
+      expect(field).toHaveFocus();
+      fireEvent.change(field, { target: { value: '/new' } });
+
+      // Reopen before either Radix's unmount timer or Tiptap's focus frame.
+      vi.useFakeTimers();
+      fireEvent.click(ui.getByRole('button', { name: 'Save' }));
+      expect(editor.view.dom).toHaveFocus();
+      expect(window.getSelection()?.toString()).toBe('linked text');
+      fireEvent.click(trigger);
+      const reopened = within(ui.getByRole('dialog')).getByRole('textbox');
+      expect(reopened).toHaveValue('/new');
+      act(() => { vi.advanceTimersToNextFrame(); });
+      expect(reopened).toHaveFocus();
+    } finally {
+      ui.unmount();
+      if (vi.isFakeTimers()) vi.runOnlyPendingTimers();
+      vi.useRealTimers();
+      editor.destroy();
+      mount.remove();
+    }
+  },
+);

@@ -1,21 +1,24 @@
 import { devices, expect, test, type Locator } from '@playwright/test';
 
 async function selectCommentText(editor: Locator) {
-  await editor.locator('p').first().click();
-  await expect(editor).toBeFocused();
-  // Home has different caret semantics across platforms. Select a plain-text
-  // range so this fixture never spans inline code, which excludes comment marks.
-  await editor.locator('p').first().evaluate((paragraph) => {
-    const text = paragraph.firstChild;
-    const selection = window.getSelection();
-    if (!(text instanceof Text) || !selection) throw new Error('Comment text is unavailable.');
+  const phrase = 'This example';
+  const paragraph = editor.locator('p').first();
+  // Drag across the rendered text: the browser and ProseMirror see one
+  // selection gesture rather than racing an injected DOM Range on focus.
+  const positions = await paragraph.evaluate((el, length) => {
+    const text = el.firstChild;
+    if (!(text instanceof Text)) throw new Error('Expected the demo paragraph to start with text.');
     const range = document.createRange();
     range.setStart(text, 0);
-    range.setEnd(text, 12);
-    selection.removeAllRanges();
-    selection.addRange(range);
-  });
-  await expect.poll(() => editor.evaluate(() => window.getSelection()?.toString())).toBe('This example');
+    range.setEnd(text, length);
+    const { left, right, top, height } = range.getBoundingClientRect();
+    const bounds = el.getBoundingClientRect();
+    const y = top + height / 2 - bounds.top;
+    return { sourcePosition: { x: left - bounds.left, y }, targetPosition: { x: right - bounds.left, y } };
+  }, phrase.length);
+  await paragraph.dragTo(paragraph, positions);
+  await expect(editor).toBeFocused();
+  await expect.poll(() => editor.evaluate(() => window.getSelection()?.toString())).toBe(phrase);
   // ProseMirror consumes selectionchange after the browser selection is set.
   await expect.poll(() => editor.evaluate((element) => {
     // Tiptap attaches its editor to the rendered ProseMirror element.
@@ -24,7 +27,7 @@ async function selectCommentText(editor: Locator) {
     };
     const state = tiptapElement.editor?.state;
     return state?.doc.textBetween(state.selection.from, state.selection.to);
-  })).toBe('This example');
+  })).toBe(phrase);
 }
 
 test('next app router example serves editor content in the initial HTML', async ({ page }) => {
@@ -259,11 +262,34 @@ test('next app router example viewer follows the edited document', async ({ page
   await page.goto('http://localhost:4174/viewer-e2e');
   const viewer = page.getByTestId('viewer-e2e-viewer');
   await expect(viewer).toContainText('Viewer harness');
+  const preview = page.getByTestId('static-preview');
+  const text = preview.locator('.inkio-content span').first();
+  await expect(text).toHaveCSS('color', 'rgb(18, 86, 120)');
 
   await focusEditorEnd(page);
   await page.keyboard.type(' mirrored into the viewer');
 
   await expect(viewer).toContainText('Viewer harness mirrored into the viewer');
+  await expect(text).toHaveCSS('color', 'rgb(18, 86, 120)');
+  await expect(preview).toContainText('Viewer harness mirrored into the viewer');
+  await expect(preview.locator('.inkio-content p').first()).toHaveCSS('text-align', 'center');
+});
+
+test('the floating toolbar returns Enter to the editor after keyboard navigation', async ({ page }) => {
+  await page.goto('http://localhost:4174/slash-e2e');
+  await focusEditorEnd(page);
+  await page.keyboard.press('Enter');
+  const editor = page.locator('.ProseMirror').first();
+  const blocks = editor.locator(':scope > p');
+  const before = await blocks.count();
+  const buttons = page.locator('.inkio-floating-overlay.is-visible button:enabled');
+  await buttons.first().focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(buttons.nth(1)).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(editor).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(blocks).toHaveCount(before + 1);
 });
 
 test('next app router example suggestion popup never shows the empty state while matches exist', async ({ page }) => {
@@ -359,6 +385,8 @@ test('next app router example replies to, resolves, and deletes a comment thread
   // Reply to the thread.
   const replyInput = page.locator('.inkio-comment-reply-input').first();
   await replyInput.fill('A threaded reply');
+  await expect(replyInput).toBeFocused();
+  await expect(replyInput).not.toHaveCSS('box-shadow', 'none');
   await page.locator('.inkio-comment-reply-send').first().click();
   await expect(page.locator('.inkio-comment-msg')).toHaveCount(2);
 
@@ -902,8 +930,36 @@ test.describe('editor surfaces', () => {
         await drag.move(drag.down);
         await expect.poll(readScroll).toBeGreaterThan(before + 530);
         await expect(marker).toBeVisible();
+        // The page keeps scrolling between Playwright calls. Read the visible
+        // marker in the capture phase of the actual release, before it is removed.
+        const release = await editor.evaluateHandle((root) => ({
+          gap: new Promise<{ before: string; after: string }>((resolve, reject) => {
+            window.addEventListener('pointerup', (event) => {
+              const marker = document.querySelector('.inkio-block-drop-marker')?.getBoundingClientRect();
+              if (marker) {
+                const y = marker.top + marker.height / 2;
+                for (const p of root.querySelectorAll(':scope > p')) {
+                  const next = p.nextElementSibling;
+                  if (!p.textContent?.startsWith('아래 문단 ') || next?.tagName !== 'P') continue;
+                  const a = p.getBoundingClientRect();
+                  const b = next.getBoundingClientRect();
+                  if (Math.abs(y - (a.bottom + b.top) / 2) <= 1 &&
+                      event.clientY >= a.top && event.clientY <= b.bottom) {
+                    resolve({ before: p.textContent, after: next.textContent! });
+                    return;
+                  }
+                }
+              }
+              reject(new Error('No drop marker between the paragraphs under the released finger'));
+            }, { capture: true, once: true });
+          }),
+        }));
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-        await expect(source.locator('xpath=preceding-sibling::p[1]')).toHaveText(/^아래 문단 (1[5-9]|[23]\d)$/);
+        const target = await release.evaluate(({ gap }) => gap);
+        await release.dispose();
+        await expect(source.locator('xpath=preceding-sibling::*[1]')).toHaveText(target.before);
+        await expect(source.locator('xpath=following-sibling::*[1]')).toHaveText(target.after);
+        await expect(marker).toHaveCount(0);
         await expect(preview).toHaveCount(0);
       } finally {
         await context.close();
@@ -1209,7 +1265,7 @@ test.describe('writing a document', () => {
       (root as unknown as Root).editor.commands.setContent({ type: 'doc', content: doc });
       (root as unknown as Root).editor.commands.focus('end');
     }, content);
-    await page.waitForTimeout(100);
+    await expect(editor).toBeFocused();
     return editor;
   }
   const types = (editor: import('@playwright/test').Locator) =>
@@ -1219,6 +1275,7 @@ test.describe('writing a document', () => {
   test('a table of contents stays when writing goes on after it', async ({ page }) => {
     const editor = await load(page, [paragraph('앞'), { type: 'paragraph' }]);
     await page.keyboard.type('/toc');
+    await expect(page.getByRole('option', { name: '목차', exact: true })).toBeVisible();
     await page.keyboard.press('Enter');
     await page.keyboard.type('다음 글');
     await expect.poll(() => types(editor)).toEqual(['paragraph', 'tocBlock', 'paragraph']);

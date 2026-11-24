@@ -4,7 +4,7 @@ import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
 import type { SuggestionOptions } from '@tiptap/suggestion';
-import { SlashCommand, type SlashCommandItem } from '../extensions/SlashCommand';
+import { SlashCommand, SlashCommandPluginKey, type SlashCommandItem } from '../extensions/SlashCommand';
 import { getDefaultExtensions } from '../get-default-extensions';
 
 const captured = vi.hoisted(() => [] as Array<{ editor: unknown; options: SuggestionOptions<any, any> }>);
@@ -22,7 +22,7 @@ vi.mock('../../../core/src/utils/overlay-host', () => ({
   createOverlayHost: () => ({
     element: document.createElement('div'),
     render: hostRender,
-    destroy: () => {},
+    destroy() { this.element.remove(); },
   }),
 }));
 
@@ -41,12 +41,13 @@ describe('slash menu in the editor locale', () => {
 
   async function itemsFor(editor: Editor, query: string) {
     const { options } = captured.find((entry) => entry.editor === editor)!;
-    const items = await options.items!({ query, editor });
+    const items = await options.items!({ query, editor, signal: new AbortController().signal });
     return items as SlashCommandItem[];
   }
 
   afterEach(() => {
     editors.splice(0).forEach((editor) => editor.destroy());
+    vi.useRealTimers();
     captured.length = 0;
     hostRender.mockClear();
   });
@@ -93,6 +94,67 @@ describe('slash menu in the editor locale', () => {
     expect(items.map((item) => item.id)).toEqual(['heading1']);
   });
 
+  it('dismisses on an outside pointer without changing the slash text', () => {
+    const editor = createEditor(SlashCommand);
+    editor.commands.insertContent('/');
+    expect(SlashCommandPluginKey.getState(editor.state).active).toBe(true);
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(SlashCommandPluginKey.getState(editor.state).active).toBe(false);
+    expect(editor.getText()).toBe('/');
+  });
+
+  it('dismisses the configured plugin when Tab takes focus outside, even before items resolve', () => {
+    vi.useFakeTimers();
+    const editor = createEditor(SlashCommand.configure({ items: () => [] }));
+    const parent = document.body.appendChild(editor.view.dom.parentElement!);
+    const outside = document.body.appendChild(document.createElement('button'));
+    try {
+      editor.view.dom.focus();
+      editor.commands.insertContent('/');
+      editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+      outside.focus();
+      vi.advanceTimersToNextFrame();
+      expect(outside).toHaveFocus();
+      expect(SlashCommandPluginKey.getState(editor.state).active).toBe(false);
+    } finally {
+      outside.remove();
+      parent.remove();
+    }
+  });
+
+  it('does not let a superseded response dismiss a matching multiword query', async () => {
+    vi.useFakeTimers();
+    const slow = Promise.withResolvers<SlashCommandItem[]>();
+    const heading = { id: 'heading1', label: 'Heading 1', command: () => {} };
+    const editor = createEditor(SlashCommand.configure({ items: ({ query }) => query ? [heading] : slow.promise }));
+    editor.commands.insertContent('/');
+    editor.commands.insertContent('heading');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(hostRender.mock.lastCall?.[0].props.items).toEqual([heading]);
+    slow.resolve([]);
+    await vi.advanceTimersByTimeAsync(0);
+    editor.commands.insertContent(' ');
+    expect(SlashCommandPluginKey.getState(editor.state)).toMatchObject({ active: true, query: 'heading ' });
+  });
+
+  it('accepts a pasted multiword query but not a second slash mid-paragraph', () => {
+    const editor = createEditor(SlashCommand);
+    editor.commands.insertContent('/Heading 1');
+    expect(SlashCommandPluginKey.getState(editor.state)).toMatchObject({ active: true, query: 'Heading 1' });
+    editor.commands.insertContent(' /another');
+    expect(SlashCommandPluginKey.getState(editor.state).active).toBe(false);
+  });
+
+  it('stops suggesting after an unmatched query followed by a space', async () => {
+    const editor = createEditor(SlashCommand);
+    editor.commands.insertContent('/zzz');
+    await vi.waitFor(() => expect(hostRender.mock.lastCall?.[0].props.items).toEqual([]));
+    editor.commands.insertContent(' ');
+    expect(SlashCommandPluginKey.getState(editor.state).active).toBe(false);
+    editor.commands.insertContent('word');
+    expect(SlashCommandPluginKey.getState(editor.state).active).toBe(false);
+  });
+
   it('has no header and says its empty state in the locale', async () => {
     const editor = createEditor(SlashCommand.configure({ locale: 'ko' }));
     const { options } = captured.find((entry) => entry.editor === editor)!;
@@ -102,6 +164,7 @@ describe('slash menu in the editor locale', () => {
       items: [],
       command: () => {},
       clientRect: () => null,
+      mount: () => () => {},
     } as never);
 
     const { props } = hostRender.mock.calls[0][0];

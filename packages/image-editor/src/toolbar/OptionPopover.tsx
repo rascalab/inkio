@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { autoUpdateOverlayPosition, computeOverlayPosition, useDismissableLayer } from '@inkio/core';
+import { autoUpdateOverlayPosition, computeOverlayPosition, useDismissableLayer } from '@inkio/core/ui';
 
 const EDITOR_POPOVER_OPEN_EVENT = 'inkio-ie-popover-open';
 const FOCUSABLE = 'input:not(:disabled), textarea:not(:disabled), select:not(:disabled), button:not(:disabled), [href], [tabindex="0"]';

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ImageEditorModal, type ImageEditorCustomTool, type ImageEditorTool } from '@inkio/image-editor';
 
 const photoPreset: ImageEditorCustomTool = {
@@ -25,32 +25,24 @@ const customDemoTools: readonly ImageEditorTool[] = ['rotate', photoPreset, 'cro
 interface ImageEditorDebugState {
   annotationCount: string;
   activeTool: string;
-  canvasHeight: string;
-  canvasWidth: string;
   dirty: string;
   frameHeight: string;
   frameWidth: string;
-  modalOpen: boolean;
   outputSize: string;
   previewZoom: string;
   selectedAnnotation: string;
-  selectedId: string;
   selectedType: string;
 }
 
 const EMPTY_DEBUG_STATE: ImageEditorDebugState = {
   annotationCount: '0',
   activeTool: '',
-  canvasHeight: '',
-  canvasWidth: '',
   dirty: 'false',
   frameHeight: '',
   frameWidth: '',
-  modalOpen: false,
   outputSize: '',
   previewZoom: '1.0000',
   selectedAnnotation: '',
-  selectedId: '',
   selectedType: '',
 };
 
@@ -124,27 +116,106 @@ function createFixturePng(): string {
 function readDebugState(): ImageEditorDebugState {
   const root = document.querySelector<HTMLElement>('[data-testid="inkio-ie-root"]');
   const frame = document.querySelector<HTMLElement>('[data-testid="inkio-ie-stage-frame"]');
-  const modal = document.querySelector<HTMLElement>('[data-testid="inkio-ie-modal-content"]');
   const activeTool = root?.dataset.debugActiveTool ?? '';
   const rawSelectedAnnotation = root?.dataset.debugSelectedAnnotation ?? '';
-  const rawSelectedId = root?.dataset.debugSelectedId ?? '';
   const rawSelectedType = root?.dataset.debugSelectedType ?? '';
 
   return {
     annotationCount: root?.dataset.debugAnnotationCount ?? '0',
     activeTool,
-    canvasHeight: root?.dataset.debugCanvasHeight ?? '',
-    canvasWidth: root?.dataset.debugCanvasWidth ?? '',
     dirty: root?.dataset.debugDirty ?? 'false',
     frameHeight: frame?.dataset.displayHeight ?? '',
     frameWidth: frame?.dataset.displayWidth ?? '',
-    modalOpen: Boolean(modal),
     outputSize: root?.dataset.debugOutputSize ?? '',
     previewZoom: root?.dataset.debugPreviewZoom ?? '1.0000',
     selectedAnnotation: rawSelectedAnnotation,
-    selectedId: rawSelectedId,
     selectedType: rawSelectedType,
   };
+}
+
+function DebugPanel({ theme }: { theme: string }) {
+  const [debugState, setDebugState] = useState<ImageEditorDebugState>(EMPTY_DEBUG_STATE);
+  useEffect(() => {
+    let frame = 0;
+    const sync = () => {
+      frame = 0;
+      setDebugState(readDebugState());
+    };
+    const observer = new MutationObserver((records) => {
+      // The modal portals to body. Never feed the debug panel's own DOM
+      // updates back into the observer or re-render the editor to report them.
+      if (!frame && records.some(({ target }) => target === document.body ||
+          (target instanceof Element && target.closest('.inkio-ie-portal-theme')))) {
+        frame = requestAnimationFrame(sync);
+      }
+    });
+    observer.observe(document.body, {
+      subtree: true, childList: true,
+      attributeFilter: ['data-debug-dirty', 'data-debug-preview-zoom', 'data-debug-active-tool',
+        'data-debug-selected-type', 'data-debug-selected-annotation', 'data-debug-annotation-count',
+        'data-debug-output-size', 'data-display-width', 'data-display-height'],
+    });
+    sync();
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+  const selectedAnnotationJson = useMemo(() => {
+    if (!debugState.selectedAnnotation) {
+      return '';
+    }
+
+    try {
+      return JSON.stringify(JSON.parse(debugState.selectedAnnotation), null, 2);
+    } catch {
+      return debugState.selectedAnnotation;
+    }
+  }, [debugState.selectedAnnotation]);
+  return (
+    <section className="json-card image-editor-e2e-debug" data-testid="image-editor-e2e-debug">
+      <p className="section-title">Debug State</p>
+      <dl className="image-editor-e2e-debug-grid">
+        <div>
+          <dt>Theme</dt>
+          <dd data-testid="image-editor-e2e-theme">{theme}</dd>
+        </div>
+        <div>
+          <dt>Dirty</dt>
+          <dd data-testid="image-editor-e2e-dirty">{debugState.dirty}</dd>
+        </div>
+        <div>
+          <dt>Zoom</dt>
+          <dd data-testid="image-editor-e2e-zoom">{debugState.previewZoom}</dd>
+        </div>
+        <div>
+          <dt>Tool</dt>
+          <dd data-testid="image-editor-e2e-active-tool">{debugState.activeTool || 'none'}</dd>
+        </div>
+        <div>
+          <dt>Selected</dt>
+          <dd data-testid="image-editor-e2e-selected-type">{debugState.selectedType || 'none'}</dd>
+        </div>
+        <div>
+          <dt>Annotations</dt>
+          <dd data-testid="image-editor-e2e-annotation-count">{debugState.annotationCount}</dd>
+        </div>
+        <div>
+          <dt>Output</dt>
+          <dd data-testid="image-editor-e2e-output-size">{debugState.outputSize || 'none'}</dd>
+        </div>
+        <div>
+          <dt>Frame</dt>
+          <dd data-testid="image-editor-e2e-frame-size">
+            {debugState.frameWidth && debugState.frameHeight
+              ? `${debugState.frameWidth}x${debugState.frameHeight}`
+              : 'none'}
+          </dd>
+        </div>
+      </dl>
+      <pre data-testid="image-editor-e2e-selected-annotation">{selectedAnnotationJson || '{}'}</pre>
+    </section>
+  );
 }
 
 export function ImageEditorE2EHarness() {
@@ -155,7 +226,6 @@ export function ImageEditorE2EHarness() {
   const [saveAsBlob, setSaveAsBlob] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [showCustomTools, setShowCustomTools] = useState(false);
-  const [debugState, setDebugState] = useState<ImageEditorDebugState>(EMPTY_DEBUG_STATE);
 
   useEffect(() => {
     setImageSrc(createFixturePng());
@@ -170,50 +240,6 @@ export function ImageEditorE2EHarness() {
       if (src !== fullSrc) URL.revokeObjectURL(src);
     };
   }, [savedImage]);
-
-  const syncDebugState = useCallback(() => {
-    setDebugState(readDebugState());
-  }, []);
-
-  // Coalesce mutation bursts: the debug attrs change on every canvas tick,
-  // and a setState per mutation would perturb the perf-sensitive zoom/crop
-  // flows under test. The first mutation syncs immediately (preserving
-  // assertion timing); further mutations within the same frame collapse
-  // into one trailing sync. The modal portals to body, so the observation
-  // root stays document-wide.
-  const syncQueuedRef = useRef(false);
-  useEffect(() => {
-    syncDebugState();
-    const observer = new MutationObserver(() => {
-      if (syncQueuedRef.current) return;
-      syncQueuedRef.current = true;
-      syncDebugState();
-      requestAnimationFrame(() => {
-        syncQueuedRef.current = false;
-        syncDebugState();
-      });
-    });
-
-    observer.observe(document.body, {
-      attributes: true,
-      childList: true,
-      subtree: true,
-    });
-
-    return () => observer.disconnect();
-  }, [syncDebugState]);
-
-  const selectedAnnotationJson = useMemo(() => {
-    if (!debugState.selectedAnnotation) {
-      return '';
-    }
-
-    try {
-      return JSON.stringify(JSON.parse(debugState.selectedAnnotation), null, 2);
-    } catch {
-      return debugState.selectedAnnotation;
-    }
-  }, [debugState.selectedAnnotation]);
 
   const applySquareCropPreset = useCallback(() => {
     requestAnimationFrame(() => {
@@ -332,50 +358,7 @@ export function ImageEditorE2EHarness() {
         </div>
       </section>
 
-      <section className="json-card image-editor-e2e-debug" data-testid="image-editor-e2e-debug">
-        <p className="section-title">Debug State</p>
-        <dl className="image-editor-e2e-debug-grid">
-          <div>
-            <dt>Theme</dt>
-            <dd data-testid="image-editor-e2e-theme">{theme}</dd>
-          </div>
-          <div>
-            <dt>Dirty</dt>
-            <dd data-testid="image-editor-e2e-dirty">{debugState.dirty}</dd>
-          </div>
-          <div>
-            <dt>Zoom</dt>
-            <dd data-testid="image-editor-e2e-zoom">{debugState.previewZoom}</dd>
-          </div>
-          <div>
-            <dt>Tool</dt>
-            <dd data-testid="image-editor-e2e-active-tool">{debugState.activeTool || 'none'}</dd>
-          </div>
-          <div>
-            <dt>Selected</dt>
-            <dd data-testid="image-editor-e2e-selected-type">{debugState.selectedType || 'none'}</dd>
-          </div>
-          <div>
-            <dt>Annotations</dt>
-            <dd data-testid="image-editor-e2e-annotation-count">{debugState.annotationCount}</dd>
-          </div>
-          <div>
-            <dt>Output</dt>
-            <dd data-testid="image-editor-e2e-output-size">{debugState.outputSize || 'none'}</dd>
-          </div>
-          <div>
-            <dt>Frame</dt>
-            <dd data-testid="image-editor-e2e-frame-size">
-              {debugState.frameWidth && debugState.frameHeight
-                ? `${debugState.frameWidth}x${debugState.frameHeight}`
-                : 'none'}
-            </dd>
-          </div>
-        </dl>
-        <pre data-testid="image-editor-e2e-selected-annotation">
-          {selectedAnnotationJson || '{}'}
-        </pre>
-      </section>
+      <DebugPanel theme={theme} />
 
       {savedImage && (
         <section className="demo-card image-editor-e2e-saved">
@@ -397,12 +380,8 @@ export function ImageEditorE2EHarness() {
           onSaveBlob={saveAsBlob ? (blob, preview) => {
             const fullSrc = URL.createObjectURL(blob);
             setSavedImage({ fullSrc, src: preview && preview !== blob ? URL.createObjectURL(preview) : fullSrc });
-            setIsOpen(false);
           } : undefined}
-          onSave={(nextImage) => {
-            setSavedImage({ src: nextImage });
-            setIsOpen(false);
-          }}
+          onSave={(nextImage) => setSavedImage({ src: nextImage })}
           onClose={() => setIsOpen(false)}
           theme={theme}
           locale={locale}

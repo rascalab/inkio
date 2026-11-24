@@ -1,8 +1,9 @@
 import { useImageEditor } from '../../hooks/use-image-editor';
-import type { FinetuneOptions } from '../../types';
 import { PanelPrimaryButton, PanelSection, SliderRow, ToolPanel } from '../control-groups';
 import { FilterThumbnails } from './FilterThumbnails';
 import { OptionPopover } from '../OptionPopover';
+
+const FINETUNE_FIELDS = ['brightness', 'contrast', 'saturation', 'clarity'] as const;
 
 function formatSigned(value: number): string {
   const rounded = Math.round(value * 100) / 100;
@@ -12,10 +13,6 @@ function formatSigned(value: number): string {
 export function FilterOptionsPanel() {
   const { state, dispatch, locale } = useImageEditor();
 
-  const setFinetune = (finetune: Partial<FinetuneOptions>) => {
-    dispatch({ type: 'SET_FINETUNE', finetune });
-  };
-
   return (
     <ToolPanel title={locale.filter}>
       <PanelSection>
@@ -23,61 +20,32 @@ export function FilterOptionsPanel() {
       </PanelSection>
       <PanelSection label={locale.finetune}>
         <OptionPopover label={locale.finetune} testId="inkio-ie-finetune-trigger">
-        <div className="inkio-ie-slider-grid">
-          <SliderRow
-            label={locale.brightness}
-            valueLabel={formatSigned(state.finetune.brightness)}
-            min={-1}
-            max={1}
-            step={0.01}
-            value={state.finetune.brightness}
-            onPreviewChange={(brightness) => setFinetune({ brightness })}
-            onDirectChange={(brightness) => setFinetune({ brightness })}
-            rangeTestId="inkio-ie-finetune-brightness-range"
-            numberTestId="inkio-ie-finetune-brightness-number"
+          <div className="inkio-ie-slider-grid">
+            {FINETUNE_FIELDS.map((field) => {
+              const value = state.finetune[field];
+              const limit = field === 'contrast' ? 100 : 1;
+              const testId = `inkio-ie-finetune-${field}`;
+              return (
+                <SliderRow
+                  key={field}
+                  label={locale[field]}
+                  valueLabel={formatSigned(value)}
+                  min={-limit}
+                  max={limit}
+                  step={limit / 100}
+                  value={value}
+                  onChange={(next) => dispatch({ type: 'SET_FINETUNE', finetune: { [field]: next } })}
+                  rangeTestId={`${testId}-range`}
+                  numberTestId={`${testId}-number`}
+                />
+              );
+            })}
+          </div>
+          <PanelPrimaryButton
+            label={locale.resetFinetune}
+            testId="inkio-ie-finetune-reset"
+            onClick={() => dispatch({ type: 'RESET_FINETUNE' })}
           />
-          <SliderRow
-            label={locale.contrast}
-            valueLabel={formatSigned(state.finetune.contrast)}
-            min={-100}
-            max={100}
-            step={1}
-            value={state.finetune.contrast}
-            onPreviewChange={(contrast) => setFinetune({ contrast })}
-            onDirectChange={(contrast) => setFinetune({ contrast })}
-            rangeTestId="inkio-ie-finetune-contrast-range"
-            numberTestId="inkio-ie-finetune-contrast-number"
-          />
-          <SliderRow
-            label={locale.saturation}
-            valueLabel={formatSigned(state.finetune.saturation)}
-            min={-1}
-            max={1}
-            step={0.01}
-            value={state.finetune.saturation}
-            onPreviewChange={(saturation) => setFinetune({ saturation })}
-            onDirectChange={(saturation) => setFinetune({ saturation })}
-            rangeTestId="inkio-ie-finetune-saturation-range"
-            numberTestId="inkio-ie-finetune-saturation-number"
-          />
-          <SliderRow
-            label={locale.clarity}
-            valueLabel={formatSigned(state.finetune.clarity)}
-            min={-1}
-            max={1}
-            step={0.01}
-            value={state.finetune.clarity}
-            onPreviewChange={(clarity) => setFinetune({ clarity })}
-            onDirectChange={(clarity) => setFinetune({ clarity })}
-            rangeTestId="inkio-ie-finetune-clarity-range"
-            numberTestId="inkio-ie-finetune-clarity-number"
-          />
-        </div>
-        <PanelPrimaryButton
-          label={locale.resetFinetune}
-          testId="inkio-ie-finetune-reset"
-          onClick={() => dispatch({ type: 'RESET_FINETUNE' })}
-        />
         </OptionPopover>
       </PanelSection>
     </ToolPanel>

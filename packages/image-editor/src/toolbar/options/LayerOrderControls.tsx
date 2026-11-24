@@ -1,6 +1,13 @@
 import { useImageEditor } from '../../hooks/use-image-editor';
-import { LayerOrderRow, PanelSection } from '../control-groups';
+import { PanelSection } from '../control-groups';
 import { OptionPopover } from '../OptionPopover';
+
+const LAYER_ACTIONS = [
+  ['BRING_ANNOTATION_TO_FRONT', 'bringToFront', 'inkio-ie-layer-front', 'front'],
+  ['BRING_ANNOTATION_FORWARD', 'bringForward', 'inkio-ie-layer-forward', 'front'],
+  ['SEND_ANNOTATION_BACKWARD', 'sendBackward', 'inkio-ie-layer-backward', 'back'],
+  ['SEND_ANNOTATION_TO_BACK', 'sendToBack', 'inkio-ie-layer-back', 'back'],
+] as const;
 
 interface LayerOrderControlsProps {
   annotationId: string | null;
@@ -23,39 +30,20 @@ export function LayerOrderControls({ annotationId }: LayerOrderControlsProps) {
   return (
     <PanelSection label={locale.layerOrder}>
       <OptionPopover label={locale.layerOrder} testId="inkio-ie-layer-trigger">
-      <LayerOrderRow
-        label={locale.layerOrder}
-        items={[
-          {
-            key: 'front',
-            label: locale.bringToFront,
-            testId: 'inkio-ie-layer-front',
-            disabled: annotationIndex === lastIndex,
-            onClick: () => dispatch({ type: 'BRING_ANNOTATION_TO_FRONT', id: annotationId }),
-          },
-          {
-            key: 'forward',
-            label: locale.bringForward,
-            testId: 'inkio-ie-layer-forward',
-            disabled: annotationIndex >= lastIndex,
-            onClick: () => dispatch({ type: 'BRING_ANNOTATION_FORWARD', id: annotationId }),
-          },
-          {
-            key: 'backward',
-            label: locale.sendBackward,
-            testId: 'inkio-ie-layer-backward',
-            disabled: annotationIndex <= 0,
-            onClick: () => dispatch({ type: 'SEND_ANNOTATION_BACKWARD', id: annotationId }),
-          },
-          {
-            key: 'back',
-            label: locale.sendToBack,
-            testId: 'inkio-ie-layer-back',
-            disabled: annotationIndex === 0,
-            onClick: () => dispatch({ type: 'SEND_ANNOTATION_TO_BACK', id: annotationId }),
-          },
-        ]}
-      />
+        <div className="inkio-ie-layer-row" role="group" aria-label={locale.layerOrder}>
+          {LAYER_ACTIONS.map(([type, label, testId, edge]) => (
+            <button
+              key={type}
+              type="button"
+              className="inkio-ie-chip"
+              onClick={() => dispatch({ type, id: annotationId })}
+              disabled={annotationIndex === (edge === 'front' ? lastIndex : 0)}
+              data-testid={testId}
+            >
+              {locale[label]}
+            </button>
+          ))}
+        </div>
       </OptionPopover>
     </PanelSection>
   );

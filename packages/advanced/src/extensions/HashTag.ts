@@ -1,5 +1,5 @@
-import { PluginKey as PMPluginKey } from '@tiptap/pm/state';
-import { hashTagClickPluginKey } from './inline-node-click';
+import { hashTagConfig } from './trigger-config';
+import { createTriggerSuggestionPlugin } from './trigger-suggestion';
 import { createTriggerNode, type TriggerNodeOptions } from './trigger-node';
 
 export interface HashTagItem {
@@ -11,7 +11,7 @@ export interface HashTagItem {
 // Shape documented on TriggerNodeOptions (identical to MentionOptions).
 export interface HashTagOptions extends TriggerNodeOptions<HashTagItem> {}
 
-export const HashTagPluginKey = new PMPluginKey('hashTag');
+export { HashTagPluginKey } from './trigger-config';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -22,12 +22,4 @@ declare module '@tiptap/core' {
   }
 }
 
-export const HashTag = createTriggerNode<HashTagOptions, HashTagItem>({
-  name: 'hashTag',
-  char: '#',
-  pluginKey: HashTagPluginKey,
-  clickPluginKey: hashTagClickPluginKey,
-  dataAttribute: 'data-hashtag',
-  header: (said) => said.hashtags,
-  insertCommand: 'insertHashTag',
-});
+export const HashTag = createTriggerNode<HashTagOptions, HashTagItem>(hashTagConfig, createTriggerSuggestionPlugin);

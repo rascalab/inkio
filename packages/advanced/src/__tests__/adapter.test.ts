@@ -78,7 +78,7 @@ describe('mapExtensionsAdapterToOptions', () => {
     const options = mapExtensionsAdapterToOptions(adapter);
     expect(typeof options.onUpload).toBe('function');
 
-    const url = await options.onUpload!(new File([], 'test.png'));
+    const url = await options.onUpload!(new File([], 'test.png'), { signal: new AbortController().signal });
     expect(url).toBe('https://example.com/image.png');
   });
 
@@ -90,7 +90,7 @@ describe('mapExtensionsAdapterToOptions', () => {
     };
 
     const options = mapExtensionsAdapterToOptions(adapter);
-    const url = await options.onUpload!(new File([], 'img.jpg'));
+    const url = await options.onUpload!(new File([], 'img.jpg'), { signal: new AbortController().signal });
     expect(url).toBe('https://cdn.example.com/img.jpg');
   });
 
@@ -147,13 +147,18 @@ describe('mapExtensionsAdapterToOptions', () => {
     expect(options.allowedMimeTypes).toEqual(['image/png', 'image/jpeg']);
   });
 
-  it('forwards the upload context to uploadFile', async () => {
-    const uploadFile = vi.fn(async () => 'https://example.com/image.png');
-    const adapter: ExtensionsAdapter = { file: { uploadFile } };
+  it('forwards the upload context to the adapter uploader and resolver', async () => {
+    const controller = new AbortController();
+    const context = { blockId: 'b1', signal: controller.signal };
+    const uploadFile = vi.fn(async () => '/image.png');
+    const resolveFileUrl = vi.fn(async () => 'https://example.com/image.png');
+    const adapter: ExtensionsAdapter = { file: { uploadFile, resolveFileUrl } };
 
     const options = mapExtensionsAdapterToOptions(adapter);
-    await options.onUpload!(new File([], 'test.png'), { blockId: 'b1' });
-    expect(uploadFile).toHaveBeenCalledWith(expect.any(File), { blockId: 'b1' });
+    const uploaded = await options.onUpload!(new File([], 'test.png'), context);
+    await options.resolveFileUrl!(uploaded, context);
+    expect(uploadFile).toHaveBeenCalledWith(expect.any(File), context);
+    expect(resolveFileUrl).toHaveBeenCalledWith('/image.png', context);
   });
 
   it('rejects option objects carrying non-adapter keys', () => {
@@ -203,5 +208,5 @@ it('rejects a missing upload result with the adapter contract error', async () =
   const { onUpload } = mapExtensionsAdapterToOptions({
     file: { uploadFile: async () => null as never },
   });
-  await expect(onUpload!(new File([], 'photo.png'))).rejects.toThrow('must return a URL string');
+  await expect(onUpload!(new File([], 'photo.png'), { signal: new AbortController().signal })).rejects.toThrow('must return a URL string');
 });

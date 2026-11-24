@@ -1,8 +1,13 @@
-import Konva from 'konva';
+import type KonvaTypes from 'konva';
+import { Brighten } from 'konva/lib/filters/Brighten.js';
+import { Contrast } from 'konva/lib/filters/Contrast.js';
+import { Enhance } from 'konva/lib/filters/Enhance.js';
+import { Grayscale } from 'konva/lib/filters/Grayscale.js';
+import { HSL } from 'konva/lib/filters/HSL.js';
+import { Invert } from 'konva/lib/filters/Invert.js';
+import { Sepia } from 'konva/lib/filters/Sepia.js';
+import type { Filter as KonvaFilter } from 'konva/lib/Node.js';
 import type { FilterPresetId, FinetuneOptions, ImageEditorLocale } from '../types';
-
-// Same type Konva itself uses for `Filters.*` values (`FilterFunction | string`).
-type KonvaFilter = typeof Konva.Filters.Grayscale;
 
 export interface FilterValues {
   brightness: number;
@@ -49,37 +54,37 @@ export interface FilterPreset {
 
 export const FILTER_PRESETS: readonly FilterPreset[] = [
   { id: 'none', labelKey: 'filterNone', filters: [], values: {} },
-  { id: 'grayscale', labelKey: 'filterGrayscale', filters: [Konva.Filters.Grayscale], values: {} },
-  { id: 'sepia', labelKey: 'filterSepia', filters: [Konva.Filters.Sepia], values: {} },
-  { id: 'invert', labelKey: 'filterInvert', filters: [Konva.Filters.Invert], values: {} },
+  { id: 'grayscale', labelKey: 'filterGrayscale', filters: [Grayscale], values: {} },
+  { id: 'sepia', labelKey: 'filterSepia', filters: [Sepia], values: {} },
+  { id: 'invert', labelKey: 'filterInvert', filters: [Invert], values: {} },
   {
     id: 'warm',
     labelKey: 'filterWarm',
-    filters: [Konva.Filters.HSL, Konva.Filters.Brighten],
+    filters: [HSL, Brighten],
     values: { saturation: 0.35, luminance: 0.04, brightness: 0.05 },
   },
   {
     id: 'cool',
     labelKey: 'filterCool',
-    filters: [Konva.Filters.HSL, Konva.Filters.Brighten],
+    filters: [HSL, Brighten],
     values: { saturation: 0.15, luminance: -0.03, brightness: 0.04 },
   },
   {
     id: 'dramatic',
     labelKey: 'filterDramatic',
-    filters: [Konva.Filters.Contrast, Konva.Filters.Brighten],
+    filters: [Contrast, Brighten],
     values: { contrast: 32, brightness: -0.04 },
   },
   {
     id: 'soft',
     labelKey: 'filterSoft',
-    filters: [Konva.Filters.Brighten, Konva.Filters.Contrast],
+    filters: [Brighten, Contrast],
     values: { brightness: 0.1, contrast: -12 },
   },
   {
     id: 'vintage',
     labelKey: 'filterVintage',
-    filters: [Konva.Filters.Sepia, Konva.Filters.Contrast, Konva.Filters.Brighten],
+    filters: [Sepia, Contrast, Brighten],
     values: { contrast: -8, brightness: 0.05 },
   },
 ];
@@ -113,24 +118,24 @@ export function resolveEffectiveFilter(
 
   const filters = [...preset.filters];
   const has = (filter: KonvaFilter) => filters.includes(filter);
-  if (values.brightness !== 0 && !has(Konva.Filters.Brighten)) {
-    filters.push(Konva.Filters.Brighten);
+  if (values.brightness !== 0 && !has(Brighten)) {
+    filters.push(Brighten);
   }
-  if (values.contrast !== 0 && !has(Konva.Filters.Contrast)) {
-    filters.push(Konva.Filters.Contrast);
+  if (values.contrast !== 0 && !has(Contrast)) {
+    filters.push(Contrast);
   }
-  if (values.saturation !== 0 && !has(Konva.Filters.HSL)) {
-    filters.push(Konva.Filters.HSL);
+  if (values.saturation !== 0 && !has(HSL)) {
+    filters.push(HSL);
   }
   if (values.clarity !== 0) {
-    filters.push(Konva.Filters.Enhance);
+    filters.push(Enhance);
   }
 
   return { filters, values };
 }
 
 /** Reset tunable filter attrs so switching presets never stacks values. */
-function resetFilterAttrs(node: Konva.Image): void {
+function resetFilterAttrs(node: KonvaTypes.Image): void {
   node.brightness(0);
   node.contrast(0);
   node.saturation(0);
@@ -144,7 +149,7 @@ function resetFilterAttrs(node: Konva.Image): void {
  * preview (ImageNode) and the offscreen export stage, keeping them identical.
  */
 export function applyImageFilter(
-  node: Konva.Image,
+  node: KonvaTypes.Image,
   id: FilterPresetId,
   finetune: FinetuneOptions = DEFAULT_FINETUNE,
 ): void {
@@ -166,7 +171,7 @@ interface PendingFilterPreview {
   finetune: FinetuneOptions;
 }
 
-const pendingFilterPreviews = new WeakMap<Konva.Image, PendingFilterPreview>();
+const pendingFilterPreviews = new WeakMap<KonvaTypes.Image, PendingFilterPreview>();
 
 /**
  * Coalesced preview path for slider drags: rapid `SET_FINETUNE` ticks only
@@ -175,7 +180,7 @@ const pendingFilterPreviews = new WeakMap<Konva.Image, PendingFilterPreview>();
  * synchronously so output never depends on frame timing.
  */
 export function scheduleFilteredPreview(
-  node: Konva.Image,
+  node: KonvaTypes.Image,
   id: FilterPresetId,
   finetune: FinetuneOptions = DEFAULT_FINETUNE,
 ): void {
@@ -201,7 +206,7 @@ export function scheduleFilteredPreview(
   pendingFilterPreviews.set(node, { frame, id, finetune: snapshot });
 }
 
-export function cancelScheduledFilterPreview(node: Konva.Image): void {
+export function cancelScheduledFilterPreview(node: KonvaTypes.Image): void {
   const pending = pendingFilterPreviews.get(node);
   if (pending) {
     cancelAnimationFrame(pending.frame);

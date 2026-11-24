@@ -1,7 +1,7 @@
 import { closeHistory } from '@tiptap/pm/history';
 import { Fragment, Slice, type Node as ProseMirrorNode, type ResolvedPos } from '@tiptap/pm/model';
 import { NodeSelection, TextSelection } from '@tiptap/pm/state';
-import { dropPoint } from '@tiptap/pm/transform';
+import { canSplit, dropPoint } from '@tiptap/pm/transform';
 import type { EditorView } from '@tiptap/pm/view';
 
 export interface HoveredBlock {
@@ -17,7 +17,12 @@ export interface BlockDragSource extends BlockPress {
 }
 
 export type DropCoords = Pick<MouseEvent, 'clientX' | 'clientY'>;
-type TouchDropTarget = { gap: number; slice: Slice; splitList: boolean };
+type BlockDropPlan = {
+  gap: number;
+  insertAt: number;
+  node: ProseMirrorNode;
+  placement: 'block' | 'besideList' | 'splitList';
+};
 
 const LIST_ITEM_TYPES = new Set(['listItem', 'taskItem']);
 const LIST_TYPES_SET = new Set(['bulletList', 'orderedList', 'taskList']);
@@ -47,8 +52,7 @@ export const dragSource = (view: EditorView, source: BlockPress): BlockDragSourc
   if (!node?.isBlock) return null;
   const selection = NodeSelection.create(doc, blockPos);
   const parentList = selection.$from.parent;
-  // Keep the wrapper for drops outside a list, but insert just the item
-  // between compatible siblings.
+  // Serialize an item with its parent list for transfers to other editors.
   const slice = LIST_ITEM_TYPES.has(node.type.name) && LIST_TYPES_SET.has(parentList.type.name)
     ? new Slice(Fragment.from(parentList.type.create(parentList.attrs, node)), 1, 1)
     : selection.content();
@@ -116,41 +120,24 @@ const listDropGapAt = (view: EditorView, at: number, clientY: number): number | 
   return rect && clientY > rect.top + rect.height / 2 ? $at.after(listDepth + 1) : itemPos;
 };
 
-/**
- * A paragraph dropped on a list would otherwise become part of an item.
- * Insert at the same gap shown by the marker, splitting the list if needed.
- */
-export const dropBesideListItem = (view: EditorView, gap: number, pickup: BlockDragSource, move: boolean, touch = false): boolean => {
-  const { blockPos: pos, selection: { node } } = pickup;
+const canInsertBlock = ($pos: ResolvedPos, node: ProseMirrorNode) =>
+  !$pos.parent.inlineContent && $pos.parent.canReplaceWith($pos.index(), $pos.index(), node.type, node.marks);
 
-  const tr = view.state.tr;
-  if (move) tr.delete(pos, pos + node.nodeSize);
-  const $gap = tr.doc.resolve(tr.mapping.map(gap));
-  let target = $gap.pos + 1;
-  if ($gap.index() === 0) {
-    target = $gap.before();
-  } else if ($gap.index() === $gap.parent.childCount) {
-    target = $gap.after();
-  } else {
-    tr.split($gap.pos);
+// Place ordinary blocks beside an item, not inside it. At an interior gap
+// the list must be split so the block can stay at the previewed position.
+const besideListPlan = (doc: ProseMirrorNode, gap: number, node: ProseMirrorNode): BlockDropPlan | null => {
+  const $gap = doc.resolve(gap);
+  const list = $gap.parent;
+  if ($gap.index() === 0 || $gap.index() === list.childCount) {
+    const insertAt = $gap.index() === 0 ? $gap.before() : $gap.after();
+    return canInsertBlock(doc.resolve(insertAt), node) ? { gap, insertAt, node, placement: 'besideList' } : null;
   }
-
-  const $target = tr.doc.resolve(target);
-  if (!$target.parent.canReplaceWith($target.index(), $target.index(), node.type)) {
-    return false;
-  }
-  tr.insert(target, node);
-  tr.setSelection(TextSelection.near(tr.doc.resolve(target + 1)));
-  view.dispatch((touch ? closeHistory(tr) : tr).setMeta('uiEvent', 'drop'));
-  if (!touch) view.focus();
-  return true;
-};
-
-export const pickupListGap = (view: EditorView, pickup: BlockDragSource, at: number, clientY: number) => {
-  const { blockPos, selection: { node } } = pickup;
-  if (LIST_ITEM_TYPES.has(node.type.name)) return null;
-  const gap = listDropGapAt(view, at, clientY);
-  return gap !== null && (gap < blockPos || gap > blockPos + node.nodeSize) ? gap : null;
+  if (!canSplit(doc, gap)) return null;
+  const $afterList = doc.resolve($gap.after());
+  const index = $afterList.index();
+  return $afterList.parent.canReplace(index, index, Fragment.fromArray([node, list]))
+    ? { gap, insertAt: gap, node, placement: 'splitList' }
+    : null;
 };
 
 export const dropMarkerRect = (view: EditorView, pos: number) => {
@@ -171,47 +158,81 @@ export const dropMarkerRect = (view: EditorView, pos: number) => {
   };
 };
 
-export const touchDropTarget = (view: EditorView, source: BlockDragSource, coords: DropCoords): TouchDropTarget | null => {
+export const planBlockDrop = (view: EditorView, source: BlockDragSource, coords: DropCoords, move: boolean): BlockDropPlan | null => {
   if (!view.editable || view.state.doc !== source.doc || !isInEditor(view, coords)) return null;
   const { clientX, clientY } = coords;
   const hit = view.root.elementFromPoint?.(clientX, clientY);
   if (hit && !view.dom.contains(hit)) return null;
   const at = view.posAtCoords({ left: clientX, top: clientY });
   if (!at) return null;
-  const listGap = pickupListGap(view, source, at.pos, clientY);
-  if (listGap !== null) return { gap: listGap, slice: source.slice, splitList: true };
 
-  // Pick a block edge by geometry, not by the caret's position in a line.
-  const hovered = findHoveredBlock(view, clientX, clientY, at);
+  const { doc, selection, blockPos } = source;
+  const overlapsSource = (pos: number) => move ? pos >= blockPos && pos <= selection.to : pos > blockPos && pos < selection.to;
+  let { node } = selection;
+  const listGap = LIST_ITEM_TYPES.has(node.type.name) ? null : listDropGapAt(view, at.pos, clientY);
+  if (listGap !== null) {
+    if (overlapsSource(listGap)) return null;
+    const plan = besideListPlan(doc, listGap, node);
+    return plan && !overlapsSource(plan.insertAt) ? plan : null;
+  }
+
+  // A caret already at a list gap needs no geometry correction. Otherwise,
+  // use the block edge rather than the caret's position in a line.
   let pos = at.pos;
-  if (hovered) {
-    const { top, height } = hovered.blockElement.getBoundingClientRect();
-    pos = hovered.blockPos;
-    if (clientY > top + height / 2) pos += source.doc.nodeAt(pos)!.nodeSize;
+  if (!LIST_TYPES_SET.has(doc.resolve(pos).parent.type.name)) {
+    const hovered = findHoveredBlock(view, clientX, clientY, at);
+    if (hovered) {
+      const { top, height } = hovered.blockElement.getBoundingClientRect();
+      pos = hovered.blockPos;
+      if (clientY > top + height / 2) pos += doc.nodeAt(pos)!.nodeSize;
+    }
   }
 
-  let { slice } = source;
-  let gap = dropPoint(source.doc, pos, slice);
+  const { slice } = source;
+  let gap = dropPoint(doc, pos, slice);
   if (gap === null && slice.openStart) {
-    // A list item dropped outside a compatible list moves with its wrapper.
-    slice = new Slice(slice.content, 0, 0);
-    gap = dropPoint(source.doc, pos, slice);
+    // Outside a compatible list, insert the closed source wrapper, not a
+    // bare item that ProseMirror could fit into a different kind of list.
+    node = slice.content.firstChild!;
+    if (!node.type.validContent(node.content)) return null;
+    gap = dropPoint(doc, pos, new Slice(slice.content, 0, 0));
   }
-  if (gap === null || (gap >= source.blockPos && gap <= source.selection.to)) return null;
-  return { gap, slice, splitList: false };
+  if (gap === null || overlapsSource(gap) || !canInsertBlock(doc.resolve(gap), node)) return null;
+  return { gap, insertAt: gap, node, placement: 'block' };
 };
 
-export const moveTouchBlock = (view: EditorView, source: BlockDragSource, target: TouchDropTarget) => {
-  if (target.splitList) {
-    dropBesideListItem(view, target.gap, source, true, true);
-    return;
+export const applyBlockDrop = (
+  view: EditorView, source: BlockDragSource, plan: BlockDropPlan, move: boolean, mode: 'native' | 'touch',
+) => {
+  if (!view.editable || view.state.doc !== source.doc || !dropMarkerRect(view, plan.gap)) return;
+  const tr = view.state.tr;
+  if (move) source.selection.replace(tr);
+
+  let pos = tr.mapping.map(plan.insertAt);
+  if (plan.placement === 'splitList') {
+    if (!canSplit(tr.doc, pos)) return;
+    tr.split(pos);
+    pos += 1;
   }
-  const tr = closeHistory(view.state.tr);
-  source.selection.replace(tr);
-  const pos = tr.mapping.map(target.gap);
-  const beforeInsert = tr.doc;
-  tr.replaceRange(pos, pos, target.slice);
-  if (!tr.doc.eq(beforeInsert) && !tr.doc.eq(source.doc)) view.dispatch(tr.setMeta('uiEvent', 'drop'));
+  const { node } = plan;
+  if (!canInsertBlock(tr.doc.resolve(pos), node)) return;
+  tr.insert(pos, node);
+  if (tr.doc.eq(source.doc)) return;
+
+  if (plan.placement !== 'block') {
+    tr.setSelection(TextSelection.near(tr.doc.resolve(pos + 1)));
+  } else if (mode === 'native') {
+    const $from = tr.doc.resolve(pos);
+    if (!LIST_ITEM_TYPES.has(node.type.name) && NodeSelection.isSelectable(node)) {
+      tr.setSelection(new NodeSelection($from));
+    } else {
+      const $to = tr.doc.resolve(pos + node.nodeSize);
+      tr.setSelection(view.someProp('createSelectionBetween', (create) => create(view, $from, $to))
+        ?? TextSelection.between($from, $to));
+    }
+  }
+  view.dispatch((mode === 'touch' ? closeHistory(tr) : tr).setMeta('uiEvent', 'drop'));
+  if (mode === 'native') view.focus();
 };
 
 const FIRST_TEXT_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, summary, [data-type="toc"]';

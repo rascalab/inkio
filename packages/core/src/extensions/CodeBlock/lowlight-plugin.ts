@@ -2,10 +2,8 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { EditorState } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
-import highlight from 'highlight.js/lib/core';
 import { clampRange, collectChangedRanges } from '../../utils/changed-ranges';
-
-export type InkioLowlight = ReturnType<typeof import('lowlight').createLowlight>;
+import type { InkioLowlight } from './lowlight-engine';
 
 function parseNodes(
   nodes: Array<{ value?: string; children?: unknown; properties?: { className?: string[] } }>,
@@ -49,31 +47,23 @@ function safeHighlight(
  */
 export const LOWLIGHT_REFRESH_META = 'inkioLowlightRefresh';
 
-function isFunction(param: unknown): param is (...args: never[]) => unknown {
-  return typeof param === 'function';
-}
-
 /** Highlight changed code blocks, preserving mapped decorations elsewhere. */
 export function InkioLowlightPlugin({
   name,
-  lowlight,
+  getLowlight,
   defaultLanguage,
 }: {
   name: string;
-  lowlight: InkioLowlight;
+  getLowlight: () => InkioLowlight | undefined;
   defaultLanguage: string | null | undefined;
 }): Plugin {
-  if (!['highlight', 'highlightAuto', 'listLanguages'].every((api) => isFunction(lowlight[api as keyof InkioLowlight]))) {
-    throw Error('You should provide an instance of lowlight to use the code-block-lowlight extension');
-  }
-
   const highlightBlock = (node: ProseMirrorNode, pos: number, decorations: Decoration[]) => {
+    const lowlight = getLowlight();
+    if (!lowlight) return;
     const language = node.attrs.language || defaultLanguage;
     const source = node.textContent;
     const result =
-      language &&
-      (highlight.getLanguage(language) ||
-        (lowlight.registered?.(language) ?? lowlight.listLanguages().includes(language)))
+      language && lowlight.registered(language)
         ? safeHighlight(() => lowlight.highlight(language, source))
         : safeHighlight(() => lowlight.highlightAuto(source));
     const nodes = getHighlightNodes(result) as Parameters<typeof parseNodes>[0];

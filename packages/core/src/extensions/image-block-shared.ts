@@ -13,10 +13,10 @@ export const UPLOAD_PLACEHOLDER_PREFIX = '__inkio_upload_';
 export interface ImageEditorComponentProps {
   isOpen: boolean;
   imageSrc: string;
-  /** Reject to keep the image editor open when persistence fails. */
-  onSave: (editedImageData: string) => void | Promise<void>;
-  /** When provided, editors may pass encoded image bytes here instead of calling onSave. */
-  onSaveBlob?: (blob: Blob) => void | Promise<void>;
+  /** Reject to keep the image editor open when persistence fails. Editors may cancel their save. */
+  onSave: (editedImageData: string, signal?: AbortSignal) => void | Promise<void>;
+  /** Editors may pass encoded bytes instead. A preview is optional and is not uploaded. */
+  onSaveBlob?: (blob: Blob, preview?: Blob, signal?: AbortSignal) => void | Promise<void>;
   onClose: () => void;
   /** Resolved theme of the editor that opened it (`theme` prop or a `.dark` ancestor). */
   theme?: 'light' | 'dark';

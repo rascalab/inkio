@@ -1,56 +1,30 @@
 import { useImageEditor } from '../../hooks/use-image-editor';
-import type { FreeDrawAnnotation } from '../../types';
-import { COLOR_PRESETS } from '../../color-presets';
-import { getSelectedAnnotation, isDrawAnnotation } from '../../utils/annotation-types';
-import { ColorField, PanelSection, SliderRow, ToolPanel } from '../control-groups';
+import { isDrawAnnotation } from '../../utils/annotation-types';
+import { ColorPickerButton } from '../ColorPickerButton';
+import { PanelSection, SliderRow, ToolPanel } from '../control-groups';
+import { optionFields, selectedFor } from './annotation-fields';
 import { LayerOrderControls } from './LayerOrderControls';
 
 export function DrawOptionsPanel() {
   const { state, dispatch, locale } = useImageEditor();
   const { drawOptions } = state;
-  const selectedAnnotation = getSelectedAnnotation(state.annotations, state.selectedAnnotationId);
-  const selectedDraw = isDrawAnnotation(selectedAnnotation) ? selectedAnnotation : null;
+  const selectedDraw = selectedFor(state, isDrawAnnotation);
+  const field = optionFields(dispatch, 'SET_DRAW_OPTIONS', selectedDraw);
 
   const color = selectedDraw?.stroke ?? drawOptions.color;
   const strokeWidth = selectedDraw?.strokeWidth ?? drawOptions.strokeWidth;
   const opacity = selectedDraw?.opacity ?? drawOptions.opacity;
 
-  const updateSelectedPreview = (updates: Partial<FreeDrawAnnotation>) => {
-    if (!selectedDraw) {
-      return;
-    }
-
-    dispatch({ type: 'UPDATE_ANNOTATION', id: selectedDraw.id, updates });
-  };
-
-  const updateSelectedCommit = (updates: Partial<FreeDrawAnnotation>) => {
-    if (!selectedDraw) {
-      return;
-    }
-
-    dispatch({ type: 'UPDATE_ANNOTATION_COMMIT', id: selectedDraw.id, updates });
-  };
-
   return (
     <ToolPanel title={selectedDraw ? locale.selectedDraw : locale.drawDefaults}>
       <PanelSection label={locale.color}>
-        <ColorField
+        <ColorPickerButton
           label={locale.color}
           value={color}
-          presets={COLOR_PRESETS}
-          pickerTestId="inkio-ie-draw-color-picker"
+          locale={locale}
+          testId="inkio-ie-draw-color-picker"
           enableAlpha={false}
-          hexLabel={locale.colorHex}
-          alphaLabel={locale.colorAlpha}
-          paletteLabel={locale.colorPalette}
-          onChange={(nextColor) => {
-            if (selectedDraw) {
-              updateSelectedCommit({ stroke: nextColor });
-              return;
-            }
-
-            dispatch({ type: 'SET_DRAW_OPTIONS', options: { color: nextColor } });
-          }}
+          onChange={field('color', 'stroke')}
         />
       </PanelSection>
       <PanelSection>
@@ -63,75 +37,21 @@ export function DrawOptionsPanel() {
           value={strokeWidth}
           rangeTestId="inkio-ie-draw-brush-size-range"
           numberTestId="inkio-ie-draw-brush-size-number"
-        onPreviewChange={(nextStrokeWidth) => {
-          if (selectedDraw) {
-            updateSelectedPreview({ strokeWidth: nextStrokeWidth });
-            return;
-          }
-
-          dispatch({
-            type: 'SET_DRAW_OPTIONS',
-            options: { strokeWidth: nextStrokeWidth },
-          });
-        }}
-        onCommitChange={(nextStrokeWidth) => {
-          if (!selectedDraw) {
-            return;
-          }
-
-          updateSelectedCommit({ strokeWidth: nextStrokeWidth });
-        }}
-        onDirectChange={(nextStrokeWidth) => {
-          if (selectedDraw) {
-            updateSelectedCommit({ strokeWidth: nextStrokeWidth });
-            return;
-          }
-
-          dispatch({
-            type: 'SET_DRAW_OPTIONS',
-            options: { strokeWidth: nextStrokeWidth },
-          });
-        }}
-      />
-      <SliderRow
-        presentation="popover"
-        label={locale.opacity}
-        valueLabel={`${Math.round(opacity * 100)}%`}
-        min={0}
-        max={1}
-        step={0.05}
-        value={opacity}
-        rangeTestId="inkio-ie-draw-opacity-range"
-        onPreviewChange={(nextOpacity) => {
-          if (selectedDraw) {
-            updateSelectedPreview({ opacity: nextOpacity });
-            return;
-          }
-
-          dispatch({
-            type: 'SET_DRAW_OPTIONS',
-            options: { opacity: nextOpacity },
-          });
-        }}
-        onCommitChange={(nextOpacity) => {
-          if (!selectedDraw) {
-            return;
-          }
-
-          updateSelectedCommit({ opacity: nextOpacity });
-        }}
-        onDirectChange={(nextOpacity) => {
-          if (selectedDraw) {
-            updateSelectedCommit({ opacity: nextOpacity });
-            return;
-          }
-
-          dispatch({
-            type: 'SET_DRAW_OPTIONS',
-            options: { opacity: nextOpacity },
-          });
-        }}
-      />
+          onChange={field('strokeWidth')}
+          commitOnRelease={!!selectedDraw}
+        />
+        <SliderRow
+          presentation="popover"
+          label={locale.opacity}
+          valueLabel={`${Math.round(opacity * 100)}%`}
+          min={0}
+          max={1}
+          step={0.05}
+          value={opacity}
+          rangeTestId="inkio-ie-draw-opacity-range"
+          onChange={field('opacity')}
+          commitOnRelease={!!selectedDraw}
+        />
       </PanelSection>
       <LayerOrderControls annotationId={selectedDraw?.id ?? null} />
     </ToolPanel>

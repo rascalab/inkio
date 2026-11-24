@@ -19,7 +19,7 @@ src/
 |------|----------|-------|
 | Add a subpath extension | src/entries/<name>.ts + src/extensions/<Name>/ | barrel + implementation pair |
 | Comment UI changes | src/comment/ | composer/panel/popover share plugin keys |
-| Mention/hashtag extraction | src/serialization.ts | extractMentions/extractHashtags |
+| Read saved mentions/hashtags | `read(json)` from `@inkio/core` | `doc.mentions` / `doc.hashTags`; no advanced extensions required |
 | Preset assembly | src/get-default-extensions.ts | preset entry point |
 
 ## CONVENTIONS

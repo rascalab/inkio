@@ -22,7 +22,7 @@ packages/
   image-editor/ # optional image editing UI
   collab/       # Yjs-based realtime collaboration client
 docs/           # documentation site (Nextra)
-examples/       # basic-react, next-app-router, collab-server
+examples/       # basic-react, react-router, next-app-router, collab-server
 e2e/            # Playwright specs against the built examples
 ```
 
@@ -33,7 +33,13 @@ Package roles:
 - `@inkio/simple`: core-only classic editor
 - `@inkio/editor`: notion-like editor that includes `advanced`
 - `@inkio/image-editor`: canvas image editor, usable on its own
-- `@inkio/collab`: Yjs realtime collaboration client (no server; wire protocol and transport only)
+- `@inkio/collab`: Yjs provider, React hooks and offline document cache; optional Vite app-shell plugin. The reference server is an example, not part of the client package.
+
+## Editor API ownership
+
+- `core` owns **reading Inkio documents**, including the persisted shape of built-in references. Live getters and `read(json)` use the same rules. The editor caches by ProseMirror document identity without calling `getJSON()`; each saved-JSON reader caches for the lifetime of its immutable input. When adding a projection, test both representations of the same document.
+- **Behavior belongs to its extension.** Reading a comment ID doesn't load a comment UI or authorize a thread. Registering `Markdown` installs the editor's Markdown methods; importing the base editor must not load the Markdown parser.
+- **Presets choose defaults, not new meanings for props.** Resolve extensions once and forward the exact result. Whether a menu is enabled and how it is configured come from the same preset option. A host that needs a JSON copy requests one explicitly (`onUpdate` or `editor.getJSON()`); an instance change callback must not create one for it.
 
 ## Shared chrome contract
 
@@ -57,6 +63,7 @@ Focus rings, borders, blur, shadows and field styling follow this shared contrac
 - The Tiptap runtime Inkio uses goes in each package's `dependencies`; apps never install `@tiptap/*` themselves.
 - Keep Tiptap package versions aligned. The stack includes peers that require the exact same Tiptap release.
 - `@inkio/core` is published, but the docs do not present it as a starting point for apps.
+- Package source imports (including CSS) must use the other package's declared public exports. The dependency contract test checks both the graph and the source imports.
 
 ## Verification
 
@@ -71,7 +78,11 @@ pnpm security:audit
 pnpm release:smoke
 ```
 
-`pnpm verify` is the quick subset and includes the reference collaboration server smoke. `pnpm verify:full` also audits the lockfile, runs Chromium and Firefox E2E and WebKit workbench E2E, and checks package exports and bundle budgets. Package smoke installs tarballs with strict peers on React 19.3 and checks the non-image editor packages on React 18.
+`pnpm verify` is the quick subset and includes the reference collaboration server smoke. `pnpm verify:full` also audits the lockfile, runs Chromium and Firefox E2E and WebKit workbench E2E, and checks package exports and bundle budgets. Package smoke installs tarballs with strict peers, loads every CommonJS JS entry and resolves CSS assets on React 19.3, and checks the non-image editor packages on React 18. The browser collaboration runtime and the optional Node Vite plugin have separate budgets.
+
+Playwright retries on CI to collect failure evidence. A test that passes only on retry still fails the gate; use `pnpm exec playwright test --retries=0` to check first-attempt behavior locally.
+
+After building packages, `pnpm package:budgets` also builds isolated production consumers of each preset's root `read`, `Viewer` and `Editor` exports. Compare the initial JS (raw and gzip) separately from all JS (gzip): deferring code is not the same as removing it. These measurements include React when the consumer uses it, but exclude CSS and framework-specific app code.
 
 ## Releasing
 

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import type { Content, Editor as TiptapEditor, Extensions, JSONContent } from '@tiptap/react';
+import type { Content, JSONContent } from '@tiptap/react';
 import { useEditor } from '@tiptap/react';
 import type { HocuspocusProviderWebsocket } from '@hocuspocus/provider';
 import * as Y from 'yjs';
-import { resolveInkioExtensions, useCoalescedDocUpdate, useStableCallback } from '@inkio/core';
+import { mergeExtensions, resolveInkioExtensions, useCoalescedDocUpdate, useStableCallback, withDocumentAccess, type ExtensionsInput, type InkioEditor, type RegisteredEditor, type WithEditorExtensions } from '@inkio/core';
 import { createCollabExtensions, removeConflictingExtensions } from './extensions';
 import { getCollabCacheKey, persistDocToIndexedDB, type CollabCacheScope } from './persistence';
 import { FALLBACK_PRESENCE_USER, normalizePresenceUser } from './presence-user';
@@ -63,6 +63,7 @@ export function useCollabProvider(options: UseCollabProviderOptions): CollabProv
   useEffect(() => {
     const document = session.doc ?? new Y.Doc();
     const { accountId, deploymentId } = session;
+    let attemptedToken: CollabToken | undefined;
     const next = createCollabProvider({
       docId: session.docId,
       url: session.url,
@@ -70,9 +71,16 @@ export function useCollabProvider(options: UseCollabProviderOptions): CollabProv
       doc: document,
       token: () => {
         const current = tokenRef.current;
+        attemptedToken = current;
         return typeof current === 'function' ? current() : current;
       },
       user: userRef.current,
+    });
+    next.on('authenticationFailed', () => {
+      // A rotated token may have arrived before the old handshake was rejected.
+      if (typeof tokenRef.current === 'string' && tokenRef.current !== attemptedToken) {
+        retryCollabAuthentication(next);
+      }
     });
     const offlineStore = accountId && deploymentId && typeof indexedDB !== 'undefined'
       ? persistDocToIndexedDB(session.docId, document, { accountId, deploymentId })
@@ -137,7 +145,7 @@ export function useCollabPeers(provider: CollabProvider | null): CollabPeer[] {
 }
 
 export interface UseInkioCollaborativeEditorOptions extends UseCollabProviderOptions {
-  extensions?: Extensions;
+  extensions?: ExtensionsInput;
   /**
    * Seed for an empty shared doc. Seeding is deterministic, so every client
    * may pass the same seed: concurrent joiners converge on one copy.
@@ -145,23 +153,29 @@ export interface UseInkioCollaborativeEditorOptions extends UseCollabProviderOpt
   content?: Content;
   editable?: boolean;
   ariaLabel?: string;
+  onChange?: (editor: InkioEditor) => void;
   onUpdate?: (content: JSONContent) => void;
-  onCreate?: (editor: TiptapEditor) => void;
+  onCreate?: (editor: InkioEditor) => void;
 }
 
-export interface CollaborativeEditor {
-  editor: TiptapEditor | null;
+export interface CollaborativeEditor<Instance extends InkioEditor = InkioEditor> {
+  editor: Instance | null;
   provider: CollabProvider | null;
   status: CollabStatus;
   /** True when the server granted a read-only scope. */
   readOnly: boolean;
 }
 
+export function useInkioCollaborativeEditor<const Input extends UseInkioCollaborativeEditorOptions['extensions']>(
+  options: WithEditorExtensions<UseInkioCollaborativeEditorOptions, Input>,
+): CollaborativeEditor<RegisteredEditor<Input>>;
+export function useInkioCollaborativeEditor(options: UseInkioCollaborativeEditorOptions): CollaborativeEditor;
 export function useInkioCollaborativeEditor({
   extensions,
   content: seedContent,
   editable = true,
   ariaLabel = 'Rich text editor',
+  onChange,
   onUpdate,
   onCreate,
   ...providerOptions
@@ -180,18 +194,28 @@ export function useInkioCollaborativeEditor({
   const handleCreate = useStableCallback(onCreate);
   // Remote Yjs frames fire onUpdate too: serialize the doc at most once per
   // microtask burst, and not at all without a listener.
-  const emitUpdate = useCoalescedDocUpdate(onUpdate);
+  const emitUpdate = useCoalescedDocUpdate(onUpdate, onChange);
+
+  // Rebuilding this list recreates the live Yjs editor. A fresh container such
+  // as `[Markdown]` still registers exactly the same extension instances.
+  const list = extensions && 'items' in extensions ? extensions.items : extensions;
+  const replace = !!(extensions && 'items' in extensions && extensions.replace);
+  const previous = useRef(list);
+  const last = previous.current;
+  if (list !== last && (!list || !last || list.length !== last.length || list.some((ext, i) => ext !== last[i]))) {
+    previous.current = list;
+  }
+  const items = previous.current;
+  const base = useMemo(() => removeConflictingExtensions(resolveInkioExtensions(
+    items && replace ? { items, replace: true } : items,
+  )), [items, replace]);
 
   const finalExtensions = useMemo(() => {
-    const base = removeConflictingExtensions(resolveInkioExtensions(extensions));
     if (!provider) return base;
-    return [
-      ...base,
-      ...createCollabExtensions({ document: provider.document, provider, user: providerOptions.user }),
-    ];
+    return mergeExtensions(base, createCollabExtensions({ document: provider.document, provider, user: providerOptions.user }));
     // The user is applied live through awareness; only the provider rebuilds.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [extensions, provider]);
+  }, [base, provider]);
 
   const editor = useEditor(
     {
@@ -205,7 +229,7 @@ export function useInkioCollaborativeEditor({
         'aria-multiline': 'true',
       } },
       onCreate: ({ editor: instance }) => {
-        if (provider && getCollabStatus(provider) !== 'unauthorized') handleCreate?.(instance);
+        if (provider && getCollabStatus(provider) !== 'unauthorized') handleCreate?.(withDocumentAccess(instance));
       },
       // setEditable emits 'update' with an empty transaction: only document
       // changes (local or remote) reach onUpdate (see core useInkioEditor).
@@ -225,7 +249,7 @@ export function useInkioCollaborativeEditor({
   // Do not expose that view under another room, account or deployment.
   const currentEditor = provider && status !== 'unauthorized' && editor?.extensionManager.extensions.some(
     (extension) => extension.name === 'collaborationCaret' && extension.options.provider === provider,
-  ) ? editor : null;
+  ) ? withDocumentAccess(editor) : null;
 
   useEffect(() => {
     if (!provider || !currentEditor || currentEditor.isDestroyed || status !== 'synced') return;

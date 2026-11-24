@@ -1,4 +1,5 @@
-import { Text } from 'react-konva';
+import { Text } from 'react-konva/lib/ReactKonvaCore.js';
+import 'konva/lib/shapes/Text.js';
 import type Konva from 'konva';
 import { STICKER_FONT_FAMILY } from '../constants';
 import type { StickerAnnotation } from '../types';

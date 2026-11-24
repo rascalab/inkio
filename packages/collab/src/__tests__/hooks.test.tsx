@@ -1,3 +1,4 @@
+import { EventEmitter, once } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 import { StrictMode, createElement, type ReactNode } from 'react';
 import { act, render, renderHook, waitFor } from '@testing-library/react';
@@ -32,7 +33,7 @@ Range.prototype.getClientRects ??= emptyRects;
 Range.prototype.getBoundingClientRect ??= () => new DOMRect();
 Element.prototype.getClientRects ??= emptyRects;
 
-const BASE = [Document, Paragraph, Text];
+const BASE = { items: [Document, Paragraph, Text], replace: true };
 
 function mountEditor(options: Parameters<typeof useInkioCollaborativeEditor>[0]) {
   const hook = renderHook((props) => useInkioCollaborativeEditor(props), { initialProps: options });
@@ -49,10 +50,13 @@ describe('useInkioCollaborativeEditor', () => {
     await waitFor(() => expect(b.result.current.status).toBe('synced'));
     const names = a.result.current.editor!.extensionManager.extensions.map((ext) => ext.name);
     expect(names).toEqual(expect.arrayContaining(['collaboration', 'collaborationCaret']));
+    expect(names).not.toContain('heading');
+    expect(b.result.current.editor!.text).toBe('');
     act(() => {
       a.result.current.editor!.commands.setContent('<p>shared</p>');
     });
     await waitFor(() => expect(b.result.current.editor?.getHTML()).toBe('<p>shared</p>'));
+    expect(b.result.current.editor!.text).toBe('shared');
     // Carets are only broadcast from a focused view, which needs a live DOM.
     const host = document.body.appendChild(a.result.current.editor!.view.dom);
     onCleanup(() => host.remove());
@@ -64,6 +68,21 @@ describe('useInkioCollaborativeEditor', () => {
       const label = b.result.current.editor!.view.dom.querySelector('.collaboration-carets__label');
       expect(label?.textContent).toBe('A');
     });
+  });
+
+  it('keeps core schema nodes for additive inputs without installing conflicting history', async () => {
+    const { url } = await startServer();
+    const hook = renderHook(() => useInkioCollaborativeEditor({ docId: 'additive', url, extensions: [Paragraph] }));
+    onCleanup(hook.unmount);
+    await waitFor(() => expect(hook.result.current.status).toBe('synced'));
+    const editor = hook.result.current.editor!;
+    expect(editor.schema.nodes.heading).toBeDefined();
+    const names = editor.extensionManager.extensions.map(ext => ext.name);
+    expect(names).not.toContain('undoRedo');
+    expect(names).not.toContain('history');
+    expect(names.filter(name => name === 'paragraph')).toHaveLength(1);
+    hook.rerender();
+    expect(hook.result.current.editor).toBe(editor);
   });
 
   it('coalesces a burst of updates into one onUpdate with the latest doc', async () => {
@@ -161,6 +180,28 @@ describe('useInkioCollaborativeEditor', () => {
     await waitFor(() => expect(hook.result.current.editor?.isEditable).toBe(true));
     expect(hook.result.current.editor?.view.dom.getAttribute('aria-multiline')).toBe('true');
     expect(hook.result.current.editor?.view.dom.getAttribute('aria-label')).toBe('Rich text editor');
+  });
+
+  it('uses a replacement token when the previous handshake is still pending', async () => {
+    const gate = new EventEmitter();
+    const started = once(gate, 'started');
+    const { url } = await startServer({
+      async onAuthenticate({ token }) {
+        if (token === 'previous') {
+          gate.emit('started');
+          await once(gate, 'release');
+          throw { reason: 'inkio:access-denied' };
+        }
+      },
+    });
+    const options = { docId: 'pending-token', url, extensions: BASE, token: 'previous' };
+    const hook = mountEditor(options);
+    await started;
+    const provider = hook.result.current.provider;
+    hook.rerender({ ...options, token: 'updated' });
+    gate.emit('release');
+    await waitFor(() => expect(hook.result.current.status).toBe('synced'));
+    expect(hook.result.current.provider).toBe(provider);
   });
 
   it('creates a fresh document when the offline account changes', async () => {

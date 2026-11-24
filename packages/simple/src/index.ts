@@ -19,9 +19,7 @@ export {
   pickMessageLocale,
   resolveLocaleInput,
   setEditorUi,
-  toPlainText,
-  toSummary,
-  getContentStats,
+  read,
 } from '@inkio/core';
 // Markdown serialization is intentionally NOT re-exported here — use
 // `@inkio/simple/markdown` so the unified/remark chain stays out of the
@@ -33,6 +31,8 @@ export type {
   TableMenuProps,
   BuiltinInkioToolbarActionId,
   ImageBlockOptions,
+  InkioDocument,
+  InkioEditor,
   InkioCoreLocaleId,
   InkioCoreMessages,
   InkioErrorHandler,

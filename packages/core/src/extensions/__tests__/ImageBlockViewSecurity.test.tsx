@@ -3,17 +3,19 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import type { NodeViewProps } from '@tiptap/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ImageBlockView } from '../ImageBlockView';
-import type { ImageBlockOptions, ImageEditorComponentProps } from '../ImageBlock';
+import type { ImageBlockOptions, ImageEditorComponentProps, ImageUploadContext } from '../ImageBlock';
 import { pngBase64 } from './image-fixtures';
 
 let capturedSave: ImageEditorComponentProps['onSave'] | null = null;
 let capturedBlobSave: ImageEditorComponentProps['onSaveBlob'];
+let capturedClose: ImageEditorComponentProps['onClose'];
 let capturedTheme: ImageEditorComponentProps['theme'];
 let capturedLocale: ImageEditorComponentProps['locale'];
 
 function StubImageEditor(props: ImageEditorComponentProps) {
   capturedSave = props.onSave;
   capturedBlobSave = props.onSaveBlob;
+  capturedClose = props.onClose;
   capturedTheme = props.theme;
   capturedLocale = props.locale;
   return <div data-testid="image-editor-stub" />;
@@ -118,7 +120,7 @@ describe('ImageBlockView edited image upload', () => {
   const editedImage = `data:image/png;base64,${pngBase64}`;
 
   it.each(['data URL', 'Blob'])('uploads edited bytes from a %s and persists the resolved URL', async (representation) => {
-    const onUpload = vi.fn(async (_file: File) => ({ src: '/files/edited.png', title: 'Edited' }));
+    const onUpload = vi.fn(async (_file: File, _context: ImageUploadContext) => ({ src: '/files/edited.png', title: 'Edited' }));
     const resolveFileUrl = vi.fn(async () => 'https://example.com/edited.png');
     const props = createProps('https://example.com/a.png', { onUpload, resolveFileUrl });
     render(<ImageBlockView {...props} />);
@@ -146,11 +148,79 @@ describe('ImageBlockView edited image upload', () => {
     expect(Array.from(new Uint8Array(uploaded))).toEqual(
       Array.from(atob(pngBase64), (char) => char.charCodeAt(0)),
     );
-    expect(resolveFileUrl).toHaveBeenCalledWith('/files/edited.png');
+    const context = onUpload.mock.calls[0][1];
+    expect(context.signal.aborted).toBe(false);
+    expect(resolveFileUrl).toHaveBeenCalledWith('/files/edited.png', context);
     expect(props.updateAttributes).toHaveBeenCalledWith({
       src: 'https://example.com/edited.png',
       title: 'Edited',
     });
+  });
+
+  it.each(['data URL', 'Blob'])('cancels a %s save without applying a late upload or swallowing a newer save', async (format) => {
+    let finish!: (src: string) => void;
+    const first = new Promise<string>((resolve) => { finish = resolve; });
+    const onUpload = vi.fn<NonNullable<ImageBlockOptions['onUpload']>>()
+      .mockReturnValueOnce(first)
+      .mockResolvedValueOnce('/new.png');
+    const onDelete = vi.fn();
+    const props = createProps('/original.png', { onUpload, cleanup: 'immediate', onDelete });
+    render(<ImageBlockView {...props} />);
+    fireEvent.click(screen.getByTestId('inkio-image-block-edit'));
+    const controller = new AbortController();
+    let stale: void | Promise<void>;
+    await act(async () => {
+      stale = format === 'Blob'
+        ? capturedBlobSave!(new Blob([Uint8Array.from(atob(pngBase64), c => c.charCodeAt(0))], { type: 'image/png' }), undefined, controller.signal)
+        : capturedSave!(editedImage, controller.signal);
+      await vi.waitFor(() => expect(onUpload).toHaveBeenCalledOnce());
+      controller.abort();
+    });
+    expect(onUpload.mock.calls[0][1].signal.aborted).toBe(true);
+    await act(async () => { await capturedSave!(editedImage); });
+    await act(async () => { finish('/abandoned.png'); await stale; });
+    expect(onDelete).toHaveBeenCalledExactlyOnceWith('/abandoned.png');
+    expect(props.updateAttributes).toHaveBeenCalledExactlyOnceWith({ src: '/new.png' });
+  });
+
+  it.each(['close', 'source change'])('aborts a legacy editor save on %s before it settles', async (cause) => {
+    const onUpload = vi.fn((_file: File, { signal }: ImageUploadContext) => new Promise<string>((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    }));
+    const onUploadError = vi.fn();
+    const props = createProps('/original.png', { onUpload, onUploadError });
+    const { rerender } = render(<ImageBlockView {...props} />);
+    fireEvent.click(screen.getByTestId('inkio-image-block-edit'));
+    let saving: void | Promise<void>;
+    await act(async () => {
+      saving = capturedSave!(editedImage);
+      await vi.waitFor(() => expect(onUpload).toHaveBeenCalledOnce());
+    });
+    if (cause === 'close') act(() => capturedClose());
+    else rerender(<ImageBlockView {...props} node={createProps('/replacement.png').node} />);
+    expect(onUpload.mock.calls[0][1].signal.aborted).toBe(true);
+    await act(async () => { await saving; });
+    expect(onUploadError).not.toHaveBeenCalled();
+    expect(props.updateAttributes).not.toHaveBeenCalled();
+  });
+
+  it('ignores already-aborted and closed callbacks, including direct URL writes', async () => {
+    const onUpload = vi.fn(async () => '/uploaded.png');
+    const props = createProps('/original.png', { onUpload });
+    render(<ImageBlockView {...props} />);
+    fireEvent.click(screen.getByTestId('inkio-image-block-edit'));
+    const stale = capturedSave!;
+    const controller = new AbortController();
+    controller.abort();
+    await act(async () => {
+      await stale(editedImage, controller.signal);
+      await stale('/changed.png', controller.signal);
+      capturedClose();
+    });
+    fireEvent.click(screen.getByTestId('inkio-image-block-edit'));
+    await act(async () => { await stale('/late.png'); });
+    expect(onUpload).not.toHaveBeenCalled();
+    expect(props.updateAttributes).not.toHaveBeenCalled();
   });
 
   it('rejects a Blob with an invalid image signature before uploading', async () => {

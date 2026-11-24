@@ -71,10 +71,13 @@ test('classic editor keeps the phone toolbar usable and its popover on the edito
   await theme.selectOption('dark');
   await expect(toolbar).not.toHaveCSS('background-color', 'rgb(247, 237, 216)');
   await link.press('Enter');
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue('https://example.com');
   const dark = await panelPixel();
   expect(Math.max(...dark.slice(0, 3))).toBeLessThan(40);
   expect(dark[3]).toBe(255);
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
+  await expect(editor).toBeFocused();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 });

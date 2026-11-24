@@ -26,6 +26,18 @@ function calloutColor(editor: Editor): unknown {
 }
 
 describe('Callout color boundary', () => {
+  it.each([{}, { color: '#fedcba', icon: '!' }])('keeps a callout when its own HTML is reopened: %o', (attrs) => {
+    const editor = createEditor();
+    try {
+      editor.commands.setCallout(attrs);
+      const doc = editor.getJSON();
+      editor.commands.setContent(editor.getHTML());
+      expect(editor.getJSON()).toEqual(doc);
+    } finally {
+      editor.destroy();
+    }
+  });
+
   it('rejects unsafe colors in updateCalloutColor', () => {
     const editor = createEditor();
     try {

@@ -6,14 +6,14 @@ import type { DocVersion } from './docs-versions';
 
 type Props = {
   release?: string;
-  currentRelease: string;
   currentPaths: string[];
   versions: DocVersion[];
 };
 
-export default function DocsVersionSelect({ release, currentRelease, currentPaths, versions }: Props) {
+export default function DocsVersionSelect({ release, currentPaths, versions }: Props) {
   const pathname = usePathname();
   const page = pathname.split('/').filter(Boolean).slice(release ? 2 : 0).join('/');
+  const label = release ?? '최신 문서';
 
   function address(paths: string[], base = '') {
     const destination = paths.includes(page) ? page : paths.includes('getting-started') ? 'getting-started' : '';
@@ -34,13 +34,13 @@ export default function DocsVersionSelect({ release, currentRelease, currentPath
         event.currentTarget.querySelector('summary')?.focus();
       }}
     >
-      <summary className="inkio-site-select inkio-site-select-control" aria-label={`문서 버전: ${release ?? currentRelease}`}>
-        <span translate="no">{release ?? currentRelease}</span>
+      <summary className="inkio-site-select inkio-site-select-control" aria-label={`문서 버전: ${label}`}>
+        <span translate={release ? 'no' : undefined}>{label}</span>
       </summary>
       <nav className="inkio-docs-version-menu" aria-label="문서 버전">
-        <span>최신 문서</span>
-        <Link href={address(currentPaths)} prefetch={false} aria-current={release ? undefined : 'true'} translate="no">
-          {currentRelease}
+        <span>저장소 기준</span>
+        <Link href={address(currentPaths)} prefetch={false} aria-current={release ? undefined : 'true'}>
+          최신 문서
         </Link>
         <span>릴리스 당시 문서</span>
         {versions.map(version => (

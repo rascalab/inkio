@@ -1,6 +1,10 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Editor, type EditorProps } from '@inkio/simple';
 import { Link, NavLink, Navigate, Route, Routes, useParams } from 'react-router';
+
+// Keep collaboration dependencies out of the regular document routes.
+const CollabRoute = lazy(() => import('./CollabRoute'));
+const CollabAuthRoute = lazy(() => import('./CollabAuthRoute'));
 
 const documents = [
   {
@@ -56,7 +60,7 @@ function DocumentRoute({ drafts, saveDraft, readOnly = false }: {
         ariaLabel={`${doc.title} ${readOnly ? 'reader' : 'editor'}`}
         content={drafts[doc.id] ?? doc.content}
         editable={!readOnly}
-        ui={{ showToolbar: !readOnly, toolbar: { placement: 'bottom' } }}
+        ui={{ toolbar: !readOnly && { placement: 'bottom' } }}
         onUpdate={readOnly ? undefined : (content) => saveDraft(doc.id, content)}
       />
     </section>
@@ -80,11 +84,25 @@ export default function App() {
           ))}
         </nav>
         <p className="draft-note">Drafts stay in memory as you navigate. Reloading resets them.</p>
+        <nav className="document-links collab-link" aria-label="Collaboration">
+          <NavLink to="/collab" end>Shared document</NavLink>
+          <NavLink to="/collab/auth" end>Authenticated collaboration</NavLink>
+        </nav>
       </aside>
       <Routes>
         <Route path="/" element={<Navigate to={home} replace />} />
         <Route path="/documents/:documentId" element={<DocumentRoute drafts={drafts} saveDraft={saveDraft} />} />
         <Route path="/documents/:documentId/read" element={<DocumentRoute drafts={drafts} saveDraft={saveDraft} readOnly />} />
+        <Route path="/collab" element={
+          <Suspense fallback={<p role="status">Loading collaboration…</p>}>
+            <CollabRoute />
+          </Suspense>
+        } />
+        <Route path="/collab/auth" element={
+          <Suspense fallback={<p role="status">Loading collaboration…</p>}>
+            <CollabAuthRoute />
+          </Suspense>
+        } />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </main>

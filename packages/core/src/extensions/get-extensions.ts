@@ -1,63 +1,25 @@
-import { Extension, Extensions, commands as tiptapCommands, type JSONContent } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
-import { ReactNodeViewRenderer } from '@tiptap/react';
-import { TaskItemView } from './TaskItemView';
 import { editorUi } from '../context/editor-ui';
 import type { InkioIconComponent } from '../icons';
 import type { InkioIconRegistry } from '../icons/registry';
-import Document from '@tiptap/extension-document';
-import Paragraph from '@tiptap/extension-paragraph';
-import Text from '@tiptap/extension-text';
-import History from '@tiptap/extension-history';
-import Bold from '@tiptap/extension-bold';
-import Italic from '@tiptap/extension-italic';
-import Underline from '@tiptap/extension-underline';
-import Strike from '@tiptap/extension-strike';
-import Code from '@tiptap/extension-code';
-import Highlight from '@tiptap/extension-highlight';
-import Link from '@tiptap/extension-link';
-import Color from '@tiptap/extension-color';
-import Heading from '@tiptap/extension-heading';
-import BulletList from '@tiptap/extension-bullet-list';
-import OrderedList from '@tiptap/extension-ordered-list';
 import { ListKeymap } from '@tiptap/extension-list';
-import ListItem from '@tiptap/extension-list-item';
-import TaskList from '@tiptap/extension-task-list';
-import TaskItem from '@tiptap/extension-task-item';
-import HorizontalRule from '@tiptap/extension-horizontal-rule';
-import HardBreak from '@tiptap/extension-hard-break';
-import Blockquote from '@tiptap/extension-blockquote';
-import { CodeBlock } from './CodeBlock';
-import Dropcursor from '@tiptap/extension-dropcursor';
-import Gapcursor from '@tiptap/extension-gapcursor';
-import Placeholder from '@tiptap/extension-placeholder';
-import Subscript from '@tiptap/extension-subscript';
-import Superscript from '@tiptap/extension-superscript';
-import TextAlign from '@tiptap/extension-text-align';
-import { TextStyle } from '@tiptap/extension-text-style';
+import { Dropcursor } from '@tiptap/extension-dropcursor';
+import { Gapcursor } from '@tiptap/extension-gapcursor';
+import { Placeholder } from '@tiptap/extension-placeholder';
 import { ClearMarksOnEnter } from './ClearMarksOnEnter';
-import { ListMerge } from './ListMerge';
 import { KeepSelectedBlock } from './KeepSelectedBlock';
 import { LineBelowLastBlock } from './LineBelowLastBlock';
-import { dropUnknownContent } from '../utils/drop-unknown-content';
-import { ImageBlock } from './ImageBlock';
 import type { ImageBlockOptions } from './ImageBlock';
-import { LinkClickHandler } from './LinkClickHandler';
 import type { LinkClickHandlerOptions } from './LinkClickHandler';
-import { Details, DetailsContent, DetailsSummary } from '@tiptap/extension-details';
 import {
   editorMessages,
   type InkioCoreMessageOverrides,
   type InkioLocaleInput,
   type InkioMessageOverrides,
 } from '../i18n/messages';
-import { BoundedTable, BoundedTableCell, BoundedTableHeader } from './BoundedTable';
-import { TableRow } from '@tiptap/extension-table-row';
-import { Callout } from './Callout';
 import { KeyboardShortcuts } from './KeyboardShortcuts';
 import { DetailsShortcut } from './DetailsShortcut';
-import { TocBlock } from './TocBlock';
-import { isSafeUrl } from '../utils/url-safety';
+import { getInteractiveExtensions, TabNavigation } from './interactive-extensions';
 
 export interface CoreExtensionOptions {
   /** Placeholder text shown when the editor is empty */
@@ -136,241 +98,26 @@ export interface CoreExtensionOptions {
   tocBlock?: false | { maxLevel?: number };
 }
 
-// A closed toggle hides what comes next: Enter in its summary would leave it.
-// So one just inserted is open; a document says what its own toggles are.
-const OpenOnInsertDetails = Details.extend({
-  addAttributes() {
-    const parent = (this.parent?.() ?? {}) as Record<string, object>;
-    return { ...parent, open: { ...parent.open, default: true } };
-  },
-});
-
-const InkioUi = Extension.create<Pick<CoreExtensionOptions, 'locale' | 'messages' | 'icons' | 'placeholder'>>({
-  name: 'inkioUi',
-
-  addOptions() {
-    return { locale: undefined, messages: undefined, icons: undefined, placeholder: undefined };
-  },
-
-  addStorage() {
-    return { ...this.options };
-  },
-
-  addCommands() {
-    return {
-      // Tiptap's, except a node or mark this editor doesn't have costs only itself.
-      setContent: (content, options) => (props) =>
-        tiptapCommands.setContent(dropUnknownContent(content as JSONContent, props.editor.schema), options)(props),
-    };
-  },
-});
-
 export const getExtensions = (options: CoreExtensionOptions = {}) => {
-  const {
-    placeholder,
-    locale,
-    messages,
-    icons,
-    heading,
-    bold,
-    italic,
-    underline,
-    strike,
-    code,
-    highlight,
-    textColor,
-    subscript,
-    superscript,
-    link,
-    textAlign,
-    blockquote,
-    bulletList,
-    orderedList,
-    taskList,
-    horizontalRule,
-    codeBlock,
-    history,
-    clearMarksOnEnter,
-    imageBlock,
-    linkClickHandler,
-    callout,
-    toggleList,
-    table,
-    keyboardShortcuts,
-    tocBlock,
-  } = options;
-
-  const extensions: Extensions = [
-    // Required base nodes
-    Document,
-    Paragraph,
-    Text,
-    HardBreak,
-    Dropcursor,
-    Gapcursor,
-    LineBelowLastBlock,
-    KeepSelectedBlock,
-    Placeholder.configure({
-      placeholder: ({ editor }) => editorUi(editor).placeholder || editorMessages(editor).editor.placeholder,
-    }),
-    InkioUi.configure({ locale, messages, icons, placeholder }),
-  ];
-
-  // Optional marks
-  if (bold !== false) extensions.push(Bold);
-  if (italic !== false) extensions.push(Italic);
-  if (underline !== false) extensions.push(Underline);
-  if (strike !== false) extensions.push(Strike);
-  if (code !== false) extensions.push(Code);
-
-  if (textColor !== false) {
-    extensions.push(TextStyle);
-    extensions.push(Color);
-  }
-
-  if (highlight !== false) {
-    extensions.push(Highlight.configure({ multicolor: true }));
-  }
-
-  if (subscript !== false) {
-    extensions.push(Subscript);
-  }
-
-  if (superscript !== false) {
-    extensions.push(Superscript);
-  }
-
-  if (link !== false) {
-    const linkOpts = typeof link === 'object' ? link : {};
-    extensions.push(
-      Link.configure({
-        openOnClick: linkOpts.openOnClick ?? false,
-        autolink: linkOpts.autolink ?? true,
-        defaultProtocol: linkOpts.defaultProtocol ?? 'https',
-        // Block javascript:/data:text-html style hrefs at paste/typing time.
-        // isSafeUrl handles obfuscated protocols (whitespace, entities).
-        validate: (href: string) => isSafeUrl(href),
-      })
-    );
-  }
-
-  // Optional block nodes
-  if (heading !== false) {
-    extensions.push(
-      Heading.configure({
-        levels: (heading && typeof heading === 'object' ? heading.levels : [1, 2, 3, 4, 5, 6]) as [1, 2, 3, 4, 5, 6],
-      })
-    );
-  }
-
-  if (textAlign !== false) {
-    extensions.push(
-      TextAlign.configure({
-        types: textAlign?.types ?? ['heading', 'paragraph'],
-        alignments: ['left', 'center', 'right'],
+  const extensions = getInteractiveExtensions(options, {
+    beforeMarks: [
+      Dropcursor,
+      Gapcursor,
+      LineBelowLastBlock,
+      KeepSelectedBlock,
+      Placeholder.configure({
+        placeholder: ({ editor }) => editorUi(editor).placeholder || editorMessages(editor).editor.placeholder,
       }),
-    );
-  }
-
-  if (bulletList !== false || orderedList !== false) {
-    extensions.push(ListItem);
-  }
-  if (bulletList !== false || orderedList !== false || taskList !== false) {
-    // Backspace at the start of an item joins it to the one above, instead of
-    // leaving a second paragraph inside that item.
-    extensions.push(ListKeymap);
-  }
-  if (bulletList !== false) {
-    extensions.push(BulletList);
-  }
-  if (orderedList !== false) extensions.push(OrderedList);
-
-  if (taskList !== false) {
-    extensions.push(TaskList);
-    extensions.push(
-      TaskItem.configure({ nested: true }).extend({
-        addOptions() {
-          return {
-            ...this.parent?.(),
-            checkIcon: options.taskCheckIcon,
-          };
-        },
-        addNodeView() {
-          return ReactNodeViewRenderer(TaskItemView);
-        },
-      }),
-    );
-  }
-
-  if (blockquote !== false) extensions.push(Blockquote);
-  if (horizontalRule !== false) extensions.push(HorizontalRule);
-  if (codeBlock !== false) {
-    extensions.push(CodeBlock.configure({ enableTabIndentation: true, tabSize: 2 }));
-  }
-  if (history !== false) extensions.push(History);
-  if (clearMarksOnEnter !== false) extensions.push(ClearMarksOnEnter);
-  if (bulletList !== false || orderedList !== false || taskList !== false) {
-    extensions.push(ListMerge);
-  }
-
-  if (imageBlock !== false) {
-    const imageBlockOpts = typeof imageBlock === 'object' ? imageBlock : {};
-    extensions.push(ImageBlock.configure(imageBlockOpts));
-  }
-
-  if (link !== false && linkClickHandler !== false) {
-    const linkClickOpts = typeof linkClickHandler === 'object' ? linkClickHandler : {};
-    extensions.push(LinkClickHandler.configure(linkClickOpts));
-  }
-
-  if (callout !== false) {
-    extensions.push(Callout);
-  }
-
-  if (keyboardShortcuts !== false) {
-    extensions.push(KeyboardShortcuts);
-  }
-
-  if (toggleList !== false) {
-    extensions.push(
-      OpenOnInsertDetails.configure({ persist: true, HTMLAttributes: {} }),
-      DetailsSummary,
-      DetailsContent,
-      DetailsShortcut,
-    );
-  }
-
-  if (table !== false) {
-    extensions.push(
-      BoundedTable.configure({
-        HTMLAttributes: {},
-        resizable: false,
-        allowTableNodeSelection: false,
-        // Too many columns for the screen scroll sideways instead of squeezing
-        // every cell down to one letter per line.
-        cellMinWidth: 96,
-        renderWrapper: true,
-      }),
-      TableRow,
-      BoundedTableHeader,
-      BoundedTableCell,
-    );
-  }
-
-  if (tocBlock !== false) {
-    extensions.push(
-      tocBlock && typeof tocBlock === 'object'
-        ? TocBlock.configure({ maxLevel: tocBlock.maxLevel ?? 3 })
-        : TocBlock,
-    );
-  }
+    ],
+    listKeymap: ListKeymap,
+    clearMarksOnEnter: options.clearMarksOnEnter !== false ? ClearMarksOnEnter : undefined,
+    beforeDetails: options.keyboardShortcuts !== false ? KeyboardShortcuts : undefined,
+    detailsShortcut: DetailsShortcut,
+  });
 
   if (options.tabBehavior !== 'default') {
     extensions.push(
-      Extension.create({
-        name: 'tabIndent',
-        // Below the default, so an open suggestion takes Escape and a table Tab.
-        priority: 50,
+      TabNavigation.extend({
         addKeyboardShortcuts() {
           // Tab writes: it nests a list item, indents code (CodeBlock) or moves
           // between cells (Table), and anywhere else types a tab. Escape leaves
@@ -420,7 +167,7 @@ export const getExtensions = (options: CoreExtensionOptions = {}) => {
                 return true;
               });
             },
-            Escape: ({ editor }) => editor.commands.blur(),
+            ...this.parent?.(),
           };
         },
       }),

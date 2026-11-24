@@ -77,6 +77,55 @@ describe('createCollabProvider', () => {
     await until(() => b.document.getText('t').toString() === 'offline edit');
   });
 
+  it('does not queue one transport frame per offline edit before the next handshake', async () => {
+    const { url } = await startServer();
+    const a = connect(url, 'offline-burst');
+    const b = connect(url, 'offline-burst');
+    await Promise.all([synced(a), synced(b)]);
+    a.disconnect();
+    await until(() => getCollabStatus(a) === 'disconnected');
+    let outgoing = 0;
+    a.on('outgoingMessage', () => { outgoing++; });
+    const text = a.document.getText('draft');
+    for (const char of 'a short offline note') text.insert(text.length, char);
+    a.setAwarenessField('user', { name: 'Offline writer', color: '#abc' });
+    expect(outgoing).toBe(0);
+    expect(a.hasUnsyncedChanges).toBe(true);
+    await a.connect();
+    await until(() => b.document.getText('draft').toString() === 'a short offline note');
+    await until(() => peerNames(b).includes('Offline writer'));
+  });
+
+  it('does not reopen an owned socket destroyed during its reconnect delay', async () => {
+    const { url } = await startServer();
+    const a = connect(url, 'dispose-on-close');
+    await synced(a);
+    const socket = a.configuration.websocketProvider;
+    socket.configuration.delay = 100;
+    socket.webSocket!.close();
+    await until(() => getCollabStatus(a) === 'disconnected');
+    const attempts = socket.identifier;
+    a.destroy();
+    await sleep(150);
+    expect(socket.identifier).toBe(attempts);
+    expect(socket.shouldConnect).toBe(false);
+  });
+
+  it('publishes a final disconnected status without closing a shared socket', async () => {
+    const { url } = await startServer();
+    const socket = new HocuspocusProviderWebsocket({ url });
+    onCleanup(() => socket.destroy());
+    const leaving = connect(url, 'leaving', { websocketProvider: socket });
+    const staying = connect(url, 'staying', { websocketProvider: socket });
+    await Promise.all([synced(leaving), synced(staying)]);
+    const statuses: string[] = [];
+    onCollabStatus(leaving, (status) => statuses.push(status));
+    leaving.destroy();
+    expect(statuses).toEqual(['disconnected']);
+    expect(getCollabStatus(leaving)).toBe('disconnected');
+    expect(getCollabStatus(staying)).toBe('synced');
+  });
+
   it('reports unauthorized when the server rejects the token', async () => {
     const { url } = await startServer({
       async onAuthenticate({ token }) {

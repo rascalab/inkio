@@ -74,6 +74,26 @@ describe('imageEditorReducer', () => {
       expect(next.selectedAnnotationId).toBeNull();
     });
 
+    it('does not carry image adjustments, crop presets or history onto a replacement', () => {
+      let state = undoableReducer(makeInitialUndoableState(), {
+        type: 'SET_IMAGE', image: {} as HTMLImageElement, width: 800, height: 600,
+      }, 30);
+      state = undoableReducer(state, { type: 'SET_CROP_OPTIONS', options: { aspectRatio: 1 } }, 30);
+      state = undoableReducer(state, { type: 'SET_FILTER', filter: 'sepia' }, 30);
+      state = undoableReducer(state, { type: 'SET_FINETUNE', finetune: { brightness: 0.5 } }, 30);
+      state = undoableReducer(state, { type: 'ROTATE_CW' }, 30);
+      state = undoableReducer(state, { type: 'UNDO' }, 30);
+
+      const replacement = undoableReducer(state, {
+        type: 'SET_IMAGE', image: {} as HTMLImageElement, width: 640, height: 480,
+      }, 30);
+      expect(replacement.present.filter).toBe('none');
+      expect(replacement.present.finetune).toEqual(initialState.finetune);
+      expect(replacement.present.cropOptions).toEqual(initialState.cropOptions);
+      expect(undoableReducer(replacement, { type: 'UNDO' }, 30)).toBe(replacement);
+      expect(undoableReducer(replacement, { type: 'REDO' }, 30)).toBe(replacement);
+    });
+
     it('updates resizeOptions dimensions', () => {
       const next = imageEditorReducer(initialState, {
         type: 'SET_IMAGE',
@@ -197,6 +217,21 @@ describe('imageEditorReducer', () => {
       expect(next.pendingCrop).toEqual({ x: 0, y: 0, width: 560, height: 360 });
       expect(next.resizeOptions.width).toBe(560);
       expect(next.resizeOptions.height).toBe(360);
+    });
+
+    it('does not restore a discarded preset or stretch its crop to the original dimensions', () => {
+      let state = imageEditorReducer(initialState, {
+        type: 'SET_IMAGE', image: {} as HTMLImageElement, width: 640, height: 480,
+      });
+      state = imageEditorReducer(state, { type: 'SET_CROP_OPTIONS', options: { aspectRatio: 1 } });
+      state = imageEditorReducer(state, {
+        type: 'SET_PENDING_CROP', crop: { x: 80, y: 0, width: 480, height: 480 },
+      });
+      state = imageEditorReducer(state, { type: 'DISCARD_RESIZE_SESSION' });
+      state = imageEditorReducer(state, { type: 'START_RESIZE_SESSION' });
+      expect(state.pendingCrop).toEqual({ x: 0, y: 0, width: 640, height: 480 });
+      expect(state.cropOptions.aspectRatio).toBeNull();
+      expect(imageEditorReducer(state, { type: 'COMMIT_RESIZE_SESSION' }).transform.crop).toBeNull();
     });
 
     it('closes an unchanged rotated draft without adding an undo step', () => {
@@ -577,13 +612,18 @@ describe('imageEditorReducer', () => {
     });
   });
 
-  describe('SET_LOADING / SET_ERROR', () => {
-    it('SET_LOADING sets isLoading', () => {
-      const next = imageEditorReducer(initialState, { type: 'SET_LOADING', isLoading: true });
-      expect(next.isLoading).toBe(true);
-
-      const back = imageEditorReducer(next, { type: 'SET_LOADING', isLoading: false });
-      expect(back.isLoading).toBe(false);
+  describe('source loading', () => {
+    it('forgets the previous document even if its replacement fails to load', () => {
+      let state = undoableReducer(makeInitialUndoableState(), {
+        type: 'SET_IMAGE', image: {} as HTMLImageElement, width: 640, height: 480,
+      }, 30);
+      state = undoableReducer(state, { type: 'ROTATE_CW' }, 30);
+      state = undoableReducer(state, { type: 'START_IMAGE_LOAD' }, 30);
+      expect(state.present.isLoading).toBe(true);
+      expect(state.present.originalImage).toBeNull();
+      state = undoableReducer(state, { type: 'SET_ERROR', error: 'failed' }, 30);
+      expect(state.present.isLoading).toBe(false);
+      expect(undoableReducer(state, { type: 'UNDO' }, 30)).toBe(state);
     });
 
     it('SET_ERROR sets error string', () => {

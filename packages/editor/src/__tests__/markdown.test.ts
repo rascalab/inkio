@@ -3,9 +3,11 @@ import * as coreMarkdown from '@inkio/core/markdown';
 import * as editorMarkdown from '../markdown';
 
 describe('@inkio/editor/markdown', () => {
-  it('re-exports the core markdown helpers', () => {
+  it('re-exports the core markdown helpers and extensions', () => {
     expect(editorMarkdown.parseMarkdown).toBe(coreMarkdown.parseMarkdown);
     expect(editorMarkdown.stringifyMarkdown).toBe(coreMarkdown.stringifyMarkdown);
     expect(editorMarkdown.createMarkdownAdapter).toBe(coreMarkdown.createMarkdownAdapter);
+    expect(editorMarkdown.Markdown).toBe(coreMarkdown.Markdown);
+    expect(editorMarkdown.MarkdownPaste).toBe(coreMarkdown.MarkdownPaste);
   });
 });

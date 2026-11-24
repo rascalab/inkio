@@ -1,12 +1,11 @@
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
 import {
+  applyBlockDrop,
   dragSource,
-  dropMarkerRect,
   findHoveredBlock,
   isInEditor,
-  moveTouchBlock,
-  touchDropTarget,
+  planBlockDrop,
   type BlockDragSource,
   type DropCoords,
   type HoveredBlock,
@@ -110,7 +109,7 @@ export const createTouchBlockDrag = ({
   let lastScrollAt: number | undefined;
 
   const showMarker = (current: TouchPress) => {
-    visuals.showMarker(touchDropTarget(view, current.source, current)?.gap ?? null);
+    visuals.showMarker(planBlockDrop(view, current.source, current, true)?.gap ?? null);
   };
 
   const tickScroll = (now: number) => {
@@ -195,7 +194,7 @@ export const createTouchBlockDrag = ({
     const { pointerId, clientX, clientY } = event;
     if (!current || current.pointerId !== pointerId) return;
     completedTouch = { pointerId, clientX, clientY };
-    const target = current.preview ? touchDropTarget(view, current.source, event) : null;
+    const plan = current.preview ? planBlockDrop(view, current.source, event, true) : null;
     clearPress();
     if (!current.preview && !movedPastThreshold(current, event)) {
       // WebKit need not synthesize a click after a captured touch press.
@@ -203,9 +202,7 @@ export const createTouchBlockDrag = ({
       return;
     }
     hide();
-    if (target && view.editable && view.state.doc === current.source.doc && dropMarkerRect(view, target.gap)) {
-      moveTouchBlock(view, current.source, target);
-    }
+    if (plan) applyBlockDrop(view, current.source, plan, true, 'touch');
   }, listener);
 
   const cancelGrip = (event: PointerEvent) => {

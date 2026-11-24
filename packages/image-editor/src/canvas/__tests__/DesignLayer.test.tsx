@@ -5,16 +5,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DesignLayer } from '../DesignLayer';
 import { initialState } from '../../reducer';
 
-vi.mock('react-konva', () => ({
+vi.mock('react-konva/lib/ReactKonvaCore.js', () => ({
   Layer: ({ children }: any) => <div data-testid="layer">{children}</div>,
   Group: ({ children }: any) => <div>{children}</div>,
   Shape: ({ globalCompositeOperation }: { globalCompositeOperation: string }) => (
     <div data-testid="crop-shading" data-composite={globalCompositeOperation} />
   ),
-}));
-
-vi.mock('../ImageNode', () => ({
-  ImageNode: () => <div data-testid="image-node" />,
 }));
 
 vi.mock('../../annotations/AnnotationRenderer', () => ({
@@ -94,7 +90,9 @@ describe('DesignLayer', () => {
         interactive={false}
         onSelectAnnotation={vi.fn()}
         onChangeAnnotation={vi.fn()}
-      />,
+      >
+        <div data-testid="image-node" />
+      </DesignLayer>,
     );
 
     const image = screen.getByTestId('image-node');

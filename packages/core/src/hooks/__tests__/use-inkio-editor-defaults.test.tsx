@@ -45,14 +45,41 @@ describe('useInkioEditor default extensions', () => {
     }
   });
 
-  // An explicit [] is a programming error (Tiptap cannot build a schema
-  // without a top node) and must stay loud: it must never be conflated
-  // with omission, which means "defaults".
-  it('fails loud on an explicit empty array instead of defaulting', () => {
+  it('coalesces changes and only serializes when a JSON listener exists', async () => {
+    const onChange = vi.fn();
+    const onUpdate = vi.fn();
+    const { result, rerender, unmount } = renderHook(
+      ({ json }) => useInkioEditor({ onChange, onUpdate: json ? onUpdate : undefined }),
+      { initialProps: { json: false } },
+    );
+    try {
+      await waitFor(() => expect(result.current).not.toBeNull());
+      const editor = result.current!;
+      const serialize = vi.spyOn(editor, 'getJSON');
+      editor.commands.insertContent('a');
+      editor.commands.insertContent('b');
+      await Promise.resolve();
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith(editor);
+      expect(editor.text).toBe('ab');
+      expect(serialize).not.toHaveBeenCalled();
+      rerender({ json: true });
+      editor.commands.insertContent('c');
+      await Promise.resolve();
+      expect(onChange).toHaveBeenCalledTimes(2);
+      expect(onUpdate).toHaveBeenCalledTimes(1);
+      expect(serialize).toHaveBeenCalledTimes(1);
+    } finally {
+      unmount();
+    }
+  });
+
+  // A replacement without a top node is invalid, not a request for defaults.
+  it('does not silently restore defaults for an empty replacement', () => {
     const originalError = console.error;
     console.error = vi.fn();
     try {
-      expect(() => renderHook(() => useInkioEditor({ extensions: [] }))).toThrow(RangeError);
+      expect(() => renderHook(() => useInkioEditor({ extensions: { items: [], replace: true } }))).toThrow(RangeError);
     } finally {
       console.error = originalError;
     }

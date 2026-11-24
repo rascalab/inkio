@@ -1,4 +1,6 @@
-import { act, render, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, waitFor } from '@testing-library/react';
+import { renderToString } from 'react-dom/server';
+import { WikiLink } from '@inkio/advanced';
 import { vi } from 'vitest';
 import type { TiptapEditor } from '@inkio/core';
 import { Viewer } from '../components/Viewer';
@@ -23,6 +25,28 @@ const doc = (text: string) => ({
 });
 
 describe('@inkio/editor Viewer content', () => {
+  it('keeps custom node views and document commands on the read-only instance', async () => {
+    const clicked = vi.fn();
+    const extensions = [WikiLink.configure({ onClick: clicked })];
+    const content = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'wikiLink', attrs: { href: 'Notes' } }] }] };
+    const instances: TiptapEditor[] = [];
+    const viewer = <Viewer content={content} extensions={extensions} theme="dark" onCreate={(editor) => instances.push(editor)} />;
+    expect(renderToString(viewer)).toContain('Notes');
+    const { container } = render(viewer);
+    await waitFor(() => expect(instances).toHaveLength(1));
+    const editor = instances[0]!;
+    expect(editor.isEditable).toBe(false);
+    expect(container.querySelector('.inkio-editor.dark')).toBeInTheDocument();
+    fireEvent.click(container.querySelector('[data-wiki-link]')!);
+    expect(clicked).toHaveBeenCalledWith('Notes');
+
+    act(() => {
+      editor.commands.setContent('<p>Replacement</p>');
+      expect(editor.commands.undo()).toBe(true);
+    });
+    expect(editor.getJSON()).toMatchObject(content);
+  });
+
   it('shows the new document when content changes after mount', async () => {
     const { editor, rerender, onCreate, container } = await mountViewer('<p>first</p>');
     expect(editor.getText()).toBe('first');

@@ -1,29 +1,21 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { Editor as TiptapEditor, JSONContent } from '@tiptap/react';
+import { withDocumentAccess, type InkioEditor } from '../editor-document';
 
-/**
- * Turn a `(json) => void` update listener into a tiptap `onUpdate` handler
- * that is cheap on hot paths:
- *
- * - no listener → returns immediately (no `getJSON()` serialization);
- * - a burst of synchronous updates (one keystroke's transactions, a batch of
- *   remote Yjs frames) serializes the doc once, in a microtask, with the
- *   latest state — earlier queued emits are superseded by a token;
- * - nothing is emitted after unmount or once the editor is destroyed.
- *
- * The returned handler has a stable identity and always calls the newest
- * listener.
- */
+/** Notify once per synchronous burst. Only the legacy JSON listener needs serialization. */
 export function useCoalescedDocUpdate(
   onUpdate: ((content: JSONContent) => void) | undefined,
+  onChange?: (editor: InkioEditor) => void,
 ): (editor: TiptapEditor) => void {
   const onUpdateRef = useRef(onUpdate);
+  const onChangeRef = useRef(onChange);
   const isMountedRef = useRef(true);
-  const tokenRef = useRef(0);
+  const pending = useRef<TiptapEditor | null>(null);
 
   useEffect(() => {
     onUpdateRef.current = onUpdate;
-  }, [onUpdate]);
+    onChangeRef.current = onChange;
+  }, [onUpdate, onChange]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -33,15 +25,19 @@ export function useCoalescedDocUpdate(
   }, []);
 
   return useCallback((editor: TiptapEditor) => {
-    if (!onUpdateRef.current) {
+    if (!onUpdateRef.current && !onChangeRef.current) {
       return;
     }
 
-    const token = ++tokenRef.current;
+    const queued = pending.current !== null;
+    pending.current = editor;
+    if (queued) return;
     queueMicrotask(() => {
-      if (token !== tokenRef.current) return;
-      if (isMountedRef.current && !editor.isDestroyed) {
-        onUpdateRef.current?.(editor.getJSON());
+      const latest = pending.current!;
+      pending.current = null;
+      if (isMountedRef.current && !latest.isDestroyed) {
+        onChangeRef.current?.(withDocumentAccess(latest));
+        if (!latest.isDestroyed) onUpdateRef.current?.(latest.getJSON());
       }
     });
   }, []);

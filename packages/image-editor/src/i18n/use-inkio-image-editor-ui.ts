@@ -4,7 +4,7 @@ import {
   useStableOptions,
   type InkioLocaleInput,
   type InkioMessageOverrides,
-} from '@inkio/core';
+} from '@inkio/core/ui';
 import type { InkioIconRegistry } from '@inkio/core/icons';
 import {
   mergeImageEditorMessages,

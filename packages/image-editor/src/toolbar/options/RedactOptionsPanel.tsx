@@ -1,36 +1,17 @@
 import { useImageEditor } from '../../hooks/use-image-editor';
-import type { RedactAnnotation, RedactMode } from '../../types';
-import { getSelectedAnnotation, isRedactAnnotation } from '../../utils/annotation-types';
+import { isRedactAnnotation } from '../../utils/annotation-types';
 import { PanelSection, SegmentedControl, SliderRow, ToolPanel } from '../control-groups';
+import { optionFields, selectedFor } from './annotation-fields';
 import { LayerOrderControls } from './LayerOrderControls';
 
 export function RedactOptionsPanel() {
   const { state, dispatch, locale } = useImageEditor();
-  const selectedAnnotation = getSelectedAnnotation(state.annotations, state.selectedAnnotationId);
-  const selectedRedact = isRedactAnnotation(selectedAnnotation) ? selectedAnnotation : null;
+  const selectedRedact = selectedFor(state, isRedactAnnotation);
+  const field = optionFields(dispatch, 'SET_REDACT_OPTIONS', selectedRedact);
+  const applyMode = field('mode');
 
   const mode = selectedRedact?.mode ?? state.redactOptions.mode;
   const strength = selectedRedact?.strength ?? state.redactOptions.strength;
-
-  const applyMode = (nextMode: RedactMode) => {
-    if (selectedRedact) {
-      dispatch({ type: 'UPDATE_ANNOTATION_COMMIT', id: selectedRedact.id, updates: { mode: nextMode } satisfies Partial<RedactAnnotation> });
-      return;
-    }
-    dispatch({ type: 'SET_REDACT_OPTIONS', options: { mode: nextMode } });
-  };
-
-  const applyStrength = (nextStrength: number, commit: boolean) => {
-    if (selectedRedact) {
-      dispatch({
-        type: commit ? 'UPDATE_ANNOTATION_COMMIT' : 'UPDATE_ANNOTATION',
-        id: selectedRedact.id,
-        updates: { strength: nextStrength } satisfies Partial<RedactAnnotation>,
-      });
-      return;
-    }
-    dispatch({ type: 'SET_REDACT_OPTIONS', options: { strength: nextStrength } });
-  };
 
   return (
     <ToolPanel title={locale.redact}>
@@ -64,9 +45,8 @@ export function RedactOptionsPanel() {
           max={24}
           step={1}
           value={strength}
-          onPreviewChange={(value) => applyStrength(value, false)}
-          onCommitChange={(value) => applyStrength(value, true)}
-          onDirectChange={(value) => applyStrength(value, true)}
+          onChange={field('strength')}
+          commitOnRelease
           rangeTestId="inkio-ie-redact-strength-range"
           numberTestId="inkio-ie-redact-strength-number"
         />

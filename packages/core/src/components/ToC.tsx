@@ -5,7 +5,7 @@ import type { Editor as TiptapEditor } from '@tiptap/react';
 import { useHeadings } from '../headings/use-headings';
 
 export interface ToCProps {
-  /** Editor or Viewer instance — used to find heading elements and extract content. */
+  /** Live instance from Editor or an interactive Viewer; static viewers have no instance. */
   source?: TiptapEditor | null;
   /** Maximum heading level to include (default: 3 → h1-h3). */
   maxLevel?: number;

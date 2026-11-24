@@ -1,4 +1,6 @@
 import type { JSONContent } from '@tiptap/core';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
+import { inlineReferenceText } from '../serialization';
 
 export interface HeadingItem {
   level: number;
@@ -20,7 +22,7 @@ function getTextFromNode(node: JSONContent | null | undefined): string {
     return node.content.map(getTextFromNode).join('');
   }
 
-  return '';
+  return inlineReferenceText(node.type, node.attrs) ?? '';
 }
 
 export function slugifyHeading(text: string, used: Set<string>): string {
@@ -53,12 +55,12 @@ export function getHeadingsFromContent(content: JSONContent | null | undefined):
 
   const headings: HeadingItem[] = [];
   const usedIds = new Set<string>();
-  let index = 0;
 
   function visit(node: JSONContent): void {
     if (node.type === 'heading') {
       const level = Math.min(6, Math.max(1, Number(node.attrs?.level ?? 1)));
       const text = getTextFromNode(node).trim();
+      const index = headings.length;
 
       headings.push({
         level,
@@ -66,7 +68,6 @@ export function getHeadingsFromContent(content: JSONContent | null | undefined):
         index,
         id: slugifyHeading(text || `section-${index + 1}`, usedIds),
       });
-      index += 1;
       return;
     }
 
@@ -97,7 +98,8 @@ export function getHeadingsFromDoc(
   const collect = (node: any): boolean => {
     if (node?.type?.name === 'heading') {
       const level = Math.min(6, Math.max(1, Number(node.attrs?.level ?? 1)));
-      const text = (node.textContent ?? '').trim();
+      const text = (node.textBetween?.(0, node.content.size, '', (leaf: ProseMirrorNode) =>
+        inlineReferenceText(leaf.type.name, leaf.attrs) ?? '') ?? node.textContent ?? '').trim();
 
       headings.push({
         level,

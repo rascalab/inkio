@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment, type KeyboardEvent } from 'react';
 import { Editor, useEditorState } from '@tiptap/react';
-import * as Popover from '@radix-ui/react-popover';
-import { BubbleMenuLinkInputPopover } from './BubbleMenuLinkInputPopover';
+import { EditorLinkPopover } from './EditorLinkPopover';
 import {
   buttonRefSetter,
   renderActionIcon,
@@ -33,7 +32,7 @@ export interface BubbleMenuProps {
   editor: Editor | null;
   className?: string;
   children?: React.ReactNode;
-  /** Locale input (string, array, accept-language, Intl.Locale, etc.) */
+  /** Locale tag or Accept-Language string. */
   locale?: InkioLocaleInput;
   /** Message overrides for core bubble menu labels */
   messages?: InkioCoreMessageOverrides | InkioMessageOverrides;
@@ -63,8 +62,6 @@ export const BubbleMenu = ({
   const menuRef = useRef<HTMLDivElement>(null);
   const [linkPopoverOpen, setLinkPopoverOpen] = useState(false);
   const linkPopoverOpenRef = useRef(false);
-  const [currentLinkUrl, setCurrentLinkUrl] = useState('');
-  const linkPopoverContentRef = useRef<HTMLDivElement | null>(null);
   // Resolved after every render (not just on mount): an `.inkio` ancestor
   // remount leaves a mount-time ref pointing at detached DOM, and the
   // portal would silently fall back to document.body without token scoping.
@@ -75,9 +72,11 @@ export const BubbleMenu = ({
     icons: iconOverrides,
   });
 
-  useEffect(() => {
-    linkPopoverOpenRef.current = linkPopoverOpen;
-  }, [linkPopoverOpen]);
+  function changeLinkPopoverOpen(open: boolean) {
+    // The portal focuses its field as it mounts, before passive effects run.
+    linkPopoverOpenRef.current = open;
+    setLinkPopoverOpen(open);
+  }
 
   useEffect(() => {
     const next = menuRef.current?.closest('.inkio') as HTMLElement | null;
@@ -299,72 +298,29 @@ export const BubbleMenu = ({
 
               if (action.id === 'link') {
                 return (
-                  <Popover.Root
+                  <EditorLinkPopover
                     key={action.id}
+                    editor={editor}
+                    messages={ui.messages.linkPopover}
                     open={linkPopoverOpen}
-                    onOpenChange={(open) => {
-                      setLinkPopoverOpen(open);
-                      if (open) {
-                        setCurrentLinkUrl(String(editor.getAttributes('link').href ?? ''));
-                      } else {
-                        setCurrentLinkUrl('');
-                        const active = document.activeElement as HTMLElement | null;
-                        if (
-                          !active ||
-                          active === document.body ||
-                          linkPopoverContentRef.current?.contains(active)
-                        ) {
-                          editor.chain().focus().run();
-                        }
-                      }
-                    }}
+                    onOpenChange={changeLinkPopoverOpen}
+                    container={portalContainer}
+                    sideOffset={6}
                   >
-                    <Popover.Trigger asChild>
-                      <button
-                        ref={buttonRefSetter(buttonRefs.current, idx)}
-                        type="button"
-                        tabIndex={rovingTabIndex(idx, focusedIndex)}
-                        onFocus={() => setFocusedIndex(idx)}
-                        onMouseDown={(event) => event.preventDefault()}
-                        className={`inkio-bubble-btn ${isActive ? 'is-active' : ''}`}
-                        title={label}
-                        aria-label={label}
-                        disabled={isDisabled}
-                      >
-                        {iconNode}
-                      </button>
-                    </Popover.Trigger>
-                    <Popover.Portal container={portalContainer}>
-                      <Popover.Content
-                        ref={linkPopoverContentRef}
-                        sideOffset={6}
-                        className="inkio-popover-content"
-                        onOpenAutoFocus={(event) => event.preventDefault()}
-                      >
-                        <BubbleMenuLinkInputPopover
-                          initialUrl={currentLinkUrl}
-                          placeholder={ui.messages.linkPopover.placeholder}
-                          cancelLabel={ui.messages.linkPopover.cancel}
-                          saveLabel={ui.messages.linkPopover.save}
-                          invalidUrlLabel={ui.messages.linkPopover.invalidUrl}
-                          onSave={(url) => {
-                            if (currentLinkUrl) {
-                              editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
-                            } else {
-                              editor.chain().focus().setLink({ href: url }).run();
-                            }
-                            setLinkPopoverOpen(false);
-                            setCurrentLinkUrl('');
-                          }}
-                          onCancel={() => {
-                            setLinkPopoverOpen(false);
-                            setCurrentLinkUrl('');
-                            editor.chain().focus().run();
-                          }}
-                        />
-                      </Popover.Content>
-                    </Popover.Portal>
-                  </Popover.Root>
+                    <button
+                      ref={buttonRefSetter(buttonRefs.current, idx)}
+                      type="button"
+                      tabIndex={rovingTabIndex(idx, focusedIndex)}
+                      onFocus={() => setFocusedIndex(idx)}
+                      onMouseDown={(event) => { if (!linkPopoverOpen) event.preventDefault(); }}
+                      className={`inkio-bubble-btn ${isActive ? 'is-active' : ''}`}
+                      title={label}
+                      aria-label={label}
+                      disabled={isDisabled}
+                    >
+                      {iconNode}
+                    </button>
+                  </EditorLinkPopover>
                 );
               }
 

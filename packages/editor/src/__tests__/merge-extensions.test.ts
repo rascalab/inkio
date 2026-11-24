@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { EditorProps as CoreEditorProps } from '@inkio/core';
+import type { CoreExtensions as Extensions } from '@inkio/core';
 import { mergeExtensions } from '@inkio/core';
 
-type Extensions = NonNullable<CoreEditorProps['extensions']>;
 type Extension = Extensions[number];
 
 function makeExt(name: string): Extension {

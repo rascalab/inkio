@@ -1,4 +1,5 @@
 export { getDefaultExtensions } from './get-default-extensions';
+export { getAdvancedViewerExtensions } from './viewer-extensions';
 export type { DefaultExtensionsOptions } from './get-default-extensions';
 export {
   applyExtensionsAdapter,
@@ -22,7 +23,6 @@ export type {
 } from './extensions/SlashCommand';
 export { WikiLink } from './extensions/WikiLink';
 export type { WikiLinkItem, WikiLinkOptions } from './extensions/WikiLink';
-export { extractMentions, extractHashtags } from './serialization';
 export {
   Comment,
   CommentComposer,
@@ -38,7 +38,6 @@ export {
   formatRelativeTime,
   toCommentOptions,
   notifyCommentThreadsChanged,
-  getCommentIds,
 } from './comment';
 export type {
   CommentOptions,

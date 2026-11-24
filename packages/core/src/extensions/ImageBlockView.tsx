@@ -1,5 +1,5 @@
 import { NodeViewWrapper, NodeViewProps } from '@tiptap/react';
-import React, { memo, useMemo, useRef, useState, useEffect, useCallback, Suspense } from 'react';
+import React, { memo, useMemo, useRef, useState, useEffect, useLayoutEffect, useCallback, Suspense } from 'react';
 import { useEditorUiRevision } from '../context/editor-ui';
 import { editorLocale, editorMessages } from '../i18n/messages';
 import { editorIcons } from '../icons/registry';
@@ -13,6 +13,7 @@ import {
   reportImageUploadError,
   uploadImageFile,
   getImageValidationError,
+  uploadsByView,
   type ImageUploadOptions,
 } from './image-block-upload';
 import { isSafeUrl } from '../utils/url-safety';
@@ -67,6 +68,7 @@ function ImageBlockViewInner(props: NodeViewProps) {
   useEffect(() => {
     const syncEditable = () => {
       const next = editor.isEditable;
+      if (!next) cancelSaveRef.current?.();
       setIsEditable((prev) => (prev === next ? prev : next));
     };
     syncEditable();
@@ -80,7 +82,10 @@ function ImageBlockViewInner(props: NodeViewProps) {
   const [currentWidth, setCurrentWidth] = useState(parseWidthPercent(node.attrs.width));
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const savingRef = useRef(false);
+  const cancelSaveRef = useRef<(() => void) | null>(null);
+  const editSession = useMemo(() => isEditorOpen && isEditable ? { editor, src: node.attrs.src } : null,
+    [editor, node.attrs.src, isEditorOpen, isEditable]);
+  const activeSession = useRef<typeof editSession>(null);
   const editIdRef = useRef<string | null>(null);
   const mountedRef = useRef(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -135,7 +140,7 @@ function ImageBlockViewInner(props: NodeViewProps) {
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     mountedRef.current = true;
     setIsMounted(true);
     return () => {
@@ -144,12 +149,38 @@ function ImageBlockViewInner(props: NodeViewProps) {
     };
   }, []);
 
-  const handleImageSave = async (editedImage: string | Blob) => {
-    if (savingRef.current) return;
+  // A custom editor may retain a save callback after its source changes or it closes.
+  useLayoutEffect(() => {
+    activeSession.current = editSession;
+    return () => {
+      activeSession.current = null;
+      cancelSaveRef.current?.();
+      editIdRef.current = null;
+    };
+  }, [editSession]);
+
+  const closeImageEditor = () => {
+    if (!editSession || activeSession.current !== editSession) return;
+    activeSession.current = null;
+    cancelSaveRef.current?.();
+    setIsEditorOpen(false);
+  };
+
+  const handleImageSave = async (editedImage: string | Blob, editorSignal?: AbortSignal) => {
+    if (!editSession || editorSignal?.aborted || cancelSaveRef.current) return;
+    const originalSrc = editSession.src;
+    const stillTargetsOriginal = () => {
+      if (activeSession.current !== editSession || editor.isDestroyed || !editor.isEditable) return false;
+      const pos = getPos();
+      const current = typeof pos === 'number' ? editor.state.doc.nodeAt(pos) : null;
+      return current?.type.name === 'imageBlock' && current.attrs.src === originalSrc;
+    };
+    if (!stillTargetsOriginal()) return;
     if (typeof editedImage === 'string') {
       if (!isSafeUrl(editedImage)) return;
       if (!options.onUpload || !/^data:/i.test(editedImage)) {
         updateAttributes({ src: editedImage });
+        activeSession.current = null;
         setIsEditorOpen(false);
         return;
       }
@@ -157,15 +188,26 @@ function ImageBlockViewInner(props: NodeViewProps) {
       return;
     }
 
-    savingRef.current = true;
-    setIsSaving(true);
-    const originalSrc = node.attrs.src;
-    const stillTargetsOriginal = () => {
-      if (!mountedRef.current || editor.isDestroyed || !editor.isEditable) return false;
-      const pos = getPos();
-      const current = typeof pos === 'number' ? editor.state.doc.nodeAt(pos) : null;
-      return current?.type.name === 'imageBlock' && current.attrs.src === originalSrc;
+    const controller = new AbortController();
+    const { signal } = controller;
+    const pending = uploadsByView.get(editor.view);
+    const release = () => {
+      if (cancelSaveRef.current !== cancel) return;
+      cancelSaveRef.current = null;
+      editorSignal?.removeEventListener('abort', cancel);
+      pending?.delete(target);
+      if (mountedRef.current) setIsSaving(false);
     };
+    const cancel = () => {
+      editIdRef.current = null;
+      release();
+      controller.abort();
+    };
+    const target = { cancel, checkTarget() { if (!stillTargetsOriginal()) cancel(); } };
+    cancelSaveRef.current = cancel;
+    editorSignal?.addEventListener('abort', cancel, { once: true });
+    pending?.add(target);
+    setIsSaving(true);
     let errorSource = 'imageBlock.validation';
     try {
       let bytes: BlobPart;
@@ -182,24 +224,25 @@ function ImageBlockViewInner(props: NodeViewProps) {
       editIdRef.current ??= createId('image');
       const file = new File([bytes], `edited-${editIdRef.current}.${mime.slice('image/'.length)}`, { type: mime });
       const validationError = await getImageValidationError(file, options);
+      if (signal.aborted || !stillTargetsOriginal()) return;
       if (validationError) throw validationError;
-      if (!stillTargetsOriginal()) return;
       errorSource = 'imageBlock.upload';
-      const attrs = await uploadImageFile(file, options);
+      const attrs = await uploadImageFile(file, options, { signal });
       // Node views can disappear or receive a different source while an upload is pending.
-      if (stillTargetsOriginal()) {
+      if (!signal.aborted && stillTargetsOriginal()) {
+        release();
         updateAttributes(attrs);
-        editIdRef.current = null;
+        activeSession.current = null;
         setIsEditorOpen(false);
       } else if (attrs.src && attrs.src !== originalSrc) {
         await discardAbandonedImageUpload(editor, options, attrs.src);
       }
     } catch (error) {
+      if (signal.aborted || !stillTargetsOriginal()) return;
       reportImageUploadError(options, error, errorSource);
       throw error;
     } finally {
-      savingRef.current = false;
-      if (mountedRef.current) setIsSaving(false);
+      release();
     }
   };
 
@@ -366,12 +409,8 @@ function ImageBlockViewInner(props: NodeViewProps) {
             isOpen={isEditorOpen}
             imageSrc={safeSrc ?? ''}
             onSave={handleImageSave}
-            onSaveBlob={options.onUpload ? handleImageSave : undefined}
-            onClose={() => {
-              if (savingRef.current) return;
-              editIdRef.current = null;
-              setIsEditorOpen(false);
-            }}
+            onSaveBlob={options.onUpload ? (blob, _preview, signal) => handleImageSave(blob, signal) : undefined}
+            onClose={closeImageEditor}
             theme={editorTheme(editor)}
             locale={editorLocale(editor)}
           />

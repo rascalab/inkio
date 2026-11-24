@@ -4,19 +4,15 @@ import { useMemo, useState } from 'react';
 import {
   Editor as CoreEditor,
   type EditorProps as CoreEditorProps,
-  type TiptapEditor,
+  type WithEditorExtensions,
   type InkioLocaleInput,
-  type InkioMessageOverrides,
+  type InkioEditorUiOptions,
   type InkioErrorHandler,
   type ExtensionsOptions,
+  type ImageUploadContext,
   getExtensions,
 } from '@inkio/core';
-import type { ToolbarProps } from '@inkio/core';
-import type { BubbleMenuProps } from '@inkio/core';
-import type { FloatingMenuProps } from '@inkio/core';
-import type { TableMenuProps } from '@inkio/core';
 import type { InkioJSONContent as JSONContent } from '@inkio/core';
-import type { InkioIconRegistry } from '@inkio/core/icons';
 import type { ExtensionsInput } from '../types';
 import { mapEditorUiToCoreProps, mergeImageBlockOptions, resolveExtensionsInput, useStableProps } from '@inkio/core';
 
@@ -32,33 +28,20 @@ export interface EditorProps {
   theme?: 'light' | 'dark';
   tabBehavior?: 'indent' | 'default';
   onUpdate?: (content: JSONContent) => void;
-  onCreate?: (editor: TiptapEditor) => void;
+  onChange?: CoreEditorProps['onChange'];
+  onCreate?: CoreEditorProps['onCreate'];
 
-  ui?: {
-    className?: string;
-    style?: React.CSSProperties;
-    fill?: boolean;
-    autoresize?: boolean;
-    bordered?: boolean;
-    showToolbar?: boolean;
-    showBubbleMenu?: boolean;
-    showFloatingMenu?: boolean;
-    showTableMenu?: boolean;
-    toolbar?: Omit<ToolbarProps, 'editor'>;
-    bubbleMenu?: Omit<BubbleMenuProps, 'editor'>;
-    floatingMenu?: Omit<FloatingMenuProps, 'editor'>;
-    tableMenu?: Omit<TableMenuProps, 'editor'>;
-    messages?: InkioMessageOverrides;
-    icons?: Partial<InkioIconRegistry>;
-  };
+  ui?: InkioEditorUiOptions;
 
-  onImageUpload?: (file: File) => Promise<string | { src: string; [key: string]: unknown }>;
+  onImageUpload?: (file: File, context: ImageUploadContext) => Promise<string | { src: string; [key: string]: unknown }>;
   imageBlock?: Omit<Partial<import('@inkio/core').ImageBlockOptions>, 'onUpload' | 'HTMLAttributes'>;
   onError?: InkioErrorHandler;
 
   extensions?: ExtensionsInput;
 };
 
+export function Editor<const Input extends EditorProps['extensions']>(props: WithEditorExtensions<EditorProps, Input>): React.JSX.Element;
+export function Editor(props: EditorProps): React.JSX.Element;
 export function Editor({
   content,
   editable,
@@ -67,6 +50,7 @@ export function Editor({
   locale,
   theme,
   tabBehavior,
+  onChange,
   onUpdate,
   onCreate,
   ui,
@@ -103,7 +87,7 @@ export function Editor({
     if (mergedImageBlock) {
       opts.imageBlock = { ...mergedImageBlock, imageEditor };
     }
-    return resolveExtensionsInput(extensions, getExtensions(opts));
+    return { items: resolveExtensionsInput(extensions, () => getExtensions(opts)), replace: true };
   }, [extensionInputs, extensions, firstUi, imageEditor]);
 
   const coreProps: CoreEditorProps = {
@@ -119,6 +103,7 @@ export function Editor({
     placeholder,
     ariaLabel,
     theme,
+    onChange,
     onUpdate,
     onCreate,
     locale,

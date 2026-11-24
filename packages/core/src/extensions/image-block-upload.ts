@@ -1,17 +1,29 @@
+import type { EditorView } from '@tiptap/pm/view';
 import { toError, type InkioErrorHandler } from '../errors';
 import { isSafeUrl } from '../utils/url-safety';
+import type { ImageCleanupOptions } from './image-block-cleanup';
 
 type ImageUploadResult = string | Record<string, unknown>;
 
-/** `blockId` identifies one file in a transient insertion batch. */
+/** Transient insertion and edit targets observed by the image block plugin. */
+export interface PendingImageUpload {
+  checkTarget(): void;
+  cancel(): void;
+}
+
+export const uploadsByView = new WeakMap<EditorView, Set<PendingImageUpload>>();
+
+/** Shared by upload and URL resolution. `blockId` identifies a file in an insertion batch. */
 export interface ImageUploadContext {
   blockId?: string;
+  /** Aborted if the insertion or edited image is abandoned. */
+  signal: AbortSignal;
 }
 
 export interface ImageUploadOptions {
   /** Uploads new or edited images. The server must independently validate the bytes and limits. */
-  onUpload?: (file: File, context?: ImageUploadContext) => Promise<ImageUploadResult>;
-  resolveFileUrl?: (url: string) => Promise<string>;
+  onUpload?: (file: File, context: ImageUploadContext) => Promise<ImageUploadResult>;
+  resolveFileUrl?: (url: string, context: ImageUploadContext) => Promise<string>;
   /** Further restricts the recognized raster formats; it cannot enable unrecognized formats. */
   allowedMimeTypes?: string[];
   maxFileSize?: number;
@@ -135,28 +147,37 @@ export async function getImageValidationError(file: File, options: ImageUploadOp
 /** Shared URL resolution and result validation for inserted and edited images. */
 export async function uploadImageFile(
   file: File,
-  options: ImageUploadOptions,
-  context?: ImageUploadContext,
+  options: ImageUploadOptions & ImageCleanupOptions,
+  context: ImageUploadContext,
   fallbackAlt?: string,
 ): Promise<Partial<ImageNodeAttributes>> {
+  const { signal } = context;
+  if (signal.aborted) throw signal.reason;
   let attrs: Partial<ImageNodeAttributes>;
   if (options.onUpload) {
     attrs = toImageNodeAttributes(await options.onUpload(file, context), fallbackAlt);
   } else {
     const src = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
+      const abort = () => reader.abort();
       reader.onload = () => {
         if (typeof reader.result === 'string') resolve(reader.result);
         else reject(new Error('Failed to read file'));
       };
       reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.onabort = () => reject(signal.reason);
+      reader.onloadend = () => signal.removeEventListener('abort', abort);
       reader.readAsDataURL(file);
+      signal.addEventListener('abort', abort, { once: true });
     });
     attrs = { src, alt: fallbackAlt };
   }
   if (!attrs.src || !isSafeUrl(attrs.src)) throw new Error('Invalid upload result.');
   if (options.resolveFileUrl) {
-    const resolved = await options.resolveFileUrl(attrs.src);
+    // A late success only needs a final URL for immediate orphan cleanup. Never
+    // substitute a raw upload key if the resolver honors cancellation and rejects.
+    if (signal.aborted && !(options.onUpload && options.cleanup === 'immediate' && options.onDelete)) throw signal.reason;
+    const resolved = await options.resolveFileUrl(attrs.src, context);
     if (typeof resolved !== 'string' || !isSafeUrl(resolved)) {
       throw new Error('Invalid resolved file URL.');
     }

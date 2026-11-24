@@ -84,7 +84,7 @@ export default function PlaygroundEditorPane({
   const [wikiLinkTarget, setWikiLinkTarget] = useState<string | null>(null);
   const imageBlock = useMemo(() => ({ imageEditor: LazyImageEditorModal }), []);
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
-  const doc = usePlaygroundDocument(editorInstance, active && (showViewer || showJSON));
+  const { doc, onChange } = usePlaygroundDocument(editorInstance, active && (showViewer || showJSON));
   const [comments, setComments] = useState<CommentData[]>([]);
   const commentsRef = useRef<CommentData[]>([]);
   commentsRef.current = comments;
@@ -166,8 +166,8 @@ export default function PlaygroundEditorPane({
             locale={locale}
             ui={{
               autoresize: true,
-              showBubbleMenu: true,
-              showFloatingMenu: true,
+              bubbleMenu: true,
+              floatingMenu: true,
               messages,
               icons: iconOverrides,
             }}
@@ -178,6 +178,7 @@ export default function PlaygroundEditorPane({
             imageBlock={imageBlock}
             comment={comment}
             onCreate={setEditorInstance}
+            onChange={onChange}
           />
           {active && <ToC source={editorInstance} />}
         </div>
@@ -202,9 +203,6 @@ export default function PlaygroundEditorPane({
           locale={locale}
           messages={messages}
           icons={iconOverrides}
-          onReply={handleReply}
-          onResolve={handleResolve}
-          onDelete={handleDelete}
           currentUser="You"
         />
       </section>

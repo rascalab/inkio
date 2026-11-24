@@ -22,6 +22,23 @@ describe('static render: sanitizes documents and reports limits', () => {
     expect(result.html).toContain('hi');
   });
 
+  it('preserves editor formatting and disclosure state without allowing arbitrary styles', () => {
+    const { html } = renderInkioStaticContent(
+      '<details open><summary>Notes</summary><p style="text-align:center;position:fixed">' +
+      '<span style="color:#125678">Color</span> <mark style="background-color:rgb(200, 210, 220)">Mark</mark></p>' +
+      '<div class="inkio-callout" data-callout-color="custom" data-callout-icon="!" style="--inkio-callout-bg:#abc">Note</div></details>',
+      extensions,
+    );
+    expect(html).toMatch(/<details open\b/);
+    expect(html).toContain('text-align:center');
+    expect(html).toContain('color:#125678');
+    expect(html).toContain('background-color:rgb(200, 210, 220)');
+    expect(html).toContain('--inkio-callout-bg:#abc');
+    expect(html).toContain('data-callout-color="custom"');
+    expect(html).toContain('data-callout-icon="!"');
+    expect(html).not.toContain('position');
+  });
+
   it('drops unsafe link targets from generated JSON output', () => {
     const doc = {
       type: 'doc',
@@ -95,6 +112,7 @@ describe('static render: sanitizes documents and reports limits', () => {
       extensions,
     );
     expect(result.html.match(/<input\b/g)).toHaveLength(1);
+    expect(result.html).toContain('<label><input');
     expect(result.html).toMatch(/<input type="checkbox"[^>]*\bdisabled\b/);
     expect(result.html).toMatch(/<input type="checkbox"[^>]*\bchecked\b/);
     expect(result.html).toContain('Done');
@@ -106,6 +124,16 @@ describe('static render: sanitizes documents and reports limits', () => {
     expect(() => renderInkioStaticContent({
       type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
     }, extensions)).toThrow(/static.*limit/i);
+  });
+
+  it('reserves authored anchors before assigning generated ids and reports visible heading text', () => {
+    const { html, headings } = renderInkioStaticContent(
+      '<h2>In<strong>tro</strong></h2><h2 id="intro">Overview</h2><p id="intro-1">Note</p>',
+      extensions,
+    );
+    expect(headings.map(({ id, text }) => [id, text])).toEqual([['intro-2', 'Intro'], ['intro', 'Overview']]);
+    expect(html).toContain('id="intro-2"');
+    expect(html.match(/id="intro"/g)).toHaveLength(1);
   });
 
   it('injects stable heading ids for anchors', () => {

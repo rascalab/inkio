@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { COLOR_PRESETS } from '../color-presets';
+import type { ImageEditorLocale } from '../types';
 import { PaletteIcon } from '../icons';
 import { OptionPopover } from './OptionPopover';
 import {
@@ -19,20 +21,18 @@ interface ColorPickerButtonProps {
   value: string;
   label: string;
   testId?: string;
-  popoverTestId?: string;
-  presets: string[];
+  locale: ImageEditorLocale;
   allowTransparent?: boolean;
   enableAlpha?: boolean;
   transparentLabel?: string;
   transparentTestId?: string;
-  hexLabel: string;
-  alphaLabel: string;
-  paletteLabel: string;
   onChange: (value: string) => void;
 }
 
-function toColorString(h: number, s: number, v: number, a: number): string {
-  return hsvaToCss({ h, s, v, a });
+function displayHex(value: string): string {
+  return value.trim().toLowerCase() === 'transparent'
+    ? '#00000000'
+    : rgbaToCss(parseColor(value) ?? { r: 0, g: 0, b: 0, a: 1 });
 }
 
 function normalizeHexInput(value: string): string {
@@ -47,34 +47,26 @@ export function ColorPickerButton({
   value,
   label,
   testId,
-  popoverTestId = 'inkio-ie-color-picker',
-  presets,
   allowTransparent = false,
   enableAlpha = true,
   transparentLabel,
   transparentTestId,
-  hexLabel,
-  alphaLabel,
-  paletteLabel,
+  locale: { colorHex: hexLabel = 'Hex color', colorAlpha: alphaLabel = 'Opacity', colorPalette: paletteLabel = 'Color palette' },
   onChange,
 }: ColorPickerButtonProps) {
   const boardRef = useRef<HTMLDivElement>(null);
   const [hsva, setHsva] = useState(() => colorToHsva(value));
-  const [hexInput, setHexInput] = useState(() => value.trim().toLowerCase() === 'transparent'
-    ? '#00000000'
-    : rgbaToCss(parseColor(value) ?? { r: 0, g: 0, b: 0, a: 1 }));
+  const [hexInput, setHexInput] = useState(() => displayHex(value));
   const normalizedValue = useMemo(() => normalizeColor(value), [value]);
 
   useEffect(() => {
     setHsva(colorToHsva(value));
-    setHexInput(value.trim().toLowerCase() === 'transparent'
-      ? '#00000000'
-      : rgbaToCss(parseColor(value) ?? { r: 0, g: 0, b: 0, a: 1 }));
+    setHexInput(displayHex(value));
   }, [value]);
 
   const commitColor = (nextHsva: typeof hsva) => {
     setHsva(nextHsva);
-    onChange(toColorString(nextHsva.h, nextHsva.s, nextHsva.v, enableAlpha ? nextHsva.a : 1));
+    onChange(hsvaToCss(enableAlpha ? nextHsva : { ...nextHsva, a: 1 }));
   };
 
   const handleBoardPointer = (clientX: number, clientY: number) => {
@@ -103,27 +95,18 @@ export function ColorPickerButton({
     const endBoardDrag = () => {
       document.removeEventListener('pointermove', handleMove);
       document.removeEventListener('pointerup', endBoardDrag);
-      document.removeEventListener('pointercancel', handleCancel);
-    };
-
-    // pointercancel (interrupted drag) tears down the same way: without it
-    // the listeners stay attached until the next pointerup somewhere.
-    const handleCancel = () => {
-      endBoardDrag();
+      document.removeEventListener('pointercancel', endBoardDrag);
     };
 
     handleBoardPointer(event.clientX, event.clientY);
     document.addEventListener('pointermove', handleMove);
     document.addEventListener('pointerup', endBoardDrag);
-    document.addEventListener('pointercancel', handleCancel);
+    document.addEventListener('pointercancel', endBoardDrag);
   };
 
-  // Empty presets must fall through to the default swatch instead of
-  // throwing inside parseColor (presets[0] would be undefined).
-  const fallbackSwatch = presets.length > 0 ? parseColor(presets[0]) : undefined;
   const currentColor = allowTransparent && normalizedValue === 'transparent'
     ? 'transparent'
-    : rgbaToCss(parseColor(value) ?? fallbackSwatch ?? { r: 17, g: 24, b: 39, a: 1 });
+    : rgbaToCss(parseColor(value) ?? parseColor(COLOR_PRESETS[0] ?? '') ?? { r: 17, g: 24, b: 39, a: 1 });
   const currentLabel = currentColor === 'transparent'
     ? transparentLabel ?? 'Transparent'
     : currentColor.toUpperCase();
@@ -133,7 +116,7 @@ export function ColorPickerButton({
         label={label}
         title={`${label}: ${currentLabel}`}
         testId={testId}
-        popoverTestId={popoverTestId}
+        popoverTestId="inkio-ie-color-picker"
         summary={<>
         <span
           className={`inkio-ie-color-picker-preview${currentColor === 'transparent' ? ' is-transparent' : ''}`}
@@ -208,11 +191,7 @@ export function ColorPickerButton({
                     a: enableAlpha ? parsed.a : 1,
                   }));
                 }}
-                onBlur={() => {
-                  setHexInput(normalizedValue === 'transparent'
-                    ? '#00000000'
-                    : rgbaToCss(parseColor(value) ?? { r: 0, g: 0, b: 0, a: 1 }));
-                }}
+                onBlur={() => setHexInput(displayHex(value))}
               />
               {typeof window !== 'undefined' && window.EyeDropper && (
                 <button
@@ -255,7 +234,7 @@ export function ColorPickerButton({
                   onClick={() => onChange('transparent')}
                 />
               )}
-              {presets.map((preset) => {
+              {COLOR_PRESETS.map((preset) => {
                 const isActive = normalizeColor(preset) === normalizedValue;
                 return (
                   <button

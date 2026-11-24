@@ -37,18 +37,21 @@ export interface LatestWinsItemsOptions<A, T> {
  * earlier response never overwrites a newer query's list (stale requests
  * resolve `[]`), errors are normalized and routed to `onError` instead of
  * rejecting, and an optional trailing debounce coalesces rapid keystrokes.
+ * Aborting the optional signal also invalidates a request without starting
+ * a newer one (e.g. dismissal or editor destruction).
  */
 export function createLatestWinsItems<A, T>(
   options: LatestWinsItemsOptions<A, T>,
-): (args: A) => Promise<T[]> {
+): (args: A, signal?: AbortSignal) => Promise<T[]> {
   const { source, debounceMs = 0, onError } = options;
   const ownCell: LatestWinsCell = { value: 0 };
   const scope = options.scope ?? (() => ownCell);
 
-  return async (args: A): Promise<T[]> => {
+  return async (args: A, signal?: AbortSignal): Promise<T[]> => {
+    if (signal?.aborted) return [];
     const cell = scope(args);
     const seq = (cell.value += 1);
-    const isCurrent = () => seq === cell.value;
+    const isCurrent = () => seq === cell.value && !signal?.aborted;
 
     if (debounceMs > 0) {
       await new Promise<void>((resolve) => setTimeout(resolve, debounceMs));

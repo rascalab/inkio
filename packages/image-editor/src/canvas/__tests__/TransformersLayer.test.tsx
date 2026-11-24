@@ -13,7 +13,7 @@ const fakeTransformer = {
   getLayer: () => ({ batchDraw: () => {} }),
 };
 
-vi.mock('react-konva', () => ({
+vi.mock('react-konva/lib/ReactKonvaCore.js', () => ({
   Layer: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
   Transformer: React.forwardRef((_props: unknown, ref: React.Ref<unknown>) => {
     React.useEffect(() => {

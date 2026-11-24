@@ -1,6 +1,6 @@
 import type { Extensions } from '@tiptap/core';
-import Collaboration from '@tiptap/extension-collaboration';
-import CollaborationCaret from '@tiptap/extension-collaboration-caret';
+import { Collaboration } from '@tiptap/extension-collaboration';
+import { CollaborationCaret } from '@tiptap/extension-collaboration-caret';
 import type * as Y from 'yjs';
 import type { CollabProvider, CollabUser } from './provider';
 import { FALLBACK_PRESENCE_USER, normalizePresenceUser } from './presence-user';

@@ -1,43 +1,21 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Editor as CoreEditor,
   type EditorProps as CoreEditorProps,
-  type TiptapEditor,
+  type WithEditorExtensions,
   type InkioLocaleInput,
-  type InkioMessageOverrides,
+  type InkioEditorUiOptions,
   type InkioErrorHandler,
 } from '@inkio/core';
-import type { BubbleMenuProps } from '@inkio/core';
-import type { FloatingMenuProps } from '@inkio/core';
-import type { TableMenuProps } from '@inkio/core';
-import type { ToolbarProps } from '@inkio/core';
-import type { InkioIconRegistry } from '@inkio/core/icons';
-import type { ImageBlockOptions } from '@inkio/core';
+import type { ImageBlockOptions, ImageUploadContext } from '@inkio/core';
 import type { HashTagItem, MentionItem, SlashCommandItem, SlashCommandTransform, BookmarkPreview, CommentConfig, WikiLinkItem } from '@inkio/advanced';
-import { getDefaultExtensions, notifyCommentThreadsChanged, type DefaultExtensionsOptions } from '@inkio/advanced';
+import { getDefaultExtensions, type DefaultExtensionsOptions } from '@inkio/advanced';
+import { useCommentThreadUpdates } from './use-comment-thread-updates';
 import type { ExtensionsInput } from '../types';
 import { mapEditorUiToCoreProps, mergeImageBlockOptions, resolveExtensionsInput, useStableProps } from '@inkio/core';
 import type { InkioJSONContent as JSONContent } from '@inkio/core';
-
-interface EditorUiOptions {
-  className?: string;
-  style?: React.CSSProperties;
-  fill?: boolean;
-    autoresize?: boolean;
-  bordered?: boolean;
-  showBubbleMenu?: boolean;
-  showFloatingMenu?: boolean;
-  showTableMenu?: boolean;
-  showToolbar?: boolean;
-  toolbar?: Omit<ToolbarProps, 'editor'>;
-  bubbleMenu?: Omit<BubbleMenuProps, 'editor'>;
-  floatingMenu?: Omit<FloatingMenuProps, 'editor'>;
-  tableMenu?: Omit<TableMenuProps, 'editor'>;
-  messages?: InkioMessageOverrides;
-  icons?: Partial<InkioIconRegistry>;
-}
 
 export interface EditorProps {
   /** Initial document only (uncontrolled). */
@@ -51,13 +29,14 @@ export interface EditorProps {
   theme?: 'light' | 'dark';
   tabBehavior?: 'indent' | 'default';
   onUpdate?: (content: JSONContent) => void;
-  onCreate?: (editor: TiptapEditor) => void;
+  onChange?: CoreEditorProps['onChange'];
+  onCreate?: CoreEditorProps['onCreate'];
 
   // UI
-  ui?: EditorUiOptions;
+  ui?: InkioEditorUiOptions;
 
   // Feature callbacks
-  onImageUpload?: (file: File) => Promise<string | { src: string; [key: string]: unknown }>;
+  onImageUpload?: (file: File, context: ImageUploadContext) => Promise<string | { src: string; [key: string]: unknown }>;
   hashtagItems?: (params: { query: string }) => HashTagItem[] | Promise<HashTagItem[]>;
   mentionItems?: (params: { query: string }) => MentionItem[] | Promise<MentionItem[]>;
   slashCommands?: (query: string) => SlashCommandItem[] | Promise<SlashCommandItem[]>;
@@ -83,6 +62,8 @@ export interface EditorProps {
   extensions?: ExtensionsInput;
 };
 
+export function Editor<const Input extends EditorProps['extensions']>(props: WithEditorExtensions<EditorProps, Input>): React.JSX.Element;
+export function Editor(props: EditorProps): React.JSX.Element;
 export function Editor({
   content,
   editable,
@@ -91,6 +72,7 @@ export function Editor({
   locale,
   theme,
   tabBehavior,
+  onChange,
   onUpdate,
   onCreate,
   ui,
@@ -143,14 +125,7 @@ export function Editor({
     bookmark,
   });
 
-  // Comment data lives in the host's state (see the comments recipe), so a
-  // new `getComments` closure means the data may have changed. Tell an open
-  // thread popover to re-read it after commit; it re-renders only if the
-  // thread's content actually differs.
-  const getComments = comment?.getComments;
-  useEffect(() => {
-    if (getComments) notifyCommentThreadsChanged();
-  }, [getComments]);
+  useCommentThreadUpdates(comment?.getComments);
 
   const resolvedExtensions = useMemo(() => {
     const input = extensionInputs;
@@ -191,7 +166,7 @@ export function Editor({
       }
     }
 
-    return resolveExtensionsInput(extensions, getDefaultExtensions(opts));
+    return { items: resolveExtensionsInput(extensions, () => getDefaultExtensions(opts)), replace: true };
   }, [extensionInputs, extensions, firstUi, imageEditor]);
 
   const coreProps: CoreEditorProps = {
@@ -207,6 +182,7 @@ export function Editor({
     placeholder,
     ariaLabel,
     theme,
+    onChange,
     onUpdate,
     onCreate,
     locale,

@@ -1,9 +1,9 @@
-import { getSchema } from '@tiptap/core';
-import { useEditor, type Editor as TiptapEditor, type Extensions, type JSONContent } from '@tiptap/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import type { JSONContent } from '@tiptap/react';
+import type { ExtensionsInput } from '../utils/extensions-input';
+import type { InkioEditor, RegisteredEditor, WithEditorExtensions } from '../editor-document';
+import { useMemo } from 'react';
 import { resolveInkioExtensions } from '../extensions/resolve-extensions';
-import { dropUnknownContent } from '../utils/drop-unknown-content';
-import { useCoalescedDocUpdate } from './use-coalesced-doc-update';
+import { useResolvedInkioEditor } from './use-resolved-inkio-editor';
 
 export interface UseInkioEditorOptions {
   /**
@@ -12,105 +12,20 @@ export interface UseInkioEditorOptions {
    * (`editor.commands.setContent(...)`).
    */
   content?: string | JSONContent;
-  extensions?: Extensions;
+  extensions?: ExtensionsInput;
   placeholder?: string;
   /** Accessible name of the editing surface. */
   ariaLabel?: string;
   editable?: boolean;
+  onChange?: (editor: InkioEditor) => void;
   onUpdate?: (content: JSONContent) => void;
-  onCreate?: (editor: TiptapEditor) => void;
+  onCreate?: (editor: InkioEditor) => void;
 }
 
-let didWarnExtensionsChurn = false;
-
-/**
- * Fired when the resolved `extensions` array identity changes across renders.
- * Tiptap compares extensions by instance identity, so a new array on every
- * render (e.g. inline callbacks/objects in extension options) forces
- * `setOptions` + a full document redraw per keystroke. Memoize extension
- * inputs with `useMemo`/`useCallback` instead.
- */
-function warnExtensionsChurn() {
-  if (didWarnExtensionsChurn) {
-    return;
-  }
-  didWarnExtensionsChurn = true;
-  console.warn(
-    '[inkio] Editor extensions were recreated between renders. ' +
-      'Pass memoized `extensions` (and stable callbacks/objects in extension options) ' +
-      'to avoid a full document redraw on every keystroke.',
-  );
-}
-
-export function useInkioEditor({
-  content = '',
-  // No default: undefined means "default extensions" downstream while an
-  // explicit [] means a bare document (see resolveInkioExtensions).
-  extensions,
-  placeholder,
-  ariaLabel = 'Rich text editor',
-  editable = true,
-  onUpdate,
-  onCreate,
-}: UseInkioEditorOptions = {}) {
-  const finalExtensions = useMemo(() => {
-    return resolveInkioExtensions(extensions, placeholder);
-  }, [extensions, placeholder]);
-
-  // `content` is the initial document, so this runs once.
-  const [initialContent] = useState(() =>
-    (typeof content === 'object' ? dropUnknownContent(content, getSchema(finalExtensions)) : content));
-
-  const prevExtensionsRef = useRef<Extensions | null>(null);
-  const onCreateRef = useRef(onCreate);
-  const emitUpdate = useCoalescedDocUpdate(onUpdate);
-
-  useEffect(() => {
-    onCreateRef.current = onCreate;
-  }, [onCreate]);
-
-  const editorProps = useMemo(() => ({
-    attributes: { class: 'inkio-content', 'aria-label': ariaLabel, 'aria-multiline': 'true' },
-  }), [ariaLabel]);
-
-  const editor = useEditor({
-    immediatelyRender: false,
-    extensions: finalExtensions,
-    content: initialContent,
-    editable,
-    editorProps,
-    onCreate: ({ editor: editorInstance }) => {
-      onCreateRef.current?.(editorInstance);
-    },
-    onUpdate: ({ editor: editorInstance, transaction, appendedTransactions }) => {
-      // setEditable also emits 'update' (with an empty transaction) and some
-      // internals listen for that; only document changes reach onUpdate.
-      if (!transaction.docChanged && !appendedTransactions.some((tr) => tr.docChanged)) return;
-      emitUpdate(editorInstance);
-    },
-  });
-
-  useEffect(() => {
-    if (editor) {
-      editor.setEditable(editable);
-    }
-  }, [editor, editable]);
-
-  useEffect(() => {
-    const nodeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
-      ?.env?.NODE_ENV;
-    if (nodeEnv === 'production') {
-      return;
-    }
-    if (!editor) {
-      prevExtensionsRef.current = finalExtensions;
-      return;
-    }
-    if (prevExtensionsRef.current !== null && prevExtensionsRef.current !== finalExtensions) {
-      warnExtensionsChurn();
-    }
-    prevExtensionsRef.current = finalExtensions;
-  });
-
-  return editor;
+export function useInkioEditor<const Input extends UseInkioEditorOptions['extensions']>(options: WithEditorExtensions<UseInkioEditorOptions, Input>): RegisteredEditor<Input> | null;
+export function useInkioEditor(options?: UseInkioEditorOptions): InkioEditor | null;
+export function useInkioEditor(options: UseInkioEditorOptions = {}) {
+  const { extensions, placeholder } = options;
+  const resolved = useMemo(() => resolveInkioExtensions(extensions, placeholder), [extensions, placeholder]);
+  return useResolvedInkioEditor({ ...options, extensions: resolved });
 }

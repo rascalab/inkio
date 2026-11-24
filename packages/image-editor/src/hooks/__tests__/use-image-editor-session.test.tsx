@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 
+import { once } from 'node:events';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImageEditorProvider } from '../../ImageEditorContext';
 import { DEFAULT_LOCALE } from '../../constants';
+import type { ImageEditorProps } from '../../types';
 import { useImageEditor } from '../use-image-editor';
 import { useImageEditorSession } from '../use-image-editor-session';
 
@@ -25,15 +27,17 @@ function SessionHarness({
   onSave,
   onSaveBlob,
   savePreview,
+  src = 'fixture-image',
 }: {
   onDirtyChange: (dirty: boolean) => void;
-  onSave: (dataUrl: string) => void | Promise<void>;
-  onSaveBlob?: (blob: Blob, preview?: Blob) => void | Promise<void>;
+  onSave: ImageEditorProps['onSave'];
+  onSaveBlob?: ImageEditorProps['onSaveBlob'];
   savePreview?: boolean;
+  src?: string;
 }) {
   const { state, dispatch } = useImageEditor();
   const session = useImageEditorSession({
-    src: 'fixture-image',
+    src,
     locale: DEFAULT_LOCALE,
     outputFormat: 'png',
     outputQuality: 0.92,
@@ -122,11 +126,91 @@ describe('useImageEditorSession', () => {
     cleanup();
   });
 
+  it('restarts the resize draft when the replacement image has the same dimensions', async () => {
+    const onSave = vi.fn();
+    const onDirtyChange = vi.fn();
+    const editor = (src: string) => (
+      <ImageEditorProvider locale={DEFAULT_LOCALE}>
+        <SessionHarness onDirtyChange={onDirtyChange} onSave={onSave} src={src} />
+      </ImageEditorProvider>
+    );
+    const { rerender } = render(editor('original'));
+    fireEvent.click(screen.getByTestId('open-resize'));
+    await waitFor(() => {
+      expect(screen.getByTestId('has-crop-draft').textContent).toBe('true');
+    });
+    fireEvent.click(screen.getByTestId('crop-draft'));
+    expect(screen.getByTestId('resize-draft-size').textContent).toBe('320x240');
+
+    loadImageMock.mockResolvedValueOnce({ naturalWidth: 640, naturalHeight: 480 } as HTMLImageElement);
+    await act(async () => { rerender(editor('replacement')); });
+
+    expect(screen.getByTestId('has-crop-draft').textContent).toBe('true');
+    expect(screen.getByTestId('resize-draft-size').textContent).toBe('640x480');
+  });
+
+  it.each(['export', 'upload'] as const)('ignores a superseded %s without unlocking or modifying the replacement save', async (phase) => {
+    let finishFirst!: () => void;
+    let finishSecond!: () => void;
+    const first = new Promise<void>((resolve) => { finishFirst = resolve; });
+    const second = new Promise<void>((resolve) => { finishSecond = resolve; });
+    const onSave = vi.fn((_: string) => phase === 'upload' ? first : undefined);
+    if (phase === 'export') exportCanvasMock.mockReturnValueOnce(first.then(() => 'old bytes'));
+    const editor = (src: string) => (
+      <ImageEditorProvider locale={DEFAULT_LOCALE}>
+        <SessionHarness onDirtyChange={vi.fn()} onSave={onSave} src={src} />
+      </ImageEditorProvider>
+    );
+    const { rerender } = render(editor('first'));
+    await waitFor(() => { expect(loadImageMock).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('make-dirty'));
+    await act(async () => { fireEvent.click(screen.getByTestId('save')); });
+    loadImageMock.mockResolvedValueOnce({ naturalWidth: 120, naturalHeight: 80 } as HTMLImageElement);
+    await act(async () => { rerender(editor('second')); });
+    expect(screen.getByTestId('is-saving').textContent).toBe('false');
+    fireEvent.click(screen.getByTestId('open-resize'));
+    exportCanvasMock.mockReturnValueOnce(second.then(() => 'new bytes'));
+    fireEvent.click(screen.getByTestId('save'));
+    await act(async () => { finishFirst(); });
+    expect(onSave).toHaveBeenCalledTimes(phase === 'upload' ? 1 : 0);
+    expect(screen.getByTestId('is-saving').textContent).toBe('true');
+    expect(screen.getByTestId('has-crop-draft').textContent).toBe('true');
+    expect(screen.getByTestId('is-dirty').textContent).toBe('false');
+    await act(async () => { finishSecond(); });
+    expect(onSave).toHaveBeenLastCalledWith('new bytes', expect.any(AbortSignal));
+    expect(screen.getByTestId('is-saving').textContent).toBe('false');
+  });
+
+  it.each(['source change', 'unmount'])('aborts active persistence on %s without reporting a save error', async (reason) => {
+    const aborted = vi.fn();
+    const onSave = vi.fn(async (_: string, signal: AbortSignal) => {
+      await once(signal, 'abort');
+      aborted();
+      throw signal.reason;
+    });
+    const editor = (src: string) => (
+      <ImageEditorProvider locale={DEFAULT_LOCALE}>
+        <SessionHarness onDirtyChange={vi.fn()} onSave={onSave} src={src} />
+      </ImageEditorProvider>
+    );
+    const { rerender, unmount } = render(editor('first'));
+    await act(async () => { fireEvent.click(screen.getByTestId('save')); });
+    expect(onSave).toHaveBeenCalledExactlyOnceWith('data:image/png;base64,saved', expect.any(AbortSignal));
+    expect(aborted).not.toHaveBeenCalled();
+
+    await act(async () => {
+      if (reason === 'unmount') unmount();
+      else rerender(editor('second'));
+    });
+    expect(aborted).toHaveBeenCalledOnce();
+    if (reason === 'source change') expect(screen.getByTestId('has-save-error').textContent).toBe('false');
+  });
+
   it('resets the dirty baseline after a successful save', async () => {
     const onDirtyChange = vi.fn();
-    const onSave = vi.fn();
+    const onSave = vi.fn<ImageEditorProps['onSave']>();
 
-    render(
+    const { unmount } = render(
       <ImageEditorProvider locale={DEFAULT_LOCALE}>
         <SessionHarness onDirtyChange={onDirtyChange} onSave={onSave} savePreview />
       </ImageEditorProvider>,
@@ -145,7 +229,7 @@ describe('useImageEditorSession', () => {
     fireEvent.click(screen.getByTestId('save'));
     await waitFor(() => {
       expect(exportCanvasMock).toHaveBeenCalledTimes(1);
-      expect(onSave).toHaveBeenCalledWith('data:image/png;base64,saved');
+      expect(onSave).toHaveBeenCalledWith('data:image/png;base64,saved', expect.any(AbortSignal));
       expect(screen.getByTestId('is-dirty').textContent).toBe('false');
       // onDirtyChange fires from an effect after the commit that updates
       // the DOM, so it is awaited too rather than asserted right after.
@@ -153,6 +237,8 @@ describe('useImageEditorSession', () => {
     });
 
     expect(onDirtyChange).toHaveBeenCalledWith(true);
+    unmount();
+    expect(onSave.mock.calls[0][1].aborted).toBe(false);
   });
 
   it.each([false, true])('passes the encoded Blob only to the preferred callback (savePreview=%s)', async (savePreview) => {
@@ -176,7 +262,7 @@ describe('useImageEditorSession', () => {
       0.92,
       savePreview ? 'blob-with-preview' : 'blob',
     );
-    expect(onSaveBlob).toHaveBeenCalledExactlyOnceWith(...(savePreview ? [blob, preview] : [blob]));
+    expect(onSaveBlob).toHaveBeenCalledExactlyOnceWith(blob, savePreview ? preview : undefined, expect.any(AbortSignal));
     expect(onSave).not.toHaveBeenCalled();
     expect(screen.getByTestId('is-dirty').textContent).toBe('false');
   });

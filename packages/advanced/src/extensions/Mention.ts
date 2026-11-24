@@ -1,5 +1,5 @@
-import { PluginKey as PMPluginKey } from '@tiptap/pm/state';
-import { mentionClickPluginKey } from './inline-node-click';
+import { mentionConfig } from './trigger-config';
+import { createTriggerSuggestionPlugin } from './trigger-suggestion';
 import { createTriggerNode, type TriggerNodeOptions } from './trigger-node';
 
 export interface MentionItem {
@@ -12,7 +12,7 @@ export interface MentionItem {
 // deleteTriggerWithBackspace, renderText/renderHTML, items, onError, onClick.
 export interface MentionOptions extends TriggerNodeOptions<MentionItem> {}
 
-export const MentionPluginKey = new PMPluginKey('mention');
+export { MentionPluginKey } from './trigger-config';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -23,12 +23,4 @@ declare module '@tiptap/core' {
   }
 }
 
-export const Mention = createTriggerNode<MentionOptions, MentionItem>({
-  name: 'mention',
-  char: '@',
-  pluginKey: MentionPluginKey,
-  clickPluginKey: mentionClickPluginKey,
-  dataAttribute: 'data-mention',
-  header: (said) => said.mentions,
-  insertCommand: 'insertMention',
-});
+export const Mention = createTriggerNode<MentionOptions, MentionItem>(mentionConfig, createTriggerSuggestionPlugin);

@@ -2,7 +2,7 @@ import {
   deepMerge,
   pickMessageLocale,
   type InkioMessageOverrides,
-} from '@inkio/core';
+} from '@inkio/core/ui';
 import type { InkioImageEditorMessageOverrides, InkioImageEditorMessages } from '../types';
 import { DEFAULT_LOCALE } from '../constants';
 
@@ -33,8 +33,6 @@ export const koImageEditorMessages: InkioImageEditorMessages = {
     cancel: '취소',
     apply: '적용',
     reset: '초기화',
-    editCrop: '자르기 영역 편집',
-    doneCropping: '자르기 완료',
     cropArea: '자르기 영역',
     cropPendingNotice: '저장하면 현재 자르기 영역이 적용됩니다.',
     undo: '실행 취소',
@@ -51,9 +49,7 @@ export const koImageEditorMessages: InkioImageEditorMessages = {
     brushSize: '브러시 크기',
     strokeWidth: '선 두께',
     color: '색상',
-    customColor: '사용자 지정 색상',
     fontFamily: '글꼴',
-    fontFamilyPlaceholder: '글꼴 이름 입력',
     fontSize: '글자 크기',
     fontSizePercent: '글자 크기(%)',
     colorHex: 'HEX 색상',
@@ -100,8 +96,6 @@ export const koImageEditorMessages: InkioImageEditorMessages = {
     closeConfirm: '이미지 편집 내용을 버릴까요?',
     discardChanges: '버리기',
     dialogTitle: '이미지 편집',
-    smallViewportTitle: '아주 작은 화면에서는 이미지 편집을 사용할 수 없습니다.',
-    smallViewportBody: '더 큰 휴대폰, 태블릿 또는 데스크톱 창을 사용하세요.',
     loading: '불러오는 중…',
     error: '문제가 발생했습니다.',
     deleteLabel: '삭제',

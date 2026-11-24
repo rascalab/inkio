@@ -6,14 +6,11 @@ import { Plugin } from '@tiptap/pm/state';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
-import { ImageBlock } from '../ImageBlock';
+import { ImageBlock, type ImageBlockOptions, type ImageUploadContext } from '../ImageBlock';
+import { uploadImageFile } from '../image-block-upload';
 import { rasterPngFile } from './image-fixtures';
 
-function createEditor(options: {
-  onUpload?: (file: File) => Promise<string>;
-  resolveFileUrl?: (url: string) => Promise<string>;
-  onUploadError?: (error: Error) => void;
-}) {
+function createEditor(options: Pick<ImageBlockOptions, 'onUpload' | 'resolveFileUrl' | 'onUploadError'>) {
   return new Editor({
     element: document.createElement('div'),
     extensions: [
@@ -100,6 +97,61 @@ describe('ImageBlock upload URL validation', () => {
     await flushUploads();
 
     expect(docText(editor)).toContain('https://example.com/a.png');
+    editor.destroy();
+  });
+
+  it('does not start a FileReader for an already-aborted local upload', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const read = vi.spyOn(FileReader.prototype, 'readAsDataURL');
+    try {
+      await expect(uploadImageFile(rasterPngFile(), {}, { signal: controller.signal })).rejects.toBe(controller.signal.reason);
+      expect(read).not.toHaveBeenCalled();
+    } finally {
+      read.mockRestore();
+    }
+  });
+
+  it('keeps a live upload when an unrelated plugin is registered', async () => {
+    let finish!: (src: string) => void;
+    const upload = new Promise<string>((resolve) => { finish = resolve; });
+    const onUpload = vi.fn((_file: File, _context: ImageUploadContext) => upload);
+    const editor = createEditor({ onUpload });
+    editor.commands.uploadImageBlock([rasterPngFile()]);
+    await vi.waitFor(() => expect(onUpload).toHaveBeenCalledOnce());
+    editor.registerPlugin(new Plugin({}));
+    finish('/still-live.png');
+    await vi.waitFor(() => expect(docText(editor)).toContain('/still-live.png'));
+    expect(onUpload.mock.calls[0][1].signal.aborted).toBe(false);
+    editor.destroy();
+  });
+
+  it.each(['paste', 'drop'])('aborts an in-flight %s resolver when its target is removed', async (input) => {
+    const file = rasterPngFile();
+    const onUpload = vi.fn(async (_file: File, _context: ImageUploadContext) => '/uploaded.png');
+    const resolveFileUrl = vi.fn((_url: string, { signal }: ImageUploadContext) => new Promise<string>((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    }));
+    const onUploadError = vi.fn();
+    const editor = createEditor({ onUpload, resolveFileUrl, onUploadError });
+    if (input === 'paste') {
+      pasteImage(editor, file);
+    } else {
+      vi.spyOn(editor.view, 'posAtCoords').mockReturnValue({ pos: 1, inside: 0 });
+      const event = { dataTransfer: { files: [file] }, preventDefault: vi.fn() } as unknown as DragEvent;
+      editor.view.someProp('handleDrop', (drop) => drop(editor.view, event, Slice.empty, false));
+    }
+    await vi.waitFor(() => expect(resolveFileUrl).toHaveBeenCalledOnce());
+    const context = onUpload.mock.calls[0][1];
+    expect(context.blockId).toBeTruthy();
+    expect(context.signal.aborted).toBe(false);
+    expect(resolveFileUrl).toHaveBeenCalledWith('/uploaded.png', context);
+
+    editor.commands.setContent('<p>Replacement</p>');
+    expect(context.signal.aborted).toBe(true);
+    await flushUploads(1);
+    expect(onUploadError).not.toHaveBeenCalled();
+    expect(editor.getHTML()).toBe('<p>Replacement</p>');
     editor.destroy();
   });
 

@@ -7,10 +7,13 @@
     "dev": "INKIO_USE_SOURCE_PACKAGES=1 vite",
     "typecheck": "tsc --noEmit -p tsconfig.build.json",
     "build": "tsc --noEmit -p tsconfig.build.json && vite build",
+    "build:offline": "INKIO_OFFLINE=1 pnpm run build",
     "build:smoke": "INKIO_USE_SOURCE_PACKAGES=1 vite build",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@inkio/collab": "workspace:*",
+    "@inkio/core": "workspace:*",
     "@inkio/simple": "workspace:*",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

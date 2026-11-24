@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Editor } from '@inkio/simple';
+import { Editor, read, type InkioEditor } from '@inkio/simple';
 
 const content = `<h2>Hello Inkio</h2>
 <p>This example starts with <code>@inkio/simple</code>.</p>
@@ -10,7 +10,7 @@ const content = `<h2>Hello Inkio</h2>
 </ul>`;
 
 export default function App() {
-  const [json, setJson] = useState<unknown>(null);
+  const [preview, setPreview] = useState<{ summary: string; json: string } | null>(null);
   const [appearance, setAppearance] = useState('light');
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -24,13 +24,15 @@ export default function App() {
 
   // Debounce the JSON preview: without this the whole example re-renders
   // (plus a JSON.stringify) on every keystroke.
-  const handleUpdate = (next: unknown) => {
+  const handleChange = (editor: InkioEditor) => {
     if (previewTimer.current) {
       clearTimeout(previewTimer.current);
     }
     previewTimer.current = setTimeout(() => {
       previewTimer.current = null;
-      setJson(next);
+      if (editor.isDestroyed) return;
+      const snapshot = editor.getJSON();
+      setPreview({ summary: read(snapshot).summary(80), json: JSON.stringify(snapshot, null, 2) });
     }, 150);
   };
 
@@ -58,13 +60,16 @@ export default function App() {
           content={content}
           theme={appearance === 'dark' ? 'dark' : 'light'}
           ui={{ className: appearance === 'custom' ? 'example-theme' : undefined }}
-          onUpdate={handleUpdate}
+          onCreate={handleChange}
+          onChange={handleChange}
         />
       </section>
 
       <section className="json-card">
+        <div className="section-title">Document summary</div>
+        <p>{preview?.summary}</p>
         <div className="section-title">JSON Output</div>
-        <pre>{JSON.stringify(json, null, 2)}</pre>
+        <pre>{preview?.json}</pre>
       </section>
     </main>
   );

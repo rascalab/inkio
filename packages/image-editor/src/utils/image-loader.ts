@@ -1,4 +1,4 @@
-import { isSafeUrl } from '@inkio/core';
+import { isSafeUrl } from '@inkio/core/ui';
 import { fitsRaster, MAX_SOURCE_DIMENSION, MAX_SOURCE_PIXELS } from './raster-limits';
 
 const imageCache = new Map<string, HTMLImageElement>();
@@ -93,20 +93,22 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const task = new Promise<HTMLImageElement>((resolveTask, rejectTask) => {
     const settle = (fn: () => void) => {
+      if (pendingLoads.get(src) !== task) return;
       if (timeoutId !== undefined) {
         clearTimeout(timeoutId);
       }
-      if (pendingLoads.get(src) === task) {
-        pendingLoads.delete(src);
-      }
+      pendingLoads.delete(src);
       fn();
     };
     timeoutId = setTimeout(() => {
       settle(() => rejectTask(new Error('Timed out loading image')));
     }, IMAGE_LOAD_TIMEOUT_MS);
-    const load = cacheableLoad(src);
-    load.then(
-      (img) => settle(() => resolveTask(img)),
+    loadSourceImage(src).then(
+      (img) => settle(() => {
+        // Only the winning request may populate the LRU, never a timed-out load.
+        if (!/^(?:data|blob):/i.test(src)) cacheImage(src, img);
+        resolveTask(img);
+      }),
       (error: unknown) => settle(() => rejectTask(error)),
     );
   });
@@ -114,7 +116,7 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   return task;
 }
 
-function cacheableLoad(src: string): Promise<HTMLImageElement> {
+function loadSourceImage(src: string): Promise<HTMLImageElement> {
   const inline = /^data:/i.test(src);
   const load = !inline
     ? loadImageElement(src, true).catch(() => loadImageElement(src).then(
@@ -131,8 +133,6 @@ function cacheableLoad(src: string): Promise<HTMLImageElement> {
     if (!fitsRaster(naturalWidth, naturalHeight, MAX_SOURCE_DIMENSION, MAX_SOURCE_PIXELS)) {
       throw new RangeError(`Unsupported source image dimensions: ${naturalWidth}×${naturalHeight}`);
     }
-    // Do not pin caller-owned inline assets or revoked object URLs.
-    if (!inline && !/^blob:/i.test(src)) cacheImage(src, img);
     return img;
   });
 }

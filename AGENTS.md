@@ -14,10 +14,10 @@ Inkio is a pnpm monorepo of layered Tiptap-based React editors: `@inkio/core` fo
 ├── packages/advanced/      # per-extension entries under src/entries/
 ├── packages/simple/        # classic WYSIWYG preset (wraps core)
 ├── packages/editor/        # notion-like preset (wraps core+advanced)
-├── packages/collab/        # Hocuspocus/Yjs realtime layer (`@inkio/collab`, single `.` subpath)
+├── packages/collab/        # Hocuspocus/Yjs client; optional build-time plugin at @inkio/collab/vite
 ├── packages/image-editor/  # konva canvas editor, standalone
 ├── docs/                   # Nextra app, workspace member named `docs`
-├── examples/               # basic-react (vite) + next-app-router + collab-server (Nest/Hocuspocus)
+├── examples/               # basic-react, react-router, next-app-router, collab-server (Nest/Hocuspocus)
 ├── e2e/                    # Playwright specs on built examples
 └── scripts/                # vite build runner + publint/attw/budget gates
 ```
@@ -41,11 +41,11 @@ Centrality unmeasured (typescript-language-server not installed); map is export-
 
 | Symbol | Type | Location | Role |
 |--------|------|----------|------|
-| Editor/Viewer/StaticViewer | component | packages/core/src/index.ts | core surfaces; simple/editor re-export own copies |
+| Editor/Viewer/StaticViewer | component | packages/core/src/index.ts | presets expose Editor/Viewer; static rendering is available at @inkio/core/static |
 | useInkioEditor | hook | packages/core/src/hooks/use-inkio-editor.ts | editor instantiation |
 | getExtensions | function | packages/core/src/extensions/get-extensions.ts | core assembly; presets expose getDefaultExtensions instead |
 | InkioProvider/useInkioContext | context | packages/core/src/context/InkioProvider.tsx | optional shared context |
-| toPlainText/toSummary/getContentStats | function | packages/core/src/serialization.ts | content stats |
+| read | function | `@inkio/core` root; also `@inkio/simple` and `@inkio/editor` | read-only, lazy projections of immutable saved JSON |
 | createMarkdownAdapter | function | packages/core/src/markdown/ (`@inkio/core/markdown`) | markdown kept out of main bundle |
 | BlockHandle/Bookmark/Mention/HashTag/SlashCommand/WikiLink | extension | packages/advanced/src/ | one subpath per extension via src/entries/ |
 | Comment/CommentComposer/CommentPanel | component | packages/advanced/src/comment/ | comment bundle |
@@ -54,9 +54,9 @@ Centrality unmeasured (typescript-language-server not installed); map is export-
 
 ## CONVENTIONS
 - Import via package subpaths (`@inkio/core/markdown`, `@inkio/advanced/comment`), never deep `src/` paths.
-- `getExtensions` (core) vs `getDefaultExtensions` (every other package) — different names, same role.
-- CSS contract: `minimal.css` vs `style.css` per package (`style` = full); editor CSS already covers advanced; image-editor needs its own `style.css`.
-- `content` is the initial document only (no `initialContent`, no controlled mode); push later changes through the editor instance.
+- `getExtensions` assembles the core schema (also exported as `getDefaultExtensions`); both presets expose `getDefaultExtensions` for their respective schemas.
+- Core, simple and editor expose `minimal.css` and `style.css`; advanced and image-editor expose `style.css`. The full editor stylesheet includes advanced styles.
+- `Editor.content` is initial-only (no `initialContent` or controlled mode); push later edits through the instance. `Viewer.content` follows its prop.
 - Build order matters: core → advanced → simple/editor/image-editor → collab (`pnpm build:packages` encodes it).
 - Env flags: `INKIO_USE_SOURCE_PACKAGES=1` (docs/examples resolve `packages/*/src`), `INKIO_VITE_SKIP_DTS=1` (fast smoke builds).
 

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, render, waitFor } from '@testing-library/react';
-import { useEffect, useMemo } from 'react';
+import { useLayoutEffect, useMemo } from 'react';
 import type { Mock } from 'vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImageNode } from '../ImageNode';
@@ -15,6 +15,7 @@ interface SpyNode {
   enhance: ReturnType<typeof vi.fn>;
   filters: ReturnType<typeof vi.fn>;
   cache: ReturnType<typeof vi.fn>;
+  isCached: () => boolean;
   clearCache: ReturnType<typeof vi.fn>;
   getLayer: () => { batchDraw: ReturnType<typeof vi.fn> };
 }
@@ -28,6 +29,7 @@ function createSpyNode(): SpyNode {
     enhance: vi.fn(),
     filters: vi.fn(),
     cache: vi.fn(),
+    isCached: () => false,
     clearCache: vi.fn(),
     getLayer: () => ({ batchDraw: vi.fn() }),
   };
@@ -37,7 +39,7 @@ const mountedNodes: SpyNode[] = [];
 
 const konvaImageMock: Mock<(props: unknown) => null> = vi.fn(() => null);
 
-vi.mock('react-konva', () => ({
+vi.mock('react-konva/lib/ReactKonvaCore.js', () => ({
   Image: (props: unknown) => {
     // Faithful lifecycles: one stable node per mount, ref attached on mount
     // only — no eager re-assign during updates, mirroring real React.
@@ -50,7 +52,7 @@ vi.mock('react-konva', () => ({
       | undefined
       | ((node: SpyNode | null) => void)
       | { current: SpyNode | null };
-    useEffect(() => {
+    useLayoutEffect(() => {
       if (typeof ref === 'function') ref(node);
       else if (ref) ref.current = node;
       return () => {
@@ -154,6 +156,15 @@ describe('ImageNode filter cache', () => {
     });
     vi.stubGlobal('cancelAnimationFrame', vi.fn());
   });
+  it('cancels the pending filter raster when the image is unmounted', () => {
+    vi.stubGlobal('requestAnimationFrame', () => 42);
+    const { unmount } = render(
+      <ImageNode image={stubImage} displayWidth={200} displayHeight={200} transform={BASE_TRANSFORM} filter="sepia" />,
+    );
+    unmount();
+    expect(cancelAnimationFrame).toHaveBeenCalledWith(42);
+  });
+
   it('recaches when a same-size crop is moved', async () => {
     const { rerender, unmount } = render(
       <ImageNode

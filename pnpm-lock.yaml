@@ -350,6 +350,9 @@ importers:
       '@inkio/advanced':
         specifier: workspace:*
         version: link:../../packages/advanced
+      '@inkio/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@inkio/editor':
         specifier: workspace:*
         version: link:../../packages/editor
@@ -387,6 +390,12 @@ importers:
 
   examples/react-router:
     dependencies:
+      '@inkio/collab':
+        specifier: workspace:*
+        version: link:../../packages/collab
+      '@inkio/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@inkio/simple':
         specifier: workspace:*
         version: link:../../packages/simple

@@ -9,7 +9,7 @@ import {
   type CommentOptions,
 } from './comment-shared';
 import { CommentComposer } from './components/CommentComposer';
-import { canCommentOnRange, findCommentRanges, visitCommentableText } from './utils';
+import { canCommentOnRange, findCommentRanges, focusCommentSelection, visitCommentableText } from './utils';
 import { createOverlayHost, editorUi, type OverlayHost } from '@inkio/core';
 
 function getSelectionRect(view: EditorView, from: number, to: number) {
@@ -114,12 +114,12 @@ export function createCommentComposerPlugin(
           // A host transaction filter can reject the edit; don't persist an orphan thread.
           const doc = view.state.doc;
           if (doc === state.doc || (doc !== tr.doc && !findCommentRanges(doc, commentId).length)) return;
-          editor.commands.focus();
+          focusCommentSelection(view);
           options.onCommentSubmit?.(commentId, text, selectedText);
         }}
         onCancel={() => {
           deactivate();
-          editor.chain().focus().run();
+          focusCommentSelection(view);
         }}
       />,
     );

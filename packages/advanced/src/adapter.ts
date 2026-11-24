@@ -1,20 +1,16 @@
 import type { Extensions } from '@tiptap/core';
-import type { InkioAdapter } from '@inkio/core';
+import type { ImageUploadContext, InkioAdapter } from '@inkio/core';
 import type { SlashCommandItem } from './extensions/SlashCommand';
 import type { SlashCommandTransform } from './extensions/SlashCommand';
 import type { MentionItem } from './extensions/Mention';
 import type { HashTagItem } from './extensions/HashTag';
 
-export type ExtensionsUploadContext = {
-  blockId?: string;
-};
-
 export type ExtensionsUploadResult = string | { src: string; [key: string]: unknown };
 
 export interface ExtensionsFileAdapter {
   /** The host must validate file contents, enforce limits, and authorize the upload. */
-  uploadFile: (file: File, context?: ExtensionsUploadContext) => Promise<ExtensionsUploadResult>;
-  resolveFileUrl?: (url: string) => Promise<string>;
+  uploadFile: (file: File, context: ImageUploadContext) => Promise<ExtensionsUploadResult>;
+  resolveFileUrl?: (url: string, context: ImageUploadContext) => Promise<string>;
   onUploadError?: (error: Error) => void;
   allowedMimeTypes?: string[];
   maxFileSize?: number;
@@ -43,8 +39,8 @@ export interface ExtensionsAdapter extends InkioAdapter {
 }
 
 export interface ExtensionsAdapterOptionsLike {
-  onUpload?: (file: File, context?: ExtensionsUploadContext) => Promise<string>;
-  resolveFileUrl?: (url: string) => Promise<string>;
+  onUpload?: (file: File, context: ImageUploadContext) => Promise<string>;
+  resolveFileUrl?: ExtensionsFileAdapter['resolveFileUrl'];
   allowedMimeTypes?: string[];
   maxFileSize?: number;
   onUploadError?: (error: Error) => void;
@@ -136,7 +132,7 @@ export function mapExtensionsAdapterToOptions(
 
   return {
     onUpload: fileAdapter?.uploadFile
-      ? async (file: File, context?: ExtensionsUploadContext) => {
+      ? async (file, context) => {
         const uploadResult = await fileAdapter.uploadFile(file, context);
         return toUploadSrc(uploadResult);
       }

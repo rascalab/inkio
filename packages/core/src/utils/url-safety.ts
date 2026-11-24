@@ -1,31 +1,14 @@
-const BLOCKED_PROTOCOLS = new Set(['javascript', 'vbscript', 'file']);
 const ALLOWED_PROTOCOLS = new Set(['http', 'https', 'mailto', 'tel', 'blob']);
+const NAMED_ENTITIES: Record<string, string> = { colon: ':', newline: '\n', tab: '\t', lpar: '(', rpar: ')' };
 
 function decodeUrlEntities(input: string): string {
   return input
-    .replace(/&#x([0-9a-f]+);?/gi, (_m: string, hex: string) => {
-      const code = parseInt(hex, 16);
-      return Number.isNaN(code) ? '' : String.fromCharCode(code);
-    })
-    .replace(/&#(\d+);?/g, (_m: string, dec: string) => {
-      const code = parseInt(dec, 10);
-      return Number.isNaN(code) ? '' : String.fromCharCode(code);
-    })
-    .replace(/&(colon|newline|tab|lpar|rpar);?/gi, (m: string) => {
-      const lower = m.toLowerCase();
-      if (lower.indexOf('&colon') === 0) return ':';
-      if (lower.indexOf('&newline') === 0) return '\n';
-      if (lower.indexOf('&tab') === 0) return '\t';
-      if (lower.indexOf('&lpar') === 0) return '(';
-      if (lower.indexOf('&rpar') === 0) return ')';
-      return m;
-    });
+    .replace(/&#x([0-9a-f]+);?/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);?/g, (_, dec: string) => String.fromCharCode(Number(dec)))
+    .replace(/&(colon|newline|tab|lpar|rpar);?/gi, (_, name: string) => NAMED_ENTITIES[name.toLowerCase()]);
 }
 
-const CONTROL_RE = new RegExp(
-  '[\\u0000-\\u001F\\u007F\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF\\u200B-\\u200F\\u061C\\u180E\\u00AD]+',
-  'g',
-);
+const CONTROL_RE = /[\u0000-\u001F\u007F\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF\u200B-\u200F\u061C\u180E\u00AD]+/g;
 
 /**
  * Raster image MIMEs that are safe to embed as `data:` URLs.
@@ -51,11 +34,6 @@ function normalizeForProtocolCheck(url: string): string {
   return decoded.replace(/ /g, '%20').replace(CONTROL_RE, '');
 }
 
-function getProtocol(normalized: string): string | null {
-  const match = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(normalized);
-  return match ? match[1].toLowerCase() : null;
-}
-
 /**
  * What someone means by a link they typed. `example.com` stored as is would be a
  * path on the current site. Paths and anything with a scheme stay as they are.
@@ -69,17 +47,15 @@ export function normalizeLinkInput(value: string): string {
 }
 
 export function isSafeUrl(url: string | null | undefined): boolean {
-  if (!url) return false;
+  // Unknown schemes are rejected by the allowlist, including file and script URLs.
   if (typeof url !== 'string') return false;
   const trimmed = url.trim();
   if (!trimmed) return false;
 
   const normalized = normalizeForProtocolCheck(trimmed);
-  const protocol = getProtocol(normalized);
+  const protocol = /^([a-z][a-z\d+.-]*):/i.exec(normalized)?.[1].toLowerCase();
 
   if (!protocol) return true;
-
-  if (BLOCKED_PROTOCOLS.has(protocol)) return false;
 
   if (protocol === 'data') {
     // Only allow safe raster image payloads (e.g. data:image/png;base64,...).
@@ -90,9 +66,7 @@ export function isSafeUrl(url: string | null | undefined): boolean {
     return SAFE_DATA_IMAGE_MIMES.has(mime);
   }
 
-  if (ALLOWED_PROTOCOLS.has(protocol)) return true;
-
-  return false;
+  return ALLOWED_PROTOCOLS.has(protocol);
 }
 
 export function sanitizeUrlOrEmpty(url: string | null | undefined): string {

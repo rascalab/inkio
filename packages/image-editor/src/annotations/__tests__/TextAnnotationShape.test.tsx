@@ -6,7 +6,7 @@ import { TextAnnotationShape } from '../TextAnnotationShape';
 
 let lastTextProps: Record<string, unknown> | null = null;
 
-vi.mock('react-konva', () => ({
+vi.mock('react-konva/lib/ReactKonvaCore.js', () => ({
   Group: ({ children, onClick }: any) => (
     <div data-testid="text-annotation-group" onClick={onClick}>
       {children}

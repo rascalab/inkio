@@ -233,10 +233,6 @@ export interface ImageEditorLocale {
   cancel: string;
   apply: string;
   reset: string;
-  /** @deprecated Crop editing is now always live inside resize mode. */
-  editCrop?: string;
-  /** @deprecated Crop editing is now always live inside resize mode. */
-  doneCropping?: string;
   cropArea: string;
   cropPendingNotice: string;
   undo: string;
@@ -253,11 +249,7 @@ export interface ImageEditorLocale {
   brushSize: string;
   strokeWidth: string;
   color: string;
-  /** @deprecated Shared color picker UI no longer renders a dedicated custom-color label. */
-  customColor?: string;
   fontFamily: string;
-  /** @deprecated Font family now uses a curated select field. */
-  fontFamilyPlaceholder?: string;
   fontSize: string;
   fontSizePercent: string;
   colorHex: string;
@@ -306,10 +298,6 @@ export interface ImageEditorLocale {
   discardChanges?: string;
   /** The dialog's name for screen readers. */
   dialogTitle?: string;
-  /** @deprecated Tiny viewport hard-disable was removed in favor of a scroll shell. */
-  smallViewportTitle?: string;
-  /** @deprecated Tiny viewport hard-disable was removed in favor of a scroll shell. */
-  smallViewportBody?: string;
   loading: string;
   error: string;
   deleteLabel?: string;
@@ -371,10 +359,10 @@ export interface ImageEditorToolPlacement {
 
 export interface ImageEditorProps {
   src: string;
-  /** Awaited before saving completes; reject to preserve edits for retry. */
-  onSave: (dataUrl: string) => void | Promise<void>;
-  /** Preferred over onSave when provided; receives the full-size encoded image without base64. */
-  onSaveBlob?: (blob: Blob, preview?: Blob) => void | Promise<void>;
+  /** Awaited before saving completes; reject to preserve edits for retry. The signal aborts when this save is superseded or the editor closes. */
+  onSave: (dataUrl: string, signal: AbortSignal) => void | Promise<void>;
+  /** Preferred over onSave; receives the full-size encoded image, optional preview, and the same save-scoped cancellation signal. */
+  onSaveBlob?: (blob: Blob, preview: Blob | undefined, signal: AbortSignal) => void | Promise<void>;
   /** Pass a same-format, display-only preview (longest side at most 1200 px) to onSaveBlob. */
   savePreview?: boolean;
   onCancel: () => void;
@@ -395,7 +383,7 @@ export interface ImageEditorModalProps {
   isOpen: boolean;
   imageSrc: string;
   /** Called only for changed images; the modal closes after this resolves. */
-  onSave: (editedImageData: string) => void | Promise<void>;
+  onSave: ImageEditorProps['onSave'];
   /** Preferred over onSave when provided; receives the full-size encoded image without base64. */
   onSaveBlob?: ImageEditorProps['onSaveBlob'];
   /** Pass a same-format, display-only preview (longest side at most 1200 px) to onSaveBlob. */

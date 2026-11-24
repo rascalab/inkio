@@ -1,10 +1,105 @@
-import { describe, expect, it } from 'vitest';
-import { Editor, getSchema, type JSONContent } from '@tiptap/core';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { Editor, Extension, getSchema, type JSONContent } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Heading from '@tiptap/extension-heading';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
-import { MarkdownPaste, parseMarkdown, stringifyMarkdown } from '../index';
+import { createMarkdownAdapter, Markdown, type MarkdownEditor, MarkdownPaste, parseMarkdown, stringifyMarkdown } from '../index';
+
+function pastePlainText(editor: Editor, text: string) {
+  const event = Object.assign(new Event('paste'), {
+    clipboardData: { getData: (type: string) => type === 'text/plain' ? text : '' },
+  });
+  return editor.view.pasteText(text, event as unknown as ClipboardEvent);
+}
+
+it('creates a standalone Markdown adapter without configuration', () => {
+  expectTypeOf(createMarkdownAdapter).parameters.toEqualTypeOf<[]>();
+  const adapter = createMarkdownAdapter();
+  expect(adapter.stringify(adapter.parse('# Heading'))).toBe('# Heading');
+});
+
+describe('Markdown extension', () => {
+  const schema = [Document, Paragraph, Heading, Text];
+  const createEditor = () => new Editor({
+    extensions: [...schema, Markdown],
+    content: '<p>Before</p>',
+  }) as MarkdownEditor<Editor>;
+
+  it('installs access synchronously and caches serialization across selection changes', () => {
+    const editor = createEditor();
+    try {
+      const serialize = vi.spyOn(editor.state.doc, 'toJSON');
+      expect(editor.markdown).toBe('Before');
+      editor.commands.setTextSelection(2);
+      expect(editor.markdown).toBe('Before');
+      expect(serialize).toHaveBeenCalledTimes(1);
+
+      const update = vi.fn();
+      editor.on('update', update);
+      expect(editor.setMarkdown('# After')).toBe(true);
+      expect(update).toHaveBeenCalledTimes(1);
+      expect(editor.isActive('heading')).toBe(true);
+      expect(editor.markdown).toBe('# After');
+      editor.commands.setContent('<p>External edit</p>');
+      expect(editor.markdown).toBe('External edit');
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('does not replace the document on parser limits or unsupported schema nodes', () => {
+    const editor = createEditor();
+    try {
+      const before = editor.state.doc;
+      expect(editor.setMarkdown('a'.repeat(1_000_001))).toBe(false);
+      expect(editor.setMarkdown('[[Missing extension]]')).toBe(false);
+      expect(editor.state.doc).toBe(before);
+      expect(editor.markdown).toBe('Before');
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('does not install access on an editor without the extension', () => {
+    const plain = new Editor({ extensions: schema });
+    try {
+      expect('markdown' in plain).toBe(false);
+      expect('setMarkdown' in plain).toBe(false);
+    } finally {
+      plain.destroy();
+    }
+  });
+
+  it('keeps pasted Markdown literal unless MarkdownPaste is registered', () => {
+    const editor = createEditor();
+    try {
+      editor.commands.clearContent();
+      pastePlainText(editor, '# Agenda');
+      expect(editor.getText()).toBe('# Agenda');
+      expect(editor.getJSON().content?.[0]?.type).toBe('paragraph');
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it.each(['markdown', 'setMarkdown'])('does not overwrite or evaluate a foreign %s', (key) => {
+    const get = vi.fn();
+    let instance: Editor | undefined;
+    const foreign = Extension.create({
+      name: 'foreign',
+      priority: 1000,
+      onBeforeCreate({ editor }) {
+        instance = editor;
+        Object.defineProperty(editor, key, { get });
+      },
+    });
+    expect(() => new Editor({ extensions: [...schema, Markdown, foreign] })).toThrow(`editor.${key} already exists`);
+    expect(get).not.toHaveBeenCalled();
+    expect(Object.getOwnPropertyDescriptor(instance, key)?.get).toBe(get);
+    expect(Object.getOwnPropertyDescriptor(instance, key === 'markdown' ? 'setMarkdown' : 'markdown')).toBeUndefined();
+  });
+});
 
 describe('advanced inline nodes', () => {
   it('round-trips wiki links through [[name]] syntax', () => {
@@ -106,6 +201,33 @@ describe('advanced inline nodes', () => {
 });
 
 describe('@inkio/core/markdown', () => {
+  it('resolves references declared later without dropping links or standalone images', () => {
+    const doc = parseMarkdown('[**guide**][DOCS]\n\n![photo][pic]\n\n[docs]: /guide\n[pic]: /photo.png "Trip"\n[docs]: /duplicate');
+    expect(doc.content).toEqual([
+      { type: 'paragraph', content: [{ type: 'text', text: 'guide', marks: [{ type: 'link', attrs: { href: '/guide' } }, { type: 'bold' }] }] },
+      { type: 'imageBlock', attrs: { src: '/photo.png', alt: 'photo', title: 'Trip' } },
+    ]);
+  });
+
+  it('preserves literal unknown directives, including ones that contain details markup', () => {
+    const note = ':::note\nKeep **important** words.\n\n<details>\n<summary>More</summary>\n\nBody\n</details>\n:::';
+    const doc = parseMarkdown(`<details>\n<summary>First</summary>\n\nPress :enter now.\n</details>\n\n${note}\n\n::custom[Label]`);
+    expect(doc.content?.[0]?.content?.[1]?.content?.[0]?.content?.[0]?.text).toBe('Press :enter now.');
+    expect(doc.content?.slice(1).map(block => block.content?.[0].text)).toEqual([note, '::custom[Label]']);
+  });
+
+  it('continues numbering across task items and preserves a zero start', () => {
+    const doc = parseMarkdown('0. zero\n1. [x] done\n2. two');
+    expect(doc.content?.map(block => [block.type, block.attrs?.start])).toEqual([
+      ['orderedList', 0], ['taskList', undefined], ['orderedList', 2],
+    ]);
+    expect(parseMarkdown(stringifyMarkdown(doc))).toEqual(doc);
+  });
+
+  it.each(['data:text/plain,photo', '__inkio_upload_123', ''])('exports alt text rather than an unusable image: %s', (src) => {
+    expect(stringifyMarkdown({ type: 'imageBlock', attrs: { src, alt: 'Team photo' } })).toBe('Team photo');
+  });
+
   it('parses and stringifies core markdown features', () => {
     const markdown = [
       '# Hello',
@@ -154,6 +276,15 @@ describe('@inkio/core/markdown', () => {
     });
 
     expect(stringifyMarkdown(content)).toBe(markdown);
+  });
+
+  it('round-trips a table of contents between surrounding blocks', () => {
+    const markdown = '## Heading\n\n::toc{maxLevel="4"}\n\nAfter';
+    const content = parseMarkdown(markdown);
+    expect(content.content?.map(node => node.type)).toEqual(['heading', 'tocBlock', 'paragraph']);
+    expect(content.content?.[1]).toEqual({ type: 'tocBlock', attrs: { maxLevel: 4 } });
+    expect(parseMarkdown(stringifyMarkdown(content))).toEqual(content);
+    expect(parseMarkdown('::toc').content).toEqual([{ type: 'tocBlock', attrs: { maxLevel: 3 } }]);
   });
 
   it('round-trips details blocks using canonical html syntax', () => {
@@ -412,14 +543,13 @@ describe('Markdown input limits', () => {
   it('keeps normal paste available when Markdown parsing rejects the input', () => {
     const editor = new Editor({ extensions: [Document, Heading, Paragraph, Text, MarkdownPaste] });
     try {
-      const paste = (text: string) => editor.view.pasteText(text, Object.assign(new Event('paste'), {
-        clipboardData: { getData: (type: string) => type === 'text/plain' ? text : '' },
-      }) as unknown as ClipboardEvent);
+      expect('markdown' in editor).toBe(false);
+      expect('setMarkdown' in editor).toBe(false);
       const nested = `${'> '.repeat(129)}Meeting notes`;
-      paste(nested);
+      pastePlainText(editor, nested);
       expect(editor.getText()).toBe(nested);
       editor.commands.clearContent();
-      paste('# Agenda');
+      pastePlainText(editor, '# Agenda');
       expect(editor.getJSON().content?.[0]?.type).toBe('heading');
       expect(editor.getText()).toBe('Agenda');
     } finally {

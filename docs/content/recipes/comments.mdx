@@ -1,8 +1,8 @@
 # 댓글 서버 연동
 
-댓글 본문은 문서(JSON)에 `comment` 마크로 저장되지 않습니다. 문서에는
-`commentId` 참조만 남고, 스레드 내용(메시지·작성자·해결 상태)은 앱의 서버에 저장합니다.
-Inkio는 아래 HTTP 경로나 댓글 관리 화면을 제공하지 않습니다.
+문서의 `comment` 마크에는 `commentId`와 `resolved` 속성이 저장됩니다. 메시지와 작성자는
+마크에 들어가지 않습니다. 앱의 서버가 스레드 데이터와 해결 상태를 저장하고 권한을 확인합니다.
+Inkio는 댓글 작성기·패널·팝오버를 제공하지만 아래 HTTP API는 제공하지 않습니다.
 
 읽기 전용(`editable={false}`) 에디터에서는 댓글 작성·답글·해결·삭제가 모두
 비활성화됩니다. 스레드 조회(popover 표시)는 동작합니다.
@@ -13,7 +13,7 @@ Inkio는 아래 HTTP 경로나 댓글 관리 화면을 제공하지 않습니다
 
 | 연산 | 예시 엔드포인트 | 설명 |
 |------|----------------|------|
-| 스레드 조회 | `GET /api/comments?documentId=...` | 해당 문서의 `CommentData[]` 반환 |
+| 스레드 조회 | `GET /api/comments?documentId=...` | 해당 문서의 스레드 목록 반환 (날짜는 ISO 문자열) |
 | 작성 | `POST /api/comments` `{ documentId, commentId, text, selection }` | 첫 메시지 스레드 생성 |
 | 답글 | `POST /api/comments/:id/replies` `{ text }` | 메시지 추가 |
 | 해결/삭제 | `PATCH /api/comments/:id` `{ resolved }`, `DELETE /api/comments/:id` | 상태 변경. 삭제 성공은 `204 No Content` |
@@ -33,11 +33,19 @@ interface CommentRow {
 }
 ```
 
-## 클라이언트 어댑터
+## 클라이언트 연동
 
 ```tsx
 import { useCallback, useEffect, useState } from 'react';
 import { Editor, type CommentData } from '@inkio/editor';
+
+type ThreadJson = Omit<CommentData, 'messages'> & {
+  messages: Array<Omit<CommentData['messages'][number], 'createdAt'> & { createdAt: string }>;
+};
+
+function toThread(row: ThreadJson): CommentData {
+  return { ...row, messages: row.messages.map(m => ({ ...m, createdAt: new Date(m.createdAt) })) };
+}
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -51,14 +59,15 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 export function DocumentPage({ documentId }: { documentId: string }) {
   // 스레드 캐시: getComments는 동기 함수라서 캐시에서 읽습니다.
   const [threads, setThreads] = useState<Map<string, CommentData>>(new Map());
-  const upsert = useCallback((data: CommentData) => {
+  const upsert = useCallback((row: ThreadJson) => {
+    const data = toThread(row);
     setThreads((prev) => new Map(prev).set(data.id, data));
   }, []);
 
   // 문서 전환 시 상위에서 <DocumentPage key={documentId} ... />로 다시 마운트합니다.
   useEffect(() => {
-    api<CommentData[]>(`/api/comments?documentId=${encodeURIComponent(documentId)}`).then((rows) => {
-      setThreads(new Map(rows.map((r) => [r.id, r])));
+    api<ThreadJson[]>(`/api/comments?documentId=${encodeURIComponent(documentId)}`).then((rows) => {
+      setThreads(new Map(rows.map(r => [r.id, toThread(r)])));
     });
   }, [documentId]);
 
@@ -68,28 +77,28 @@ export function DocumentPage({ documentId }: { documentId: string }) {
       comment={{
         getComments: (commentId) => threads.get(commentId) ?? null,
         onSubmit: async (commentId, text, selection) => {
-          const row = await api<CommentData>('/api/comments', {
+          const row = await api<ThreadJson>('/api/comments', {
             method: 'POST',
             body: JSON.stringify({ documentId, commentId, text, selection }),
           });
           upsert(row);
         },
         onReply: async (commentId, text) => {
-          const row = await api<CommentData>(`/api/comments/${commentId}/replies`, {
+          const row = await api<ThreadJson>(`/api/comments/${encodeURIComponent(commentId)}/replies`, {
             method: 'POST',
             body: JSON.stringify({ text }),
           });
           upsert(row);
         },
         onResolve: async (commentId) => {
-          const row = await api<CommentData>(`/api/comments/${commentId}`, {
+          const row = await api<ThreadJson>(`/api/comments/${encodeURIComponent(commentId)}`, {
             method: 'PATCH',
             body: JSON.stringify({ resolved: true }),
           });
           upsert(row);
         },
         onDelete: async (commentId) => {
-          await api<void>(`/api/comments/${commentId}`, { method: 'DELETE' });
+          await api<void>(`/api/comments/${encodeURIComponent(commentId)}`, { method: 'DELETE' });
           setThreads((prev) => {
             const next = new Map(prev);
             next.delete(commentId);
@@ -109,19 +118,25 @@ export function DocumentPage({ documentId }: { documentId: string }) {
 2. 마크 클릭 시 팝오버가 `getComments(commentId)`로 캐시에서 스레드를 읽어 보여줍니다.
 3. 답글·해결·삭제 콜백에서 서버 저장 후 스레드 캐시를 갱신합니다. 해결·삭제 시
    에디터의 마크는 콜백이 완료되기 전에 바뀔 수 있습니다.
-   캐시(state)만 갱신하면 열려 있는 팝오버도 자동으로 새 데이터를 다시 읽습니다.
-   `@inkio/editor` 없이 `Comment` 확장을 직접 쓰는 경우에만, 데이터가 바뀐 뒤
-   `notifyCommentThreadsChanged()`를 호출하세요.
-4. `CommentPanel`에는 `threads={[...threads.values()]}`를 그대로 넘기면
-   목록·필터·스크롤 이동이 따라옵니다.
+   위 예제에서는 캐시 변경 시 `getComments` 함수도 새로 전달되어 열린 팝오버가 다시 조회합니다.
+   `CommentPanel`도 `threads`가 바뀌면 갱신을 알립니다. 함수와 패널 props가 그대로인 외부
+   캐시(예: ref)나 직접 조합한 확장에서는 갱신 후 `@inkio/advanced`의 `notifyCommentThreadsChanged()`를 호출하세요.
+4. `<CommentPanel editor={editor} threads={[...threads.values()]} />`은 `Editor`에 등록한
+   답글·해결·삭제 콜백을 사용합니다. 패널에서만 삭제를 숨기려면 `onDelete={false}`를
+   넘기세요. 함수를 넘기면 해당 패널에서는 등록한 콜백 **대신** 그 함수만 호출됩니다.
+
+`comment` prop과 `getDefaultExtensions({ comment })`는 `CommentConfig`의 `onSubmit`·`getComments`
+이름을 사용합니다. `@inkio/advanced`의 `Comment` 확장을 직접 구성하는 경우에만
+`Comment.configure(toCommentOptions(comment))`로 변환하거나 저수준 `CommentOptions`의
+`onCommentSubmit`·`getThread`를 사용하세요. `CommentPanel`의 `currentUser`는 표시 이름이지
+인증 정보나 프리셋 `comment` 옵션이 아닙니다.
 
 ## Viewer
 
 읽기 전용 화면도 같은 캐시를 씁니다. 댓글 기능이 필요 없으면
 `comment` prop을 생략하세요 (기본 꺼짐).
 
-Viewer의 내장 팝오버는 조회 전용입니다. 타입에 `onReply`·`onResolve`가 있어도
-내장 UI에서 호출하지 않으므로 `getComments`만 전달하세요.
+Viewer의 내장 팝오버는 조회 전용이며 `getComments`만 받습니다.
 
 ```tsx
 <Viewer
@@ -139,14 +154,11 @@ Viewer의 내장 팝오버는 조회 전용입니다. 타입에 `onReply`·`onRe
 - 네트워크 오류를 앱에서 처리하세요. Inkio는 댓글 콜백의 Promise를 기다리거나,
   저장 실패 시 문서 마크를 되돌리지 않습니다. 실패하면 오류를 보여 주고 재시도
   또는 저장된 문서와 캐시를 기준으로 복구할 수 있게 하세요.
-- 문서 JSON에는 `commentId`만 남으니, 스레드 삭제 시 문서의 마크는
-  `unsetComment`로 별도 정리하거나 orphan 마크 정책을 정하세요.
-- 해결(resolve) 호출은 중복 안전합니다. 패널의 `onResolve`와 확장 옵션의
-  `onResolve`에 같은 함수를 넘기면 한 번만 호출되고, 문서 마크는 항상 함께
-  갱신되어 외부 스레드와 어긋나지 않습니다.
+- 패널이나 팝오버로 삭제하면 해당 ID의 문서 마크도 제거됩니다. 서버에서 직접
+  삭제할 때는 문서에 남은 마크를 별도로 정리하세요.
 - 패널은 문서에 마크가 있는 스레드만 보여 줍니다. 댓글을 단 글을 지우면 패널에서
   사라지고, 실행 취소로 글이 돌아오면 다시 나타납니다. 이때 `onDelete`는 호출되지
-  않으므로 저장소의 스레드 데이터는 그대로 남습니다. 저장할 때 `getCommentIds(doc)`로
-  문서에 남은 스레드를 받아 나머지를 지우세요. 저장 뒤에도 실행 취소로 글이 돌아올 수
-  있으니, 협업 문서는 일정 기간 뒤에 지우는 편이 안전합니다.
-- 열린 팝오버는 `threads`가 바뀌면 자동으로 최신 메시지를 다시 읽습니다.
+  않으므로 저장소의 스레드 데이터는 그대로 남습니다. 저장된 JSON의 참조 목록은
+  `read(json).commentIds`, 편집 중인 문서의 목록은 `editor.commentIds`로 읽습니다.
+  이 목록은 삭제 권한을 증명하지 않습니다. 서버에서 저장된 문서 버전과 권한을 확인하고
+  실행 취소·협업 편집으로 참조가 돌아올 수 있음을 고려해 보관 기간을 정하세요.

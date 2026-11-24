@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react';
-import type { Editor } from '@tiptap/core';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { Editor } from '@tiptap/core';
+import Document from '@tiptap/extension-document';
+import Paragraph from '@tiptap/extension-paragraph';
+import Text from '@tiptap/extension-text';
+import { Comment } from '../comment/Comment';
 import { CommentPanel, type CommentThreadData } from '../comment/components/CommentPanel';
 
 function thread(id = 't-1', resolved = false): CommentThreadData {
@@ -49,9 +53,6 @@ function createMockEditor(onCommentResolve?: (id: string) => void, markedIds: st
     view: { dispatch: vi.fn() },
     on: vi.fn(),
     off: vi.fn(),
-    chain: () => ({
-      focus: () => ({ setTextSelection: () => ({ run: () => true }) }),
-    }),
   } as unknown as Editor;
   return { editor, resolveComment };
 }
@@ -91,44 +92,61 @@ describe('CommentPanel single source of truth', () => {
     expect(screen.getAllByText('thread message')).toHaveLength(1);
   });
 
-  it('does not double-call resolve when panel and extension share the same handler', () => {
-    const shared = vi.fn();
-    const { editor, resolveComment } = createMockEditor(shared);
-    const { container } = render(
-      <CommentPanel
-        editor={editor}
-        threads={[thread()]}
-        onReply={vi.fn()}
-        onResolve={shared}
-        onDelete={vi.fn()}
-        currentUser="Tester"
-      />,
-    );
-
-    fireEvent.click(container.querySelector('.inkio-comment-action-btn.resolve')!);
-    // Document command runs once; the shared consumer callback is skipped.
-    expect(resolveComment).toHaveBeenCalledTimes(1);
-    expect(shared).not.toHaveBeenCalled();
+  it.each(['inherit', 'override', 'same handler'] as const)('runs one callback per action and updates marks: %s', (mode) => {
+    const registered = { onReply: vi.fn(), onResolve: vi.fn(), onDelete: vi.fn() };
+    const panel = mode === 'override' ? { onReply: vi.fn(), onResolve: vi.fn(), onDelete: vi.fn() } : registered;
+    const editor = new Editor({
+      element: document.createElement('div'),
+      extensions: [Document, Paragraph, Text, Comment.configure({
+        getThread: (id) => thread(id),
+        onCommentReply: registered.onReply,
+        onCommentResolve: registered.onResolve,
+        onCommentDelete: registered.onDelete,
+      })],
+      content: '<p><span data-comment-id="t-1">quote</span></p>',
+    });
+    const view = render(<CommentPanel editor={editor} threads={[thread()]} {...(mode === 'inherit' ? {} : panel)} />);
+    try {
+      const input = view.getByRole('textbox');
+      fireEvent.change(input, { target: { value: ' Reply ' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+      expect(panel.onReply.mock.calls).toEqual([['t-1', 'Reply']]);
+      fireEvent.click(view.container.querySelector('.inkio-comment-action-btn.resolve')!);
+      expect(panel.onResolve.mock.calls).toEqual([['t-1']]);
+      expect(editor.getHTML()).toContain('data-comment-resolved="true"');
+      fireEvent.click(view.container.querySelector('.inkio-comment-action-btn.delete')!);
+      expect(panel.onDelete.mock.calls).toEqual([['t-1']]);
+      expect(editor.getHTML()).not.toContain('data-comment-id');
+      if (mode === 'override') {
+        for (const handler of Object.values(registered)) expect(handler).not.toHaveBeenCalled();
+      }
+    } finally {
+      view.unmount();
+      editor.destroy();
+    }
   });
 
-  it('notifies both sides when panel and extension handlers differ', () => {
-    const extensionResolve = vi.fn();
-    const panelResolve = vi.fn();
-    const { editor, resolveComment } = createMockEditor(extensionResolve);
-    const { container } = render(
-      <CommentPanel
-        editor={editor}
-        threads={[thread()]}
-        onReply={vi.fn()}
-        onResolve={panelResolve}
-        onDelete={vi.fn()}
-        currentUser="Tester"
-      />,
-    );
+  it('allows hiding inherited actions individually and rechecks the lookup on click', () => {
+    const resolve = vi.fn();
+    const { editor } = createMockEditor(resolve);
+    const options = editor.extensionManager.extensions[0]!.options;
+    options.onCommentReply = vi.fn();
+    options.onCommentDelete = vi.fn();
+    const view = render(<CommentPanel editor={editor} threads={[thread()]} onDelete={false} onReply={false} />);
+    expect(view.queryByRole('textbox')).toBeNull();
+    expect(view.container.querySelector('.delete')).toBeNull();
+    options.getThread = () => null;
+    fireEvent.click(view.container.querySelector('.inkio-comment-action-btn.resolve')!);
+    expect(resolve).not.toHaveBeenCalled();
+    view.rerender(<CommentPanel editor={editor} threads={[thread()]} />);
+    expect(view.queryByRole('textbox')).toBeNull();
+    expect(view.container.querySelector('.inkio-comment-thread-actions')).toBeNull();
 
-    fireEvent.click(container.querySelector('.inkio-comment-action-btn.resolve')!);
-    expect(resolveComment).toHaveBeenCalledWith('t-1');
-    expect(panelResolve).toHaveBeenCalledWith('t-1');
+    // Even an otherwise valid panel row cannot authorize a registered handler by itself.
+    delete options.getThread;
+    view.rerender(<CommentPanel editor={editor} threads={[thread()]} />);
+    expect(view.queryByRole('textbox')).toBeNull();
+    expect(view.container.querySelector('.inkio-comment-thread-actions')).toBeNull();
   });
 
   it('renders override action icons when provided, text-only otherwise', () => {
@@ -156,13 +174,13 @@ describe('CommentPanel single source of truth', () => {
       text: 'stale',
       marks: [{ type: markType, attrs: { commentId: 't-stale', resolved: false } }],
     };
-    const setTextSelection = vi.fn(() => ({ run: vi.fn(() => true) }));
+    const setTextSelection = vi.fn();
     const domAtPos = vi.fn(() => {
       throw new Error('no node at stale position');
     });
     const editor = {
       extensionManager: { extensions: [{ name: 'comment', options: {} }] },
-      commands: {},
+      commands: { setTextSelection },
       state: {
         schema,
         doc: {
@@ -176,7 +194,6 @@ describe('CommentPanel single source of truth', () => {
       view: { dispatch: vi.fn(), domAtPos },
       on: vi.fn(),
       off: vi.fn(),
-      chain: () => ({ focus: () => ({ setTextSelection }) }),
     } as unknown as Editor;
     const { container } = render(
       <CommentPanel editor={editor} threads={[]} currentUser="Tester" />,
@@ -190,46 +207,37 @@ describe('CommentPanel single source of truth', () => {
     expect(domAtPos).not.toHaveBeenCalled();
   });
 
-  it('still selects when the position maps but has no DOM node', () => {
-    const remappedNode = {
-      isText: true,
-      nodeSize: 3,
-      text: 'old',
-      marks: [{ type: markType, attrs: { commentId: 't-remap', resolved: false } }],
-    };
-    const run = vi.fn(() => true);
-    const setTextSelection = vi.fn(() => ({ run }));
-    const domAtPos = vi.fn(() => {
+  it('selects the quote even without a scroll target and lets a reply take focus immediately', () => {
+    const mount = document.body.appendChild(document.createElement('div'));
+    const editor = new Editor({
+      element: mount,
+      extensions: [Document, Paragraph, Text, Comment],
+      content: '<p>a<span data-comment-id="t-1">old</span></p>',
+      editorProps: { handleScrollToSelection: () => true },
+    });
+    const domAtPos = vi.spyOn(editor.view, 'domAtPos').mockImplementation(() => {
       throw new Error('remapped position has no DOM node');
     });
-    const editor = {
-      extensionManager: { extensions: [{ name: 'comment', options: {} }] },
-      commands: {},
-      state: {
-        schema,
-        doc: {
-          type: { schema },
-          content: { size: 20 },
-          descendants: (fn: (node: unknown, pos: number) => void) => {
-            fn(remappedNode, 2);
-          },
-        },
-      },
-      view: { dispatch: vi.fn(), domAtPos },
-      on: vi.fn(),
-      off: vi.fn(),
-      chain: () => ({ focus: () => ({ setTextSelection }) }),
-    } as unknown as Editor;
-    const { container } = render(
-      <CommentPanel editor={editor} threads={[]} currentUser="Tester" />,
-    );
+    const panel = render(<CommentPanel editor={editor} threads={[thread()]} onReply={vi.fn()} />);
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
+    try {
+      const reply = panel.container.querySelector<HTMLInputElement>('.inkio-comment-reply-input')!;
+      act(() => reply.focus());
+      fireEvent.click(panel.container.querySelector('.inkio-comment-thread-quote')!);
+      expect(domAtPos).toHaveBeenCalledWith(2);
+      expect(editor.state.selection).toMatchObject({ from: 2, to: 5 });
+      expect(document.activeElement).toBe(editor.view.dom);
+      expect(window.getSelection()?.toString()).toBe('old');
 
-    const quote = container.querySelector('.inkio-comment-thread-quote');
-    expect(quote).not.toBeNull();
-    // Selection applies; only the best-effort scroll is skipped.
-    expect(() => fireEvent.click(quote!)).not.toThrow();
-    expect(setTextSelection).toHaveBeenCalledWith({ from: 2, to: 5 });
-    expect(run).toHaveBeenCalled();
+      act(() => reply.focus());
+      act(() => { vi.advanceTimersToNextFrame(); });
+      expect(document.activeElement).toBe(reply);
+    } finally {
+      vi.useRealTimers();
+      panel.unmount();
+      editor.destroy();
+      mount.remove();
+    }
   });
 
   it('renders a frozen view with no actions when callbacks are omitted', () => {

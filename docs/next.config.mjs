@@ -42,6 +42,7 @@ export default withNextra({
         // CSS — source files
         '@inkio/core/style.css': resolve(pkgs, 'core/src/style.css'),
         '@inkio/core/minimal.css': resolve(pkgs, 'core/src/minimal.css'),
+        '@inkio/advanced/style.css': resolve(pkgs, 'advanced/src/style.css'),
         '@inkio/editor/style.css': resolve(pkgs, 'editor/src/style.css'),
         '@inkio/editor/minimal.css': resolve(pkgs, 'editor/src/minimal.css'),
         '@inkio/simple/style.css': resolve(pkgs, 'simple/src/style.css'),
@@ -49,6 +50,7 @@ export default withNextra({
         '@inkio/image-editor/style.css': resolve(pkgs, 'image-editor/src/style.css'),
         // JS — source entry points
         '@inkio/core/icons': resolve(pkgs, 'core/src/icons/index.ts'),
+        '@inkio/core/ui': resolve(pkgs, 'core/src/ui.ts'),
         '@inkio/core/markdown': resolve(pkgs, 'core/src/markdown/index.ts'),
         '@inkio/core': resolve(pkgs, 'core/src/index.ts'),
         '@inkio/advanced': resolve(pkgs, 'advanced/src/index.ts'),

@@ -60,7 +60,7 @@ export type ImageEditorAction =
   | { type: 'FLIP_X' }
   | { type: 'FLIP_Y' }
   | { type: 'APPLY_RESIZE'; size: OutputSize | null }
-  | { type: 'SET_LOADING'; isLoading: boolean }
+  | { type: 'START_IMAGE_LOAD' }
   | { type: 'SET_ERROR'; error: string | null }
   | { type: 'BRING_ANNOTATION_TO_FRONT'; id: string }
   | { type: 'BRING_ANNOTATION_FORWARD'; id: string }
@@ -111,23 +111,33 @@ export function imageEditorReducer(
   action: ImageEditorAction,
 ): ImageEditorSessionState {
   switch (action.type) {
-    case 'SET_IMAGE':
+    case 'START_IMAGE_LOAD':
+    case 'SET_IMAGE': {
+      const loaded = action.type === 'SET_IMAGE' ? action : null;
+      const width = loaded?.width ?? 0;
+      const height = loaded?.height ?? 0;
       return {
         ...state,
-        originalImage: action.image,
-        originalWidth: action.width,
-        originalHeight: action.height,
+        isLoading: !loaded,
+        error: null,
+        originalImage: loaded?.image ?? null,
+        originalWidth: width,
+        originalHeight: height,
         transform: { rotation: 0, flipX: false, flipY: false, crop: null },
         outputSize: null,
         annotations: [],
+        filter: 'none',
+        finetune: { ...DEFAULT_FINETUNE },
+        cropOptions: { ...DEFAULT_CROP_OPTIONS },
         selectedAnnotationId: null,
         pendingCrop: null,
         resizeOptions: {
           ...state.resizeOptions,
-          width: action.width,
-          height: action.height,
+          width,
+          height,
         },
       };
+    }
 
     case 'SET_TOOL':
       return {
@@ -141,18 +151,17 @@ export function imageEditorReducer(
       };
 
     case 'START_RESIZE_SESSION': {
-      const appliedCrop = state.transform.crop;
+      const seededCrop = state.transform.crop
+        ?? { x: 0, y: 0, width: state.originalWidth, height: state.originalHeight };
       const appliedSize = getAppliedResizeSize(state);
       const ratio = state.cropOptions.aspectRatio;
-      const seededCrop = appliedCrop
-        ?? getDefaultCropRect(
-          state.originalWidth, state.originalHeight,
-          ratio && isQuarterTurn(state.transform.rotation) ? 1 / ratio : ratio,
-        );
+      const sourceRatio = ratio && isQuarterTurn(state.transform.rotation) ? 1 / ratio : ratio;
 
       return {
         ...state,
         pendingCrop: seededCrop,
+        cropOptions: sourceRatio && Math.abs(seededCrop.width - seededCrop.height * sourceRatio) > 1e-9
+          ? { ...DEFAULT_CROP_OPTIONS } : state.cropOptions,
         resizeOptions: {
           ...state.resizeOptions,
           width: appliedSize.width,
@@ -389,34 +398,26 @@ export function imageEditorReducer(
       return { ...state, outputSize: getBaseDisplayDimensions(width, height, state.transform.rotation) };
     }
 
-    case 'SET_LOADING':
-      return { ...state, isLoading: action.isLoading };
-
     case 'SET_ERROR':
-      return { ...state, error: action.error };
+      return { ...state, error: action.error, isLoading: false };
 
     case 'BRING_ANNOTATION_TO_FRONT':
     case 'BRING_ANNOTATION_FORWARD':
     case 'SEND_ANNOTATION_BACKWARD':
     case 'SEND_ANNOTATION_TO_BACK': {
-      const lastIndex = state.annotations.length - 1;
-      let targetIndex: number;
-      if (action.type === 'BRING_ANNOTATION_TO_FRONT') {
-        targetIndex = lastIndex;
-      } else if (action.type === 'SEND_ANNOTATION_TO_BACK') {
-        targetIndex = 0;
-      } else {
-        const index = state.annotations.findIndex((annotation) => annotation.id === action.id);
-        // Clamp at the ends so a no-op move keeps the target equal to the
-        // current index (moveAnnotation then returns the identical array).
-        targetIndex = action.type === 'BRING_ANNOTATION_FORWARD'
-          ? Math.min(index + 1, lastIndex)
-          : Math.max(index - 1, 0);
-      }
-      const annotations = moveAnnotation(state.annotations, action.id, targetIndex);
-      // moveAnnotation returns the identical array when nothing moves;
-      // keep state referentially stable so history + memo layers skip it.
-      return annotations === state.annotations ? state : { ...state, annotations };
+      const { annotations } = state;
+      const from = annotations.findIndex((annotation) => annotation.id === action.id);
+      if (from < 0) return state;
+      const last = annotations.length - 1;
+      const to = action.type === 'BRING_ANNOTATION_TO_FRONT' ? last
+        : action.type === 'SEND_ANNOTATION_TO_BACK' ? 0
+        : action.type === 'BRING_ANNOTATION_FORWARD' ? Math.min(from + 1, last)
+        : Math.max(from - 1, 0);
+      if (from === to) return state;
+      const reordered = annotations.slice();
+      reordered.splice(from, 1);
+      reordered.splice(to, 0, annotations[from]);
+      return { ...state, annotations: reordered };
     }
 
     case 'RESET_CROP':
@@ -478,6 +479,10 @@ export function undoableReducer(
   action: UndoableAction,
   maxUndoSteps: number,
 ): UndoableEditorState {
+  // History snapshots include the source image itself. They cannot cross documents.
+  if (action.type === 'START_IMAGE_LOAD' || action.type === 'SET_IMAGE') {
+    return { present: imageEditorReducer(state.present, action), past: [], future: [] };
+  }
   // Clamp so a misconfigured provider can't grow history without bound.
   // States are stored by reference (structural sharing: unchanged
   // annotations and the originalImage keep their refs), so each entry
@@ -485,7 +490,7 @@ export function undoableReducer(
   const cap = Number.isFinite(maxUndoSteps)
     ? Math.max(1, Math.min(Math.floor(maxUndoSteps), 100))
     : 30;
-  const { previewState, ...committedState } = state;
+  const { previewState } = state;
   const isPreview = action.type === 'UPDATE_ANNOTATION'
     || (action.type === 'SET_RESIZE_OPTIONS' && action.apply);
   if (
@@ -495,7 +500,7 @@ export function undoableReducer(
     return { present: previewState, past: state.past, future: state.future };
   }
   const committed = previewState && !isPreview
-    ? { ...committedState, past: [...state.past, previewState].slice(-cap) }
+    ? { present: state.present, past: appendCheckpoint(state.past, previewState, cap), future: state.future }
     : state;
   if (action.type === 'UNDO') {
     if (committed.past.length === 0) return committed;
@@ -512,7 +517,7 @@ export function undoableReducer(
     const next = committed.future[0];
     return {
       present: next,
-      past: [...committed.past, committed.present].slice(-cap),
+      past: appendCheckpoint(committed.past, committed.present, cap),
       future: committed.future.slice(1),
     };
   }
@@ -548,8 +553,9 @@ export function undoableReducer(
     return { ...committed, present: nextPresent, future: [] };
   }
 
-  if (action.type === 'SET_FINETUNE' || action.type === 'RESET_FINETUNE') {
-    if (nextPresent === committed.present) return committed;
+  if (nextPresent === committed.present) return committed;
+  const finetuning = action.type === 'SET_FINETUNE' || action.type === 'RESET_FINETUNE';
+  if (finetuning) {
     // Coalesce a finetune episode into one undo step: slider drags fire
     // per tick, and pushing each would both spam history and evict older
     // meaningful entries. When the only difference to the last checkpoint
@@ -558,18 +564,9 @@ export function undoableReducer(
     if (lastCheckpoint && statesDifferOnlyInFinetune(lastCheckpoint, committed.present)) {
       return { present: nextPresent, past: committed.past, future: [] };
     }
-    return {
-      present: nextPresent,
-      past: [...committed.past, committed.present].slice(-cap),
-      future: [],
-    };
   }
 
-  if (UNDOABLE_ACTIONS.has(action.type)) {
-    // Skip no-op undoable actions (e.g. BRING_FORWARD on the top item
-    // returns the identical state): pushing them wastes a history slot
-    // and breaks redo expectations.
-    if (nextPresent === committed.present) return committed;
+  if (finetuning || UNDOABLE_ACTIONS.has(action.type)) {
     if ((action.type === 'APPLY_CROP' || action.type === 'COMMIT_RESIZE_SESSION')
       && nextPresent.transform === committed.present.transform
       && nextPresent.outputSize === committed.present.outputSize) {
@@ -577,12 +574,12 @@ export function undoableReducer(
     }
     return {
       present: nextPresent,
-      past: [...committed.past, committed.present].slice(-cap),
+      past: appendCheckpoint(committed.past, committed.present, cap),
       future: [],
     };
   }
 
-  return nextPresent === committed.present ? committed : { ...committed, present: nextPresent };
+  return { ...committed, present: nextPresent };
 }
 
 function clampAdjustment(value: number | undefined, current: number, limit: number): number {
@@ -602,20 +599,12 @@ function statesDifferOnlyInFinetune(a: ImageEditorSessionState, b: ImageEditorSe
   );
 }
 
-function moveAnnotation(
-  annotations: Annotation[],
-  id: string,
-  nextIndex: number,
-): Annotation[] {
-  const currentIndex = annotations.findIndex((annotation) => annotation.id === id);
-  if (currentIndex < 0 || currentIndex === nextIndex) {
-    return annotations;
-  }
-
-  const nextAnnotations = [...annotations];
-  const [annotation] = nextAnnotations.splice(currentIndex, 1);
-  nextAnnotations.splice(Math.max(0, Math.min(nextIndex, nextAnnotations.length)), 0, annotation);
-  return nextAnnotations;
+function appendCheckpoint(
+  past: ImageEditorSessionState[], checkpoint: ImageEditorSessionState, cap: number,
+): ImageEditorSessionState[] {
+  const next = past.slice(Math.max(0, past.length + 1 - cap));
+  next.push(checkpoint);
+  return next;
 }
 
 function getAppliedResizeSize(state: ImageEditorState): OutputSize {

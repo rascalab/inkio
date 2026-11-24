@@ -14,6 +14,8 @@ export default defineConfig({
       ? [
           { find: '@inkio/simple/minimal.css', replacement: resolve(__dirname, '../../packages/simple/src/minimal.css') },
           { find: '@inkio/simple/style.css', replacement: resolve(__dirname, '../../packages/simple/src/style.css') },
+          { find: '@inkio/core/minimal.css', replacement: resolve(__dirname, '../../packages/core/src/minimal.css') },
+          { find: '@inkio/core/style.css', replacement: resolve(__dirname, '../../packages/core/src/style.css') },
           { find: '@inkio/core/icons', replacement: resolve(__dirname, '../../packages/core/src/icons/index.ts') },
           { find: '@inkio/simple', replacement: resolve(__dirname, '../../packages/simple/src/index.ts') },
           { find: '@inkio/core', replacement: resolve(__dirname, '../../packages/core/src/index.ts') },

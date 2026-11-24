@@ -6,17 +6,17 @@ import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
 import { Slice, Fragment } from '@tiptap/pm/model';
-import { Comment } from '../comment/Comment';
+import { Comment, type CommentThreadData } from '../comment';
 import { CommentPanel, stepMayAffectComments } from '../comment/components/CommentPanel';
 
-function createEditor() {
+function createEditor(threads: CommentThreadData[] = []) {
   return new Editor({
     element: document.createElement('div'),
     extensions: [
       Document,
       Paragraph,
       Text,
-      Comment.configure({ onCommentSubmit: vi.fn(), getThread: () => null }),
+      Comment.configure({ onCommentSubmit: vi.fn(), getThread: id => threads.find(thread => thread.id === id) ?? null }),
     ],
     content: {
       type: 'doc',
@@ -107,7 +107,8 @@ describe('CommentPanel with a live editor', () => {
   });
 
   it('deletes all disjoint ranges for a known thread without removing adjacent threads', () => {
-    const editor = createEditor();
+    const threads = [{ id: 't1', messages: [], resolved: false }];
+    const editor = createEditor(threads);
     const onDelete = vi.fn();
     try {
       const type = editor.state.schema.marks.comment;
@@ -119,7 +120,7 @@ describe('CommentPanel with a live editor', () => {
       const { getByRole } = render(
         <CommentPanel
           editor={editor as never}
-          threads={[{ id: 't1', messages: [], resolved: false }]}
+          threads={threads}
           onDelete={onDelete}
         />,
       );

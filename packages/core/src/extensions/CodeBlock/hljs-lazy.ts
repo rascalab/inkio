@@ -1,13 +1,13 @@
 import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import type { Transaction } from '@tiptap/pm/state';
+import type { LanguageFn } from 'lowlight';
 import { clampRange, collectChangedRanges } from '../../utils/changed-ranges';
-import { LOWLIGHT_REFRESH_META, type InkioLowlight } from './lowlight-plugin';
-
-export type { InkioLowlight };
+import type { InkioLowlight } from './lowlight-engine';
+import { LOWLIGHT_REFRESH_META } from './lowlight-plugin';
 
 interface HljsLanguageModule {
-  default: Parameters<InkioLowlight['register']>[1];
+  default: LanguageFn;
 }
 
 /**
@@ -91,6 +91,22 @@ export function resolveHljsLanguageName(value: string | null | undefined): strin
   return LANGUAGE_LOADERS[canonical] ? canonical : null;
 }
 
+export let loadedLowlight: InkioLowlight | undefined;
+let engineLoad: Promise<InkioLowlight | undefined> | undefined;
+
+function requestEngine() {
+  return engineLoad ??= import('./lowlight-engine').then(
+    ({ lowlight }) => (loadedLowlight = lowlight),
+    (error: unknown) => {
+      // A failed engine chunk can be retried along with the requested grammar.
+      engineLoad = undefined;
+      touchGrammarState();
+      console.warn('[inkio] code highlight engine failed to load', error);
+      return undefined;
+    },
+  );
+}
+
 const loadedGrammars = new Set<string>();
 const pendingGrammars = new Map<string, Promise<unknown>>();
 
@@ -146,9 +162,10 @@ function repaintLiveEditors(loaded: Set<string>): void {
   }
 }
 
-async function loadGrammar(lowlight: InkioLowlight, name: string): Promise<string | null> {
+async function loadGrammar(name: string): Promise<string | null> {
   try {
-    const grammarModule = await LANGUAGE_LOADERS[name]();
+    const [lowlight, grammarModule] = await Promise.all([requestEngine(), LANGUAGE_LOADERS[name]()]);
+    if (!lowlight) return null;
     lowlight.register(name, grammarModule.default);
     if (name === 'typescript') {
       lowlight.registerAlias({ typescript: ['tsx', 'jsx'] });
@@ -169,10 +186,9 @@ async function loadGrammar(lowlight: InkioLowlight, name: string): Promise<strin
 }
 
 /**
- * Per-editor result of the last `ensureHljsLanguages` scan. `onUpdate` fires
- * only on change so `doc` identity is fresh per keystroke, but duplicate
- * calls with the same doc (StrictMode remount, retry fan-out over live
- * editors, onCreate + onUpdate for one state) can skip the walk entirely.
+ * Per-editor result of the last `ensureHljsLanguages` scan. Duplicate calls
+ * with the same doc (StrictMode remount, retry fan-out over live editors,
+ * onCreate + onTransaction for one state) can skip the walk entirely.
  */
 const lastScanByEditor = new WeakMap<
   Editor,
@@ -219,6 +235,9 @@ function collectMissingGrammars(editor: Editor): string[] {
 
 function addMissingGrammar(node: PMNode, needed: string[]): void {
   const resolved = resolveHljsLanguageName(node.attrs.language as string | null | undefined);
+  // Named grammars request the engine and grammar chunk together in loadGrammar.
+  // Unlabelled and unknown languages still need the engine for auto-detection.
+  if (!resolved && !engineLoad) void requestEngine();
   if (
     resolved
     && !loadedGrammars.has(resolved)
@@ -280,7 +299,6 @@ function collectMissingGrammarsInChanges(
  * grammars are loaded, pending, or scheduled for retry.
  */
 export function ensureHljsLanguages(
-  lowlight: InkioLowlight,
   editor: Editor,
   transactions?: readonly Transaction[],
 ): void {
@@ -303,7 +321,7 @@ export function ensureHljsLanguages(
   if (needed.length === 0) return;
 
   let batch!: Promise<unknown>;
-  batch = Promise.all(needed.map((name) => loadGrammar(lowlight, name))).then((names) => {
+  batch = Promise.all(needed.map(loadGrammar)).then((names) => {
     for (const name of needed) {
       if (pendingGrammars.get(name) === batch) {
         pendingGrammars.delete(name);
@@ -316,7 +334,7 @@ export function ensureHljsLanguages(
     }
     const failed = needed.filter((name) => !loadedGrammars.has(name));
     if (failed.length > 0) {
-      scheduleRetry(lowlight, failed);
+      scheduleRetry(failed);
     }
   });
   for (const name of needed) pendingGrammars.set(name, batch);
@@ -333,7 +351,7 @@ const loadAttempts = new Map<string, number>();
 
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
-function scheduleRetry(lowlight: InkioLowlight, failed: string[]): void {
+function scheduleRetry(failed: string[]): void {
   const retryable = failed.filter(
     (name) => (loadAttempts.get(name) ?? 0) < RETRY_DELAYS_MS.length,
   );
@@ -353,7 +371,7 @@ function scheduleRetry(lowlight: InkioLowlight, failed: string[]): void {
         liveEditors.delete(editor);
         continue;
       }
-      ensureHljsLanguages(lowlight, editor);
+      ensureHljsLanguages(editor);
     }
   }, delay);
   // Don't hold test runners / SSR processes open for a background retry.

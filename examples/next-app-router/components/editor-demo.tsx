@@ -35,7 +35,7 @@ const initialContent = `<h2>Inkio in Next.js</h2>
   <li>Type <code>#</code> for hashtag suggestions</li>
   <li>Type <code>[[</code> to link a page (wiki link)</li>
   <li>Select text and press <code>Mod+Shift+M</code> to open comments</li>
-  <li>Drop an image to open the image editor flow</li>
+  <li>Drop an image, then use its Edit button to open the image editor</li>
 </ul>`;
 
 let fallbackIdCounter = 0;
@@ -77,37 +77,26 @@ export function EditorDemo() {
   const commentsRef = useRef<CommentData[]>([]);
   commentsRef.current = comments;
 
+  const previewTimer = useRef<number | undefined>(undefined);
+  const refreshPreview = useCallback((editor: TiptapEditor) => {
+    if (editor.isDestroyed) return;
+    if (!showFullJson && editor.state.doc.content.size > JSON_PREVIEW_LIMIT) {
+      setJsonPreview({ text: '', limited: true });
+      return;
+    }
+    const text = JSON.stringify(editor.getJSON(), null, 2);
+    setJsonPreview(showFullJson || text.length <= JSON_PREVIEW_LIMIT
+      ? { text, limited: false }
+      : { text: '', limited: true });
+  }, [showFullJson]);
+  const schedulePreview = useCallback((editor: TiptapEditor) => {
+    clearTimeout(previewTimer.current);
+    previewTimer.current = window.setTimeout(() => refreshPreview(editor), 160);
+  }, [refreshPreview]);
   useEffect(() => {
-    if (!editorInstance) return;
-
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let document = editorInstance.state.doc;
-    const refresh = () => {
-      if (editorInstance.isDestroyed) return;
-      if (!showFullJson && document.content.size > JSON_PREVIEW_LIMIT) {
-        setJsonPreview({ text: '', limited: true });
-        return;
-      }
-      const text = JSON.stringify(editorInstance.getJSON(), null, 2);
-      setJsonPreview(showFullJson || text.length <= JSON_PREVIEW_LIMIT
-        ? { text, limited: false }
-        : { text: '', limited: true });
-    };
-    const update = () => {
-      const next = editorInstance.state.doc;
-      if (next === document) return;
-      document = next;
-      clearTimeout(timer);
-      timer = setTimeout(refresh, 160);
-    };
-
-    refresh();
-    editorInstance.on('update', update);
-    return () => {
-      clearTimeout(timer);
-      editorInstance.off('update', update);
-    };
-  }, [editorInstance, showFullJson]);
+    if (editorInstance) refreshPreview(editorInstance);
+    return () => clearTimeout(previewTimer.current);
+  }, [editorInstance, refreshPreview]);
 
   const iconOverrides = useMemo<Partial<InkioIconRegistry>>(
     () => ({ comment: inkioIconRegistry.comment }),
@@ -259,12 +248,13 @@ export function EditorDemo() {
             }),
           }}
           ui={{
-            showBubbleMenu: true,
-            showFloatingMenu: true,
+            bubbleMenu: true,
+            floatingMenu: true,
             messages,
             icons: iconOverrides,
           }}
           onCreate={setEditorInstance}
+          onChange={schedulePreview}
         />
         {wikiLinkTarget && (
           <p data-testid="next-editor-wiki-link-target">
@@ -282,9 +272,6 @@ export function EditorDemo() {
           locale={locale}
           messages={messages}
           currentUser="You"
-          onReply={handleReply}
-          onResolve={handleResolve}
-          onDelete={handleDelete}
         />
       </section>
 

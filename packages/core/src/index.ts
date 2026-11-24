@@ -3,12 +3,13 @@ export { Editor } from './components/Editor';
 export type { EditorProps } from './components/Editor';
 export { Viewer } from './components/Viewer';
 export type { ViewerProps } from './components/Viewer';
+export { InteractiveViewer, type InteractiveViewerProps } from './interactive-viewer';
 export { StaticViewer } from './components/StaticViewer';
 export type { StaticViewerProps } from './components/StaticViewer';
 export { InkioErrorBoundary } from './components/ErrorBoundary';
 export type { InkioErrorBoundaryProps, InkioErrorFallbackProps } from './components/ErrorBoundary';
 export type { HeadingItem } from './headings/headings';
-export { getHeadingsFromContent, getHeadingsFromDoc } from './headings/headings';
+export { getHeadingsFromDoc } from './headings/headings';
 
 // Menus
 export { BubbleMenu } from './components/BubbleMenu';
@@ -35,8 +36,7 @@ export type {
   InkioToolbarActionTransform,
 } from './components/toolbar-actions';
 export type { Editor as TiptapEditor } from '@tiptap/react';
-
-
+export { withDocumentAccess, type InkioEditor, type EditorExtensionAccess, type RegisteredEditor, type WithEditorExtensions } from './editor-document';
 
 // Suggestion UI
 export { SuggestionList } from './components/SuggestionList';
@@ -91,7 +91,8 @@ export type { ExtensionsInput, CoreExtensions } from './utils/extensions-input';
 export type { JSONContent as InkioJSONContent } from '@tiptap/core';
 
 // Serialization
-export { toPlainText, toSummary, getContentStats, visitNodes as visitJSONNodes } from './serialization';
+export { read, type InkioDocument } from './read-document';
+export { visitNodes as visitJSONNodes } from './serialization';
 
 // i18n
 export { resolveLocaleInput, pickMessageLocale } from './i18n';
@@ -133,8 +134,8 @@ export { getExtensions, getExtensions as getDefaultExtensions } from './extensio
 export type { CoreExtensionOptions as ExtensionsOptions, CoreExtensionOptions } from './extensions/get-extensions';
 export { LinkClickHandler } from './extensions/LinkClickHandler';
 export type { LinkClickHandlerOptions } from './extensions/LinkClickHandler';
-export { Callout, CALLOUT_COLOR_PRESETS } from './extensions/Callout';
-export type { CalloutOptions } from './extensions/Callout';
+export { Callout } from './extensions/Callout';
+export { CALLOUT_COLOR_PRESETS, type CalloutOptions } from './extensions/callout-schema';
 export { KeyboardShortcuts } from './extensions/KeyboardShortcuts';
 
 // ToC Component
@@ -148,8 +149,3 @@ export type { ImageBlockOptions, ImageEditorComponent, ImageEditorComponentProps
 // TocBlock
 export { TocBlock } from './extensions/TocBlock';
 export type { TocBlockOptions } from './extensions/TocBlock';
-
-// Markdown lives behind its own entry point (`@inkio/core/markdown`) so the
-// unified/remark dependency chain is never pulled into the editor bundle.
-// Import it explicitly when you need markdown serialization.
-export type { MarkdownAdapterOptions } from './markdown';

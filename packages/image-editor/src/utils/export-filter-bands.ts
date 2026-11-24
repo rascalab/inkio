@@ -1,4 +1,5 @@
-import Konva from 'konva';
+import { Enhance } from 'konva/lib/filters/Enhance.js';
+import { Image as KonvaImage } from 'konva/lib/shapes/Image.js';
 import type { EffectiveFilter } from './filters';
 import { getBaseDisplayDimensions } from './geometry';
 import type { ExportScene, RasterCanvas } from './export-raster';
@@ -33,7 +34,7 @@ export async function renderFilteredBase(
     else context.drawImage(source, 0, 0, width, height);
     await yieldExportTask();
 
-    const node = new Konva.Image({
+    const node = new KonvaImage({
       image: source,
       brightness: values.brightness, contrast: values.contrast, saturation: values.saturation,
       luminance: values.luminance, enhance: values.clarity,
@@ -81,9 +82,8 @@ export async function renderFilteredBase(
           lut.data[value * 4 + channel] = Math.max(min[channel], Math.min(max[channel], value));
         }
       }
-      const enhance = Konva.Filters.Enhance;
-      if (typeof enhance !== 'function') throw new Error('Expected a clarity filter.');
-      enhance.call(node, lut, 1);
+      if (typeof Enhance !== 'function') throw new Error('Expected a clarity filter.');
+      Enhance.call(node, lut, 1);
       for (let index = 0; index < pendingBands.length; index++) {
         const band = pendingBands[index];
         const { data } = band;

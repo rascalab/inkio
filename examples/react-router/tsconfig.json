@@ -13,6 +13,7 @@
     "strict": true,
     "types": ["vite/client"],
     "paths": {
+      "@inkio/collab": ["../../packages/collab/src/index.ts"],
       "@inkio/simple": ["../../packages/simple/src/index.ts"],
       "@inkio/core": ["../../packages/core/src/index.ts"],
       "@inkio/core/*": ["../../packages/core/src/*"]

@@ -1,4 +1,6 @@
-import { Ellipse, Rect } from 'react-konva';
+import { Ellipse, Rect } from 'react-konva/lib/ReactKonvaCore.js';
+import 'konva/lib/shapes/Ellipse.js';
+import 'konva/lib/shapes/Rect.js';
 import type Konva from 'konva';
 import type { EllipseAnnotation, RectAnnotation } from '../types';
 import { useAnnotationShapeHandlers, type AnnotationShapeProps } from './use-annotation-shape-handlers';

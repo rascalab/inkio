@@ -46,7 +46,7 @@ describe('incremental code block highlighting', () => {
 
   it('maps existing tokens for non-code edits and only highlights the edited block', () => {
     const lowlight = createLowlight({ javascript });
-    const plugin = InkioLowlightPlugin({ name: 'codeBlock', lowlight, defaultLanguage: null });
+    const plugin = InkioLowlightPlugin({ name: 'codeBlock', getLowlight: () => lowlight, defaultLanguage: null });
     const first = code('const first = 1;');
     const intro = schema.nodes.paragraph.create(null, schema.text('Intro'));
     const quote = schema.nodes.blockquote.create(null, code('const second = 2;'));
@@ -83,7 +83,7 @@ describe('incremental code block highlighting', () => {
 
   it('replaces stale tokens when a block changes language or becomes prose', () => {
     const lowlight = createLowlight({ javascript, plaintext });
-    const plugin = InkioLowlightPlugin({ name: 'codeBlock', lowlight, defaultLanguage: null });
+    const plugin = InkioLowlightPlugin({ name: 'codeBlock', getLowlight: () => lowlight, defaultLanguage: null });
     const first = code('const first = 1;');
     const second = code('const second = 2;');
     let state = EditorState.create({

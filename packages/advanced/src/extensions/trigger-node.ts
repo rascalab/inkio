@@ -1,21 +1,18 @@
 import {
   mergeAttributes,
   type CommandProps,
-  type Editor,
-  type Range,
   type RawCommands,
 } from '@tiptap/core';
 import { Mention as TiptapMention } from '@tiptap/extension-mention';
-import type { EditorState, PluginKey } from '@tiptap/pm/state';
-import { Suggestion, type SuggestionOptions } from '@tiptap/suggestion';
-import {
-  createLatestWinsItems,
-  createSuggestionRenderer,
-  type CreateSuggestionRendererOptions,
-  type InkioCoreMessageOverrides,
-  type InkioErrorHandler,
-  type InkioLocaleInput,
-  type InkioMessageOverrides,
+import type { PluginKey } from '@tiptap/pm/state';
+import type { SuggestionOptions } from '@tiptap/suggestion';
+import type { createTriggerSuggestionPlugin } from './trigger-suggestion';
+import type {
+  CreateSuggestionRendererOptions,
+  InkioCoreMessageOverrides,
+  InkioErrorHandler,
+  InkioLocaleInput,
+  InkioMessageOverrides,
 } from '@inkio/core';
 import { createInlineNodeClickPlugin } from './inline-node-click';
 
@@ -70,92 +67,6 @@ export interface TriggerNodeConfig {
   debounceMs?: number;
 }
 
-const DEFAULT_DEBOUNCE_MS = 150;
-
-function createTriggerSuggestionCommand(name: string, char: string) {
-  return ({ editor, range, props }: { editor: Editor; range: Range; props: unknown }) => {
-    const attributes = (props ?? {}) as TriggerNodeItem;
-    const id = typeof attributes.id === 'string' ? attributes.id : '';
-    const label = typeof attributes.label === 'string' ? attributes.label : '';
-    if (!id || !label) return;
-
-    // Never mutate the caller's range. Resolve the char after `range.to`
-    // (not the live selection) and only consume a single directly-adjacent space.
-    const insertRange = { from: range.from, to: range.to };
-    try {
-      const $to = editor.view.state.doc.resolve(insertRange.to);
-      const nodeAfter = $to.nodeAfter;
-      const textAfter = typeof nodeAfter?.text === 'string' ? nodeAfter.text : '';
-      const offsetIntoNode = $to.textOffset;
-      if (offsetIntoNode === 0 && textAfter.startsWith(' ')) {
-        insertRange.to += 1;
-      }
-    } catch {
-      // Fall through with the unextended range.
-    }
-
-    editor
-      .chain()
-      .focus()
-      .insertContentAt(insertRange, [
-        {
-          type: name,
-          attrs: {
-            id,
-            label,
-            mentionSuggestionChar: char,
-          },
-        },
-        {
-          type: 'text',
-          text: ' ',
-        },
-      ])
-      .run();
-  };
-}
-
-/**
- * Default suggestion options for a trigger node. Built per plugin instance
- * (i.e. per editor), so the latest-wins sequence is isolated per editor and
- * the extension's live options are read directly via `getOptions`.
- */
-export function createTriggerSuggestion<Item extends TriggerNodeItem>(
-  config: TriggerNodeConfig,
-  getOptions: () => TriggerNodeOptions<Item> | undefined,
-): Omit<SuggestionOptions<Item, Item>, 'editor'> {
-  const { name, char, pluginKey, header } = config;
-  const items = createLatestWinsItems<{ query: string; editor: Editor }, Item>({
-    // Trailing debounce: rapid keystrokes resolve only the latest query, so
-    // an async items() source is not hammered once per keystroke.
-    debounceMs: config.debounceMs ?? DEFAULT_DEBOUNCE_MS,
-    source: ({ query }) => getOptions()?.items?.({ query }),
-    onError: (error) => {
-      getOptions()?.onError?.(error, {
-        source: `${name}.suggestion`,
-        recoverable: true,
-      });
-    },
-  });
-
-  return {
-    char,
-    pluginKey,
-    items,
-    command: createTriggerSuggestionCommand(name, char) as SuggestionOptions<Item, Item>['command'],
-    allow: ({ state, range }: { state: EditorState; range: Range }) => {
-      const $from = state.doc.resolve(range.from);
-      const type = state.schema.nodes[name];
-      return !!type && !!$from.parent.type.contentMatch.matchType(type);
-    },
-    render: createSuggestionRenderer<Item>({
-      header,
-      locale: getOptions()?.locale,
-      messages: getOptions()?.messages,
-    }),
-  };
-}
-
 /**
  * Factory for trigger-char inline atom nodes (Mention `@`, HashTag `#`):
  * shared attributes, HTML/text rendering, suggestion wiring, click plugin
@@ -165,7 +76,7 @@ export function createTriggerSuggestion<Item extends TriggerNodeItem>(
 export function createTriggerNode<
   Options extends TriggerNodeOptions<Item>,
   Item extends TriggerNodeItem = TriggerNodeItem,
->(config: TriggerNodeConfig) {
+>(config: TriggerNodeConfig, createSuggestionPlugin?: typeof createTriggerSuggestionPlugin) {
   const { name, char, pluginKey, clickPluginKey, dataAttribute, insertCommand } = config;
   const markerAttributes = { [dataAttribute]: '', 'data-type': name };
   // An app's label may already start with the trigger (`#inkio`).
@@ -259,15 +170,9 @@ export function createTriggerNode<
       const hasSource = Boolean(this.options.items ?? suggestion?.items);
       const suggestionPlugins = this.options.suggestions?.length
         ? (this.parent?.() ?? [])
-        : !hasSource
-          ? []
-          : [
-            Suggestion<Item, Item>({
-              editor: this.editor,
-              ...createTriggerSuggestion<Item>(config, () => this.options),
-              ...suggestion,
-            }),
-          ];
+        : hasSource && createSuggestionPlugin
+          ? [createSuggestionPlugin<Item>(this.editor, config, () => this.options)]
+          : [];
       return [
         ...suggestionPlugins,
         createInlineNodeClickPlugin(clickPluginKey, this.name, () => this.options.onClick),

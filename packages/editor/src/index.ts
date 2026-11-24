@@ -3,7 +3,7 @@ export type { EditorProps } from './components/Editor';
 export { Viewer } from './components/Viewer';
 export type { ViewerProps } from './components/Viewer';
 export type { ExtensionsInput } from './types';
-export { getDefaultExtensions, getCommentIds } from '@inkio/advanced';
+export { getDefaultExtensions } from '@inkio/advanced';
 export type { CommentConfig, CommentData } from '@inkio/advanced';
 export { ToC } from '@inkio/core';
 export type { ToCProps } from '@inkio/core';
@@ -22,9 +22,7 @@ export {
   pickMessageLocale,
   resolveLocaleInput,
   setEditorUi,
-  toPlainText,
-  toSummary,
-  getContentStats,
+  read,
 } from '@inkio/core';
 // Markdown serialization is intentionally NOT re-exported here — use
 // `@inkio/editor/markdown` so the unified/remark chain stays out of the
@@ -39,6 +37,8 @@ export type {
   InkioCoreLocaleId,
   InkioCoreMessages,
   InkioErrorHandler,
+  InkioDocument,
+  InkioEditor,
   InkioMenuPosition,
   InkioLocaleInput,
   InkioMessageOverrides,

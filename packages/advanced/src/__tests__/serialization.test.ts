@@ -1,9 +1,9 @@
-import { extractHashtags, extractMentions } from '../serialization';
+import { read } from '@inkio/core';
 
-describe('extension serialization helpers', () => {
+describe('saved document references', () => {
   it('extracts mention ids and labels from saved content', () => {
     expect(
-      extractMentions({
+      read({
         type: 'doc',
         content: [
           {
@@ -15,13 +15,13 @@ describe('extension serialization helpers', () => {
             ],
           },
         ],
-      }),
+      }).mentions,
     ).toEqual([{ id: 'u1', label: 'alice' }]);
   });
 
   it('extracts hashtag labels without leading hash characters', () => {
     expect(
-      extractHashtags({
+      read({
         type: 'doc',
         content: [
           {
@@ -32,13 +32,13 @@ describe('extension serialization helpers', () => {
             ],
           },
         ],
-      }),
+      }).hashTags,
     ).toEqual(['inkio', 'editor']);
   });
 
   it('strips every leading hash, not just one', () => {
     expect(
-      extractHashtags({
+      read({
         type: 'doc',
         content: [
           {
@@ -46,7 +46,7 @@ describe('extension serialization helpers', () => {
             content: [{ type: 'hashTag', attrs: { id: 't1', label: '##inkio' } }],
           },
         ],
-      }),
+      }).hashTags,
     ).toEqual(['inkio']);
   });
 });

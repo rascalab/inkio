@@ -7,13 +7,18 @@ import { TocBlock } from '../TocBlock';
 import { getExtensions } from '../get-extensions';
 import { resolveInkioExtensions } from '../resolve-extensions';
 
-describe('resolveInkioExtensions empty-vs-undefined', () => {
+describe('resolveInkioExtensions', () => {
   it('returns defaults for undefined', () => {
     expect(resolveInkioExtensions(undefined)).toHaveLength(getExtensions({}).length);
   });
 
-  it('returns a bare set for an explicit empty array', () => {
-    expect(resolveInkioExtensions([])).toEqual([]);
+  it('keeps the default schema for an empty additive array', () => {
+    expect(resolveInkioExtensions([]).map(ext => ext.name)).toEqual(getExtensions().map(ext => ext.name));
+  });
+
+  it('honors an explicitly empty replacement', () => {
+    const items = [] as const;
+    expect(resolveInkioExtensions({ items, replace: true })).toBe(items);
   });
 });
 

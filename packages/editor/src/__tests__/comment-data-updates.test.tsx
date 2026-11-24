@@ -1,7 +1,9 @@
 import { act, render, waitFor } from '@testing-library/react';
+import { expectTypeOf } from 'vitest';
 import type { TiptapEditor } from '@inkio/core';
 import { commentThreadPopoverPluginKey, type CommentData } from '@inkio/advanced';
 import { Editor } from '../components/Editor';
+import { Viewer, type ViewerProps } from '../components/Viewer';
 
 /**
  * Comment data lives in host state (docs recipe: `getComments` reads a Map
@@ -44,6 +46,19 @@ function openPopover(editor: TiptapEditor) {
 }
 
 describe('@inkio/editor comment data updates', () => {
+  it('exposes only the authorized lookup on a Viewer, even with a shared editor config', async () => {
+    expectTypeOf<keyof NonNullable<ViewerProps['comment']>>().toEqualTypeOf<'getComments'>();
+    const comment = { getComments: () => thread('read only'), onReply: vi.fn(), onResolve: vi.fn() };
+    const onCreate = vi.fn<(editor: TiptapEditor) => void>();
+    render(<Viewer content={CONTENT} comment={comment} onCreate={onCreate} />);
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1));
+    const [editor] = onCreate.mock.calls[0]!;
+    const options = editor.extensionManager.extensions.find((ext) => ext.name === 'comment')!.options;
+    expect(options.getThread('t1')).toEqual(comment.getComments());
+    expect(options.onCommentReply).toBeUndefined();
+    expect(options.onCommentResolve).toBeUndefined();
+  });
+
   it('reads the newest getComments without recreating the editor', async () => {
     const instances: TiptapEditor[] = [];
     const onCreate = (editor: TiptapEditor) => instances.push(editor);
@@ -58,16 +73,17 @@ describe('@inkio/editor comment data updates', () => {
     expect(instances[0]!.isDestroyed).toBe(false);
   });
 
-  it('refreshes an open popover when the host re-renders with new data', async () => {
+  const surfaces: React.ComponentType<Pick<ViewerProps, 'content' | 'comment' | 'onCreate'>>[] = [Editor, Viewer];
+  it.each(surfaces)('refreshes an open popover when the host re-renders with new data in $name', async (Surface) => {
     const instances: TiptapEditor[] = [];
     const onCreate = (editor: TiptapEditor) => instances.push(editor);
-    const { rerender } = render(<Host threads={new Map([['t1', thread('first')]])} onCreate={onCreate} />);
+    const { rerender } = render(<Surface content={CONTENT} comment={{ getComments: () => thread('first') }} onCreate={onCreate} />);
     await waitFor(() => expect(instances).toHaveLength(1));
     openPopover(instances[0]!);
     await waitFor(() => expect(document.body.textContent).toContain('first'));
 
     // No transaction, no manual notify: just the host's state update.
-    rerender(<Host threads={new Map([['t1', thread('first', 'a reply')]])} onCreate={onCreate} />);
+    rerender(<Surface content={CONTENT} comment={{ getComments: () => thread('first', 'a reply') }} onCreate={onCreate} />);
     await waitFor(() => expect(document.body.textContent).toContain('a reply'));
   });
 

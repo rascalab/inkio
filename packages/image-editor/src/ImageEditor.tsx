@@ -23,12 +23,13 @@ const PREVIEW_ZOOM_MAX = 4;
 
 interface InnerEditorProps {
   src: string;
+  active: boolean;
   onSave: ImageEditorProps['onSave'];
   onSaveBlob?: ImageEditorProps['onSaveBlob'];
   savePreview?: boolean;
   onCancel: () => void;
   onDirtyChange?: (dirty: boolean) => void;
-  onUnchangedSave?: () => void;
+  onSaveComplete?: () => void;
   outputFormat: 'png' | 'jpeg' | 'webp';
   outputQuality: number;
   enabledTools: readonly ResolvedImageEditorTool[];
@@ -39,11 +40,12 @@ interface InnerEditorProps {
 
 function InnerEditor({
   src,
+  active,
   onSave,
   onSaveBlob,
   savePreview,
   onCancel,
-  onUnchangedSave,
+  onSaveComplete,
   onDirtyChange,
   outputFormat,
   outputQuality,
@@ -72,13 +74,14 @@ function InnerEditor({
     handleSave,
   } = useImageEditorSession({
     src,
+    active,
     locale,
     outputFormat,
     outputQuality,
     onSave,
     onSaveBlob,
     savePreview,
-    onUnchangedSave,
+    onSaveComplete,
     onDirtyChange,
     viewportKind,
   });
@@ -120,11 +123,7 @@ function InnerEditor({
   }, [zoomLimit]);
   const scale = activeCrop ? cropScale : null;
   const setScale = scale?.set ?? setZoom;
-  const outputDimensions = activeCrop
-    ? getTransformedDimensions(
-      state.originalWidth, state.originalHeight, { ...state.transform, crop: activeCrop }, state.outputSize,
-    )
-    : dimensions;
+  const outputDimensions = activeCrop ? state.resizeOptions : dimensions;
   const customToolDisabled = isSaving || state.isLoading || !state.originalImage || Boolean(state.error);
   const isControlsVisible = customTool !== null || controls.kind === 'surface';
   const toolbar = enabledTools.length > 0 && (
@@ -286,11 +285,12 @@ export function ImageEditor(props: ImageEditorProps) {
 
 export function ImageEditorWorkbench({
   src,
+  active = true,
   onSave,
   onSaveBlob,
   savePreview,
   onCancel,
-  onUnchangedSave,
+  onSaveComplete,
   outputFormat = 'png',
   outputQuality = 0.92,
   tools = DEFAULT_TOOLS,
@@ -300,7 +300,7 @@ export function ImageEditorWorkbench({
   className,
   maxUndoSteps,
   onDirtyChange,
-}: ImageEditorProps & { onUnchangedSave?: () => void }) {
+}: ImageEditorProps & { active?: boolean; onSaveComplete?: () => void }) {
   const locale: ImageEditorLocale = { ...DEFAULT_LOCALE, ...localeProp };
   const normalizedTools = useMemo(() => normalizeTools(tools), [tools]);
   const fallbackTool = useMemo(() => {
@@ -315,11 +315,12 @@ export function ImageEditorWorkbench({
       <div className={className} style={{ width: '100%', height: '100%' }}>
         <InnerEditor
           src={src}
+          active={active}
           onSave={onSave}
           onSaveBlob={onSaveBlob}
           savePreview={savePreview}
           onCancel={onCancel}
-          onUnchangedSave={onUnchangedSave}
+          onSaveComplete={onSaveComplete}
           outputFormat={outputFormat}
           outputQuality={outputQuality}
           enabledTools={normalizedTools}

@@ -1,6 +1,6 @@
 {
   "name": "@inkio/core",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "description": "Inkio editor foundation primitives",
   "license": "MIT",
   "keywords": [
@@ -53,6 +53,16 @@
       "require": {
         "types": "./dist/icons.d.cts",
         "default": "./dist/icons.cjs"
+      }
+    },
+    "./ui": {
+      "import": {
+        "types": "./dist/ui.d.ts",
+        "default": "./dist/ui.js"
+      },
+      "require": {
+        "types": "./dist/ui.d.cts",
+        "default": "./dist/ui.cjs"
       }
     },
     "./markdown": {

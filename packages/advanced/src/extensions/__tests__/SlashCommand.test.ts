@@ -1,4 +1,7 @@
-import type { Editor, Range } from '@tiptap/core';
+import { Editor, Extension, type Range } from '@tiptap/core';
+import Document from '@tiptap/extension-document';
+import Paragraph from '@tiptap/extension-paragraph';
+import Text from '@tiptap/extension-text';
 import { SlashCommand, SlashCommandItem, defaultSlashCommands, filterSlashCommandItems } from '../SlashCommand';
 
 function createMockEditor(commandNames: string[] = [], schemaNodes: string[] = []) {
@@ -145,53 +148,60 @@ describe('SlashCommand extension', () => {
     expect(chain.run).not.toHaveBeenCalled();
   });
 
-  it('image slash command uploads at the deleted slash-command position', () => {
-    const image = defaultSlashCommands.find((item) => item.id === 'image');
-    expect(image).toBeDefined();
+  describe('image file chooser', () => {
+    let editor: Editor;
+    let input: HTMLInputElement;
+    const upload = vi.fn<(files: File[], pos?: number) => boolean>(() => true);
+    const slash = { from: 1, to: 7 };
 
-    const { editor, chain } = createMockEditor();
-    const uploadImageBlock = vi.fn(() => true);
-    (editor as unknown as { commands: { uploadImageBlock: typeof uploadImageBlock } }).commands = {
-      uploadImageBlock,
-    };
-
-    const createdInput = {
-      type: '',
-      accept: '',
-      files: null as FileList | null,
-      onchange: null as ((event: Event) => void) | null,
-      click: vi.fn(() => {
-        const file = new File(['image'], 'demo.png', { type: 'image/png' });
-        Object.defineProperty(createdInput, 'files', {
-          configurable: true,
-          value: [file],
-        });
-        createdInput.onchange?.({ target: createdInput } as unknown as Event);
-      }),
-    };
-
-    const originalCreateElement = document.createElement.bind(document);
-    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
-      if (tagName === 'input') {
-        return createdInput as unknown as HTMLInputElement;
-      }
-
-      return originalCreateElement(tagName);
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(function (this: HTMLInputElement) { input = this; });
+      editor = new Editor({
+        element: document.createElement('div'),
+        extensions: [Document, Paragraph, Text, Extension.create({
+          name: 'imageUploadTest',
+          addCommands: () => ({ uploadImageBlock: (files: File[], pos?: number) => () => upload(files, pos) }),
+        })],
+        content: '<p>/image</p>',
+      });
+      defaultSlashCommands.find((item) => item.id === 'image')!.command({ editor, range: slash });
     });
 
-    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
-      callback(0);
-      return 1;
+    afterEach(() => {
+      editor.destroy();
+      upload.mockClear();
+      vi.restoreAllMocks();
+      vi.useRealTimers();
     });
 
-    image!.command({ editor, range });
+    function chooseFile() {
+      const file = new File(['image'], 'demo.png', { type: 'image/png' });
+      Object.defineProperty(input, 'files', { value: [file] });
+      input.dispatchEvent(new Event('change'));
+      vi.advanceTimersToNextFrame();
+    }
 
-    expect(chain.deleteRange).toHaveBeenCalledWith(range);
-    expect(uploadImageBlock).toHaveBeenCalledTimes(1);
-    expect(uploadImageBlock).toHaveBeenCalledWith(expect.any(Array), range.from);
+    it('uploads at the slash range even when an earlier block was inserted', () => {
+      editor.commands.insertContentAt(0, { type: 'paragraph' });
+      chooseFile();
+      expect(editor.getText().trim()).toBe('');
+      expect(upload).toHaveBeenCalledWith(expect.any(Array), 3);
+    });
 
-    createElementSpy.mockRestore();
-    rafSpy.mockRestore();
+    it('never deletes replacement text when the original trigger was removed', () => {
+      editor.commands.setContent('<p>Replaced</p>');
+      chooseFile();
+      expect(editor.getText()).toBe('Replaced');
+      expect(upload).not.toHaveBeenCalled();
+    });
+
+    it('leaves a document made read-only during file selection alone', () => {
+      editor.setEditable(false);
+      chooseFile();
+      expect(editor.getText()).toBe('/image');
+      expect(upload).not.toHaveBeenCalled();
+    });
   });
 });
 

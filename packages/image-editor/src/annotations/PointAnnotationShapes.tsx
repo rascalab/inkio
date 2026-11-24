@@ -1,4 +1,6 @@
-import { Arrow, Line } from 'react-konva';
+import { Arrow, Line } from 'react-konva/lib/ReactKonvaCore.js';
+import 'konva/lib/shapes/Arrow.js';
+import 'konva/lib/shapes/Line.js';
 import type Konva from 'konva';
 import type { ArrowAnnotation, FreeDrawAnnotation, LineAnnotation } from '../types';
 import {

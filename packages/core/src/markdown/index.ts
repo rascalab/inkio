@@ -1,6 +1,8 @@
-import { Extension, type Extensions, type JSONContent } from '@tiptap/core';
+import { Extension, type Editor, type JSONContent } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
-import { normalizeCalloutColor, normalizeCalloutIcon } from '../extensions/Callout';
+import type { EditorExtensionAccess, InkioEditor } from '../editor-document';
+import { normalizeCalloutColor, normalizeCalloutIcon } from '../extensions/callout-schema';
+import { UPLOAD_PLACEHOLDER_PREFIX } from '../extensions/image-block-shared';
 import { escapeHtml } from '../utils/html';
 import { isSafeUrl } from '../utils/url-safety';
 import { unified } from 'unified';
@@ -8,10 +10,6 @@ import remarkDirective from 'remark-directive';
 import remarkGfm from 'remark-gfm';
 import remarkParse from 'remark-parse';
 import remarkStringify from 'remark-stringify';
-
-export interface MarkdownAdapterOptions {
-  extensions?: Extensions;
-}
 
 type JsonMark = NonNullable<JSONContent['marks']>[number];
 type MdastNode = {
@@ -27,6 +25,7 @@ type MdastNode = {
   title?: string | null;
   alt?: string | null;
   name?: string;
+  identifier?: string;
   attributes?: Record<string, string | null | undefined>;
   position?: { start: { offset?: number; column: number }; end: { offset?: number } };
   children?: MdastNode[];
@@ -176,10 +175,53 @@ function findDetailsMarkers(markdown: string): DetailsMarker[] {
   return markers;
 }
 
+type OffsetShift = { end: number; shift: number };
+
+function finishParsedTree(root: MdastNode, source: string, shifts: OffsetShift[] = []): MdastNode {
+  const definitions = new Map<string, MdastNode>();
+  const references: MdastNode[] = [];
+  let nextShift = 0;
+  let shift = 0;
+  let literalEnd = -1;
+  // The outer directive owns the literal; descendants still count toward the
+  // parser limits. Disjoint source ranges let us translate offsets in order.
+  const originalOffset = (pos: number) => {
+    while (nextShift < shifts.length && shifts[nextShift].end <= pos) shift = shifts[nextShift++].shift;
+    return pos + shift;
+  };
+  walkMdast(root, (node) => {
+    if (node.type === 'definition' && node.identifier && !definitions.has(node.identifier)) {
+      definitions.set(node.identifier, node);
+    } else if (node.type === 'linkReference' || node.type === 'imageReference') {
+      references.push(node);
+    } else if (node.type === 'textDirective'
+      || (node.type === 'leafDirective' && node.name !== 'toc')
+      || (node.type === 'containerDirective' && node.name !== 'callout' && node.name !== 'details')) {
+      const start = node.position?.start.offset;
+      const end = node.position?.end.offset;
+      if (start !== undefined && end !== undefined && start >= literalEnd) {
+        // The existing HTML fallback carries literal text into JSON, not DOM.
+        node.type = 'html';
+        node.value = source.slice(originalOffset(start), originalOffset(end));
+        literalEnd = end;
+      }
+    }
+  });
+  for (const node of references) {
+    const definition = node.identifier && definitions.get(node.identifier);
+    if (!definition) continue;
+    node.type = node.type === 'linkReference' ? 'link' : 'image';
+    node.url = definition.url;
+    node.title = definition.title;
+  }
+  return root;
+}
+
 function parseDetails(markdown: string): MdastNode {
   const markers = findDetailsMarkers(markdown);
   const positions = new Map<number, DetailsMarker>();
   const parts: string[] = [];
+  const shifts: OffsetShift[] = [];
   // Leaf directives and comments cannot steal an enclosing `:::` fence.
   let offset = 0;
   let cursor = 0;
@@ -192,8 +234,9 @@ function parseDetails(markdown: string): MdastNode {
     positions.set(offset, marker);
     offset += replacement.length;
     cursor = marker.end;
+    shifts.push({ end: offset, shift: cursor - offset });
   }
-  if (parts.length === 0) return markdownParser.parse(markdown) as MdastNode;
+  if (parts.length === 0) return finishParsedTree(markdownParser.parse(markdown) as MdastNode, markdown);
 
   parts.push(markdown.slice(cursor));
   const root = markdownParser.parse(parts.join('')) as MdastNode;
@@ -229,7 +272,9 @@ function parseDetails(markdown: string): MdastNode {
     node.children = result;
   });
   // Don't leave synthetic text behind if a marker was inside opaque HTML.
-  return positions.size > 0 ? markdownParser.parse(markdown) as MdastNode : root;
+  return positions.size > 0
+    ? finishParsedTree(markdownParser.parse(markdown) as MdastNode, markdown)
+    : finishParsedTree(root, markdown, shifts);
 }
 
 function createTextNode(text: string, marks?: JsonMark[]): JSONContent | null {
@@ -459,33 +504,15 @@ function directiveToJson(node: MdastNode, budget: MarkdownReadBudget): JSONConte
     }];
   }
 
-  if (node.name === 'details') {
-    const summary = createTextNode(node.attributes?.summary ?? '');
-    const bodyContent = ensureBlockContent(mdastBlocksToJson(node.children, budget));
-
-    return [{
-      type: 'details',
-      attrs: { open: false },
-      content: [
-        summary
-          ? { type: 'detailsSummary', content: [summary] }
-          : { type: 'detailsSummary' },
-        {
-          type: 'detailsContent',
-          content: bodyContent,
-        },
-      ],
-    }];
-  }
-
-  const attrs = Object.entries(node.attributes ?? {})
-    .map(([key, value]) => (value ? `${key}="${value}"` : key))
-    .join(' ');
-  const open = attrs ? `:::${node.name}{${attrs}}` : `:::${node.name}`;
-  const body = (node.children ?? []).map((child) => child.value ?? '').join('\n').trim();
+  const summary = createTextNode(node.attributes?.summary ?? '');
+  const bodyContent = ensureBlockContent(mdastBlocksToJson(node.children, budget));
   return [{
-    type: 'paragraph',
-    content: [{ type: 'text', text: body ? `${open}\n${body}\n:::` : `${open}\n:::` }],
+    type: 'details',
+    attrs: { open: false },
+    content: [
+      summary ? { type: 'detailsSummary', content: [summary] } : { type: 'detailsSummary' },
+      { type: 'detailsContent', content: bodyContent },
+    ],
   }];
 }
 
@@ -684,11 +711,20 @@ function jsonTableToMdast(node: JSONContent): TableLayout {
   return layout;
 }
 
+function tocMaxLevel(value: unknown): number {
+  const level = typeof value === 'string' && /^-?\d+$/.test(value) ? Number(value) : value;
+  return typeof level === 'number' && Number.isSafeInteger(level) ? level : 3;
+}
+
 function mdastBlocksToJson(nodes: MdastNode[] | undefined, budget: MarkdownReadBudget): JSONContent[] {
   const content: JSONContent[] = [];
   let tableSpans: TableSpan[] | null = null;
 
   for (const [index, node] of (nodes ?? []).entries()) {
+    if (node.type === 'leafDirective' && node.name === 'toc') {
+      content.push({ type: 'tocBlock', attrs: { maxLevel: tocMaxLevel(node.attributes?.maxLevel) } });
+      continue;
+    }
     switch (node.type) {
       case 'heading':
         content.push({
@@ -712,12 +748,14 @@ function mdastBlocksToJson(nodes: MdastNode[] | undefined, budget: MarkdownReadB
         });
         break;
       case 'list': {
+        let start = node.start ?? 1;
         for (const group of splitListChildren(node)) {
           content.push({
             type: group.task ? 'taskList' : (node.ordered ? 'orderedList' : 'bulletList'),
-            ...(group.task || !node.ordered ? {} : { attrs: { start: node.start && node.start > 1 ? node.start : null } }),
+            ...(group.task || !node.ordered ? {} : { attrs: { start: start === 1 ? null : start } }),
             content: group.children.map((child) => listItemToJson(child, group.task, budget)),
           });
+          start += group.children.length;
         }
         break;
       }
@@ -907,7 +945,7 @@ function jsonTableCellToMdast(node: JSONContent): MdastNode {
   for (const block of node.content ?? []) {
     if (inline.length > 0) inline.push({ type: 'text', value: ' ' });
     if (block?.type === 'paragraph') {
-      inline.push(...jsonInlineToMdast(block.content ?? []));
+      for (const child of jsonInlineToMdast(block.content ?? [])) inline.push(child);
     } else {
       const text = textFromJson(block);
       if (text) inline.push({ type: 'text', value: text });
@@ -1001,7 +1039,13 @@ function jsonBlocksToMdast(nodes: JSONContent[] = []): MdastNode[] {
       case 'horizontalRule':
         content.push({ type: 'thematicBreak' });
         break;
-      case 'imageBlock':
+      case 'imageBlock': {
+        const src = node.attrs?.src;
+        const alt = typeof node.attrs?.alt === 'string' ? node.attrs.alt : '';
+        if (typeof src !== 'string' || !isSafeUrl(src) || src.startsWith(UPLOAD_PLACEHOLDER_PREFIX)) {
+          content.push({ type: 'paragraph', children: alt ? [{ type: 'text', value: alt }] : [] });
+          break;
+        }
         // `image` is phrasing content: placed directly in the root it makes
         // remark join every block without blank lines, merging the whole
         // document into one paragraph on re-import.
@@ -1009,12 +1053,13 @@ function jsonBlocksToMdast(nodes: JSONContent[] = []): MdastNode[] {
           type: 'paragraph',
           children: [{
             type: 'image',
-            url: String(node.attrs?.src ?? ''),
-            alt: typeof node.attrs?.alt === 'string' ? node.attrs.alt : null,
+            url: src,
+            alt,
             title: typeof node.attrs?.title === 'string' ? node.attrs.title : null,
           }],
         });
         break;
+      }
       case 'table': {
         const { rows, spans } = jsonTableToMdast(node);
         if (spans.length > 0) {
@@ -1038,6 +1083,11 @@ function jsonBlocksToMdast(nodes: JSONContent[] = []): MdastNode[] {
       case 'details':
         content.push(jsonDetailsToMdast(node));
         break;
+      case 'tocBlock': {
+        const maxLevel = tocMaxLevel(node.attrs?.maxLevel);
+        content.push({ type: 'leafDirective', name: 'toc', attributes: maxLevel === 3 ? undefined : { maxLevel: String(maxLevel) } });
+        break;
+      }
       case 'bookmark': {
         const bookmarkUrl = typeof node.attrs?.url === 'string' ? node.attrs.url : '';
         if (bookmarkUrl.length > 0 && isSafeUrl(bookmarkUrl)) {
@@ -1107,11 +1157,9 @@ function parseToMdast(markdown: string): MdastNode {
   if (markdown.length > MAX_MARKDOWN_CHARS) {
     throw new RangeError('Cannot read Markdown: the document exceeds 1,000,000 characters.');
   }
-  const root = /<details>/i.test(markdown)
+  return /<details>/i.test(markdown)
     ? parseDetails(markdown)
-    : markdownParser.parse(markdown) as MdastNode;
-  walkMdast(root);
-  return root;
+    : finishParsedTree(markdownParser.parse(markdown) as MdastNode, markdown);
 }
 
 function stringifyFromMdast(root: MdastNode): string {
@@ -1120,9 +1168,7 @@ function stringifyFromMdast(root: MdastNode): string {
 }
 
 /** Creates an adapter with the same input limits and HTML rules as {@link parseMarkdown}. */
-export function createMarkdownAdapter(options: MarkdownAdapterOptions = {}) {
-  void options.extensions;
-
+export function createMarkdownAdapter() {
   return {
     parse(markdown: string): JSONContent {
       const root = parseToMdast(markdown);
@@ -1159,6 +1205,57 @@ export function parseMarkdown(markdown: string): JSONContent {
 export function stringifyMarkdown(content: JSONContent): string {
   return createMarkdownAdapter().stringify(content);
 }
+
+export type MarkdownAccess = {
+  readonly markdown: string;
+  setMarkdown(source: string): boolean;
+};
+
+export type MarkdownEditor<T extends Editor = InkioEditor> = T & MarkdownAccess;
+
+const markdownEditors = new WeakSet<Editor>();
+
+/** Adds Markdown access to registered editors without changing paste behavior. */
+export const Markdown = Extension.create({
+  name: 'inkioMarkdown',
+  onBeforeCreate({ editor }) {
+    if (markdownEditors.has(editor)) return;
+    for (const key of ['markdown', 'setMarkdown']) {
+      if (key in editor) {
+        throw new TypeError(`Cannot install Inkio Markdown: editor.${key} already exists.`);
+      }
+    }
+
+    let cachedDoc: Editor['state']['doc'] | undefined;
+    let cachedMarkdown: string;
+    Object.defineProperties(editor, {
+      markdown: {
+        get(): string {
+          const { doc } = editor.state;
+          if (doc !== cachedDoc) {
+            cachedMarkdown = stringifyMarkdown(doc.toJSON());
+            cachedDoc = doc;
+          }
+          return cachedMarkdown;
+        },
+      },
+      setMarkdown: {
+        value(source: string): boolean {
+          let doc: Editor['state']['doc'];
+          try {
+            doc = editor.schema.nodeFromJSON(parseMarkdown(source));
+            doc.check();
+          } catch {
+            // Unsupported nodes and parser limits must not clear the current document.
+            return false;
+          }
+          return editor.commands.setContent(doc);
+        },
+      },
+    });
+    markdownEditors.add(editor);
+  },
+}) as Extension & EditorExtensionAccess<MarkdownAccess>;
 
 // Markdown copied as plain text: a block marker at the start of a line, or a
 // span only Markdown writes. Prose with a stray `*` or `-` stays prose.

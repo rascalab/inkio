@@ -45,7 +45,7 @@ describe.each(cases)('$label suggestion items debounce + stale-drop', ({ ext, na
     const options = entry!.options;
     return {
       options,
-      suggest: (query: string) => options.items!({ query, editor }) as Promise<unknown[]>,
+      suggest: (query: string) => options.items!({ query, editor, signal: new AbortController().signal }) as Promise<unknown[]>,
     };
   }
 
@@ -85,6 +85,16 @@ describe.each(cases)('$label suggestion items debounce + stale-drop', ({ ext, na
     expect(items).toHaveBeenCalledWith({ query: 'ab' });
     expect(r1).toEqual([]);
     expect(r2).toEqual([{ id: 'ab', label: 'ab' }]);
+  });
+
+  it('does not start the debounced provider after the suggestion closes', async () => {
+    const { editor, items } = createHarness(() => [{ id: '1', label: 'First' }]);
+    editor.commands.insertContent(char);
+    expect(pluginKey.getState(editor.state).active).toBe(true);
+    editor.commands.deleteRange({ from: 1, to: 2 });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(pluginKey.getState(editor.state).active).toBe(false);
+    expect(items).not.toHaveBeenCalled();
   });
 
   it('drops a slow earlier response that resolves after a newer query', async () => {

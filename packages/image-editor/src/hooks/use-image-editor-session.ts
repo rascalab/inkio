@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { exportCanvas } from '../utils/export-canvas';
 import { useImageEditor } from './use-image-editor';
 import { resolveControlsModel, type ViewportKind } from '../utils/controls-model';
@@ -12,34 +12,36 @@ import { commitResizeSession, imageEditorReducer } from '../reducer';
 
 interface UseImageEditorSessionOptions {
   src: string;
+  active?: boolean;
   locale: ImageEditorLocale;
   outputFormat: 'png' | 'jpeg' | 'webp';
   outputQuality: number;
   onSave: ImageEditorProps['onSave'];
   onSaveBlob?: ImageEditorProps['onSaveBlob'];
   savePreview?: boolean;
-  onUnchangedSave?: () => void;
+  onSaveComplete?: () => void;
   onDirtyChange?: (dirty: boolean) => void;
   viewportKind: ViewportKind;
 }
 
 export function useImageEditorSession({
   src,
+  active = true,
   locale,
   outputFormat,
   outputQuality,
   onSave,
   onSaveBlob,
   savePreview,
-  onUnchangedSave,
+  onSaveComplete,
   onDirtyChange,
   viewportKind,
 }: UseImageEditorSessionOptions) {
   const { state, dispatch, undo, redo, canUndo, canRedo } = useImageEditor();
   const [isSaving, setIsSaving] = useState(false);
-  const savingRef = useRef(false);
+  const savingRef = useRef<AbortController | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const isSavePending = useCallback(() => savingRef.current, []);
+  const isSavePending = useCallback(() => savingRef.current !== null, []);
   const [baseline, setBaseline] = useState<{ version: number; refs: VisualRefs } | null>(null);
   const loadErrorRef = useRef({ error: locale.error, geometry: locale.sourceSizeError });
 
@@ -68,10 +70,12 @@ export function useImageEditorSession({
     loadErrorRef.current = { error: locale.error, geometry: locale.sourceSizeError };
   }, [locale.error, locale.sourceSizeError]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    // A controlled modal can stay mounted during its exit animation.
+    if (!active) return;
+    setIsSaving(false);
     setSaveError(null);
-    dispatch({ type: 'SET_LOADING', isLoading: true });
-    dispatch({ type: 'SET_ERROR', error: null });
+    dispatch({ type: 'START_IMAGE_LOAD' });
 
     let cancelled = false;
 
@@ -82,7 +86,6 @@ export function useImageEditorSession({
         }
 
         dispatch({ type: 'SET_IMAGE', image: img, width: img.naturalWidth, height: img.naturalHeight });
-        dispatch({ type: 'SET_LOADING', isLoading: false });
       })
       .catch((err: unknown) => {
         if (cancelled) {
@@ -91,22 +94,24 @@ export function useImageEditorSession({
 
         const { error, geometry } = loadErrorRef.current;
         dispatch({ type: 'SET_ERROR', error: (err instanceof RangeError ? geometry : error) ?? error });
-        dispatch({ type: 'SET_LOADING', isLoading: false });
         console.error('[ImageEditor] Failed to load image:', err);
       });
 
     return () => {
+      savingRef.current?.abort();
       cancelled = true;
+      savingRef.current = null;
     };
-  }, [dispatch, src]);
+  }, [active, dispatch, src]);
 
-  useEffect(() => {
-    if (!isResizeTool(state.activeTool) || state.originalWidth <= 0 || state.originalHeight <= 0) {
-      return;
-    }
-
+  const startResizeSession = useEffectEvent(() => {
+    if (!isResizeTool(state.activeTool) || state.pendingCrop
+      || state.originalWidth <= 0 || state.originalHeight <= 0) return;
     dispatch({ type: 'START_RESIZE_SESSION' });
-  }, [dispatch, state.activeTool, state.originalHeight, state.originalWidth]);
+  });
+  useEffect(() => {
+    startResizeSession();
+  }, [state.activeTool, state.originalHeight, state.originalImage, state.originalWidth]);
 
   useEffect(() => {
     if (!state.originalImage) {
@@ -183,12 +188,13 @@ export function useImageEditorSession({
   );
 
   const handleSave = useCallback(async () => {
-    if (savingRef.current) return;
-    if (!isDirty && onUnchangedSave) {
-      onUnchangedSave();
+    if (!active || savingRef.current) return;
+    if (!isDirty && onSaveComplete) {
+      onSaveComplete();
       return;
     }
-    savingRef.current = true;
+    const save = new AbortController();
+    savingRef.current = save;
     setIsSaving(true);
     setSaveError(null);
     // Capture the version of the draft represented by the exported bytes.
@@ -203,17 +209,21 @@ export function useImageEditorSession({
 
       if (onSaveBlob && savePreview) {
         const { blob, preview } = await exportCanvas(exportState, outputFormat, outputQuality, 'blob-with-preview');
+        if (savingRef.current !== save) return;
         exporting = false;
-        await onSaveBlob(blob, preview);
+        await onSaveBlob(blob, preview, save.signal);
       } else if (onSaveBlob) {
         const blob = await exportCanvas(exportState, outputFormat, outputQuality, 'blob');
+        if (savingRef.current !== save) return;
         exporting = false;
-        await onSaveBlob(blob);
+        await onSaveBlob(blob, undefined, save.signal);
       } else {
         const dataUrl = await exportCanvas(exportState, outputFormat, outputQuality);
+        if (savingRef.current !== save) return;
         exporting = false;
-        await onSave(dataUrl);
+        await onSave(dataUrl, save.signal);
       }
+      if (savingRef.current !== save) return;
       // Failed persistence must leave the crop/resize draft intact for retry.
       if (isResizeSessionActive) {
         dispatch({ type: 'COMMIT_RESIZE_SESSION' });
@@ -223,13 +233,19 @@ export function useImageEditorSession({
       // Use the projected commit to distinguish real changes from closing a clean crop draft.
       resetDirtyBaseline(exportState, nextVisualVersion(state, saveBaseVersion, exportState));
     } catch (err) {
+      if (savingRef.current !== save) return;
       setSaveError((exporting && err instanceof RangeError ? locale.outputSizeError : locale.error) ?? locale.error);
       console.error('[ImageEditor] Save failed:', err);
+      return;
     } finally {
-      savingRef.current = false;
-      setIsSaving(false);
+      if (savingRef.current === save) {
+        savingRef.current = null;
+        setIsSaving(false);
+      }
     }
-  }, [dispatch, isDirty, locale.error, locale.outputSizeError, onSave, onSaveBlob, onUnchangedSave, outputFormat, outputQuality, resetDirtyBaseline, savePreview, state]);
+    // Closing may synchronously unmount the editor. Release the completed save first.
+    onSaveComplete?.();
+  }, [active, dispatch, isDirty, locale.error, locale.outputSizeError, onSave, onSaveBlob, onSaveComplete, outputFormat, outputQuality, resetDirtyBaseline, savePreview, state]);
 
   return {
     state,

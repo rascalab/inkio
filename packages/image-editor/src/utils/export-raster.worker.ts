@@ -1,4 +1,4 @@
-import Konva from 'konva';
+import { Util } from 'konva/lib/Util.js';
 import {
   encodeExportCanvas, renderExportScene, verifyEncodedBlob,
   type ExportOutput, type ExportResult, type ExportScene,
@@ -14,7 +14,7 @@ export interface ExportWorkerRequest {
 
 // Konva 10.7's canvas wrapper needs a style object. Set its factory only in
 // the worker so the same scene/cache APIs can draw to native OffscreenCanvas.
-Konva.Util.createCanvasElement = () => Object.assign(new OffscreenCanvas(0, 0), { style: {} }) as unknown as HTMLCanvasElement;
+Util.createCanvasElement = () => Object.assign(new OffscreenCanvas(0, 0), { style: {} }) as unknown as HTMLCanvasElement;
 
 async function exportImage({ scene, image, mimeType, quality, output }: ExportWorkerRequest): Promise<ExportResult> {
   let canvas: HTMLCanvasElement;

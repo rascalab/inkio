@@ -1,7 +1,7 @@
 import {
   HocuspocusProvider,
   WebSocketStatus,
-  type HocuspocusProviderWebsocket,
+  HocuspocusProviderWebsocket,
 } from '@hocuspocus/provider';
 import * as Y from 'yjs';
 import { assertValidDocId } from './doc-id';
@@ -33,7 +33,7 @@ export interface CreateCollabProviderOptions {
 }
 
 const ACCESS_DENIED = 'inkio:access-denied';
-const sessions = new WeakMap<CollabProvider, { rejected: boolean; retry: () => void }>();
+const sessions = new WeakMap<CollabProvider, { rejected: boolean; destroyed: boolean; retry: () => void }>();
 
 /** Retry one document after refreshing credentials, without resetting its shared socket. */
 export function retryCollabAuthentication(provider: CollabProvider): void {
@@ -45,7 +45,43 @@ async function resolveToken(token: CollabToken | undefined): Promise<string> {
   return value ?? '';
 }
 
+// Hocuspocus v4 schedules a reconnect after an established socket closes.
+// Its delayed callback can run after destroy(); don't let it reopen an owned transport.
+class OwnedWebsocket extends HocuspocusProviderWebsocket {
+  private destroyed = false;
+
+  override connect(): Promise<unknown> {
+    return this.destroyed ? Promise.resolve() : super.connect();
+  }
+
+  override destroy(): void {
+    this.destroyed = true;
+    super.destroy();
+  }
+}
+
 class AuthenticatedProvider extends HocuspocusProvider {
+  private get canSendUpdates(): boolean {
+    const socket = this.configuration.websocketProvider.webSocket;
+    return this.isAuthenticated && socket !== null && socket.readyState === socket.OPEN;
+  }
+
+  override documentUpdateHandler(update: Uint8Array, origin: unknown): void {
+    if (origin === this) return;
+    if (!this.canSendUpdates) {
+      // The next authenticated state-vector exchange includes all local edits. Queuing
+      // every update separately also sends a stale backlog before the room finishes loading.
+      this.incrementUnsyncedChanges();
+      return;
+    }
+    super.documentUpdateHandler(update, origin);
+  }
+
+  override awarenessUpdateHandler(change: Parameters<HocuspocusProvider['awarenessUpdateHandler']>[0], origin: unknown): void {
+    // startSync sends the current local presence, not a stale queued cursor.
+    if (this.canSendUpdates) super.awarenessUpdateHandler(change, origin);
+  }
+
   override startSync(): void {
     // The default onOpen starts sync even if a local token supplier throws.
     // Wait for auth so repeated local failures do not queue document frames.
@@ -63,11 +99,11 @@ export function createCollabProvider(options: CreateCollabProviderOptions): Coll
     name: docId,
     document: doc ?? new Y.Doc(),
     token: () => resolveToken(token),
-    ...(websocketProvider ? { websocketProvider, sessionAwareness: true } : { url: url as string }),
+    websocketProvider: websocketProvider ?? new OwnedWebsocket({ url: url! }),
+    sessionAwareness: !!websocketProvider,
   });
   let timer: ReturnType<typeof setTimeout> | undefined;
   let failures = 0;
-  let destroyed = false;
   let retrying = false;
   const clearRetry = () => {
     clearTimeout(timer);
@@ -75,9 +111,10 @@ export function createCollabProvider(options: CreateCollabProviderOptions): Coll
   };
   const session = {
     rejected: false,
+    destroyed: false,
     retry() {
       clearRetry();
-      if (destroyed || retrying || !session.rejected) return;
+      if (session.destroyed || retrying || !session.rejected) return;
       const socket = provider.configuration.websocketProvider;
       if (socket.status === WebSocketStatus.Connected && socket.receivedOnOpenPayload) {
         // Hocuspocus clears a refused room's auth state on the server; only
@@ -119,17 +156,20 @@ export function createCollabProvider(options: CreateCollabProviderOptions): Coll
   provider.on('synced', () => { failures = 0; });
   provider.on('open', clearRetry);
   provider.on('destroy', () => {
-    destroyed = true;
+    session.destroyed = true;
     clearRetry();
   });
-  // A caller-owned socket is not attached automatically.
-  if (websocketProvider) provider.attach();
+  // Providers given a socket need explicit attachment. Only dispose transports we own.
+  provider.manageSocket = !websocketProvider;
+  provider.attach();
   if (user) provider.setAwarenessField('user', normalizePresenceUser(user));
   return provider;
 }
 
 export function getCollabStatus(provider: CollabProvider): CollabStatus {
-  if (sessions.get(provider)?.rejected) return 'unauthorized';
+  const session = sessions.get(provider);
+  if (session?.destroyed) return 'disconnected';
+  if (session?.rejected) return 'unauthorized';
   const socketStatus = provider.configuration.websocketProvider.status;
   if (socketStatus === WebSocketStatus.Disconnected) return 'disconnected';
   if (socketStatus === WebSocketStatus.Connected && provider.isAuthenticated && provider.isSynced) return 'synced';

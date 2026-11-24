@@ -29,7 +29,7 @@ export default function PlaygroundSimplePane({
 }: PlaygroundSimplePaneProps) {
   const initialContent = initialDoc ?? PLAYGROUND_INITIAL_CONTENT;
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
-  const doc = usePlaygroundDocument(editorInstance, active && (showViewer || showJSON));
+  const { doc, onChange } = usePlaygroundDocument(editorInstance, active && (showViewer || showJSON));
   const createObjectUrl = useObjectUrlRegistry();
   const handleImageUpload = useCallback(
     async (file: File) => createObjectUrl(file),
@@ -50,8 +50,9 @@ export default function PlaygroundSimplePane({
           locale={locale}
           onImageUpload={handleImageUpload}
           imageBlock={imageBlock}
-          ui={{ autoresize: true, showToolbar: true }}
+          ui={{ autoresize: true, toolbar: true }}
           onCreate={setEditorInstance}
+          onChange={onChange}
         />
       </section>
 

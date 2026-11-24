@@ -8,6 +8,8 @@ Use this file when asking an AI assistant to generate or modify Inkio integratio
   - Use for: Vite/React, `@inkio/simple`, classic WYSIWYG baseline
 - `examples/next-app-router`
   - Use for: Next.js App Router, `@inkio/editor` + `@inkio/advanced` + `@inkio/image-editor`
+- `examples/react-router` and `examples/collab-server`
+  - Use for: route-based editing, authenticated Yjs collaboration and offline behavior
 
 ## Package Map
 
@@ -23,6 +25,10 @@ Use this file when asking an AI assistant to generate or modify Inkio integratio
 - `@inkio/core`
   - low-level foundation
   - `Editor`, `Viewer`, `getExtensions()`, toolbar/menu primitives
+- `@inkio/image-editor`: standalone or modal canvas editor; pair its stylesheet with the core or preset tokens
+- `@inkio/collab`: Yjs provider and React hooks; `@inkio/collab/vite` is an optional build-time plugin
+
+For saved `JSONContent`, import `read` from the core or either preset root. Reuse the reader for one immutable document; its `text`, `stats`, `summary()`, `mentions`, `hashTags`, `headings` and `commentIds` match the live editor's document API.
 
 ## Installation Rules
 
@@ -31,7 +37,8 @@ Use this file when asking an AI assistant to generate or modify Inkio integratio
 - Notion-like:
   - `npm install @inkio/editor react react-dom`
 - Optional:
-  - `npm install @inkio/image-editor`
+  - `npm install @inkio/image-editor "react@^19.3.0" "react-dom@^19.3.0"` for image editing; standalone use also needs `@inkio/core`
+  - `npm install @inkio/collab @inkio/core` for realtime editing
   - install `@inkio/advanced` only if app code imports advanced exports directly
 - Do not manually install `@tiptap/*` just to use Inkio packages. Inkio owns the Tiptap runtime packages it uses.
 

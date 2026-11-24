@@ -1,6 +1,7 @@
 
 import { useEffect, useRef } from 'react';
-import { Image as KonvaImage } from 'react-konva';
+import { Image as KonvaImage } from 'react-konva/lib/ReactKonvaCore.js';
+import 'konva/lib/shapes/Image.js';
 import type Konva from 'konva';
 import type { FilterPresetId, FinetuneOptions, Transform } from '../types';
 import { getBaseDisplayDimensions } from '../utils/geometry';
@@ -42,47 +43,22 @@ export function ImageNode({
       finetune.saturation === 0 &&
       finetune.clarity === 0;
     if (isNeutral) {
-      cancelScheduledFilterPreview(node);
-      node.filters([]);
-      node.clearCache();
-      node.getLayer()?.batchDraw();
+      if (node.isCached()) {
+        node.filters([]);
+        node.clearCache();
+        node.getLayer()?.batchDraw();
+      }
     } else {
       scheduleFilteredPreview(node, filter, finetune);
     }
-    return () => {
-      const current = imageRef.current;
-      if (current) cancelScheduledFilterPreview(current);
-    };
+    return () => cancelScheduledFilterPreview(node);
   }, [filter, finetune, image, baseW, baseH, cropRect?.x, cropRect?.y, cropRect?.width, cropRect?.height]);
-
-  if (cropRect) {
-    return (
-      <KonvaImage
-        ref={imageRef}
-        image={image}
-        x={displayWidth / 2}
-        y={displayHeight / 2}
-        width={baseW}
-        height={baseH}
-        offsetX={baseW / 2}
-        offsetY={baseH / 2}
-        rotation={transform.rotation}
-        scaleX={transform.flipX ? -1 : 1}
-        scaleY={transform.flipY ? -1 : 1}
-        crop={{
-          x: cropRect.x,
-          y: cropRect.y,
-          width: cropRect.width,
-          height: cropRect.height,
-        }}
-      />
-    );
-  }
 
   return (
     <KonvaImage
       ref={imageRef}
       image={image}
+      crop={cropRect ?? undefined}
       x={displayWidth / 2}
       y={displayHeight / 2}
       width={baseW}

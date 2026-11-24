@@ -20,17 +20,18 @@ import '@inkio/editor/style.css';
 | `locale` | `InkioLocaleInput` | 로케일 |
 | `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 부모 환경을 따름) |
 | `tabBehavior` | `'indent' \| 'default'` | Tab 키 동작 (기본값: `'indent'`). `'indent'`는 리스트 항목을 들여쓰고, 코드는 들여쓰며, 표에서는 칸을 옮기고, 그 밖에서는 탭 문자를 입력합니다. Esc로 에디터를 벗어납니다. `'default'`는 브라우저 기본 포커스 이동입니다 |
+| `onChange` | `(editor: InkioEditor) => void` | 문서 변경 시 최신 인스턴스 전달 |
 | `onUpdate` | `(content: JSONContent) => void` | 콘텐츠 변경 콜백 |
-| `onCreate` | `(editor: TiptapEditor) => void` | 에디터 인스턴스 준비 콜백 |
+| `onCreate` | `(editor: InkioEditor) => void` | 현재 문서와 Tiptap 명령에 접근하는 인스턴스 |
 | `onError` | `InkioErrorHandler` | 에러 핸들러 |
-| `ui` | `EditorUiOptions` | UI 옵션 (아래 참고) |
+| `ui` | `EditorProps['ui']` | UI 옵션 (아래 참고) |
 | `hashtagItems` | `(params: { query: string }) => HashTagItem[] \| Promise<HashTagItem[]>` | 해시태그 제안 |
 | `mentionItems` | `(params: { query: string }) => MentionItem[] \| Promise<MentionItem[]>` | 멘션 제안 |
 | `slashCommands` | `(query: string) => SlashCommandItem[] \| Promise<SlashCommandItem[]>` | 슬래시 커맨드 오버라이드 |
 | `transformSlashCommands` | `SlashCommandTransform` | 슬래시 커맨드 변환 |
 | `onWikiLinkClick` | `(href: string) => void` | 위키 링크 클릭 핸들러 |
 | `wikiLinkItems` | `(params: { query: string }) => WikiLinkItem[] \| Promise<WikiLinkItem[]>` | `[[` 입력 시 페이지 제안. 고른 항목의 `id`가 링크 대상 |
-| `onImageUpload` | `(file: File) => Promise<string \| { src: string }>` | 이미지 업로드 핸들러. 반환 URL은 안전성 검사를 통과해야 저장됩니다 |
+| `onImageUpload` | `(file: File, context: ImageUploadContext) => Promise<string \| { src: string }>` | `context.signal`을 업로드 요청에 전달하세요. 안전한 URL만 문서에 저장됩니다. [업로드 예시](/image-editor) |
 | `imageBlock` | `Omit<Partial<ImageBlockOptions>, 'onUpload' \| 'HTMLAttributes'>` | 이미지 블록 설정. 업로드는 `onImageUpload`로 연결합니다 |
 | `comment` | `CommentConfig` | 댓글 기능 설정 (미지정 시 꺼짐) |
 | `bookmark` | `false \| { onResolveBookmark? }` | 북마크 기능 설정 |
@@ -41,17 +42,13 @@ import '@inkio/editor/style.css';
 | `toggleList` | `boolean` | 토글 리스트 활성화 여부 |
 | `extensions` | `ExtensionsInput` | 확장 추가/교체 |
 
-한 화면에 에디터가 여러 개면 `ariaLabel`을 각각 다르게 지정하세요. 변경 신호만 필요하면 `onCreate`로 받은 인스턴스의 `update` 이벤트를 구독하세요. `onUpdate`는 전체 JSON을 제공하므로, 대형 문서 미리보기는 구독 쪽에서 `getJSON()` 자체를 지연하는 편이 좋습니다.
+한 화면에 에디터가 여러 개면 `ariaLabel`을 각각 다르게 지정하세요. `onChange`는 같은 동기 작업의 문서 변경을 모아 에디터 인스턴스를 전달하며 JSON을 생성하지 않습니다. 필요한 시점에 `editor.getJSON()`을 호출하세요. Markdown을 등록하면 `onChange`에서도 Markdown API가 추론됩니다.
 
-**EditorUiOptions:**
+**`ui` 옵션:** 메뉴를 생략하면 프리셋 기본값을 따릅니다. `true` 또는 옵션 객체는 메뉴를 켜고 `false`는 끕니다.
 
 | 옵션 | 타입 | 설명 |
 |------|------|------|
-| `showBubbleMenu` | `boolean` | bubble menu 표시 (기본값: `true`) |
-| `showFloatingMenu` | `boolean` | floating menu 표시 (기본값: `true`) |
-| `showTableMenu` | `boolean` | table menu 표시 (기본값: `true`) |
-| `showToolbar` | `boolean` | 고정 툴바 표시 (기본값: `false`) |
-| `toolbar` | `Omit<ToolbarProps, 'editor'>` | 툴바 액션, 추가 JSX, 클래스와 상·하단 위치 |
+| `toolbar` | `boolean \| Omit<ToolbarProps, 'editor'>` | 툴바 액션, 추가 JSX, 클래스와 상·하단 위치 |
 | `fill` | `boolean` | 부모 높이를 채우고 본문만 스크롤 (기본값: `false`) |
 | `autoresize` | `boolean` | 콘텐츠 높이에 맞게 자동 조절 (기본값: `false`). `fill`과 함께 지정하면 `fill`이 우선합니다 |
 | `bordered` | `boolean` | 기본 외곽선과 안쪽 여백 (기본값: `true`) |
@@ -59,9 +56,9 @@ import '@inkio/editor/style.css';
 | `style` | `React.CSSProperties` | 루트 엘리먼트 스타일 |
 | `messages` | `InkioMessageOverrides` | UI 메시지 오버라이드 |
 | `icons` | `Partial<InkioIconRegistry>` | 아이콘 오버라이드 |
-| `bubbleMenu` | `Omit<BubbleMenuProps, 'editor'>` | BubbleMenu 세부 옵션 |
-| `floatingMenu` | `Omit<FloatingMenuProps, 'editor'>` | FloatingMenu 세부 옵션 |
-| `tableMenu` | `Omit<TableMenuProps, 'editor'>` | TableMenu 세부 옵션 |
+| `bubbleMenu` | `boolean \| Omit<BubbleMenuProps, 'editor'>` | BubbleMenu 세부 옵션 |
+| `floatingMenu` | `boolean \| Omit<FloatingMenuProps, 'editor'>` | FloatingMenu 세부 옵션 |
+| `tableMenu` | `boolean \| Omit<TableMenuProps, 'editor'>` | TableMenu 세부 옵션 |
 
 ```tsx
 export function EditorPage() {
@@ -72,8 +69,7 @@ export function EditorPage() {
         { id: query || 'inkio', label: `#${query || 'inkio'}` },
       ]}
       mentionItems={async ({ query }) => searchUsers(query)}
-      onImageUpload={async (file) => URL.createObjectURL(file)}
-      ui={{ showBubbleMenu: true, showFloatingMenu: true, fill: true }}
+      ui={{ bubbleMenu: true, floatingMenu: true, fill: true }}
     />
   );
 }
@@ -99,17 +95,18 @@ import '@inkio/simple/style.css';
 | `locale` | `InkioLocaleInput` | 로케일 |
 | `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 부모 환경을 따름) |
 | `tabBehavior` | `'indent' \| 'default'` | Tab 키 동작 (`'indent'`는 입력, Esc로 에디터를 벗어남. `'default'`는 포커스 이동) |
+| `onChange` | `(editor: InkioEditor) => void` | 문서 변경 시 최신 인스턴스 전달 |
 | `onUpdate` | `(content: JSONContent) => void` | 콘텐츠 변경 콜백 |
-| `onCreate` | `(editor: TiptapEditor) => void` | 에디터 인스턴스 준비 콜백 |
+| `onCreate` | `(editor: InkioEditor) => void` | 에디터 인스턴스 준비 콜백 |
 | `onError` | `InkioErrorHandler` | 에러 핸들러 |
-| `onImageUpload` | `(file: File) => Promise<string \| { src: string }>` | 이미지 업로드 핸들러. 반환 URL은 안전성 검사를 통과해야 저장됩니다 |
+| `onImageUpload` | `(file: File, context: ImageUploadContext) => Promise<string \| { src: string }>` | `context.signal`을 업로드 요청에 전달하세요. 안전한 URL만 문서에 저장됩니다. [업로드 예시](/image-editor) |
 | `imageBlock` | `Omit<Partial<ImageBlockOptions>, 'onUpload' \| 'HTMLAttributes'>` | 이미지 블록 설정. 업로드는 `onImageUpload`로 연결합니다 |
-| `ui` | `SimpleEditorUiOptions` | UI 옵션 |
+| `ui` | `EditorProps['ui']` | UI 옵션 |
 | `extensions` | `ExtensionsInput` | 확장 추가/교체 |
 
-**SimpleEditorUiOptions** (`@inkio/simple`):
+**`ui` 옵션** (`@inkio/simple`):
 
-`showToolbar` (기본값: `true`), `showBubbleMenu`, `showFloatingMenu`, `showTableMenu`, `fill`, `autoresize`, `bordered`, `className`, `style`, `messages`, `icons`, `toolbar`, `bubbleMenu`, `floatingMenu`, `tableMenu`
+`fill`, `autoresize`, `bordered`, `className`, `style`, `messages`, `icons`, `toolbar`, `bubbleMenu`, `floatingMenu`, `tableMenu`
 
 ---
 
@@ -118,11 +115,11 @@ import '@inkio/simple/style.css';
 | Prop | @inkio/editor | @inkio/simple |
 |------|:---:|:---:|
 | `content` | O | O |
-| `onUpdate`, `onCreate`, `onError` | O | O |
-| `ui.showToolbar` | O (기본 off) | O (기본 on) |
-| `ui.showBubbleMenu` | O (기본 on) | O (기본 off) |
-| `ui.showFloatingMenu` | O (기본 on) | O (기본 off) |
-| `ui.showTableMenu` | O (기본 on) | O (기본 on) |
+| `onChange`, `onUpdate`, `onCreate`, `onError` | O | O |
+| `ui.toolbar` | O (기본 off) | O (기본 on) |
+| `ui.bubbleMenu` | O (기본 on) | O (기본 off) |
+| `ui.floatingMenu` | O (기본 on) | O (기본 off) |
+| `ui.tableMenu` | O (기본 on) | O (기본 on) |
 | `hashtagItems` | O | - |
 | `mentionItems` | O | - |
 | `slashCommands` | O | - |
@@ -156,20 +153,17 @@ import { Viewer } from '@inkio/editor';
 | `ui` | `{ className?, style?, bordered?, messages?, icons? }` | UI 옵션 |
 | `comment` | `ViewerCommentOptions` | 댓글 표시 설정 (미지정 시 꺼짐) |
 | `extensions` | `ExtensionsInput` | 확장 추가/교체 |
-| `onCreate` | `(editor: TiptapEditor) => void` | 에디터 인스턴스 준비 콜백 |
+| `onCreate` | `(editor: InkioEditor) => void` | 에디터 인스턴스 준비 콜백 |
 
 **ViewerCommentOptions:**
 
 ```ts
 {
   getComments: (commentId: string) => CommentData | null;
-  onReply?: (commentId: string, text: string) => void;
-  onResolve?: (commentId: string) => void;
 }
 ```
 
-`onReply`와 `onResolve`는 타입에 있지만 현재 내장 Viewer 팝오버는 읽기 전용이라
-호출하지 않습니다. 댓글을 작성하거나 변경할 화면에는 편집 가능한 `Editor`를 쓰거나,
+내장 Viewer 팝오버는 댓글을 표시하기만 합니다. 댓글을 작성하거나 변경할 화면에는 편집 가능한 `Editor`를 쓰거나,
 앱이 권한을 검사하는 별도 댓글 UI를 연결하세요.
 
 ```tsx
@@ -196,7 +190,7 @@ import { Viewer } from '@inkio/simple';
 | `theme` | `'light' \| 'dark'` | 색상 테마 (미지정 시 부모 환경을 따름) |
 | `ui` | `{ className?, style?, bordered?, messages?, icons? }` | UI 옵션 |
 | `extensions` | `ExtensionsInput` | 확장 추가/교체 |
-| `onCreate` | `(editor: TiptapEditor) => void` | 읽기 전용 에디터 인스턴스 준비 콜백 |
+| `onCreate` | `(editor: InkioEditor) => void` | 읽기 전용 에디터 인스턴스 준비 콜백 |
 
 Viewer에서는 문서 편집 액션이 비활성화됩니다. 콜아웃 색상/아이콘 툴바와
 블록 핸들은 표시되지 않고, 할 일(체크박스)·이미지 컨트롤도 상태를
@@ -204,9 +198,9 @@ Viewer에서는 문서 편집 액션이 비활성화됩니다. 콜아웃 색상/
 
 ### @inkio/core — StaticViewer (읽기 전용 경량 경로)
 
-댓글·선택 같은 인터랙션이 필요 없는 목록/미리보기에는 `StaticViewer`를
-사용하세요. Tiptap 인스턴스를 마운트하지 않고 살균된 정적 HTML만 렌더링하므로
-`<Viewer>` 대비 번들이 가볍습니다.
+댓글·선택 같은 인터랙션이 필요 없는 목록이나 미리보기에는 `StaticViewer`를 사용하세요.
+기본 문서 스키마로 정화된 HTML을 렌더링하며, 편집기 인스턴스·편집 전용 노드 뷰·코드 하이라이터는 가져오지 않습니다.
+텍스트 색상·강조·정렬, 열린 토글과 콜아웃 서식은 유지합니다. 임의의 인라인 CSS를 그대로 출력하지는 않습니다.
 
 ```tsx
 import { StaticViewer } from '@inkio/core/static';
@@ -223,9 +217,9 @@ import { StaticViewer } from '@inkio/core/static';
 인터랙티브 UI가 없고 에디터 인스턴스가 존재하지 않기 때문입니다.
 인터랙티브 읽기 전용(댓글 등)이 필요하면 `<Viewer>`를 사용하세요.
 
-core 스키마에 없는 노드를 담은 콘텐츠(댓글·멘션·북마크 등 advanced 확장
-타입)는 빈 셀로 폴백됩니다. 그런 콘텐츠를 정적으로 렌더링하려면 해당
-스키마를 `extensions`로 전달하세요.
+JSON에 등록되지 않은 노드나 마크가 있으면 해당 부분만 생략되는 것이 아니라
+문서 전체가 빈 문단으로 표시될 수 있습니다. 멘션·댓글 같은 advanced 콘텐츠를
+정적으로 렌더링하려면 작성할 때 사용한 스키마를 `extensions`로 전달하세요.
 
 ---
 
@@ -242,7 +236,7 @@ Inkio는 두 가지 목차 옵션을 제공합니다.
 ```tsx
 import { getExtensions } from '@inkio/core';
 
-const extensions = getExtensions({ tocBlock: false });
+const extensions = { items: getExtensions({ tocBlock: false }), replace: true };
 ```
 
 자세한 내용은 [TocBlock 확장](/extensions#tocblock-인라인-목차)을 참고하세요.
@@ -255,8 +249,7 @@ const extensions = getExtensions({ tocBlock: false });
 
 ```tsx
 import { ToC } from '@inkio/editor';
-// 또는
-import { ToC } from '@inkio/core';
+// @inkio/core에서도 ToC를 가져올 수 있습니다.
 ```
 
 | Prop | 타입 | 기본값 | 설명 |
@@ -298,6 +291,7 @@ function MyEditor() {
 |------|-----------|------|
 | `@inkio/editor/style.css` | 전체 스타일 (advanced 프리셋 포함) | 일반 사용 |
 | `@inkio/simple/style.css` | core 스타일만 | classic 에디터 |
+| `@inkio/advanced/style.css` | 블록 핸들·멘션·북마크·댓글 등 확장 스타일 | core나 classic 프리셋에 확장을 직접 추가할 때 |
 | `@inkio/editor/minimal.css` | 공통 토큰·기본 구조. 전체 본문·메뉴 외형과 advanced UI 스타일은 제외 | 직접 스타일링 |
 | `@inkio/simple/minimal.css` | 공통 토큰·기본 구조 | 직접 스타일링 |
 
@@ -305,9 +299,9 @@ function MyEditor() {
 
 | 조합 | import | 비고 |
 |------|--------|------|
-| `@inkio/simple` 단독 | `simple/style.css` | — |
-| `@inkio/editor` 단독 | `editor/style.css` | advanced 장식 포함 |
-| `core` + `advanced` 직접 조합 | `core/style.css` 또는 `editor/style.css` 중 하나 | 블록 핸들·멘션 등 advanced 스타일이 필요하면 core까지 포함한 `editor/style.css`를 사용 |
+| `@inkio/simple` 단독 | `@inkio/simple/style.css` | — |
+| `@inkio/editor` 단독 | `@inkio/editor/style.css` | advanced 장식 포함 |
+| `core` + `advanced` 직접 조합 | `@inkio/core/style.css` → `@inkio/advanced/style.css` | `@inkio/editor/style.css`에는 둘 다 포함되어 있으므로 중복으로 가져오지 않습니다 |
 | `image-editor` (단독·연결 공통) | `@inkio/image-editor/style.css` + 본문 프리셋 CSS 또는 `@inkio/core/minimal.css` | 본문 공통 토큰도 필요 |
 | `collab` (`CollabPresence`) | 불필요 | 인라인 스타일만 사용 |
 | 커스텀 테마 | `style.css` + 토큰 override, 또는 `minimal.css` + 자체 CSS | `minimal.css`는 전체 외형을 대신하지 않습니다 |
@@ -332,7 +326,7 @@ import '@inkio/editor/minimal.css';
 | 아이콘 | `ui.icons` | `Partial<InkioIconRegistry>`, 일부만 교체 가능. 에디터가 그리는 모든 아이콘에 적용되고, 토글 화살표만 `--inkio-toggle-chevron` CSS 변수로 바꿉니다 |
 | 색상·폰트·간격 | `ui.className`/`ui.style` + CSS 변수 (`--inkio-*`) | `style.css`에서도 토큰을 덮어쓸 수 있습니다. 기본 외형을 빼려면 `minimal.css`를 가져오고 나머지는 직접 스타일링합니다. |
 | 전체 테마 | `theme` prop 또는 CSS | `'light'`/`'dark'`, 미지정 시 부모 추종 |
-| 메뉴 표시 | `ui.show*` | 프리셋별 기본값은 위 표 참고. 두 프리셋 모두 기본 툴바를 켤 수 있습니다. |
+| 메뉴 표시 | `ui.toolbar`, `ui.bubbleMenu`, `ui.floatingMenu`, `ui.tableMenu` | 각 메뉴에 `true`나 `false`를 지정합니다. 저수준 `@inkio/core` Editor는 별도의 최상위 `showToolbar`, `showBubbleMenu`, `showFloatingMenu`, `showTableMenu` props를 사용합니다. |
 | 메뉴 도구·순서 | `toolbar.items`, `bubbleMenu.items`, `floatingMenu.items` | 기본 목록에서 빼기·재정렬·액션 추가. Toolbar/BubbleMenu는 `children`으로 별도 버튼도 받습니다. |
 | 메뉴 배치 | `toolbar.placement`, `bubbleMenu.position`, `floatingMenu.position`, `tableMenu.position` | 고정 툴바는 본문 위·아래, 팝업은 기준점 주변의 방향·정렬·간격 설정 |
 | 본문 외곽·높이 | `ui.bordered`, `ui.fill`, `ui.autoresize` | 메뉴의 내부 DOM과 기본 위치 계산은 프리셋이 소유합니다. |
@@ -349,7 +343,6 @@ import '@inkio/editor/minimal.css';
 ```tsx
 <Editor
   ui={{
-    showToolbar: true,
     toolbar: { placement: 'bottom' },
     bubbleMenu: { position: { placement: 'bottom', offset: 12, boundary: 'viewport' } },
     floatingMenu: { position: { placement: 'right', align: 'start' } },
@@ -374,7 +367,6 @@ FloatingMenu에는 `items`만, TableMenu에는 둘 다 없습니다.
 ```tsx
 <Editor
   ui={{
-    showToolbar: true,
     toolbar: {
       placement: 'bottom',
       items: (defaults) => defaults.filter(({ id }) => id !== 'link'),
@@ -434,8 +426,8 @@ export function Page() {
     <Editor
       ui={{
         messages,
-        showBubbleMenu: true,
-        showFloatingMenu: true,
+        bubbleMenu: true,
+        floatingMenu: true,
         fill: true,
       }}
     />

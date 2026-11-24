@@ -13,7 +13,7 @@ export default defineConfig(({ command }) => ({
           dts({
             include: ['src'],
             entryRoot: 'src',
-            compilerOptions: { rootDir: resolve(__dirname, 'src'), paths: {} },
+            compilerOptions: { rootDir: resolve(import.meta.dirname, 'src'), paths: {} },
             exclude: [
               'src/**/__tests__/**',
               'src/**/*.test.ts',
@@ -34,22 +34,24 @@ export default defineConfig(({ command }) => ({
       ...(command === 'build'
         ? []
         : [
-            { find: /^@inkio\/core$/, replacement: resolve(__dirname, '../core/src/index.ts') },
+            { find: /^@inkio\/core$/, replacement: resolve(import.meta.dirname, '../core/src/index.ts') },
           ]),
-      { find: '@', replacement: resolve(__dirname, 'src') },
+      { find: '@', replacement: resolve(import.meta.dirname, 'src') },
     ],
   },
   build: {
     outDir: process.env.INKIO_VITE_OUT_DIR ?? 'dist',
     lib: {
       entry: {
-        index: resolve(__dirname, 'src/index.ts'),
+        index: resolve(import.meta.dirname, 'src/index.ts'),
+        vite: resolve(import.meta.dirname, 'src/vite.ts'),
       },
       name: 'InkioCollab',
       formats: ['es', 'cjs'],
     },
     rollupOptions: {
       external: (id) => {
+        if (id.startsWith('node:')) return true;
         if (id === 'react' || id.startsWith('react/')) return true;
         if (id === 'react-dom' || id.startsWith('react-dom/')) return true;
         if (id.startsWith('@tiptap/')) return true;

@@ -1,50 +1,79 @@
 # 직렬화
 
-기본 직렬화 유틸리티는 `@inkio/editor`와 `@inkio/simple`에서 다시 export합니다.
+## 에디터 인스턴스에서 읽기
 
-```tsx
-import { toPlainText, toSummary, getContentStats } from '@inkio/editor';
-import { extractMentions, extractHashtags } from '@inkio/advanced';
+`Editor`의 `onCreate`와 `onChange`는 현재 에디터 인스턴스를 넘겨줍니다. `getJSON()` 없이 문서 값을 읽을 수 있습니다. 인스턴스를 보관할 때는 원본 `TiptapEditor` 대신 프리셋의 `InkioEditor` 타입을 쓰세요.
+
+```ts
+editor.text          // 일반 텍스트
+editor.stats         // { words, chars, blocks }
+editor.summary(80)   // 말줄임표를 포함해 최대 80자
+editor.mentions      // [{ id: 'u1', label: 'Alice' }]
+editor.hashTags      // ['inkio', 'editor']
+editor.headings      // [{ id, level, text, index }]
+editor.commentIds    // 본문이 참조하는 스레드 ID. 댓글 데이터나 접근 권한이 아님
 ```
 
-## `@inkio/core` 유틸리티
+`text`에는 멘션과 태그가 화면에 표시되는 `@Ada`, `#inkio` 형태로 들어갑니다. 반대로 `mentions`와 `hashTags`는 실제 노드에서만 읽으므로 직접 입력한 `@Ada`는 멘션 목록에 들어가지 않습니다. 같은 문서에서 getter를 다시 읽으면 계산 결과를 재사용합니다. 글자 수를 화면에 표시하려면 `onChange={(editor) => setCount(editor.stats.chars)}`처럼 변경 시점에 읽으세요.
 
-`@inkio/editor`와 `@inkio/simple`에서 다시 export하며, 모두 `JSONContent`를 입력으로 받습니다.
+`summary()`의 기본 한도는 140입니다. `stats.chars`처럼 JavaScript 문자열 길이(UTF-16) 기준이며 `...`도 한도에 포함합니다.
 
-| 함수 | 시그니처 | 설명 |
-|------|----------|------|
-| `toPlainText` | `(content) => string` | 모든 텍스트를 추출해 하나의 일반 텍스트 문자열로 반환합니다. 연속 공백/줄바꿈은 정리되고 앞뒤 공백은 제거됩니다. |
-| `toSummary` | `(content, maxLength = 140) => string` | `toPlainText` 결과를 `maxLength`까지 잘라낸 요약을 반환합니다. 길이를 초과하면 끝에 `...`이 붙습니다. |
-| `getContentStats` | `(content) => { words: number; chars: number; blocks: number }` | 단어 수, 문자 수, 블록 수를 담은 객체를 반환합니다. `words`/`chars`는 일반 텍스트 기준입니다. |
+## 인스턴스 없이 저장된 JSON 읽기
 
-```tsx
-const summary = toSummary(content, 80);
-const { words, chars, blocks } = getContentStats(content);
+`read(json)`은 이미 메모리에 있는 `JSONContent`를 읽습니다. 파일이나 네트워크에 접근하지 않고, 에디터 없이도 같은 문서 값을 제공하는 읽기 전용 `InkioDocument`를 반환합니다. `@inkio/editor`, `@inkio/simple`, `@inkio/core`의 패키지 루트에서 가져올 수 있습니다.
+
+```ts
+import { read } from '@inkio/editor';
+
+const doc = read({
+  type: 'doc',
+  content: [{
+    type: 'heading',
+    attrs: { level: 2 },
+    content: [{ type: 'mention', attrs: { id: 'u1', label: 'Ada' } }],
+  }],
+});
+
+doc.text             // '@Ada'
+doc.stats.chars      // 4
+doc.summary(80)      // '@Ada'
+doc.mentions         // [{ id: 'u1', label: 'Ada' }]
+doc.hashTags         // []
+doc.headings[0].text // '@Ada'
+doc.commentIds       // []
 ```
 
-## `@inkio/advanced` 유틸리티
+값은 필요할 때 계산하므로 같은 JSON에서 여러 값을 읽을 때는 `doc`을 재사용하세요. 결과는 이 객체에 캐시됩니다. 입력 JSON은 중첩 노드까지 변경하지 말고, 문서가 바뀌면 새 JSON으로 `read(nextJson)`을 호출하세요. 라이브 에디터가 있다면 `read(editor.getJSON())` 대신 `editor.text`처럼 직접 읽으면 됩니다.
 
-| 함수 | 시그니처 | 설명 |
-|------|----------|------|
-| `extractMentions` | `(content) => Array<{ id: string; label: string }>` | 문서에 포함된 멘션 노드를 추출합니다. `id`/`label` 조합이 같은 항목은 중복 제거됩니다. |
-| `extractHashtags` | `(content) => string[]` | 문서에 포함된 해시태그 라벨을 추출합니다. 선행 `#`는 제거되며 중복도 제거됩니다. |
+## Markdown 읽고 쓰기
 
-```tsx
-const mentions = extractMentions(content); // [{ id: 'u1', label: 'Alice' }]
-const tags = extractHashtags(content);     // ['inkio', 'editor']
-```
-
-Markdown import/export는 별도 subpath로 제공합니다. 패키지 루트에서는
-re-export하지 않으므로(에디터 번들에 `remark/unified`가 딸려오지 않게),
-반드시 subpath로 import하세요.
+`Markdown`을 `extensions`에 등록하면 `onCreate`로 받는 에디터에서 바로 읽고 쓸 수 있습니다. `@inkio/simple`에서는 `@inkio/simple/markdown`에서 가져오세요.
+`@inkio/core`의 `Editor`에서도 `extensions={[Markdown]}`은 기본 확장에 `Markdown`을 추가합니다. 기본 확장 목록을 다시 넘길 필요는 없습니다.
 
 ```tsx
-import { parseMarkdown, stringifyMarkdown } from '@inkio/editor/markdown';
-// 또는 '@inkio/simple/markdown', '@inkio/core/markdown'
+import { Editor } from '@inkio/editor';
+import { Markdown } from '@inkio/editor/markdown';
+
+<Editor
+  extensions={[Markdown]}
+  onCreate={(editor) => {
+    if (editor.setMarkdown('## 제목')) {
+      console.log(editor.markdown); // '## 제목'
+    }
+  }}
+/>
 ```
+
+`setMarkdown(source)`는 현재 문서를 교체합니다. 입력 제한을 넘거나 에디터 스키마에서 지원하지 않는 내용이면 `false`를 반환하고 기존 문서를 유지합니다.
+
+확장 목록을 변수로 빼면 `const extensions = [Markdown] as const`로 선언하세요. TypeScript가 플러그인 등록 여부를 알 수 있어 `onCreate`에서도 별도 타입 단언이 필요 없습니다.
+
+초기 문서만 불러온다면 `content={parseMarkdown(source)}`를 쓰세요. 에디터 없이 변환할 때는 같은 `/markdown` 진입점의 `parseMarkdown`, `stringifyMarkdown`을 사용합니다. 패키지 루트만 쓰는 화면에는 Markdown 파서가 포함되지 않습니다.
+
+`parse`와 `stringify`를 하나의 객체로 전달하려면 `createMarkdownAdapter()`를 사용하세요. 이 함수는 인자를 받지 않으며 에디터의 확장 목록은 독립 변환 결과에 영향을 주지 않습니다.
 
 일반 텍스트로 복사한 Markdown을 문서 구조로 붙여넣으려면 `MarkdownPaste`를 추가하세요.
-HTML이 함께 복사된 경우, 코드 블록 안, 서식 없이 붙여넣기에서는 원문을 유지합니다.
+HTML이 함께 복사된 경우, 코드 블록 안, 서식 없이 붙여넣기에서는 Markdown 변환을 건너뛰고 기본 붙여넣기 동작을 따릅니다.
 
 ```tsx
 import { MarkdownPaste } from '@inkio/editor/markdown';
@@ -52,8 +81,10 @@ import { MarkdownPaste } from '@inkio/editor/markdown';
 <Editor extensions={[MarkdownPaste]} />
 ```
 
-Markdown round-trip은 `core` 범위까지만 보장합니다.
+Markdown은 지원하는 문서 구조만 왕복합니다. core 서식도 모두 보존되지는 않습니다. 예를 들어 글자색과 정렬은 사라지므로 원본을 그대로 보관하려면 JSON을 저장하세요.
 구현은 `remark/unified` 기반이며 HTML bridge를 사용하지 않습니다.
+인라인 목차 블록은 `::toc`로 저장하고, 깊이 설정이 있으면 `::toc{maxLevel="4"}`처럼 보존합니다.
+`[가이드][docs]` 같은 참조형 링크와 이미지도 정의를 찾아 가져옵니다. 알 수 없는 `:이름`이나 `:::블록` 구문은 본문에서 지우지 않고 원문 텍스트로 남깁니다.
 
 지원하지 않는 이미지 URL은 텍스트로 남기고 나머지 문서를 보존합니다.
 외부에서 받은 Markdown은 입력 크기를 제한하고, 가져오기가 실패하면 저장 문서로 덮어쓰지
@@ -68,6 +99,6 @@ GFM 표에는 셀 병합이 없습니다. 병합한 표는 빈 칸으로 열 위
 |------|----------|----------|
 | 멘션 | `@라벨` 텍스트 | 텍스트 유지 (이메일 오인식 방지) |
 | 해시태그 | `#라벨` 텍스트 | 텍스트 유지 |
-| 위키링크 | `[[이름]]` | 위키링크 노드 복원 (완전 왕복) |
+| 위키링크 | `[[이름]]` (`label` 우선, 없으면 `href`) | 허용된 이름을 `href`로 복원합니다. 서로 다른 라벨과 대상은 구분해 보존하지 않습니다. |
 | 북마크 | `[제목](URL)` 링크 | 링크 (카드 복원 안 됨) |
 | 댓글 | 버려짐 (마크 제거, 텍스트 유지) | — (스레드는 서버에 별도 저장) |

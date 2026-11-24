@@ -1,25 +1,29 @@
 # i18n & Locale
 
-Inkio는 `locale`과 `messages` prop으로 UI 문구를 제어합니다.
+`@inkio/editor`와 `@inkio/simple`에서는 `locale`과 `ui.messages`로 UI 문구를 제어합니다. 저수준 `@inkio/core` Editor는 `messages`를 최상위 prop으로 받습니다.
 
 ## locale 입력
 
-- 문자열: `en`, `ko-KR`
-- Accept-Language 문자열
-- 배열
-- `Intl.Locale`
-- locale-like object
+`locale` prop은 `en`, `ko-KR` 같은 언어 태그 또는 `ko-KR, en;q=0.8` 같은
+Accept-Language **문자열**을 받습니다. 배열·`Intl.Locale`·locale-like 객체는
+그대로 prop에 넘기지 말고 `pickMessageLocale`로 지원 언어를 선택하세요.
+
+```tsx
+import { Editor, pickMessageLocale } from '@inkio/editor';
+
+<Editor locale={pickMessageLocale(['fr', 'ko-KR'], ['en', 'ko'])} />
+```
 
 > 내장 메시지셋은 `en`·`ko`를 제공합니다 (`koCoreMessages`,
 > `koCommentMessages`, `koImageEditorMessages`). 그 외 로케일을 지정하면
 > 타입은 통과하지만 실제 문구는 영어(`en`)로 폴백됩니다. 더 세밀한
-> 조정은 `messages` 오버라이드를 쓰세요.
+> 조정은 프리셋의 `ui.messages` 오버라이드를 쓰세요.
 
 슬래시 메뉴의 기본 명령과 `@`, `#`, `/`, `[[` 제안 창의 머리말(슬래시 메뉴에는 없음)·빈 상태 문구도
 `locale`을 따르며, 기본 명령은 그 언어의 이름으로 검색됩니다(`/표`). 명령 `id`로도 찾을 수
 있습니다(`/table`). `slashCommands`로 직접 준 항목은 그대로 표시됩니다.
 
-`locale`, `messages`, `placeholder` prop을 바꾸면 열려 있는 편집기에 바로 반영되고, 문서·커서·실행
+프리셋의 `locale`, `ui.messages`, `placeholder`를 바꾸면 열려 있는 편집기에 바로 반영되고, 문서·커서·실행
 취소 기록은 그대로입니다. `useInkioEditor`로 직접 만든 편집기는 `setEditorUi`를 부르세요.
 
 ```ts

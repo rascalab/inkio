@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@inkio/advanced": "workspace:*",
+    "@inkio/core": "workspace:*",
     "@inkio/editor": "workspace:*",
     "@inkio/image-editor": "workspace:*",
     "next": "^16.4.6",

@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 
+import { once } from 'node:events';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { flushSync } from 'react-dom';
 import { ImageEditor } from '../ImageEditor';
-import type { ImageEditorCustomTool, ImageEditorToolActions } from '../types';
+import { ImageEditorModal } from '../ImageEditorModal';
+import type { ImageEditorCustomTool, ImageEditorProps, ImageEditorToolActions } from '../types';
 
 const { exportCanvasMock, loadImageMock } = vi.hoisted(() => ({
   exportCanvasMock: vi.fn(),
@@ -21,6 +24,15 @@ vi.mock('../utils/export-canvas', () => ({
 vi.mock('../canvas/EditorCanvas', () => ({
   EditorCanvas: () => <div data-testid="inkio-ie-canvas-mock" />,
 }));
+
+// Keep dialog content mounted on close, as Radix does until an exit animation ends.
+vi.mock(import('@radix-ui/react-dialog'), async (importOriginal) => {
+  const dialog = await importOriginal();
+  return {
+    ...dialog,
+    Portal: (props: Parameters<typeof dialog.Portal>[0]) => <dialog.Portal {...props} forceMount />,
+  };
+});
 
 class ResizeObserverMock {
   observe = vi.fn();
@@ -186,6 +198,21 @@ describe('ImageEditor image loading', () => {
     expect(screen.getByTestId('inkio-ie-root').dataset.debugFilter).toBe('sepia');
   });
 
+  it('shows the pending export dimensions when cropping a previously resized image', async () => {
+    const custom: ImageEditorCustomTool = {
+      id: 'half-size', label: 'Half size', renderControls: ({ actions }) => (
+        <button type="button" onClick={() => actions.setOutputSize({ width: 320, height: 240 })}>Reduce</button>
+      ),
+    };
+    render(<ImageEditor src="first-image" onSave={vi.fn()} onCancel={vi.fn()} tools={[custom, 'resize']} defaultTool={custom.id} />);
+    const reduce = await screen.findByRole('button', { name: 'Reduce' });
+    await waitFor(() => expect(reduce.closest('fieldset')?.disabled).toBe(false));
+    fireEvent.click(reduce);
+    fireEvent.click(screen.getByTestId('inkio-ie-tool-resize'));
+    fireEvent.click(screen.getByTestId('inkio-ie-crop-preset-1-1'));
+    expect(screen.getByTestId('inkio-ie-scale-size').textContent).toBe('240 × 240 px');
+  });
+
   it('disables tools during saving and ignores retained actions after switching tools', async () => {
     let retainedActions: ImageEditorToolActions | undefined;
     let releaseSave: (() => void) | undefined;
@@ -219,6 +246,87 @@ describe('ImageEditor image loading', () => {
     fireEvent.click(rotate);
     act(() => retainedActions?.setFilter('sepia'));
     expect(root.dataset.debugFilter).toBe('grayscale');
+  });
+
+  it.each(['source change', 'controlled close'])('cancels modal blob persistence on %s without a late close', async (reason) => {
+    const blob = new Blob(['full']);
+    const preview = new Blob(['preview']);
+    exportCanvasMock.mockResolvedValue({ blob, preview });
+    const transport = new EventTarget();
+    const onAbort = vi.fn();
+    const onSaveBlob = vi.fn<NonNullable<ImageEditorProps['onSaveBlob']>>(async (_, __, signal) => {
+      signal.addEventListener('abort', onAbort, { once: true });
+      // One transport honors cancellation; the other finishes despite the abort.
+      if (reason === 'controlled close') {
+        await once(signal, 'abort');
+        throw signal.reason;
+      }
+      await once(transport, 'complete');
+    });
+    const onClose = vi.fn();
+    const props = { onSaveBlob, savePreview: true, onClose, onSave: vi.fn(), tools: ['rotate'] as const };
+    const { rerender } = render(<ImageEditorModal {...props} isOpen imageSrc="/first" />);
+    await waitFor(() => expect(screen.getByTestId('inkio-ie-root').dataset.debugImageWidth).toBe('640'));
+    fireEvent.click(screen.getByTestId('inkio-ie-rotate-cw'));
+    fireEvent.click(screen.getByTestId('inkio-ie-save'));
+    await waitFor(() => expect(onSaveBlob).toHaveBeenCalledExactlyOnceWith(blob, preview, expect.any(AbortSignal)));
+
+    if (reason === 'source change') {
+      rerender(<ImageEditorModal {...props} isOpen imageSrc="/second" />);
+    } else {
+      rerender(<ImageEditorModal {...props} isOpen={false} imageSrc="/first" />);
+      expect(screen.getByTestId('inkio-ie-modal-content').dataset.state).toBe('closed');
+    }
+    expect(onAbort).toHaveBeenCalledOnce();
+    await act(async () => { transport.dispatchEvent(new Event('complete')); });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('locks a pending modal save and leaves its signal live when success closes the editor', async () => {
+    const transport = new EventTarget();
+    const onSave = vi.fn<ImageEditorProps['onSave']>(async () => { await once(transport, 'complete'); });
+    const onClose = vi.fn(() => flushSync(() => unmount()));
+    const { unmount } = render(<ImageEditorModal isOpen imageSrc="/demo" onSave={onSave} onClose={onClose} tools={['rotate']} />);
+    await waitFor(() => expect(screen.getByTestId('inkio-ie-root').dataset.debugImageWidth).toBe('640'));
+    fireEvent.click(screen.getByTestId('inkio-ie-rotate-cw'));
+    fireEvent.click(screen.getByTestId('inkio-ie-close'));
+    fireEvent.click(screen.getByTestId('inkio-ie-save'));
+    await waitFor(() => expect(onSave).toHaveBeenCalledExactlyOnceWith('data:image/png;base64,edited', expect.any(AbortSignal)));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('inkio-ie-discard-confirm')).toBeNull();
+    await act(async () => { transport.dispatchEvent(new Event('complete')); });
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onSave.mock.calls[0][1].aborted).toBe(false);
+  });
+
+  it('closes an unchanged image without uploading it', async () => {
+    const onClose = vi.fn();
+    const onSave = vi.fn();
+    render(<ImageEditorModal isOpen imageSrc="/demo" onSave={onSave} onClose={onClose} />);
+    await waitFor(() => expect(screen.getByTestId('inkio-ie-root').dataset.debugImageWidth).toBe('640'));
+    fireEvent.click(screen.getByTestId('inkio-ie-save'));
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('keeps a failed modal save open and permits retrying the edit', async () => {
+    const onClose = vi.fn();
+    const onSave = vi.fn().mockRejectedValueOnce(new Error('Upload rejected')).mockResolvedValueOnce(undefined);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      render(<ImageEditorModal isOpen imageSrc="/demo" onSave={onSave} onClose={onClose} tools={['rotate']} />);
+      await waitFor(() => expect(screen.getByTestId('inkio-ie-root').dataset.debugImageWidth).toBe('640'));
+      fireEvent.click(screen.getByTestId('inkio-ie-rotate-cw'));
+      await act(async () => { fireEvent.click(screen.getByTestId('inkio-ie-save')); });
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.getByTestId('inkio-ie-root').dataset.debugDirty).toBe('true');
+      await act(async () => { fireEvent.click(screen.getByTestId('inkio-ie-save')); });
+      expect(onSave).toHaveBeenCalledTimes(2);
+      expect(onClose).toHaveBeenCalledOnce();
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it('exposes popover controls to assistive technology inside the editor', async () => {

@@ -167,9 +167,10 @@ async function triggerButton(page: Page, testId: string) {
   await page.getByTestId(testId).click();
 }
 
-async function getRedRegion(page: Page, selector: string) {
-  return page.evaluate(async (selector) => {
-    const source = document.querySelector(selector);
+async function getRedRegion(page: Page, input: string | Buffer) {
+  return page.evaluate(async (input) => {
+    const source = typeof input === 'string' ? document.querySelector(input) : new Image();
+    if (source instanceof HTMLImageElement && typeof input !== 'string') source.src = input.png;
     if (!(source instanceof HTMLCanvasElement) && !(source instanceof HTMLImageElement)) {
       throw new TypeError('Expected a canvas or an exported image.');
     }
@@ -196,7 +197,7 @@ async function getRedRegion(page: Page, selector: string) {
       x: left / width, y: top / height,
       width: (right - left + 1) / width, height: (bottom - top + 1) / height,
     };
-  }, selector);
+  }, typeof input === 'string' ? input : { png: `data:image/png;base64,${input.toString('base64')}` });
 }
 
 async function closeModal(page: Page) {
@@ -531,6 +532,102 @@ test('desktop rail switches util panel per tool and stays open on retoggle', asy
   expect(await getStageViewportBox(page)).toEqual(stageBefore);
 });
 
+test('mobile rotate and flip show the same pixels that are saved', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 740 });
+  await waitForHarness(page);
+  await closeModal(page);
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 320;
+    canvas.height = 180;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#ff0000';
+    ctx.fillRect(0, 0, 160, 180);
+    ctx.fillStyle = '#0000ff';
+    ctx.fillRect(160, 0, 160, 180);
+    return canvas.toDataURL().split(',')[1];
+  });
+  await page.getByTestId('image-editor-e2e-photo-input').setInputFiles({
+    name: 'two-colors.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64'),
+  });
+  await expect(page.getByTestId('inkio-ie-root')).toHaveAttribute('data-debug-image-width', '320');
+  await page.getByTestId('inkio-ie-tool-rotate').click();
+  await page.getByTestId('inkio-ie-rotate-cw').click();
+  await page.getByTestId('inkio-ie-flip-horizontal').click();
+  const frame = page.getByTestId('inkio-ie-stage-frame');
+  const preview = await frame.screenshot({ animations: 'disabled', scale: 'css' });
+  await page.getByTestId('inkio-ie-save').click();
+  const saved = page.getByRole('img', { name: 'Saved image editor output' });
+  await expect(saved).toBeVisible();
+  const colors = await saved.evaluate(async (element, screenshot) => {
+    const sample = async (image: HTMLImageElement) => {
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(image, 0, 0);
+      return [0.25, 0.75].map(y => Array.from(ctx.getImageData(
+        canvas.width / 2, canvas.height * y, 1, 1,
+      ).data));
+    };
+    const image = new Image();
+    image.src = `data:image/png;base64,${screenshot}`;
+    return Promise.all([sample(image), sample(element as HTMLImageElement)]);
+  }, preview.toString('base64'));
+  expect(colors[0]).toEqual(colors[1]);
+  expect(colors[1]).toEqual([[0, 0, 255, 255], [255, 0, 0, 255]]);
+});
+
+test('a shape uses its release point when no intervening mousemove is delivered', async ({ page }) => {
+  await waitForHarness(page);
+  await page.getByTestId('inkio-ie-tool-shape').click();
+  await waitForLayoutSettle(page);
+  const stage = page.locator('[data-testid="inkio-ie-stage-frame"] .konvajs-content');
+  const box = await stage.boundingBox();
+  if (!box) throw new Error('Expected a visible stage.');
+  await stage.dispatchEvent('mousedown', { button: 0, clientX: box.x + box.width / 4, clientY: box.y + box.height / 4 });
+  await page.locator('body').dispatchEvent('mouseup', {
+    button: 0, clientX: box.x + box.width / 2, clientY: box.y + box.height / 2,
+  });
+
+  // The fixture is 560 × 360; dragging across a quarter spans 140 × 90 source pixels.
+  await expect.poll(() => getSelectedAnnotation(page)).toMatchObject({
+    type: 'rect', width: expect.closeTo(140, 0), height: expect.closeTo(90, 0),
+  });
+});
+
+test('a shape remains selectable at its painted location after rotating the photo', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 740 });
+  await waitForHarness(page);
+  await page.getByTestId('inkio-ie-tool-shape').click();
+  await page.getByTestId('inkio-ie-shape-fill-picker').click();
+  await page.getByTestId('inkio-ie-color-swatch-ef4444').click();
+  await page.keyboard.press('Escape');
+  const frame = page.getByTestId('inkio-ie-stage-frame');
+  const before = await getStageFrameBox(page);
+  await dragWithinStage(page, { x: before.width * 0.15, y: before.height * 0.2 },
+    { x: before.width * 0.35, y: before.height * 0.4 });
+  await page.getByTestId('inkio-ie-tool-rotate').click();
+  await page.getByTestId('inkio-ie-rotate-cw').click();
+  const after = await getStageFrameBox(page);
+  // A clockwise turn moves the center from (25%, 30%) to (70%, 25%).
+  const painted = await getRedRegion(page, await frame.screenshot({ scale: 'css' }));
+  expect(painted).not.toBeNull();
+  const x = painted!.x + painted!.width / 2;
+  const y = painted!.y + painted!.height / 2;
+  expect(x).toBeCloseTo(0.7, 1);
+  expect(y).toBeCloseTo(0.25, 1);
+  await frame.click({ position: { x: after.width * x, y: after.height * y } });
+  await expect(page.getByTestId('image-editor-e2e-selected-type')).toHaveText('rect');
+  await page.getByTestId('inkio-ie-save').click();
+  await expect(page.getByRole('img', { name: 'Saved image editor output' })).toBeVisible();
+  const red = await getRedRegion(page, '.image-editor-e2e-saved-image');
+  expect(red).not.toBeNull();
+  expect(red!.x + red!.width / 2).toBeCloseTo(0.7, 1);
+  expect(red!.y + red!.height / 2).toBeCloseTo(0.25, 1);
+});
+
 test('rotated resize reset preserves the full image through saving', async ({ page }) => {
   await waitForHarness(page);
   await page.getByTestId('inkio-ie-tool-rotate').click();
@@ -614,12 +711,21 @@ for (const rotatedCrop of [false, true]) {
       return red ? Math.max(Math.abs(red.x - 0.3), Math.abs(red.y - 0.3),
         Math.abs(red.width - 0.25), Math.abs(red.height - 0.25)) : Infinity;
     }).toBeLessThanOrEqual(0.003);
-    await dragWithinStage(page,
-      { x: stage.width * 0.425, y: stage.height * 0.425 },
-      { x: stage.width * 0.475, y: stage.height * 0.475 });
+    // Assert movement from the painted origin by the actual pointer delta.
+    // Fractional CSS coordinates otherwise round twice (press and release).
+    const before = (await getRedRegion(page, '.konvajs-content canvas'))!;
+    const dx = Math.round(stage.width * 0.05);
+    const dy = Math.round(stage.height * 0.05);
+    const x = Math.round(stage.x + stage.width * 0.425);
+    const y = Math.round(stage.y + stage.height * 0.425);
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + dx, y + dy, { steps: 8 });
+    await page.mouse.up();
     await expect.poll(async () => {
       const red = await getRedRegion(page, '.konvajs-content canvas');
-      return red ? Math.max(Math.abs(red.x - 0.35), Math.abs(red.y - 0.35)) : Infinity;
+      return red ? Math.max(Math.abs(red.x - before.x - dx / stage.width),
+        Math.abs(red.y - before.y - dy / stage.height)) : Infinity;
     }).toBeLessThanOrEqual(0.003);
     await page.getByTestId('inkio-ie-save').click();
     const saved = page.locator('.image-editor-e2e-saved-image');

@@ -13,7 +13,7 @@ import type {
   InkioMessageOverrides,
 } from '../i18n/messages';
 import { useInkioCoreUi } from '../context/use-inkio-ui';
-import { BubbleMenuLinkInputPopover } from './BubbleMenuLinkInputPopover';
+import { EditorLinkPopover } from './EditorLinkPopover';
 import {
   renderActionIcon,
   resolveActionLabel,
@@ -78,9 +78,7 @@ export const Toolbar = ({
 }: ToolbarProps) => {
   const [linkPopoverOpen, setLinkPopoverOpen] = useState(false);
   const [textColorOpen, setTextColorOpen] = useState(false);
-  const [currentLinkUrl, setCurrentLinkUrl] = useState('');
   const toolbarRef = useRef<HTMLDivElement | null>(null);
-  const linkPopoverContentRef = useRef<HTMLDivElement | null>(null);
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
   useEffect(() => {
     // Escape the scrolling toolbar without losing this editor's theme or overrides.
@@ -166,74 +164,27 @@ export const Toolbar = ({
 
               if (action.id === 'link') {
                 return (
-                  <Popover.Root
+                  <EditorLinkPopover
                     key={action.id}
+                    editor={editor}
+                    messages={ui.messages.linkPopover}
                     open={linkPopoverOpen}
-                    onOpenChange={(open) => {
-                      setLinkPopoverOpen(open);
-                      if (open) {
-                        setCurrentLinkUrl(String(editor.getAttributes('link').href ?? ''));
-                      } else {
-                        setCurrentLinkUrl('');
-                        // Dismissal by outside-click/Escape must not steal
-                        // focus the user already moved elsewhere: refocus
-                        // only when focus is still inside the closing popover
-                        // (or already lost to the body).
-                        const active = document.activeElement as HTMLElement | null;
-                        if (
-                          !active ||
-                          active === document.body ||
-                          linkPopoverContentRef.current?.contains(active)
-                        ) {
-                          editor.chain().focus().run();
-                        }
-                      }
-                    }}
+                    onOpenChange={setLinkPopoverOpen}
+                    container={portalContainer}
+                    side={placement === 'bottom' ? 'top' : 'bottom'}
+                    sideOffset={8}
                   >
-                    <Popover.Trigger asChild>
-                      <button
-                        type="button"
-                        className={`inkio-bubble-btn${isActive ? ' is-active' : ''}`}
-                        title={label}
-                        aria-label={label}
-                        disabled={isDisabled}
-                        onMouseDown={(event) => event.preventDefault()}
-                      >
-                        {iconNode}
-                      </button>
-                    </Popover.Trigger>
-                    <Popover.Portal container={portalContainer}>
-                      <Popover.Content
-                        ref={linkPopoverContentRef}
-                        sideOffset={8}
-                        side={placement === 'bottom' ? 'top' : 'bottom'}
-                        className={portalContentClassName}
-                        onOpenAutoFocus={(event) => event.preventDefault()}
-                      >
-                        <BubbleMenuLinkInputPopover
-                          initialUrl={currentLinkUrl}
-                          placeholder={ui.messages.linkPopover.placeholder}
-                          cancelLabel={ui.messages.linkPopover.cancel}
-                          saveLabel={ui.messages.linkPopover.save}
-                          invalidUrlLabel={ui.messages.linkPopover.invalidUrl}
-                          onSave={(url) => {
-                            if (currentLinkUrl) {
-                              editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
-                            } else {
-                              editor.chain().focus().setLink({ href: url }).run();
-                            }
-                            setLinkPopoverOpen(false);
-                            setCurrentLinkUrl('');
-                          }}
-                          onCancel={() => {
-                            setLinkPopoverOpen(false);
-                            setCurrentLinkUrl('');
-                            editor.chain().focus().run();
-                          }}
-                        />
-                      </Popover.Content>
-                    </Popover.Portal>
-                  </Popover.Root>
+                    <button
+                      type="button"
+                      className={`inkio-bubble-btn${isActive ? ' is-active' : ''}`}
+                      title={label}
+                      aria-label={label}
+                      disabled={isDisabled}
+                      onMouseDown={(event) => { if (!linkPopoverOpen) event.preventDefault(); }}
+                    >
+                      {iconNode}
+                    </button>
+                  </EditorLinkPopover>
                 );
               }
 

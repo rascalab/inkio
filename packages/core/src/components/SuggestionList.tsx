@@ -41,7 +41,7 @@ export interface SuggestionListRef {
 
 // Inline Styles removed: using classes from styles-full.css
 
-export function SuggestionList({
+export const SuggestionList = React.forwardRef<SuggestionListRef, SuggestionListProps>(function SuggestionList({
   items,
   command,
   renderItem,
@@ -49,8 +49,7 @@ export function SuggestionList({
   header,
   locale,
   messages,
-  ref,
-}: SuggestionListProps & { ref?: React.Ref<SuggestionListRef> }) {
+}, ref) {
   const resolvedMessages = resolveCoreMessages(locale, toCoreMessageOverrides(messages)).suggestion;
   const resolvedEmptyMessage = emptyMessage ?? resolvedMessages.empty;
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -172,6 +171,7 @@ export function SuggestionList({
 
   useImperativeHandle(ref, () => ({
     onKeyDown: ({ event }) => {
+      if (!items.length || event.isComposing || event.keyCode === 229) return false;
       if (event.key === 'ArrowUp') {
         upHandler();
         return true;
@@ -201,14 +201,12 @@ export function SuggestionList({
     </div>
   );
 
-  const listboxId = 'inkio-suggestion-listbox';
-
   return (
     <div className="inkio-suggestion-container">
       {header && <div className="inkio-suggestion-header">{header}</div>}
       <div
         ref={listContainerRef}
-        id={listboxId}
+        id="inkio-suggestion-listbox"
         role="listbox"
         aria-label={resolvedMessages.list}
         className="inkio-suggestion-list"
@@ -219,6 +217,7 @@ export function SuggestionList({
               key={item.id}
               type="button"
               role="option"
+              tabIndex={-1}
               aria-selected={index === selectedIndex}
               ref={(el) => {
                 if (el) {
@@ -230,6 +229,7 @@ export function SuggestionList({
                 }
               }}
               className="inkio-suggestion-item"
+              onMouseDown={(event) => event.preventDefault()}
               onClick={() => selectItem(index)}
               onMouseEnter={() => setSelectedIndex(index)}
             >
@@ -244,6 +244,6 @@ export function SuggestionList({
       </div>
     </div>
   );
-}
+});
 
 SuggestionList.displayName = 'SuggestionList';

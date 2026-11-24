@@ -1,6 +1,6 @@
 {
   "name": "@inkio/advanced",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "description": "Advanced notion-like and integration-aware extensions for Inkio",
   "license": "MIT",
   "homepage": "https://rascalab.github.io/inkio/",
@@ -105,7 +105,8 @@
         "types": "./dist/comment.d.cts",
         "default": "./dist/comment.cjs"
       }
-    }
+    },
+    "./style.css": "./dist/style.css"
   },
   "sideEffects": [
     "**/*.css"

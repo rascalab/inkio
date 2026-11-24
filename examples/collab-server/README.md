@@ -18,10 +18,12 @@ pnpm --filter example-collab-server start
 
 Connect to `ws://127.0.0.1:3123/collab` with that room ID and its editor or
 viewer credential. `verify(token, docId, request)` is required when embedding
-`InkioCollabModule.forRoot({ dataDir, verify, path })`, or when running
-`createInkioCollabServer({ dataDir, verify })` on its own port. Standalone uses
-`ws://127.0.0.1:3123` (no `/collab`). `attachHocuspocus` can attach the same
-`createCollabConfiguration` to your own Node HTTP server.
+`InkioCollabModule.forRoot({ dataDir, verify, path })`. These server helpers
+are local example exports, not part of `@inkio/collab`. For a standalone
+server, call `createInkioCollabServer({ dataDir, verify })` and then
+`await server.listen()`. Its default URL is `ws://127.0.0.1:3123` (no `/collab`).
+To reuse an existing HTTP server, create a `Hocuspocus` instance with
+`createCollabConfiguration(options)` and call `attachHocuspocus(httpServer, hocuspocus)`.
 
 The CLI verifier grants access only to `COLLAB_ROOM_ID`. For your app, use
 short-lived credentials to authenticate the principal, then check their exact
@@ -31,6 +33,20 @@ room ID or a valid token alone as proof of access. Checks run per document at
 handshake; close active sessions when grants change (e.g.
 `hocuspocus.closeConnections(docId)`), and authorize every server-side direct
 connection yourself. Presence names are display hints, not verified identity.
+
+## React Router session demo
+
+`pnpm --filter example-collab-server start:auth` runs the optional loopback-only
+auth server on `127.0.0.1:3124`. Follow the [React Router recipe](../../docs/content/recipes/react-router.mdx#로그인으로-협업-연결하기)
+to configure the local accounts and open `/collab/auth`. The dev and preview
+servers proxy `/api/collab-auth/` from the browser origin, including WebSocket upgrades.
+
+The demo uses in-memory sessions with a 30-minute lifetime. Its `editor` and
+`viewer` accounts only have access to `shared-doc`. The session response includes
+a public login binding: reconnect and sign-out must match it to the current
+HttpOnly cookie, so a stale tab cannot act on another tab's replacement login.
+The binding is not a credential. Use your application's own identity, session
+store and document ACLs in production.
 
 ## Private verifier + sync server
 
@@ -70,7 +86,8 @@ new data directory before doing the snapshot migration below.
 Use a private `DATA_DIR` on a local filesystem supporting atomic rename and
 file/directory sync. One sync process owns it. Room IDs start with a Unicode
 letter or number and use at most 256 UTF-8 bytes of letters, numbers, marks,
-`.`, `_`, or `-`. IDs are case-sensitive. This reference caps WebSocket
+`.`, `_`, or `-`. IDs are case-sensitive; names owned by `Object.prototype`
+(such as `constructor`) are reserved. This reference caps WebSocket
 messages at 8 MiB, snapshots at 4 MiB and also bounds connections, pending
 documents and presence. It is not a multi-replica persistence or quota service.
 
@@ -84,7 +101,9 @@ no longer meet the room-ID rules. Do not run old/new writers on the same
 directory. Snapshots are not read under old names automatically.
 
 Use `await server.destroy()` for a programmatic standalone server, or
-`app.enableShutdownHooks()` for Nest. The CLI handles SIGINT/SIGTERM. Graceful
+`app.enableShutdownHooks()` for Nest. With `attachHocuspocus`, call its
+returned detach function, then `await shutdownHocuspocus(hocuspocus)` before
+closing the host server. The CLI handles SIGINT/SIGTERM. Graceful
 shutdown flushes debounced stores; the server's sync acknowledgement alone
 does not mean the snapshot is on disk.
 

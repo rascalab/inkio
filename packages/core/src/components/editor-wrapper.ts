@@ -1,29 +1,14 @@
 import type { EditorProps } from './Editor';
 import type { ImageBlockOptions } from '../extensions/ImageBlock';
+import type { InkioMessageOverrides } from '../i18n/messages';
 import type { InkioErrorHandler } from '../errors';
 
-/**
- * The `ui` prop shape shared by the `@inkio/simple` and `@inkio/editor`
- * wrappers (each narrows it to the fields it exposes).
- */
-export type InkioEditorUiOptions = Pick<
-  EditorProps,
-  | 'className'
-  | 'style'
-  | 'fill'
-  | 'autoresize'
-  | 'bordered'
-  | 'showToolbar'
-  | 'showBubbleMenu'
-  | 'showFloatingMenu'
-  | 'showTableMenu'
-  | 'toolbar'
-  | 'bubbleMenu'
-  | 'floatingMenu'
-  | 'tableMenu'
-  | 'messages'
-  | 'icons'
->;
+type Menu = 'toolbar' | 'bubbleMenu' | 'floatingMenu' | 'tableMenu';
+
+/** Preset menus inherit their visibility unless explicitly enabled or disabled. */
+export type InkioEditorUiOptions = Pick<EditorProps,
+  'className' | 'style' | 'fill' | 'autoresize' | 'bordered' | 'icons'
+> & { messages?: InkioMessageOverrides } & { [K in Menu]?: boolean | EditorProps[K] };
 
 export interface InkioEditorUiDefaults {
   showToolbar: boolean;
@@ -36,7 +21,7 @@ export interface InkioEditorUiDefaults {
 export function mapEditorUiToCoreProps(
   ui: InkioEditorUiOptions | undefined,
   defaults: InkioEditorUiDefaults,
-): InkioEditorUiOptions {
+): Pick<EditorProps, keyof InkioEditorUiOptions | keyof InkioEditorUiDefaults> {
   return {
     messages: ui?.messages,
     icons: ui?.icons,
@@ -45,14 +30,14 @@ export function mapEditorUiToCoreProps(
     fill: ui?.fill,
     autoresize: ui?.autoresize,
     bordered: ui?.bordered,
-    showToolbar: ui?.showToolbar ?? defaults.showToolbar,
-    showBubbleMenu: ui?.showBubbleMenu ?? defaults.showBubbleMenu,
-    showFloatingMenu: ui?.showFloatingMenu ?? defaults.showFloatingMenu,
-    showTableMenu: ui?.showTableMenu ?? defaults.showTableMenu,
-    toolbar: ui?.toolbar,
-    bubbleMenu: ui?.bubbleMenu,
-    floatingMenu: ui?.floatingMenu,
-    tableMenu: ui?.tableMenu,
+    showToolbar: ui?.toolbar === undefined ? defaults.showToolbar : ui.toolbar !== false,
+    showBubbleMenu: ui?.bubbleMenu === undefined ? defaults.showBubbleMenu : ui.bubbleMenu !== false,
+    showFloatingMenu: ui?.floatingMenu === undefined ? defaults.showFloatingMenu : ui.floatingMenu !== false,
+    showTableMenu: ui?.tableMenu === undefined ? defaults.showTableMenu : ui.tableMenu !== false,
+    toolbar: typeof ui?.toolbar === 'object' ? ui.toolbar : undefined,
+    bubbleMenu: typeof ui?.bubbleMenu === 'object' ? ui.bubbleMenu : undefined,
+    floatingMenu: typeof ui?.floatingMenu === 'object' ? ui.floatingMenu : undefined,
+    tableMenu: typeof ui?.tableMenu === 'object' ? ui.tableMenu : undefined,
   };
 }
 

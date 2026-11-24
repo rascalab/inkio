@@ -1,8 +1,7 @@
 import { DOMSerializer } from '@tiptap/pm/model';
 import type { Selection } from '@tiptap/pm/state';
-import { dropPoint } from '@tiptap/pm/transform';
 import type { EditorView } from '@tiptap/pm/view';
-import { dragSource, dropBesideListItem, pickupListGap, type BlockDragSource, type BlockPress, type DropCoords, type HoveredBlock } from './block-drop';
+import { applyBlockDrop, dragSource, planBlockDrop, type BlockDragSource, type BlockPress, type DropCoords, type HoveredBlock } from './block-drop';
 import type { BlockDragVisuals } from './drag-visuals';
 
 type Pickup = BlockDragSource & {
@@ -25,13 +24,16 @@ interface NativeDragOptions {
 
 export const createNativeBlockDrag = ({ view, handle, signal, visuals, getBlock, isTouchPressed, onPress, onLift, onHide }: NativeDragOptions) => {
   const doc = view.dom.ownerDocument;
+  const nav = doc.defaultView?.navigator;
+  const mac = nav && (/Mac/.test(nav.platform)
+    || (/Apple Computer/.test(nav.vendor) && (/Mobile\/\w+/.test(nav.userAgent) || nav.maxTouchPoints > 2)));
   const listener = { signal };
   const capture = { signal, capture: true };
   let pressed: BlockPress | null = null;
   let pickup: Pickup | null = null;
   let previewFrame = 0;
   let dropTimer: ReturnType<typeof setTimeout> | undefined;
-  let coords: DropCoords | null = null;
+  let coords: (DropCoords & { move: boolean }) | null = null;
 
   const clearMarker = () => {
     coords = null;
@@ -40,10 +42,7 @@ export const createNativeBlockDrag = ({ view, handle, signal, visuals, getBlock,
 
   const refreshMarker = () => {
     if (!coords || !pickup || pickup.canceled) return;
-    const { clientX, clientY } = coords;
-    const at = view.posAtCoords({ left: clientX, top: clientY });
-    const gap = at && (pickupListGap(view, pickup, at.pos, clientY) ?? dropPoint(view.state.doc, at.pos, pickup.slice));
-    visuals.showMarker(gap);
+    visuals.showMarker(planBlockDrop(view, pickup, coords, coords.move)?.gap ?? null);
   };
 
   const clearPickup = (current: Pickup) => {
@@ -131,7 +130,11 @@ export const createNativeBlockDrag = ({ view, handle, signal, visuals, getBlock,
     event.stopImmediatePropagation();
     if (!pickup.canceled && view.editable) {
       event.preventDefault();
-      coords = { clientX: event.clientX, clientY: event.clientY };
+      // Match ProseMirror's drag-copy policy so the preview also handles copies.
+      let copy: boolean | undefined;
+      view.someProp('dragCopies', (test) => { copy = copy || test(event); });
+      const move = !(copy ?? (mac ? event.altKey : event.ctrlKey));
+      coords = { clientX: event.clientX, clientY: event.clientY, move };
       refreshMarker();
     }
   }, capture);
@@ -158,10 +161,13 @@ export const createNativeBlockDrag = ({ view, handle, signal, visuals, getBlock,
     get isActive() { return pickup !== null; },
     refreshMarker,
     handleDrop(event: DragEvent, move: boolean) {
-      if (!pickup || pickup.canceled) return false;
-      const at = view.posAtCoords({ left: event.clientX, top: event.clientY });
-      const gap = at && pickupListGap(view, pickup, at.pos, event.clientY);
-      return gap !== null && dropBesideListItem(view, gap, pickup, move);
+      if (!pickup) return false;
+      if (!pickup.canceled) {
+        const plan = planBlockDrop(view, pickup, event, move);
+        if (plan) applyBlockDrop(view, pickup, plan, move, 'native');
+      }
+      // A local grip drop must not fall back to ProseMirror's caret-based drop.
+      return true;
     },
     update() {
       if (pickup && !pickup.canceled && (!view.editable || view.state.doc !== pickup.doc)) {

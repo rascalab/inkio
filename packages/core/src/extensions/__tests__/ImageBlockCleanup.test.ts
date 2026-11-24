@@ -4,7 +4,7 @@ import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
 import { history, undo } from '@tiptap/pm/history';
-import { ImageBlock, type ImageBlockOptions } from '../ImageBlock';
+import { ImageBlock, type ImageBlockOptions, type ImageUploadContext } from '../ImageBlock';
 import { rasterPngFile } from './image-fixtures';
 
 const editors: Editor[] = [];
@@ -24,7 +24,7 @@ function createEditor(options: Partial<ImageBlockOptions> = {}, content = `<img 
 function pendingUpload() {
   let finish: (src: string) => void = () => { throw new Error('Upload has not started'); };
   const upload = new Promise<string>((resolve) => { finish = resolve; });
-  return { finish, onUpload: vi.fn(() => upload) };
+  return { finish, onUpload: vi.fn((_file: File, _context: ImageUploadContext) => upload) };
 }
 
 afterEach(() => {
@@ -62,11 +62,64 @@ describe('ImageBlock cleanup', () => {
     const editor = createEditor({ cleanup: 'immediate', onUpload, onDelete }, '<p></p>');
     editor.commands.uploadImageBlock([rasterPngFile()]);
     await vi.waitFor(() => expect(onUpload).toHaveBeenCalledOnce());
+    const { blockId, signal } = onUpload.mock.calls[0][1];
+    expect(blockId).toBeTruthy();
+    expect(signal.aborted).toBe(false);
     if (destroy) editor.destroy();
     else editor.commands.setContent('<p>A different document</p>');
+    expect(signal.aborted).toBe(true);
     finish(abandoned);
 
     await vi.waitFor(() => expect(onDelete).toHaveBeenCalledExactlyOnceWith(abandoned));
+  });
+
+  it('does not resurrect a pending marker on remount when the host ignores abort', async () => {
+    const { onUpload, finish } = pendingUpload();
+    const onDelete = vi.fn();
+    const editor = createEditor({ cleanup: 'immediate', onUpload, onDelete }, '<p></p>');
+    editor.commands.uploadImageBlock([rasterPngFile()]);
+    await vi.waitFor(() => expect(onUpload).toHaveBeenCalledOnce());
+    editor.unmount();
+    expect(onUpload.mock.calls[0][1].signal.aborted).toBe(true);
+    editor.mount(document.createElement('div'));
+    await vi.waitFor(() => expect(editor.view.dom.querySelector('.inkio-image-block-placeholder')).toBeNull());
+    finish(abandoned);
+    await vi.waitFor(() => expect(onDelete).toHaveBeenCalledExactlyOnceWith(abandoned));
+    expect(editor.getHTML()).toBe('<p></p>');
+  });
+
+  it('abandons a read-only insertion even if the editor becomes editable again', async () => {
+    const { onUpload, finish } = pendingUpload();
+    const onDelete = vi.fn();
+    const editor = createEditor({ cleanup: 'immediate', onUpload, onDelete }, '<p></p>');
+    editor.commands.uploadImageBlock([rasterPngFile(), rasterPngFile()]);
+    await vi.waitFor(() => expect(onUpload).toHaveBeenCalledOnce());
+
+    editor.setEditable(false, false);
+    editor.setEditable(true, false);
+    expect(onUpload.mock.calls[0][1].signal.aborted).toBe(true);
+    await vi.waitFor(() => expect(editor.view.dom.querySelector('.inkio-image-block-placeholder')).toBeNull());
+    finish(abandoned);
+    await vi.waitFor(() => expect(onDelete).toHaveBeenCalledExactlyOnceWith(abandoned));
+    expect(onUpload).toHaveBeenCalledTimes(1);
+    expect(editor.getHTML()).toBe('<p></p>');
+  });
+
+  it('never deletes a raw upload key when URL resolution aborts', async () => {
+    const resolveFileUrl = vi.fn((_key: string, { signal }: ImageUploadContext) => new Promise<string>((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    }));
+    const onDelete = vi.fn();
+    const onUploadError = vi.fn();
+    const editor = createEditor({ cleanup: 'immediate', onDelete, onUploadError, onUpload: async () => '/raw-key', resolveFileUrl });
+    editor.commands.uploadImageBlock([rasterPngFile()]);
+    await vi.waitFor(() => expect(resolveFileUrl).toHaveBeenCalledOnce());
+    editor.commands.setContent('<p>Replaced</p>');
+    expect(resolveFileUrl.mock.calls[0][1].signal.aborted).toBe(true);
+    await Promise.resolve();
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(onUploadError).not.toHaveBeenCalled();
+    expect(editor.getHTML()).toBe('<p>Replaced</p>');
   });
 
   it.each([
@@ -83,7 +136,12 @@ describe('ImageBlock cleanup', () => {
     editor.commands.setContent(content);
     finish(source);
 
-    await vi.waitFor(() => expect(resolveFileUrl).toHaveBeenCalledExactlyOnceWith(source));
+    if (cleanup === 'manual') {
+      await Promise.resolve();
+      expect(resolveFileUrl).not.toHaveBeenCalled();
+    } else {
+      await vi.waitFor(() => expect(resolveFileUrl).toHaveBeenCalledExactlyOnceWith(source, onUpload.mock.calls[0][1]));
+    }
     expect(onDelete).not.toHaveBeenCalled();
   });
 

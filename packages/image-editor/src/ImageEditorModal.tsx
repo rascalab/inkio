@@ -1,8 +1,8 @@
 'use client';
 
 import * as Dialog from '@radix-ui/react-dialog';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useStableOptions } from '@inkio/core';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useStableOptions } from '@inkio/core/ui';
 import { ImageEditorWorkbench } from './ImageEditor';
 import type { ImageEditorLocale, ImageEditorModalProps } from './types';
 import { useInkioImageEditorUi } from './i18n';
@@ -66,7 +66,6 @@ export function ImageEditorModal({
     [localeOverrides, ui.messages.imageEditor],
   );
   const [isDirty, setIsDirty] = useState(false);
-  const savingRef = useRef(false);
   const contentRef = useRef<HTMLDivElement>(null);
   // Non-blocking close confirmation: when there are unsaved edits, closing
   // surfaces an inline confirm card instead of window.confirm (which blocks
@@ -74,14 +73,13 @@ export function ImageEditorModal({
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const portalTheme = theme ?? resolvePortalTheme();
 
-  useEffect(() => {
-    if (isOpen) return;
+  useLayoutEffect(() => {
     setIsDirty(false);
     setConfirmDiscard(false);
-  }, [isOpen]);
+  }, [isOpen, imageSrc]);
 
   const requestClose = useCallback(() => {
-    if (savingRef.current || contentRef.current?.querySelector('.inkio-ie-root[aria-busy="true"]')) return;
+    if (contentRef.current?.querySelector('.inkio-ie-root[aria-busy="true"]')) return;
     if (isDirty && !confirmDiscard) {
       setConfirmDiscard(true);
       return;
@@ -104,18 +102,6 @@ export function ImageEditorModal({
     }
     requestClose();
   }, [confirmDiscard, requestClose]);
-
-  async function saveAndClose(save: () => void | Promise<void>) {
-    if (savingRef.current) return;
-    setConfirmDiscard(false);
-    savingRef.current = true;
-    try {
-      await save();
-      onClose();
-    } finally {
-      savingRef.current = false;
-    }
-  }
 
   return (
     <Dialog.Root open={isOpen} onOpenChange={(open) => { if (!open) requestClose(); }}>
@@ -170,12 +156,19 @@ export function ImageEditorModal({
             )}
             <ImageEditorWorkbench
               src={imageSrc}
-              onUnchangedSave={() => {
+              active={isOpen}
+              onSaveComplete={() => {
                 setConfirmDiscard(false);
                 onClose();
               }}
-              onSave={(dataUrl) => saveAndClose(() => onSave(dataUrl))}
-              onSaveBlob={onSaveBlob && ((...output) => saveAndClose(() => onSaveBlob(...output)))}
+              onSave={(...output) => {
+                setConfirmDiscard(false);
+                return onSave(...output);
+              }}
+              onSaveBlob={onSaveBlob && ((...output) => {
+                setConfirmDiscard(false);
+                return onSaveBlob(...output);
+              })}
               savePreview={savePreview}
               onCancel={requestClose}
               outputFormat={imageFormat}

@@ -102,12 +102,28 @@ describe('WikiLink [[ suggestion', () => {
     const onError = vi.fn();
     const editor = createEditor(WikiLink.configure({ items, onError }));
 
-    const result = suggestionFor(editor).items!({ query: 'Get', editor });
+    const result = suggestionFor(editor).items!({ query: 'Get', editor, signal: new AbortController().signal });
     await vi.advanceTimersByTimeAsync(200);
 
     expect(await result).toEqual([]);
     expect(items).toHaveBeenCalledWith({ query: 'Get' });
     expect(onError).toHaveBeenCalledTimes(1);
     expect(onError.mock.calls[0][1]).toEqual({ source: 'wikiLink.suggestion', recoverable: true });
+  });
+
+  it('drops provider failures after the editor is destroyed', async () => {
+    vi.useFakeTimers();
+    const failure = Promise.withResolvers<WikiLinkItem[]>();
+    const items = vi.fn(() => failure.promise);
+    const onError = vi.fn();
+    const editor = createEditor(WikiLink.configure({ items, onError }));
+    editor.commands.insertContent('[[Get');
+    await vi.advanceTimersByTimeAsync(200);
+    expect(items).toHaveBeenCalledOnce();
+    editor.destroy();
+    editors.splice(editors.indexOf(editor), 1);
+    failure.reject(new Error('late'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onError).not.toHaveBeenCalled();
   });
 });

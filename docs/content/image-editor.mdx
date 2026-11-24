@@ -41,9 +41,15 @@ import { ImageEditorModal } from '@inkio/image-editor';
 import '@inkio/editor/style.css';
 import '@inkio/image-editor/style.css';
 
-type UploadImage = (file: File) => Promise<string | { src: string }>;
+// 앱 서버가 업로드 후 { src: string }을 반환하는 예시
+async function uploadImage(file: File, { signal }: { signal: AbortSignal }) {
+  const response = await fetch('/api/images', { method: 'POST', body: file, signal });
+  if (!response.ok) throw new Error(`이미지 업로드 실패 (${response.status})`);
+  const { src }: { src: string } = await response.json();
+  return src;
+}
 
-export function Page({ uploadImage }: { uploadImage: UploadImage }) {
+export function Page() {
   return (
     <Editor
       onImageUpload={uploadImage}
@@ -57,6 +63,10 @@ export function Page({ uploadImage }: { uploadImage: UploadImage }) {
 
 영구 저장할 문서는 업로드한 파일의 안정적인 URL을 반환하세요. `blob:` URL은
 현재 페이지의 임시 미리보기용이며 새로고침하거나 문서를 공유하면 사용할 수 없습니다.
+`signal`을 `fetch`에 넘기면 편집 대상이 사라졌을 때 진행 중인 요청도 중단됩니다.
+취소는 이미 서버에 저장된 파일을 되돌리지는 않습니다. 그런 파일은 서버의 보존 정책으로 정리하세요.
+`resolveFileUrl`이 취소되어 최종 URL을 받지 못하면 `cleanup: 'immediate'`여도
+`onDelete`는 호출하지 않습니다. 원래 URL만으로 삭제할 파일을 추측하지 않기 때문입니다.
 휴대폰에서는 `@inkio/editor`에 `/`를 입력해 이미지 항목을 선택하면 시스템 사진 선택기를
 열 수 있습니다. 드래그에 의존하기 어려운 UI에서는 앱의 파일 입력을 두고
 `editor.commands.uploadImageBlock(files)`에 선택한 `File[]`을 전달할 수도 있습니다.
@@ -108,8 +118,8 @@ Inkio는 스토리지에 삭제 요청을 보내지 않습니다. 실행 취소�
 |------|------|------|
 | `isOpen` | `boolean` | 모달 열림 여부 (필수) |
 | `imageSrc` | `string` | 편집할 이미지 소스 (필수) |
-| `onSave` | `(editedImageData: string) => void \| Promise<void>` | 필수 data URL 콜백. 변경이 있고 `onSaveBlob`이 없을 때 호출합니다. 실패하면 편집 상태를 유지합니다 |
-| `onSaveBlob` | `(blob: Blob, preview?: Blob) => void \| Promise<void>` | 지정하면 변경된 이미지의 저장은 `onSave` 대신 이 콜백을 사용합니다 |
+| `onSave` | `(dataUrl: string, signal: AbortSignal) => void \| Promise<void>` | 필수. 변경이 있고 `onSaveBlob`이 없을 때 호출합니다. 실패하면 편집 상태를 유지합니다 |
+| `onSaveBlob` | `(blob: Blob, preview: Blob \| undefined, signal: AbortSignal) => void \| Promise<void>` | 지정하면 `onSave` 대신 호출합니다. 이미지가 교체되거나 모달이 외부에서 닫히면 진행 중인 저장에 취소를 알립니다 |
 | `savePreview` | `boolean` | Blob 콜백에 같은 형식의 표시용 미리보기도 전달합니다(긴 변 최대 1,200px) |
 | `onClose` | `() => void` | 닫기 콜백 (필수). 저장 성공 또는 변경 없이 저장할 때도 호출됩니다 |
 | `theme` | `'light' \| 'dark'` | 이미지 블록에 연결하면 여는 에디터의 테마를 받습니다. 단독 모달은 명시하지 않으면 문서의 첫 `.inkio`에 붙은 테마 클래스나 `html`/`body`의 다크 클래스를 확인합니다 |
@@ -130,6 +140,7 @@ Inkio는 스토리지에 삭제 요청을 보내지 않습니다. 실행 취소�
 ## 단독 컴포넌트 사용
 
 모달 없이 인라인 편집 화면을 직접 배치하려면 `ImageEditor`를 사용합니다.
+이미지 편집기만 쓰는 페이지는 Tiptap을 로드하지 않습니다. 단독 모달에 `InkioProvider`가 필요하다면 `@inkio/core/ui`에서 가져오세요.
 
 ```tsx
 import { ImageEditor, type ImageEditorProps } from '@inkio/image-editor';
@@ -150,8 +161,8 @@ export function StandaloneEditor(props: ImageEditorProps) {
 | Prop | 타입 | 설명 |
 |------|------|------|
 | `src` | `string` | 편집할 이미지 소스 (필수) |
-| `onSave` | `(dataUrl: string) => void \| Promise<void>` | 필수 data URL 콜백. `onSaveBlob`을 지정하면 대신 그 콜백을 사용합니다. 저장 콜백의 완료를 기다리며, 거절되면 편집 상태를 유지합니다 |
-| `onSaveBlob` | `(blob: Blob, preview?: Blob) => void \| Promise<void>` | 지정 시 `onSave` 대신 호출. 첫 인자는 원래 출력 크기와 형식의 파일입니다. |
+| `onSave` | `(dataUrl: string, signal: AbortSignal) => void \| Promise<void>` | 필수. `onSaveBlob`이 없을 때 호출합니다. 콜백 완료를 기다리며, 실패하면 편집 상태를 유지합니다 |
+| `onSaveBlob` | `(blob: Blob, preview: Blob \| undefined, signal: AbortSignal) => void \| Promise<void>` | 지정하면 `onSave` 대신 호출합니다. 첫 번째 인자는 원래 출력 크기와 형식의 파일입니다 |
 | `savePreview` | `boolean` | `onSaveBlob`의 두 번째 인자로 최대 1,200px(긴 변)의 표시용 이미지도 전달합니다. 다운로드·업로드에는 첫 번째 인자를 사용하세요. |
 | `onCancel` | `() => void` | 취소 콜백 (필수) |
 | `outputFormat` | `'png' \| 'jpeg' \| 'webp'` | 출력 형식 (기본값: `'png'`) |
@@ -166,7 +177,8 @@ export function StandaloneEditor(props: ImageEditorProps) {
 
 출력은 브라우저에서 PNG·JPEG·WebP로 비동기 인코딩합니다. 파일 업로드나
 다운로드에는 `onSaveBlob`을 사용하면 Base64 문자열 변환이 필요 없습니다.
-기존 `onSave`만 지정하면 이전과 같이 data URL을 받습니다.
+기존 콜백도 그대로 사용할 수 있습니다. 저장 요청까지 취소하려면 마지막 인자인
+`signal`을 요청에 전달하세요. 미리보기를 요청하지 않으면 두 번째 Blob 인자는 `undefined`입니다.
 미리보기를 즉시 표시하는 앱이라면 `savePreview`를 켜고 두 번째 Blob만 화면에
 띄우세요. `URL.createObjectURL`로 만든 주소는 더 이상 쓰지 않을 때 해제합니다.
 
@@ -233,7 +245,7 @@ export function BrandedImageEditor(props: React.ComponentProps<typeof ImageEdito
 사진과 프레임은 원본 비율을 유지하면서 사용 가능한 공간에 맞춥니다. 모바일에서는
 크기 조절 도구의 출력 치수를 배율 옆에서 눌러 편집할 수 있습니다.
 라이트·다크 모두 이미지의 투명 영역에는 같은 회색 체크 배경을 사용합니다.
-이 배경은 미리보기에서만 보이고 저장 파일의 투명도는 그대로 유지됩니다.
+이 배경은 미리보기에만 표시됩니다. 투명도를 유지하려면 PNG 또는 WebP로 저장하세요. JPEG는 투명도를 지원하지 않습니다.
 자르기에서 이미지 바깥까지 끌면 손을 뗄 때 경계로 되돌아옵니다. 프레임을 이미
 가득 채운 방향으로 끌어도 자르기 값이 바뀌지 않습니다. 모션 줄이기 설정에서는
 되돌아가는 애니메이션 없이 경계에서 바로 멈춥니다.
@@ -296,7 +308,7 @@ type ToolType = 'crop' | 'rotate' | 'resize' | 'draw' | 'shape' | 'text' | 'filt
 | `TextAnnotationData` | 텍스트 주석 |
 | `FreeDrawAnnotation` | 자유 그리기 선 |
 | `Extract<Annotation, { type: 'redact' }>` | 모자이크/블러 영역 (`mode: 'pixelate' \| 'blur'`) |
-| `StickerAnnotation` | 이모지 스티커 |
+| `Extract<Annotation, { type: 'sticker' }>` | 이모지 스티커 |
 
 이 외에 `CropRect`, `Transform`, `DrawOptions`, `ShapeOptions`, `TextOptions`,
 `ImageEditorState` 등의 보조 타입도 함께 export됩니다.
@@ -309,6 +321,7 @@ type ToolType = 'crop' | 'rotate' | 'resize' | 'draw' | 'shape' | 'text' | 'filt
 ```tsx
 import {
   enImageEditorMessages,
+  koImageEditorMessages,
   resolveImageEditorMessages,
   mergeImageEditorMessages,
   toImageEditorMessageOverrides,
@@ -318,6 +331,7 @@ import {
 | Export | 설명 |
 |--------|------|
 | `enImageEditorMessages` | 기본(영어) 메시지 세트 |
+| `koImageEditorMessages` | 한국어 메시지 세트 |
 | `resolveImageEditorMessages` | 로케일 입력과 오버라이드를 병합해 메시지 세트를 반환 |
 | `mergeImageEditorMessages` | 여러 오버라이드를 순서대로 병합 |
 | `toImageEditorMessageOverrides` | `InkioMessageOverrides`에서 이미지 에디터 오버라이드를 추출 |

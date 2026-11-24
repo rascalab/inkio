@@ -9,11 +9,11 @@ Node.js 24, pnpm 12.10.0, Git, OpenSSL이 필요합니다.
 
 ## 1. 로컬 서버 시작하기
 
-첫 번째 터미널에서 Inkio `v0.0.9`의 참조 서버를 켭니다.
+첫 번째 터미널에서 Inkio `v0.1.0`의 참조 서버를 켭니다.
 
 ```bash
-git clone --branch v0.0.9 --depth 1 https://github.com/rascalab/inkio.git inkio-v0.0.9
-cd inkio-v0.0.9
+git clone --branch v0.1.0 --depth 1 https://github.com/rascalab/inkio.git inkio-v0.1.0
+cd inkio-v0.1.0
 pnpm install --frozen-lockfile
 pnpm --filter example-collab-server build
 
@@ -36,7 +36,7 @@ pnpm --filter example-collab-server start
 ```bash
 pnpm create vite@latest inkio-yjs-client --template react --no-interactive
 cd inkio-yjs-client
-pnpm add @inkio/collab@0.0.9 @inkio/core@0.0.9 yjs@^13.6.13
+pnpm add @inkio/collab@0.1.0 @inkio/core@0.1.0 yjs@^13.6.13
 ```
 
 `src/main.jsx`를 아래 코드로 교체합니다.
@@ -66,16 +66,19 @@ function Room({ token }) {
 
 function App() {
   const [token, setToken] = useState('');
-  if (token) return <Room token={token} />;
-
   return (
-    <form autoComplete="off" onSubmit={event => {
-      event.preventDefault();
-      setToken(new FormData(event.currentTarget).get('token'));
-    }}>
-      <label>문서 토큰 <input name="token" type="password" required /></label>
-      <button type="submit">연결</button>
-    </form>
+    <>
+      <form autoComplete="off" onSubmit={event => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        setToken(new FormData(form).get('token'));
+        form.reset();
+      }}>
+        <label>문서 토큰 <input name="token" type="password" required /></label>
+        <button type="submit">연결</button>
+      </form>
+      {token && <Room token={token} />}
+    </>
   );
 }
 

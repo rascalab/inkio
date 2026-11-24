@@ -8,7 +8,7 @@ Inkio는 Next.js App Router 환경에서 SSR을 지원합니다.
 
 ## 동작 방식
 
-1. **서버**: `generateHTML`(`@tiptap/html`)로 정적 HTML 생성
+1. **서버**: JSON은 등록된 스키마와 `generateHTML`(`@tiptap/html`)로 변환한 뒤 정화합니다. HTML 문자열은 스키마 변환 없이 바로 정화합니다.
 2. **클라이언트**: 정적 HTML을 SSR shell로 표시 → Tiptap 에디터가 hydration 후 대체
 
 서버와 클라이언트의 첫 렌더에서 같은 초기 콘텐츠와 확장 스키마를 사용하면 같은 셸이 나옵니다.
@@ -30,7 +30,7 @@ export default function Page() {
 ```
 
 위처럼 직렬화 가능한 props만 넘기면 Server Component에서 렌더링해도 됩니다.
-`onUpdate`, `onCreate`, `onImageUpload`, 슬롯의 이벤트 처리기 등 브라우저에서 실행할
+`onChange`, `onUpdate`, `onCreate`, `onImageUpload`, 슬롯의 이벤트 처리기 등 브라우저에서 실행할
 함수는 `'use client'` 래퍼 안에서 구성하세요. 인터랙티브 `Editor` 전체에 `ssr: false`를
 쓰면 정적 셸까지 빠집니다. 캔버스 편집기만 지연 로드하는 예는
 [Next App Router 레시피](/recipes/next-app-router)를 참고하세요.
@@ -47,7 +47,7 @@ export default function Page() {
 
 - JSON 콘텐츠: `@tiptap/html`의 DOM 기반 렌더링으로 텍스트 노드 자동 이스케이프
 - HTML 문자열: `sanitize-html` 화이트리스트 기반 필터링
-- 허용된 스타일: `color`, `background-color`, `text-align`만 허용
+- 허용된 인라인 스타일: 색상(`color`, `background-color`, `div`의 `--inkio-callout-bg`)과 좌·중앙·우 정렬(`text-align`)
 - 차단된 프로토콜: `javascript:`, `vbscript:`, 활성 콘텐츠 `data:` URL(`image/svg+xml`, `text/html` 등). 안전한 래스터 이미지(`png`/`jpeg`/`gif`/`webp` 등) `data:` URL은 에디터 노드 레이어에서만 허용됩니다
 - 정적 HTML의 `<img src>`는 상대 URL과 `http(s)`/`blob`을 허용합니다. 공유·재접속할 문서에는 일시적인 `blob:` URL 대신 영구 URL을 사용하세요.
 - `target`이 있는 링크에는 `rel="noopener noreferrer"`가 자동 적용됩니다 (reverse tabnabbing 방지)

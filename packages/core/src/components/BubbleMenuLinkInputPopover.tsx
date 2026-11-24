@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { isSafeUrl, normalizeLinkInput } from '../utils/url-safety';
 
 export interface BubbleMenuLinkInputPopoverProps {
@@ -22,15 +22,6 @@ export function BubbleMenuLinkInputPopover({
 }: BubbleMenuLinkInputPopoverProps) {
   const [url, setUrl] = useState(initialUrl);
   const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, []);
-
   useEffect(() => {
     setUrl(initialUrl);
     setError(null);
@@ -51,25 +42,16 @@ export function BubbleMenuLinkInputPopover({
     onSave(normalizeLinkInput(trimmed));
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.nativeEvent.isComposing) return;
-    if (e.key === 'Escape') {
-      onCancel();
-    }
-  };
-
   return (
     <div className="inkio-link-popover">
       <form onSubmit={handleSubmit} className="inkio-link-form">
         <input
-          ref={inputRef}
           type="text"
           value={url}
           onChange={(e) => {
             setUrl(e.target.value);
             if (error) setError(null);
           }}
-          onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className="inkio-link-input"
           autoComplete="off"

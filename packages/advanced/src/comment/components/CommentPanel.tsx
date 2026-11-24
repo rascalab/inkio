@@ -10,7 +10,7 @@ import {
   useInkioCommentUi,
   type InkioCommentMessageOverrides,
 } from '../i18n';
-import { findCommentRanges, getInitials } from '../utils';
+import { findCommentRanges, focusCommentSelection, getInitials, updateCommentResolution } from '../utils';
 import {
   isKnownCommentThread,
   normalizeCommentId,
@@ -44,12 +44,12 @@ export interface CommentPanelProps {
   editor: Editor | null;
   /** Valid threads for this document and user. Host mutations still require authorization. */
   threads: CommentThreadData[];
-  /** Called when user submits a reply to a thread (omit to hide reply UI) */
-  onReply?: (commentId: string, text: string) => void;
-  /** Called to resolve a thread (omit to hide the resolve action) */
-  onResolve?: (commentId: string) => void;
-  /** Called to delete a thread (omit to hide the delete action) */
-  onDelete?: (commentId: string) => void;
+  /** Omit to inherit the registered reply handler, pass false to hide, or supply a replacement. */
+  onReply?: CommentOptions['onCommentReply'] | false;
+  /** Omit to inherit the registered resolve handler, pass false to hide, or supply a replacement. */
+  onResolve?: CommentOptions['onCommentResolve'] | false;
+  /** Omit to inherit the registered delete handler, pass false to hide, or supply a replacement. */
+  onDelete?: CommentOptions['onCommentDelete'] | false;
   /** Current user display name */
   currentUser?: string;
   /** ID of the thread to highlight and scroll to */
@@ -185,9 +185,9 @@ export function stepMayAffectComments(doc: PMNode, step: Step, markType: MarkTyp
 export const CommentPanel = ({
   editor,
   threads,
-  onReply,
-  onResolve,
-  onDelete,
+  onReply: panelReply,
+  onResolve: panelResolve,
+  onDelete: panelDelete,
   currentUser,
   activeThreadId,
   className,
@@ -211,6 +211,19 @@ export const CommentPanel = ({
     }
     return byId;
   }, [threads]);
+  const extension = editor?.extensionManager.extensions.find((ext) => ext.name === 'comment');
+  const options = extension?.options as Partial<CommentOptions> | undefined;
+  // Registered callbacks require their registered lookup, even if the panel has a row.
+  const onReply = panelReply ?? (options?.getThread && options.onCommentReply);
+  const onResolve = panelResolve ?? (options?.getThread && options.onCommentResolve);
+  const onDelete = panelDelete ?? (options?.getThread && options.onCommentDelete);
+  const getWritableThread = useCallback((id: string) => {
+    const panelThread = threadsById.get(id);
+    if (!panelThread || !options?.getThread) return panelThread;
+    const registeredThread = readCommentThread(options.getThread, id);
+    if (!registeredThread) return null;
+    return panelThread.resolved ? panelThread : registeredThread;
+  }, [threadsById, options]);
 
   // Let the open thread popover re-read thread data: external `threads`
   // updates don't produce document transactions, so without this the popover
@@ -300,7 +313,8 @@ export const CommentPanel = ({
       ) {
         return;
       }
-      editor.chain().focus().setTextSelection({ from: target.from, to: target.to }).run();
+      editor.commands.setTextSelection({ from: target.from, to: target.to });
+      focusCommentSelection(editor.view);
       // Scroll is best-effort: a remapped position may have no DOM node even
       // inside range. The selection above already applied, so a missing node
       // ends the gesture instead of breaking the click handler.
@@ -322,7 +336,7 @@ export const CommentPanel = ({
     (commentId: string) => {
       const text = replyTextsRef.current.get(commentId)?.trim();
       if (!editor?.isEditable || !text || !onReply ||
-          threadsById.get(commentId)?.resolved !== false ||
+          getWritableThread(commentId)?.resolved !== false ||
           findCommentRanges(editor.state.doc, commentId).length === 0) return;
 
       onReply(commentId, text);
@@ -332,12 +346,12 @@ export const CommentPanel = ({
         return next;
       });
     },
-    [editor, onReply, threadsById],
+    [editor, onReply, getWritableThread],
   );
 
   const handleDeleteThread = useCallback(
     (commentId: string) => {
-      if (!editor?.isEditable || !onDelete || !threadsById.has(commentId)) return;
+      if (!editor?.isEditable || !onDelete || !getWritableThread(commentId)) return;
       const ranges = findCommentRanges(editor.state.doc, commentId);
       if (!ranges.length) return;
 
@@ -347,28 +361,19 @@ export const CommentPanel = ({
       editor.view.dispatch(tr);
       if (editor.state.doc !== before) onDelete(commentId);
     },
-    [editor, onDelete, threadsById],
+    [editor, onDelete, getWritableThread],
   );
 
-  /**
-   * Single source of truth for resolution: the document mark is always
-   * updated via the `resolveComment` command (which fires the extension's
-   * `onCommentResolve`), and the panel consumer is notified via `onResolve`.
-   * When both props are the same function reference (the common wiring), the
-   * consumer callback is skipped to avoid a double-call.
-   */
   const handleResolveThread = useCallback(
     (commentId: string) => {
-      if (!editor?.isEditable || !onResolve || threadsById.get(commentId)?.resolved !== false) return;
-      const commentExtension = editor.extensionManager.extensions.find(
-        (extension) => extension.name === 'comment',
-      );
-      const options = commentExtension?.options as Partial<CommentOptions> | undefined;
-      const commandWillNotify = onResolve === options?.onCommentResolve
-        && readCommentThread(options?.getThread, commentId) !== null;
-      if (editor.commands.resolveComment?.(commentId) && !commandWillNotify) onResolve(commentId);
+      if (!editor?.isEditable || !editor.commands.resolveComment || !onResolve ||
+          getWritableThread(commentId)?.resolved !== false) return;
+      const tr = editor.state.tr;
+      if (!updateCommentResolution(tr, commentId, true, true)) return;
+      editor.view.dispatch(tr);
+      if (editor.state.doc !== tr.before) onResolve(commentId);
     },
-    [editor, onResolve, threadsById],
+    [editor, onResolve, getWritableThread],
   );
 
   interface PanelRow {
@@ -400,12 +405,7 @@ export const CommentPanel = ({
     });
   }, [allRows, filter]);
 
-  if (!editor) return null;
-
-  const hasCommentExtension = editor.extensionManager.extensions.some(
-    (extension) => extension.name === 'comment',
-  );
-  if (!hasCommentExtension) return null;
+  if (!editor || !extension) return null;
 
   const resolvedCurrentUser = typeof currentUser === 'string' && currentUser
     ? currentUser
@@ -457,7 +457,9 @@ export const CommentPanel = ({
         <div className="inkio-comment-list">
           {displayThreads.map(({ commentId, threadData, resolved: isResolved, quoteText }) => {
             const isActive = activeThread === commentId;
-            const canMutate = editable && Boolean(threadData);
+            const writableThread = editable && (onReply || onResolve || onDelete) ? getWritableThread(commentId) : null;
+            const canMutate = Boolean(writableThread);
+            const canChangeOpen = writableThread?.resolved === false;
             const replyText = replyTexts.get(commentId) ?? '';
 
             return (
@@ -503,7 +505,7 @@ export const CommentPanel = ({
                   </div>
                 )}
 
-                {canMutate && onReply && !isResolved && (
+                {canChangeOpen && onReply && (
                   <div className="inkio-comment-reply-row">
                     <input
                       type="text"
@@ -535,9 +537,9 @@ export const CommentPanel = ({
                   </div>
                 )}
 
-                {canMutate && (onResolve || onDelete) && (
+                {((canChangeOpen && onResolve) || (canMutate && onDelete)) && (
                   <div className="inkio-comment-thread-actions">
-                    {onResolve && !isResolved && (
+                    {canChangeOpen && onResolve && (
                       <button
                         type="button"
                         className="inkio-comment-action-btn resolve"

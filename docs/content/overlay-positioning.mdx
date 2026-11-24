@@ -4,8 +4,8 @@ Inkio의 팝오버/플로팅 UI는 공통 오버레이 엔진을 사용합니다
 
 ## 보장 범위
 
-- 뷰포트 경계 충돌 시 flip
-- 경계 바깥으로 벗어나는 경우 shift(clamp)
+- `flip`은 요청한 방향보다 반대 방향에서 경계 밖으로 나가는 양이 적을 때만 방향을 바꿉니다.
+- `shift`는 계산된 좌표를 경계 안쪽으로 제한합니다. 두 옵션은 기본으로 켜져 있으며, `boundaryRect`를 생략하면 브라우저 뷰포트를 기준으로 삼습니다.
 - 스크롤/리사이즈/엘리먼트 리사이즈 시 자동 재계산
 - `position: fixed` 기반 계산으로 inline/inline-block 컨텍스트에서도 안정적 동작
 
@@ -15,7 +15,7 @@ Inkio의 팝오버/플로팅 UI는 공통 오버레이 엔진을 사용합니다
 import {
   computeOverlayPosition,
   autoUpdateOverlayPosition,
-} from '@inkio/core';
+} from '@inkio/core/ui';
 ```
 
 ### `computeOverlayPosition`
