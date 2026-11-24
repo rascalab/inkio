@@ -431,7 +431,7 @@ test('next app router example hides a comment thread while its text is deleted',
   await expect(thread).toContainText('On deleted text');
 });
 
-compositionTest('slash menu speaks the editor locale and finds a command typed in Korean', async ({ page, compose }) => {
+compositionTest('slash menu speaks the editor locale and finds a command typed in Korean', async ({ page, ime }) => {
   await page.goto('http://localhost:4174/slash-e2e');
   await focusEditorEnd(page);
   await page.keyboard.press('Enter');
@@ -440,27 +440,27 @@ compositionTest('slash menu speaks the editor locale and finds a command typed i
   await expect(page.locator('.inkio-suggestion-header')).toHaveCount(0);
   await expect(page.getByRole('listbox', { name: '추천 항목' })).toBeVisible();
 
-  await compose('ㅍ', '표');
+  await ime.compose('ㅍ', '표');
   await expect(page.getByRole('option')).toHaveCount(1);
   await expect(page.getByRole('option')).toHaveText('표');
 
-  await page.keyboard.press('Enter');
+  await ime.press('Enter');
   const editor = page.locator('.ProseMirror').first();
   await expect(editor.locator('table')).toHaveCount(1);
   await expect(editor).not.toContainText('/표');
 });
 
-compositionTest('slash menu says nothing matched in the editor locale', async ({ page, compose }) => {
+compositionTest('slash menu says nothing matched in the editor locale', async ({ page, ime }) => {
   await page.goto('http://localhost:4174/slash-e2e');
   await focusEditorEnd(page);
   await page.keyboard.press('Enter');
 
   await page.keyboard.type('/');
-  await compose('ㅎ', '하', '핳');
+  await ime.compose('ㅎ', '하', '핳');
   await expect(page.locator('.inkio-suggestion-empty')).toHaveText('검색 결과 없음');
 });
 
-compositionTest('Korean composition lands where the caret is', async ({ page, compose }) => {
+compositionTest('Korean composition lands where the caret is', async ({ page, ime }) => {
   await page.goto('http://localhost:4174/slash-e2e');
   await focusEditorEnd(page);
   const editor = page.locator('.ProseMirror').first();
@@ -476,12 +476,12 @@ compositionTest('Korean composition lands where the caret is', async ({ page, co
     return text;
   });
 
-  await compose('ㅎ', '하', '한');
+  await ime.compose('ㅎ', '하', '한');
   await expect.poll(() => preedit.jsonValue()).toEqual(['슬래시 시험ㅎ', '슬래시 시험하', '슬래시 시험한']);
-  await compose('ㄱ', '그', '글');
-  await page.keyboard.press('Enter');
-  await compose('ㄷ', '다', '달');
-  await page.keyboard.press('Backspace');
+  await ime.compose('ㄱ', '그', '글');
+  await ime.press('Enter');
+  await ime.compose('ㄷ', '다', '달');
+  await ime.press('Backspace');
 
   const paragraphs = editor.locator('p');
   await expect(paragraphs.first()).toHaveText('슬래시 시험한글');
@@ -675,19 +675,19 @@ test('typing right after a click lands at the click', async ({ page }) => {
   await expect(editor.locator('p', { hasText: '끝' })).toContainText('X');
 });
 
-compositionTest('a table inserted from the menu takes Korean and Tab moves between cells', async ({ page, compose }) => {
+compositionTest('a table inserted from the menu takes Korean and Tab moves between cells', async ({ page, ime }) => {
   await page.goto('http://localhost:4174/slash-e2e');
   await focusEditorEnd(page);
   await page.keyboard.press('Enter');
   await page.keyboard.type('/');
-  await compose('ㅍ', '표');
+  await ime.compose('ㅍ', '표');
   await expect(page.getByRole('option')).toHaveCount(1);
-  await page.keyboard.press('Enter');
+  await ime.press('Enter');
 
   const table = page.locator('.ProseMirror').first().locator('table');
-  await compose('ㅇ', '이', '이름');
-  await page.keyboard.press('Tab');
-  await compose('ㄱ', '가', '값');
+  await ime.compose('ㅇ', '이', '이름');
+  await ime.press('Tab');
+  await ime.compose('ㄱ', '가', '값');
   await expect(table.locator('th').nth(0)).toHaveText('이름');
   await expect(table.locator('th').nth(1)).toHaveText('값');
   await expect(table.locator('tr')).toHaveCount(3);
@@ -1337,10 +1337,10 @@ test.describe('writing a document', () => {
       await expect(editor.locator(':scope > p').last()).toHaveText('below');
     });
 
-    compositionTest(`composing Korean with ${name} selected writes below and keeps it`, async ({ page, compose }) => {
+    compositionTest(`composing Korean with ${name} selected writes below and keeps it`, async ({ page, ime }) => {
       const editor = await load(page, [paragraph('앞'), block]);
       await select(editor, 3);
-      await compose('ㅎ', '하', '한');
+      await ime.compose('ㅎ', '하', '한');
       expect(await types(editor)).toEqual(['paragraph', block.type, 'paragraph']);
       await expect(editor.locator(':scope > p').last()).toHaveText('한');
     });

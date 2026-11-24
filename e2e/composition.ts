@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { expect, test, type BrowserServer, type Page } from '@playwright/test';
 
 type Compose = (...steps: [string, ...string[]]) => Promise<void>;
+type CompositionInput = { compose: Compose; press(key: 'Enter' | 'Tab' | 'Backspace'): Promise<void> };
 
 // Marionette frames are UTF-8 byte-length-prefixed, not newline-delimited.
 // https://firefox-source-docs.mozilla.org/remote/marionette/Protocol.html
@@ -23,7 +24,7 @@ async function* frames(socket: Socket) {
   throw new Error('Firefox closed the Marionette connection.');
 }
 
-async function withFirefoxIME(server: BrowserServer, page: Page, use: (compose: Compose) => Promise<void>) {
+async function withFirefoxIME(server: BrowserServer, page: Page, use: (ime: CompositionInput) => Promise<void>) {
   const args = server.process().spawnargs;
   const profileFlag = args.indexOf('-profile');
   if (profileFlag < 0) throw new Error('Expected a temporary Firefox profile.');
@@ -50,14 +51,20 @@ async function withFirefoxIME(server: BrowserServer, page: Page, use: (compose: 
     }
     await command('WebDriver:NewSession', {});
     await command('Marionette:SetContext', { value: 'chrome' });
-    await use(async (...steps) => {
+    // Keep editing keys on the same driver as preedit: once Marionette
+    // claims the widget, Juggler's cached text input processor can be stale.
+    const input = async (value: string | string[]) => {
       await page.bringToFront();
-      // Run in Firefox's automation context, not the web page. The native text
-      // input processor owns the marked range and targets the focused editor.
       await command('WebDriver:ExecuteScript', {
         script: `
           const tip = Cc['@mozilla.org/text-input-processor;1'].createInstance(Ci.nsITextInputProcessor);
           if (!tip.beginInputTransactionForTests(window)) throw new Error('Could not start an input transaction.');
+          if (typeof arguments[0] === 'string') {
+            const key = new window.KeyboardEvent('', { key: arguments[0], code: arguments[0] });
+            tip.keydown(key);
+            tip.keyup(key);
+            return;
+          }
           const key = new window.KeyboardEvent('', { key: 'Process', keyCode: 229 });
           tip.startComposition(key);
           for (const text of arguments[0]) {
@@ -67,9 +74,10 @@ async function withFirefoxIME(server: BrowserServer, page: Page, use: (compose: 
             tip.flushPendingComposition();
           }
           tip.commitComposition();`,
-        args: [steps], newSandbox: true,
+        args: [value], newSandbox: true,
       });
-    });
+    };
+    await use({ compose: (...steps) => input(steps), press: input });
   } finally {
     socket.destroy();
   }
@@ -101,7 +109,7 @@ async function composeInWebKit(page: Page, ...steps: Parameters<Compose>) {
   await target.dispatchEvent('keyup', processKey);
 }
 
-export const compositionTest = test.extend<{ compose: Compose }, { imeServer: BrowserServer | undefined }>({
+export const compositionTest = test.extend<{ ime: CompositionInput }, { imeServer: BrowserServer | undefined }>({
   imeServer: [async ({ browserName, playwright, headless, launchOptions }, use) => {
     if (browserName !== 'firefox') return use(undefined);
     // Only IME tests opt into browser-chrome automation. Both listeners are
@@ -116,19 +124,21 @@ export const compositionTest = test.extend<{ compose: Compose }, { imeServer: Br
   connectOptions: async ({ imeServer, connectOptions }, use) => {
     await use(imeServer ? { wsEndpoint: imeServer.wsEndpoint() } : connectOptions);
   },
-  compose: async ({ page, browserName, imeServer }, use) => {
+  ime: async ({ page, browserName, imeServer }, use) => {
     if (imeServer) return withFirefoxIME(imeServer, page, use);
-    if (browserName === 'webkit') return use((...steps) => composeInWebKit(page, ...steps));
+    const press: CompositionInput['press'] = key => page.keyboard.press(key);
+    if (browserName === 'webkit') return use({ compose: (...steps) => composeInWebKit(page, ...steps), press });
     const cdp = await page.context().newCDPSession(page);
     try {
-      await use(async (...steps) => {
+      const compose: Compose = async (...steps) => {
         await cdp.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Process', windowsVirtualKeyCode: 229 });
         for (const text of steps) {
           await cdp.send('Input.imeSetComposition', { text, selectionStart: text.length, selectionEnd: text.length });
         }
         await cdp.send('Input.insertText', { text: steps[steps.length - 1] });
         await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Process', windowsVirtualKeyCode: 229 });
-      });
+      };
+      await use({ compose, press });
     } finally {
       await cdp.detach();
     }
