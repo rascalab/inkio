@@ -6,7 +6,7 @@ Versioning is unified across the publishable Inkio packages.
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-11-25
+## [0.1.1] - 2026-11-25
 
 - Docs: browse release-tagged documentation with version-scoped navigation and search, and follow a Yjs recipe to run and verify a local collaboration session.
 - Collab: opt-in `@inkio/collab/vite` builds an offline app shell for allowlisted SPA routes without caching API responses or changing document access rules.
@@ -20,14 +20,14 @@ Versioning is unified across the publishable Inkio packages.
 - Keep safe formatting, task checkbox layout, open disclosures and unique generated heading anchors in static previews. Reopening a callout's HTML preserves its type and custom color.
 - Isolate image edits, undo history and save completion when the source changes. Preserve small crop selections and their pending output dimensions.
 - Image save callbacks and preset image uploads receive an `AbortSignal` so hosts can cancel pending requests when their editing target disappears.
-- Remove six unused image editor message keys. The [migration guide](./MIGRATION.md#009--010) lists the overrides to drop; no visible controls were removed.
+- Remove six unused image editor message keys. The [migration guide](./MIGRATION.md#009--011) lists the overrides to drop; no visible controls were removed.
 - Rotating or flipping reuses the photo raster, even with editable annotations. Full-resolution export still uses the original image. The Next.js demo no longer rerenders the editor to report debug state.
 - Image editor: clicking the blank canvas after text entry restores keyboard focus. Drawing a shape uses the release position even when the browser skips the last pointer move.
 - Standalone image editors no longer load the Tiptap document runtime. The canvas and export worker now import only the Konva shapes and filters they use.
 - Text-only named imports from the editor presets no longer bundle the editor. Interactive viewers keep their node views and comment threads without loading editing menus; code highlighting loads its engine and grammars when a code block first needs them.
 - Editor instances expose `text`, `stats`, `summary(maxLength)`, `mentions`, `hashTags`, `headings` and `commentIds`. Live and saved text include inline reference labels and share one summary length limit. Register `Markdown` to use `editor.markdown` and `editor.setMarkdown(source)`.
 - **Breaking:** `read(json)` from `@inkio/core`, `@inkio/simple` or `@inkio/editor` replaces the standalone saved-JSON getters. Its read-only `InkioDocument` exposes the same document members as the live editor. See the [old-to-new mapping](./MIGRATION.md#reading-saved-json-without-an-editor).
-- Extension arrays add to defaults across presets and core. A preset menu options object enables that menu; `onChange` delivers the editor without requiring a JSON snapshot. Comment panels inherit the editor's registered actions. See the [migration guide](./MIGRATION.md#009--010) for affected options.
+- Extension arrays add to defaults across presets and core. A preset menu options object enables that menu; `onChange` delivers the editor without requiring a JSON snapshot. Comment panels inherit the editor's registered actions. See the [migration guide](./MIGRATION.md#009--011) for affected options.
 - Bind the authenticated collaboration example to the verified login on reconnect and logout. Reconcile offline updates after authentication without reopening destroyed transports.
 - Keep menu shortcuts with the focused toolbar, dismiss suggestions on focus exit and ignore obsolete suggestion results. A slash image picker no longer replaces content edited while the chooser was open.
 - Floating toolbar buttons accept keyboard focus as soon as the menu opens. Submitting a comment or selecting its quote no longer schedules a focus change that can interrupt typing a reply.

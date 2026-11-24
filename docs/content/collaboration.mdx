@@ -25,7 +25,7 @@ pnpm add @inkio/collab @inkio/core yjs
 - `extensions`를 생략하거나 `[]`를 넘기면 core 기본 확장을 유지합니다. 배열은 이름으로 확장을 추가·교체하고, `{ items, replace: true }`는 기본 목록을 직접 구성한 스키마로 대체합니다. 훅은 어느 경우든 충돌하는 실행 취소 확장을 제거하고 Yjs 협업 확장을 붙입니다.
 - `onChange(editor)`는 로컬·원격 문서 변경을 알립니다. 텍스트만 필요하면 `editor.text`를 읽으세요. JSON 스냅샷을 받으려면 `onUpdate(json)`을 사용합니다.
 
-세션 수명과 저수준 함수는 [v0.1.0 패키지 레퍼런스](https://github.com/rascalab/inkio/blob/v0.1.0/packages/collab/README.md#use)를 참고하세요.
+세션 수명과 저수준 함수는 [v0.1.1 패키지 레퍼런스](https://github.com/rascalab/inkio/blob/v0.1.1/packages/collab/README.md#use)를 참고하세요.
 
 ## 여러 문서를 한 소켓으로
 
@@ -39,13 +39,13 @@ pnpm add @inkio/collab @inkio/core yjs
 
 `InkioCollabModule.forRoot({ dataDir, verify, allowedOrigins })`로 기존 Nest 서버에 붙일 수 있습니다. 기본 경로는 `/collab`입니다. `openDirectConnection`을 쓴다면 소켓 인증을 거치지 않으므로 호출 전에 문서 권한을 직접 검사하세요.
 
-[Nest·단독 서버 설정 예제](https://github.com/rascalab/inkio/blob/v0.1.0/examples/collab-server/README.md#embedded-nest-server)
+[Nest·단독 서버 설정 예제](https://github.com/rascalab/inkio/blob/v0.1.1/examples/collab-server/README.md#embedded-nest-server)
 
 ### 문서별 권한과 분리 운영
 
 - `verify(token, docId, request)`는 인증된 사용자의 테넌트·문서 멤버십을 확인해야 합니다. 반환값은 `'write'`(편집), `'read'`(보기), `false`(거부)입니다. 장애에는 예외를 던지고, 권한이 바뀐 사용자는 재인증하도록 기존 연결을 닫으세요.
 - 짧은 수명의 문서 토큰을 발급하고, 프록시에서 WebSocket 업그레이드를 허용하세요. `allowedOrigins` 또는 `COLLAB_ALLOWED_ORIGINS`는 실제 앱 Origin으로 제한합니다. Origin 검사는 문서 인증을 대신하지 않습니다.
-- API와 동기화 서버를 분리하면 `COLLAB_VERIFY_KEY`는 서버 사이에서만 사용합니다. [검증 API 계약과 배포 설정](https://github.com/rascalab/inkio/blob/v0.1.0/examples/collab-server/README.md#private-verifier--sync-server)을 참고하세요.
+- API와 동기화 서버를 분리하면 `COLLAB_VERIFY_KEY`는 서버 사이에서만 사용합니다. [검증 API 계약과 배포 설정](https://github.com/rascalab/inkio/blob/v0.1.1/examples/collab-server/README.md#private-verifier--sync-server)을 참고하세요.
 
 로컬에서는 서버 시작 전에 `COLLAB_VIEWER_TOKEN`을 설정해 보세요. 새 탭에서 그 토큰을 쓰면 `synced (읽기 전용)`, 틀린 토큰을 쓰면 `unauthorized`가 표시됩니다.
 
@@ -56,7 +56,7 @@ pnpm add @inkio/collab @inkio/core yjs
 
 `synced`는 디스크 저장 완료가 아닙니다. 복원을 확인하려면 서버를 정상 종료하고 같은 `DATA_DIR`로 다시 시작한 뒤, 오프라인 캐시를 켜지 않은 새 탭에서 보기 토큰으로 같은 방을 여세요.
 
-저장 디렉터리는 sync 프로세스 하나만 소유해야 합니다. [스냅샷 한도·파일 이전·복원 검사](https://github.com/rascalab/inkio/blob/v0.1.0/examples/collab-server/README.md#persistence-and-upgrades)를 참고하세요.
+저장 디렉터리는 sync 프로세스 하나만 소유해야 합니다. [스냅샷 한도·파일 이전·복원 검사](https://github.com/rascalab/inkio/blob/v0.1.1/examples/collab-server/README.md#persistence-and-upgrades)를 참고하세요.
 
 ### 서버에서 시드 넣기
 
@@ -66,7 +66,7 @@ pnpm add @inkio/collab @inkio/core yjs
 
 `offline: { accountId, deploymentId }`를 넘기면 IndexedDB 캐시가 켜집니다. 토큰이 아닌 안정적인 식별자를 사용하세요. 쓰기가 허용됐던 세션은 연결이 끊겨도 편집할 수 있지만, 새 오프라인 세션은 권한이 확인될 때까지 읽기 전용입니다.
 
-로그아웃·계정 전환 시 기존 세션을 종료한 뒤 캐시를 비우세요. 캐시는 권한 검사나 암호화를 대신하지 않습니다. [캐시 삭제·이전 방법](https://github.com/rascalab/inkio/blob/v0.1.0/packages/collab/README.md#use)
+로그아웃·계정 전환 시 기존 세션을 종료한 뒤 캐시를 비우세요. 캐시는 권한 검사나 암호화를 대신하지 않습니다. [캐시 삭제·이전 방법](https://github.com/rascalab/inkio/blob/v0.1.1/packages/collab/README.md#use)
 
 완전히 오프라인인 상태에서 앱 페이지도 다시 열려면
 [Vite 앱 셸 캐시](/recipes/react-router/#오프라인에서-협업-앱-다시-열기)를 따로 켜세요.

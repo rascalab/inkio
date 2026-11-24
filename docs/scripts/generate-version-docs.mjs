@@ -21,6 +21,8 @@ function git(...args) {
 }
 
 function isEligibleTag(tag) {
+  // npm rejected this release; keep its Git tag but never offer uninstallable docs.
+  if (tag === 'v0.1.0') return false;
   const release = stableTagPattern.exec(tag);
   if (!release) return false;
   for (let i = 1; i <= 3; i++) {

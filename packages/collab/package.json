@@ -1,6 +1,6 @@
 {
   "name": "@inkio/collab",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Yjs real-time collaboration for Inkio (Hocuspocus provider, hooks, presence, carets)",
   "license": "MIT",
   "homepage": "https://rascalab.github.io/inkio/",

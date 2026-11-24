@@ -1,6 +1,6 @@
 # Migration
 
-## 0.0.9 → 0.1.0
+## 0.0.9 → 0.1.1
 
 - **Extension lists now add to the defaults**, including in `@inkio/core`. If you supplied a complete schema (or intentionally removed a default extension), pass `extensions={{ items: extensions, replace: true }}`. To add Markdown, pass only `extensions={[Markdown]}`.
 - **Preset menus have one switch per menu.** Replace `ui={{ showToolbar: true, toolbar: options }}` with `ui={{ toolbar: options }}`. Use `true` for the default toolbar or `false` to hide it. The same rule applies to `bubbleMenu`, `floatingMenu` and `tableMenu`.
