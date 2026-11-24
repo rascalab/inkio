@@ -19,7 +19,15 @@ function cleanNode(node: JSONContent, schema: Schema, inline: boolean, unknown: 
   const type = schema.nodes[node.type ?? ''];
   if (!type) {
     unknown.add(node.type ?? 'unnamed');
-    if (Array.isArray(node.content)) return cleanChildren(node.content, schema, inline, unknown);
+    if (Array.isArray(node.content)) {
+      const children = cleanChildren(node.content, schema, inline, unknown);
+      // A removed heading/code block can contain bare text. Keep its paragraph
+      // boundary, including when several such blocks sit next to one another.
+      if (!inline && schema.nodes.paragraph && children.length && children.every(child => schema.nodes[child.type ?? '']?.isInline)) {
+        return [{ type: 'paragraph', content: children }];
+      }
+      return children;
+    }
     const text = textOf(node);
     if (!text) return [];
     return inline

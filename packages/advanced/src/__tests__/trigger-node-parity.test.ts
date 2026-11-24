@@ -6,6 +6,7 @@ import Text from '@tiptap/extension-text';
 import { HashTag, HashTagPluginKey } from '../extensions/HashTag';
 import { Mention, MentionPluginKey } from '../extensions/Mention';
 import { hashTagClickPluginKey, mentionClickPluginKey } from '../extensions/inline-node-click';
+import { read } from '@inkio/core';
 
 /**
  * Output parity for Mention/HashTag: the expected values were captured from
@@ -124,6 +125,20 @@ describe('Mention/HashTag output parity', () => {
     const editor = createEditor();
     expect(editor.getText()).toMatchInlineSnapshot(`"hi @alice @u2 @bob #react #t2"`);
     editor.destroy();
+  });
+
+  it('uses the displayed ID fallback in text and reference lists for empty HTML labels', () => {
+    const editor = createEditor('<p><span data-mention data-id="u1" data-label=""></span> <span data-hashtag data-id="t2"></span> <span data-mention></span> <span data-hashtag data-label="###"></span></p>');
+    try {
+      const saved = read(editor.getJSON());
+      expect(editor.view.dom.textContent).toBe('@u1 #t2 @ ###');
+      expect(editor.getText()).toBe('@u1 #t2 @ ###');
+      expect(saved.text).toBe('@u1 #t2 @ ###');
+      expect(saved.mentions).toEqual([{ id: 'u1', label: 'u1' }]);
+      expect(saved.hashTags).toEqual(['t2']);
+    } finally {
+      editor.destroy();
+    }
   });
 
   it('round-trips JSON to the same HTML', () => {

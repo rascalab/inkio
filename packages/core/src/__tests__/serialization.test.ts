@@ -13,8 +13,16 @@ function deepDoc(depth: number): JSONContent {
 describe('serialization depth guard', () => {
   it('terminates on adversarially nested input instead of overflowing', () => {
     const saved = read(deepDoc(100_000));
-    expect(() => saved.text).not.toThrow();
-    expect(() => saved.stats).not.toThrow();
+    expect(saved.text).toBe('deep');
+    expect(saved.stats).toEqual({ words: 1, chars: 4, blocks: 0 });
+  });
+
+  it('skips ancestor back-edges, but includes repeated siblings at each position', () => {
+    const paragraph = { type: 'paragraph', content: [{ type: 'text', text: 'twice' }] };
+    const doc: JSONContent = { type: 'doc', content: [] };
+    doc.content!.push(paragraph, doc, paragraph);
+    expect(read(doc).text).toBe('twice\ntwice');
+    expect(read(doc).stats.blocks).toBe(2);
   });
 
   it('keeps shallow documents fully intact', () => {
@@ -109,6 +117,31 @@ describe('serialization block coverage', () => {
     expect(text).toContain('a');
     expect(text).toContain('b');
     expect(text.replace(/\s+/g, ' ').trim()).not.toBe('ab');
-    expect(saved.stats.blocks).toBeGreaterThan(0);
+    expect(saved.stats.blocks).toBe(6);
+  });
+
+  it('includes visible bookmark and image attributes, separates details, and counts every nested block', () => {
+    const saved = read({ type: 'doc', content: [
+      { type: 'bookmark', attrs: { title: 'Release', url: 'https://example.com', description: 'What changed' } },
+      { type: 'bookmark', attrs: { url: 'https://example.com/plain' } },
+      { type: 'imageBlock', attrs: { caption: '  ', alt: 'A diagram' } },
+      { type: 'details', content: [
+        { type: 'detailsSummary', content: [{ type: 'text', text: 'Title' }] },
+        { type: 'detailsContent', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Body' }] }] },
+      ] },
+      { type: 'tocBlock' },
+    ] });
+    expect(saved.text).toBe('Release\nWhat changed\nhttps://example.com/plain\n[Image: A diagram]\nTitle\nBody');
+    expect(saved.stats).toEqual({ words: 9, chars: saved.text.length, blocks: 8 });
+    expect(saved.summary()).toBe(saved.text);
+  });
+
+  it('preserves literal whitespace at code boundaries and within code blocks', () => {
+    const code = '  indented  \n\n\n\tlast \n';
+    const block = { type: 'codeBlock', content: [{ type: 'text', text: code }] };
+    expect(read({ type: 'doc', content: [block] }).text).toBe(code);
+    const paragraph = { type: 'paragraph', content: [{ type: 'text', text: 'prose' }] };
+    expect(read({ type: 'doc', content: [paragraph, block, paragraph] }).text)
+      .toBe(`prose\n${code}\nprose`);
   });
 });

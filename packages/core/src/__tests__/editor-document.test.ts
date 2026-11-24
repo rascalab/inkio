@@ -1,6 +1,8 @@
-import { Mark, Node, type JSONContent } from '@tiptap/core';
+import { Mark, Node, type Extensions, type JSONContent } from '@tiptap/core';
 import Blockquote from '@tiptap/extension-blockquote';
 import Document from '@tiptap/extension-document';
+import CodeBlock from '@tiptap/extension-code-block';
+import { Details, DetailsContent, DetailsSummary } from '@tiptap/extension-details';
 import HardBreak from '@tiptap/extension-hard-break';
 import Heading from '@tiptap/extension-heading';
 import Paragraph from '@tiptap/extension-paragraph';
@@ -9,6 +11,7 @@ import { Editor } from '@tiptap/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { read, withDocumentAccess } from '../index';
 import { ImageBlockSchema } from '../extensions/image-block-schema';
+import { TocBlockSchema } from '../extensions/TocBlock/toc-block-schema';
 
 function inlineReference(name: 'mention' | 'hashTag') {
   return Node.create({
@@ -22,11 +25,12 @@ function inlineReference(name: 'mention' | 'hashTag') {
 }
 
 const editors: Editor[] = [];
-function createEditor(content: JSONContent | string) {
+function createEditor(content: JSONContent | string, extra: Extensions = []) {
   const editor = new Editor({
     extensions: [Document, Paragraph, Heading, Text, HardBreak, Blockquote, ImageBlockSchema,
       inlineReference('mention'), inlineReference('hashTag'),
-      Mark.create({ name: 'comment', addAttributes: () => ({ commentId: { default: null } }), renderHTML: () => ['span', 0] })],
+      Mark.create({ name: 'comment', addAttributes: () => ({ commentId: { default: null } }), renderHTML: () => ['span', 0] }),
+      ...extra],
     content,
   });
   editors.push(editor);
@@ -69,8 +73,70 @@ describe('document access', () => {
     expect(editor.text).toBe('first\nsecond\n\n[Image: The view]\n[Image]');
     expect(editor.text).toBe(saved.text);
     expect(editor.stats).toEqual(saved.stats);
-    expect(editor.stats.blocks).toBe(2);
+    expect(editor.stats.blocks).toBe(4);
     expect(json).not.toHaveBeenCalled();
+  });
+
+  it('uses extension renderText for atoms and containers, with original serializer positions and block counts', () => {
+    const badge = Node.create({
+      name: 'badge', inline: true, group: 'inline', atom: true,
+      renderHTML: () => ['span'],
+      renderText: ({ pos, parent, index }) => `${parent.type.name}:${index}@${pos}`,
+    });
+    const panel = Node.create({
+      name: 'panel', group: 'block', content: 'block+',
+      renderHTML: () => ['section', 0],
+      renderText: ({ node }) => `[${node.textContent}]`,
+    });
+    const editor = withDocumentAccess(createEditor({ type: 'doc', content: [
+      { type: 'paragraph', content: [{ type: 'text', text: 'x' }, { type: 'badge' }] },
+      { type: 'panel', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'inside' }] }] },
+    ] }, [badge, panel]));
+    const saved = read(editor.getJSON(), { schema: editor.schema });
+    const text = 'xparagraph:1@2\n[inside]';
+    for (const doc of [editor, saved]) {
+      expect(doc.text).toBe(text);
+      expect(doc.stats).toEqual({ words: 2, chars: text.length, blocks: 3 });
+      expect(doc.summary()).toBe(text);
+    }
+  });
+
+  it('reads details children, literal code and a ToC atom consistently with their schemas', () => {
+    const code = '  first  \n\n\n\tsecond\n';
+    const content = { type: 'doc', content: [
+      { type: 'details', content: [
+        { type: 'detailsSummary', content: [{ type: 'text', text: 'Title' }] },
+        { type: 'detailsContent', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Body' }] }] },
+      ] },
+      { type: 'tocBlock' },
+      { type: 'codeBlock', content: [{ type: 'text', text: code }] },
+    ] };
+    const editor = withDocumentAccess(createEditor(content, [CodeBlock, Details, DetailsSummary, DetailsContent, TocBlockSchema]));
+    for (const doc of [editor, read(content), read(content, { schema: editor.schema })]) {
+      expect(doc.text).toBe(`Title\nBody\n\n${code}`);
+      expect(doc.stats).toEqual({ blocks: 6, words: 4, chars: doc.text.length });
+      expect(doc.summary()).toBe(doc.text);
+    }
+  });
+
+  it('reads deeply nested schema-backed JSON without truncating or following back-edges', () => {
+    const schema = createEditor('<p></p>').schema;
+    let child: JSONContent = { type: 'paragraph', content: [{ type: 'text', text: 'leaf' }] };
+    for (let i = 0; i < 10_000; i++) child = { type: 'blockquote', content: [child] };
+    const json: JSONContent = { type: 'doc', content: [child] };
+    json.content!.push(json);
+    const saved = read(json, { schema });
+    expect(saved.text).toBe('leaf');
+    expect(saved.stats).toEqual({ blocks: 10_001, words: 1, chars: 4 });
+  });
+
+  it('matches displayed reference prefixes for empty labels, prefixed labels and missing attributes', () => {
+    const content = { type: 'doc', content: [{ type: 'paragraph', content: [
+      { type: 'mention', attrs: { id: 'Ada', label: '' } },
+      { type: 'hashTag', attrs: { label: '##inkio' } }, { type: 'mention' }, { type: 'hashTag' },
+    ] }] };
+    expect(read(content).text).toBe('@Ada##inkio@#');
+    expect(withDocumentAccess(createEditor(content)).text).toBe('@Ada##inkio@#');
   });
 
   it('includes visible references in live and saved text, summaries, counts and headings', () => {
@@ -116,8 +182,8 @@ describe('document access', () => {
       ] }] },
     ] }));
     const json = vi.spyOn(editor, 'getJSON');
-    expect(editor.mentions).toEqual([{ id: '2', label: 'B' }, { id: '1', label: 'A' }, { id: '2', label: 'Bee' }]);
-    expect(editor.hashTags).toEqual(['Second', 'First', 'second', '']);
+    expect(editor.mentions).toEqual([{ id: '2', label: 'B' }, { id: '1', label: 'A' }, { id: '2', label: 'Bee' }, { id: '3', label: '3' }]);
+    expect(editor.hashTags).toEqual(['Second', 'First', 'second']);
     expect(json).not.toHaveBeenCalled();
     const saved = read(editor.getJSON());
     expect(saved.mentions).toEqual(editor.mentions);

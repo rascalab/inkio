@@ -111,7 +111,7 @@ Markdown lives in the package subpaths:
 - `@inkio/editor/markdown`
 - `@inkio/core/markdown`
 
-Core Markdown nodes support round trips. Advanced structures have [node-specific conversion rules](./docs/content/serialization.mdx). Register `Markdown` to read and write `editor.markdown` / `editor.setMarkdown(source)`; for standalone conversion, use the functions below.
+Register `Markdown` to read `editor.markdown` or replace the document with `editor.markdown = source`. A rejected write throws without clearing the current document. Use JSON for lossless storage; Markdown has [node-specific conversion rules](./docs/content/serialization.mdx). For standalone conversion, use the functions below.
 
 ```tsx
 import { parseMarkdown, stringifyMarkdown } from '@inkio/simple/markdown';

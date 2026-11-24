@@ -9,6 +9,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: [
+      { find: /^@inkio\/core\/markdown$/, replacement: resolve(__dirname, '../core/src/markdown/index.ts') },
       { find: /^@inkio\/core$/, replacement: resolve(__dirname, '../core/src/index.ts') },
       { find: '@', replacement: resolve(__dirname, 'src') },
     ],

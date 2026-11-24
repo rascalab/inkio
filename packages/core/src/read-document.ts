@@ -1,8 +1,8 @@
 import type { JSONContent } from '@tiptap/core';
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
+import type { Node as ProseMirrorNode, Schema } from '@tiptap/pm/model';
 import { extractHashtags, extractMentions, getCommentIds, type MentionRef } from './document-references';
-import { getHeadingsFromContent, type HeadingItem } from './headings/headings';
-import { countText, jsonPlainText, summarizeText, type ContentStats, type TextProjection } from './serialization';
+import { getDocumentHeadings, type HeadingItem } from './headings/headings';
+import { countText, documentPlainText, fromJSON, summarizeText, type ContentStats, type TextProjection } from './serialization';
 
 /** Lazy projections of one document. Returned collections and their items are read-only. */
 export interface InkioDocument {
@@ -27,12 +27,8 @@ function freezeItems<T extends object>(items: T[]): readonly Readonly<T>[] {
   return Object.freeze(items);
 }
 
-export function documentView<N extends Source>(
-  current: () => DocumentCache<N>,
-  plainText: (doc: N) => TextProjection,
-  headings: (doc: N) => HeadingItem[],
-): InkioDocument {
-  const projection = (c: DocumentCache<N>) => c.projection ??= plainText(c.doc);
+export function documentView(current: () => DocumentCache<Source>): InkioDocument {
+  const projection = (c: DocumentCache<Source>) => c.projection ??= documentPlainText(c.doc);
   return {
     get text() { return projection(current()).text; },
     get stats() {
@@ -50,7 +46,7 @@ export function documentView<N extends Source>(
     },
     get headings() {
       const c = current();
-      return c.headings ??= freezeItems(headings(c.doc));
+      return c.headings ??= freezeItems(getDocumentHeadings(c.doc));
     },
     get commentIds() {
       const c = current();
@@ -59,8 +55,13 @@ export function documentView<N extends Source>(
   };
 }
 
-/** Read an immutable JSON document already in memory. No editor, file or network I/O. */
-export function read(json: JSONContent): InkioDocument {
-  const cache: DocumentCache<JSONContent> = { doc: json };
-  return documentView(() => cache, jsonPlainText, getHeadingsFromContent);
+/**
+ * Read immutable JSON already in memory. Supply the document's Tiptap schema
+ * for custom block types, default attributes and extension text renderers.
+ * Without it, no editor or parser is needed and Inkio's built-ins are used.
+ */
+export function read(json: JSONContent, options?: { schema?: Schema }): InkioDocument {
+  const schema = options?.schema;
+  let cache: DocumentCache<Source> | undefined;
+  return documentView(() => cache ??= { doc: schema ? fromJSON(schema, json) : json });
 }

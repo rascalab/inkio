@@ -76,7 +76,12 @@ for (const tag of git('tag', '--list', 'v*', '--sort=-version:refname').toString
     const destination = path.join(releaseDir, file);
     const blob = git('cat-file', 'blob', oid);
     mkdirSync(path.dirname(destination), { recursive: true });
-    writeFileSync(destination, metaPattern.test(file) ? stripNavEntries(file, blob.toString('utf8')) : blob);
+    let content = metaPattern.test(file) ? stripNavEntries(file, blob.toString('utf8')) : blob;
+    if (tag === 'v0.1.1' && file === 'serialization.mdx') {
+      // Keep released examples intact, but warn readers before a destructive import.
+      content = blob.toString('utf8').replace(/^# .+$/m, '$&\n\n> **0.1.1 정정:** `setMarkdown()`은 표 크기 제한으로 입력이 거절돼도 `true`를 반환할 수 있습니다. 이 값만 보고 원본을 삭제하지 말고, 원본 보관에는 JSON을 사용하세요.');
+    }
+    writeFileSync(destination, content);
   }
   if (!files.some(({ file }) => /^index\.mdx?$/.test(file))) {
     const gettingStarted = files.some(({ file }) => /^getting-started\.mdx?$/.test(file))

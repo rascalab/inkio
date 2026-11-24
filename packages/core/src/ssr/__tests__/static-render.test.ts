@@ -136,6 +136,18 @@ describe('static render: sanitizes documents and reports limits', () => {
     expect(html.match(/id="intro"/g)).toHaveLength(1);
   });
 
+  it('keeps word boundaries at rendered line breaks in static heading labels and anchors', () => {
+    const json = { type: 'doc', content: [{ type: 'heading', attrs: { level: 2 }, content: [
+      { type: 'text', text: 'First' }, { type: 'hardBreak' }, { type: 'text', text: 'Page' },
+    ] }] };
+    for (const input of [json, '<h2>First<strong><br></strong>Page</h2>']) {
+      const { html, headings } = renderInkioStaticContent(input, extensions);
+      expect(headings).toEqual([{ level: 2, text: 'First Page', id: 'first-page', index: 0 }]);
+      expect(html).toContain('id="first-page"');
+      expect(html).toContain('<br');
+    }
+  });
+
   it('injects stable heading ids for anchors', () => {
     const doc = {
       type: 'doc',

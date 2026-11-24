@@ -27,7 +27,7 @@ export function EditorContainer({ style, theme, fill, autoresize, bordered = tru
 }
 
 /** Shared SSR shell, node views and live UI updates for editable and read-only surfaces. */
-export function useEditorSurface({ content, placeholder, ariaLabel, editable = true, onChange, onUpdate, onCreate, locale, messages, icons }: EditorProps, resolvedExtensions: Extensions) {
+export function useEditorSurface({ content, placeholder, ariaLabel, editable = true, onChange, onUpdate, onCreate, locale, messages, icons }: EditorProps, resolvedExtensions: Extensions, followContent = false) {
   const context = useInkioContext();
   const uiLocale = locale ?? context.locale;
   const uiMessages = messages ?? context.messages;
@@ -48,7 +48,7 @@ export function useEditorSurface({ content, placeholder, ariaLabel, editable = t
     onChange,
     onUpdate,
     onCreate,
-  });
+  }, followContent);
   // A prop this editor was never given leaves what its extensions were configured with.
   const givenUi = useRef<EditorUi>({});
   useEffect(() => {

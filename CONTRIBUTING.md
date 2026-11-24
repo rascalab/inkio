@@ -37,8 +37,8 @@ Package roles:
 
 ## Editor API ownership
 
-- `core` owns **reading Inkio documents**, including the persisted shape of built-in references. Live getters and `read(json)` use the same rules. The editor caches by ProseMirror document identity without calling `getJSON()`; each saved-JSON reader caches for the lifetime of its immutable input. When adding a projection, test both representations of the same document.
-- **Behavior belongs to its extension.** Reading a comment ID doesn't load a comment UI or authorize a thread. Registering `Markdown` installs the editor's Markdown methods; importing the base editor must not load the Markdown parser.
+- `core` owns the document projections (`text`, `stats`, references and headings). Test a node's *expected* visible text, structure and references against both a real editor and unnormalized saved JSON. Comparing the two results alone won't catch shared omissions. Include new default schema nodes in `scripts/packed-editor-smoke.cjs`.
+- **Behavior belongs to its extension.** Reading a comment ID doesn't load a comment UI or authorize a thread. Registering `Markdown` makes `editor.markdown` writable; importing the base editor must not load the Markdown parser. Test rejected writes against the actual document after dispatch, not just the parser or command return.
 - **Presets choose defaults, not new meanings for props.** Resolve extensions once and forward the exact result. Whether a menu is enabled and how it is configured come from the same preset option. A host that needs a JSON copy requests one explicitly (`onUpdate` or `editor.getJSON()`); an instance change callback must not create one for it.
 
 ## Shared chrome contract

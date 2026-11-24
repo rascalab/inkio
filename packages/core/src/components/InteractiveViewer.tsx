@@ -6,6 +6,7 @@ import type { InkioMessageOverrides } from '../i18n/messages';
 import type { WithEditorExtensions } from '../editor-document';
 import { getInteractiveExtensions } from '../extensions/interactive-extensions';
 import { useReadOnlyContentSync } from '../hooks/use-read-only-content-sync';
+import { useStableExtensions } from '../hooks/use-stable-extensions';
 import { resolveExtensionsInput, type ExtensionsInput } from '../utils/extensions-input';
 import { useStableProps } from '../utils/stable-options';
 import type { EditorProps } from './Editor';
@@ -25,8 +26,9 @@ export function InteractiveViewer(props: Props): React.JSX.Element;
 export function InteractiveViewer({ content, locale, theme, ui, extensions, onCreate, presetExtensions }: Props) {
   const stableUi = useStableProps(ui ?? {});
   const [defaults] = useState(() => getInteractiveExtensions({ locale, messages: stableUi.messages, icons: stableUi.icons }));
-  const resolved = useMemo(() => resolveExtensionsInput(extensions, presetExtensions ? [...defaults, ...presetExtensions] : defaults), [defaults, presetExtensions, extensions]);
-  const { editor, body } = useEditorSurface({ content, locale, messages: stableUi.messages, icons: stableUi.icons, editable: false, onCreate }, resolved);
+  const stableExtensions = useStableExtensions(extensions);
+  const resolved = useMemo(() => resolveExtensionsInput(stableExtensions, presetExtensions ? [...defaults, ...presetExtensions] : defaults), [defaults, presetExtensions, stableExtensions]);
+  const { editor, body } = useEditorSurface({ content, locale, messages: stableUi.messages, icons: stableUi.icons, editable: false, onCreate }, resolved, true);
   useReadOnlyContentSync(editor, content);
   return <EditorContainer theme={theme} {...stableUi}>{body}</EditorContainer>;
 }

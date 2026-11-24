@@ -80,8 +80,11 @@ export function createTriggerNode<
   const { name, char, pluginKey, clickPluginKey, dataAttribute, insertCommand } = config;
   const markerAttributes = { [dataAttribute]: '', 'data-type': name };
   // An app's label may already start with the trigger (`#inkio`).
-  const withChar = (text: unknown) => (String(text).startsWith(char) ? String(text) : `${char}${text}`);
-  const labelText = (attrs: TriggerNodeAttrs) => withChar(attrs.label ?? attrs.id);
+  const labelText = (attrs: TriggerNodeAttrs) => {
+    const raw = attrs.label === '' || attrs.label == null ? attrs.id : attrs.label;
+    const text = typeof raw === 'string' || typeof raw === 'number' ? String(raw) : '';
+    return text.startsWith(char) ? text : char + text;
+  };
 
   return TiptapMention.extend<Options>({
     name,
@@ -145,7 +148,7 @@ export function createTriggerNode<
       ];
     },
 
-    renderHTML({ HTMLAttributes }) {
+    renderHTML({ node, HTMLAttributes }) {
       return [
         'span',
         mergeAttributes(
@@ -153,7 +156,7 @@ export function createTriggerNode<
           this.options.HTMLAttributes,
           HTMLAttributes,
         ),
-        withChar(HTMLAttributes['data-label'] ?? HTMLAttributes['data-id'] ?? ''),
+        labelText(node.attrs as TriggerNodeAttrs),
       ];
     },
 

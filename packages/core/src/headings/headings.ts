@@ -1,6 +1,6 @@
 import type { JSONContent } from '@tiptap/core';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
-import { inlineReferenceText } from '../serialization';
+import { documentPlainText, walkDocumentNodes } from '../serialization';
 
 export interface HeadingItem {
   level: number;
@@ -9,20 +9,31 @@ export interface HeadingItem {
   id: string;
 }
 
-function getTextFromNode(node: JSONContent | null | undefined): string {
-  if (!node) {
-    return '';
-  }
+const defaultLevels = [1, 2, 3, 4, 5, 6];
 
-  if (node.type === 'text' && typeof node.text === 'string') {
-    return node.text;
+function schemaLevels(node: ProseMirrorNode): number[] {
+  // Tiptap's heading extension registers hN parse rules in configured order;
+  // its renderer falls back to the first configured level.
+  const levels: number[] = [];
+  for (const rule of node.type.spec?.parseDOM ?? []) {
+    if ('tag' in rule && /^h[1-6]$/.test(rule.tag)) levels.push(Number(rule.tag[1]));
   }
+  return levels.length ? levels : defaultLevels;
+}
 
-  if (Array.isArray(node.content)) {
-    return node.content.map(getTextFromNode).join('');
-  }
+/** A ToC label is one line, but a break must still separate its words. */
+export function headingLabel(text: string): string {
+  const title = text.trim();
+  return /[\r\n]/.test(title)
+    ? title.replace(/[ \t\r\n]+/g, space => /[\r\n]/.test(space) ? ' ' : space)
+    : title;
+}
 
-  return inlineReferenceText(node.type, node.attrs) ?? '';
+function addHeading(headings: HeadingItem[], used: Set<string>, rawLevel: unknown, levels: number[], title: string) {
+  const index = headings.length;
+  const level = typeof rawLevel === 'number' && levels.includes(rawLevel) ? rawLevel : levels[0];
+  const text = headingLabel(title);
+  headings.push({ level, text, index, id: slugifyHeading(text || `section-${index + 1}`, used) });
 }
 
 export function slugifyHeading(text: string, used: Set<string>): string {
@@ -48,77 +59,62 @@ export function slugifyHeading(text: string, used: Set<string>): string {
   return candidate;
 }
 
-export function getHeadingsFromContent(content: JSONContent | null | undefined): HeadingItem[] {
-  if (!content || !Array.isArray(content.content)) {
-    return [];
-  }
-
+export function getDocumentHeadings(root: JSONContent | ProseMirrorNode): HeadingItem[] {
   const headings: HeadingItem[] = [];
-  const usedIds = new Set<string>();
-
-  function visit(node: JSONContent): void {
-    if (node.type === 'heading') {
-      const level = Math.min(6, Math.max(1, Number(node.attrs?.level ?? 1)));
-      const text = getTextFromNode(node).trim();
-      const index = headings.length;
-
-      headings.push({
-        level,
-        text,
-        index,
-        id: slugifyHeading(text || `section-${index + 1}`, usedIds),
-      });
-      return;
+  const used = new Set<string>();
+  const range = { from: 0, to: (root as ProseMirrorNode).content?.size ?? 0 };
+  let levels: number[] | undefined;
+  walkDocumentNodes(root, (node, parent, index, pos) => {
+    const type = node.type;
+    const live = typeof type === 'object';
+    if (node === root || (live ? type.name : type) !== 'heading') {
+      return !live || !(node as ProseMirrorNode).isTextblock;
     }
-
-    if (Array.isArray(node.content)) {
-      node.content.forEach(visit);
-    }
-  }
-
-  content.content.forEach(visit);
+    levels ??= live ? schemaLevels(node as ProseMirrorNode) : defaultLevels;
+    const context = live ? { pos, parent: parent as ProseMirrorNode | null, index, range } : undefined;
+    addHeading(headings, used, node.attrs?.level, levels, documentPlainText(node, context).text);
+    return false;
+  });
   return headings;
+}
+
+export function getHeadingsFromContent(content: JSONContent | null | undefined): HeadingItem[] {
+  return content ? getDocumentHeadings(content) : [];
 }
 
 /** Extract headings directly from a ProseMirror doc node (no JSON serialization). */
 export function getHeadingsFromDoc(
   doc: {
+    content?: { size: number };
     forEach?: (fn: (node: any) => void) => void;
     descendants?: (fn: (node: any) => void) => void;
   } | null | undefined,
 ): HeadingItem[] {
   if (!doc) return [];
+  if ('type' in doc && doc.content) return getDocumentHeadings(doc as ProseMirrorNode);
 
   const headings: HeadingItem[] = [];
   const usedIds = new Set<string>();
-  let index = 0;
+  let levels: number[] | undefined;
 
-  // Returns false to prune: headings and other textblocks only hold inline
-  // content, so their text nodes are never visited.
-  const collect = (node: any): boolean => {
+  // Heading text is projected once, including any schema text serializers.
+  const collect = (node: ProseMirrorNode, pos = 0, parent: ProseMirrorNode | null = null, index = 0): boolean => {
     if (node?.type?.name === 'heading') {
-      const level = Math.min(6, Math.max(1, Number(node.attrs?.level ?? 1)));
-      const text = (node.textBetween?.(0, node.content.size, '', (leaf: ProseMirrorNode) =>
-        inlineReferenceText(leaf.type.name, leaf.attrs) ?? '') ?? node.textContent ?? '').trim();
-
-      headings.push({
-        level,
-        text,
-        index,
-        id: slugifyHeading(text || `section-${index + 1}`, usedIds),
-      });
-      index += 1;
+      levels ??= schemaLevels(node);
+      const title = node.type.spec && node.content
+        ? documentPlainText(node, { pos, parent, index, range: { from: 0, to: doc.content?.size ?? node.content.size } }).text
+        : node.textContent ?? '';
+      addHeading(headings, usedIds, node.attrs?.level, levels, title);
       return false;
     }
     return !node?.isTextblock;
   };
 
-  // descendants() recurses into blockquote/callout/details/table cells so live
-  // ToC matches getHeadingsFromContent(). forEach() only visits top-level kids.
+  // Lightweight adapters may supply only descendants() or forEach().
   if (typeof doc.descendants === 'function') {
     doc.descendants(collect);
   } else if (typeof doc.forEach === 'function') {
-    doc.forEach(collect);
+    doc.forEach(node => collect(node));
   }
 
   return headings;

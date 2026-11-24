@@ -6,6 +6,15 @@ Versioning is unified across the publishable Inkio packages.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-25
+
+- **Breaking:** With `Markdown` registered, replace `editor.setMarkdown(source)` with `editor.markdown = source`. Rejected assignments throw without clearing the document.
+- Fix mounting the full editor preset from CommonJS. The tarball smoke now mounts the packed editor and checks its document projections and Markdown writes.
+- Count nested blocks, including images, bookmarks and the table of contents. Text previews preserve bookmark labels, image captions or alt text, toggle boundaries and code whitespace. Saved custom documents can use their original schema via `read(json, { schema })`.
+- Markdown round trips no longer insert formatting characters into adjacent marked text or turn escaped wiki brackets into nodes. Preserve end-of-paragraph breaks, captions, inline image content and visible cell text.
+- Resolve empty reference labels consistently in live documents, saved JSON and heading links. The table of contents updates when a reference label inside a heading changes.
+- Changing React extension registrations replaces the editor without exposing stale extension methods. Equivalent registrations keep the instance; real schema transitions retain compatible document content and selection.
+
 ## [0.1.1] - 2026-11-25
 
 - Docs: browse release-tagged documentation with version-scoped navigation and search, and follow a Yjs recipe to run and verify a local collaboration session.

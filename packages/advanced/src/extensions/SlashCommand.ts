@@ -1,5 +1,5 @@
 import { Extension, type Editor, type EditorEvents, type Range } from '@tiptap/core';
-import Suggestion, { type SuggestionOptions } from '@tiptap/suggestion';
+import { Suggestion, type SuggestionOptions } from '@tiptap/suggestion';
 import { PluginKey, Selection } from '@tiptap/pm/state';
 import { createElement, type ComponentType, type ReactNode } from 'react';
 import { resolveIconRegistry, type InkioIconRegistry } from '@inkio/core/icons';

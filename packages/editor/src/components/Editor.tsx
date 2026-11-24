@@ -14,7 +14,7 @@ import type { HashTagItem, MentionItem, SlashCommandItem, SlashCommandTransform,
 import { getDefaultExtensions, type DefaultExtensionsOptions } from '@inkio/advanced';
 import { useCommentThreadUpdates } from './use-comment-thread-updates';
 import type { ExtensionsInput } from '../types';
-import { mapEditorUiToCoreProps, mergeImageBlockOptions, resolveExtensionsInput, useStableProps } from '@inkio/core';
+import { mapEditorUiToCoreProps, mergeImageBlockOptions, resolveExtensionsInput, useStableExtensions, useStableProps } from '@inkio/core';
 import type { InkioJSONContent as JSONContent } from '@inkio/core';
 
 export interface EditorProps {
@@ -126,6 +126,7 @@ export function Editor({
   });
 
   useCommentThreadUpdates(comment?.getComments);
+  const stableExtensions = useStableExtensions(extensions);
 
   const resolvedExtensions = useMemo(() => {
     const input = extensionInputs;
@@ -166,8 +167,8 @@ export function Editor({
       }
     }
 
-    return { items: resolveExtensionsInput(extensions, () => getDefaultExtensions(opts)), replace: true };
-  }, [extensionInputs, extensions, firstUi, imageEditor]);
+    return { items: resolveExtensionsInput(stableExtensions, () => getDefaultExtensions(opts)), replace: true };
+  }, [extensionInputs, stableExtensions, firstUi, imageEditor]);
 
   const coreProps: CoreEditorProps = {
     ...mapEditorUiToCoreProps(stableUi, {

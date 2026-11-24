@@ -147,6 +147,7 @@ try {
       '@types/react': '^19.2.14',
       '@types/react-dom': '^19.2.3',
       '@vitejs/plugin-react': '^6.0.1',
+      'happy-dom': JSON.parse(readFileSync(path.join(getPackageDir('@inkio/core'), 'package.json'), 'utf8')).dependencies['happy-dom'],
       typescript: '^5.9.3',
       vite: '^8.0.0',
     },
@@ -475,6 +476,7 @@ createRoot(document.getElementById('root')!).render(
       assert.match(html, /<pre\\b[^>]*><code\\b[^>]*>code<\\/code><\\/pre>/);
     }
   `], appDir);
+  run('node', ['--input-type=commonjs', '-e', readFileSync(path.join(__dirname, 'packed-editor-smoke.cjs'), 'utf8')], appDir);
   run('pnpm', ['build'], appDir);
   for (const file of ['inkio-offline-sw.js', 'inkio-offline-register.js']) {
     if (!existsSync(path.join(appDir, 'dist', file))) {

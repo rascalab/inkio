@@ -4,6 +4,7 @@ import type { InkioEditor, RegisteredEditor, WithEditorExtensions } from '../edi
 import { useMemo } from 'react';
 import { resolveInkioExtensions } from '../extensions/resolve-extensions';
 import { useResolvedInkioEditor } from './use-resolved-inkio-editor';
+import { useStableExtensions } from './use-stable-extensions';
 
 export interface UseInkioEditorOptions {
   /**
@@ -25,7 +26,7 @@ export interface UseInkioEditorOptions {
 export function useInkioEditor<const Input extends UseInkioEditorOptions['extensions']>(options: WithEditorExtensions<UseInkioEditorOptions, Input>): RegisteredEditor<Input> | null;
 export function useInkioEditor(options?: UseInkioEditorOptions): InkioEditor | null;
 export function useInkioEditor(options: UseInkioEditorOptions = {}) {
-  const { extensions, placeholder } = options;
-  const resolved = useMemo(() => resolveInkioExtensions(extensions, placeholder), [extensions, placeholder]);
+  const extensions = useStableExtensions(options.extensions);
+  const resolved = useMemo(() => resolveInkioExtensions(extensions, options.placeholder), [extensions, options.placeholder]);
   return useResolvedInkioEditor({ ...options, extensions: resolved });
 }

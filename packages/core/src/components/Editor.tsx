@@ -16,6 +16,7 @@ import type { ToolbarProps } from './Toolbar';
 import type { InkioCoreMessageOverrides, InkioLocaleInput, InkioMessageOverrides } from '../i18n/messages';
 import type { InkioIconRegistry } from '../icons/registry';
 import { resolveInkioExtensions } from '../extensions/resolve-extensions';
+import { useStableExtensions } from '../hooks/use-stable-extensions';
 
 export interface EditorProps {
   /** Initial document only (uncontrolled). See `useInkioEditor`. */
@@ -73,9 +74,10 @@ export function Editor(props: EditorProps) {
   } = props;
   // The first placeholder only: later ones reach the live editor below.
   const [firstPlaceholder] = useState(placeholder);
+  const stableExtensions = useStableExtensions(extensions);
   const resolvedExtensions = useMemo(
-    () => resolveInkioExtensions(extensions, firstPlaceholder),
-    [extensions, firstPlaceholder],
+    () => resolveInkioExtensions(stableExtensions, firstPlaceholder),
+    [stableExtensions, firstPlaceholder],
   );
 
   // Warn in an effect, not during render: parent re-renders (and

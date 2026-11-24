@@ -14,7 +14,7 @@ import {
 } from '@inkio/core';
 import type { InkioJSONContent as JSONContent } from '@inkio/core';
 import type { ExtensionsInput } from '../types';
-import { mapEditorUiToCoreProps, mergeImageBlockOptions, resolveExtensionsInput, useStableProps } from '@inkio/core';
+import { mapEditorUiToCoreProps, mergeImageBlockOptions, resolveExtensionsInput, useStableExtensions, useStableProps } from '@inkio/core';
 
 export interface EditorProps {
   /** Initial document only (uncontrolled). */
@@ -74,6 +74,7 @@ export function Editor({
     onImageUpload,
     onError,
   });
+  const stableExtensions = useStableExtensions(extensions);
 
   const resolvedExtensions = useMemo(() => {
     const opts: ExtensionsOptions = {
@@ -87,8 +88,8 @@ export function Editor({
     if (mergedImageBlock) {
       opts.imageBlock = { ...mergedImageBlock, imageEditor };
     }
-    return { items: resolveExtensionsInput(extensions, () => getExtensions(opts)), replace: true };
-  }, [extensionInputs, extensions, firstUi, imageEditor]);
+    return { items: resolveExtensionsInput(stableExtensions, () => getExtensions(opts)), replace: true };
+  }, [extensionInputs, stableExtensions, firstUi, imageEditor]);
 
   const coreProps: CoreEditorProps = {
     ...mapEditorUiToCoreProps(stableUi, {

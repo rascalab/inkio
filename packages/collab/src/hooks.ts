@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { Content, JSONContent } from '@tiptap/react';
 import { useEditor } from '@tiptap/react';
+import type { SelectionBookmark } from '@tiptap/pm/state';
 import type { HocuspocusProviderWebsocket } from '@hocuspocus/provider';
 import * as Y from 'yjs';
-import { mergeExtensions, resolveInkioExtensions, useCoalescedDocUpdate, useStableCallback, withDocumentAccess, type ExtensionsInput, type InkioEditor, type RegisteredEditor, type WithEditorExtensions } from '@inkio/core';
-import { createCollabExtensions, removeConflictingExtensions } from './extensions';
+import { mergeExtensions, resolveInkioExtensions, useCoalescedDocUpdate, useStableCallback, useStableExtensions, withDocumentAccess, type ExtensionsInput, type InkioEditor, type RegisteredEditor, type WithEditorExtensions } from '@inkio/core';
+import { COLLAB_CONFLICTING_EXTENSIONS, createCollabExtensions, removeConflictingExtensions } from './extensions';
 import { getCollabCacheKey, persistDocToIndexedDB, type CollabCacheScope } from './persistence';
 import { FALLBACK_PRESENCE_USER, normalizePresenceUser } from './presence-user';
 import {
@@ -166,9 +167,11 @@ export interface CollaborativeEditor<Instance extends InkioEditor = InkioEditor>
   readOnly: boolean;
 }
 
+type ReservedExtension = typeof COLLAB_CONFLICTING_EXTENSIONS[number] | 'collaboration' | 'collaborationCaret';
+
 export function useInkioCollaborativeEditor<const Input extends UseInkioCollaborativeEditorOptions['extensions']>(
-  options: WithEditorExtensions<UseInkioCollaborativeEditorOptions, Input>,
-): CollaborativeEditor<RegisteredEditor<Input>>;
+  options: WithEditorExtensions<UseInkioCollaborativeEditorOptions, Input, ReservedExtension>,
+): CollaborativeEditor<RegisteredEditor<Input, ReservedExtension>>;
 export function useInkioCollaborativeEditor(options: UseInkioCollaborativeEditorOptions): CollaborativeEditor;
 export function useInkioCollaborativeEditor({
   extensions,
@@ -196,19 +199,8 @@ export function useInkioCollaborativeEditor({
   // microtask burst, and not at all without a listener.
   const emitUpdate = useCoalescedDocUpdate(onUpdate, onChange);
 
-  // Rebuilding this list recreates the live Yjs editor. A fresh container such
-  // as `[Markdown]` still registers exactly the same extension instances.
-  const list = extensions && 'items' in extensions ? extensions.items : extensions;
-  const replace = !!(extensions && 'items' in extensions && extensions.replace);
-  const previous = useRef(list);
-  const last = previous.current;
-  if (list !== last && (!list || !last || list.length !== last.length || list.some((ext, i) => ext !== last[i]))) {
-    previous.current = list;
-  }
-  const items = previous.current;
-  const base = useMemo(() => removeConflictingExtensions(resolveInkioExtensions(
-    items && replace ? { items, replace: true } : items,
-  )), [items, replace]);
+  const stableExtensions = useStableExtensions(extensions);
+  const base = useMemo(() => removeConflictingExtensions(resolveInkioExtensions(stableExtensions)), [stableExtensions]);
 
   const finalExtensions = useMemo(() => {
     if (!provider) return base;
@@ -216,6 +208,7 @@ export function useInkioCollaborativeEditor({
     // The user is applied live through awareness; only the provider rebuilds.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [base, provider]);
+  const selection = useMemo(() => ({ bookmark: null as SelectionBookmark | null }), [provider]);
 
   const editor = useEditor(
     {
@@ -228,28 +221,45 @@ export function useInkioCollaborativeEditor({
         'aria-label': ariaLabel,
         'aria-multiline': 'true',
       } },
+      onBeforeCreate: ({ editor: instance }) => {
+        if (!provider) return;
+        // Bind the outgoing selection to its own session, never to a new room.
+        instance.once('destroy', () => { selection.bookmark = instance.state.selection.getBookmark(); });
+      },
+      onMount: ({ editor: instance }) => {
+        const bookmark = selection.bookmark;
+        selection.bookmark = null;
+        if (!bookmark) return;
+        const { doc, tr } = instance.state;
+        try {
+          tr.setSelection(bookmark.resolve(doc));
+        } catch {
+          return; // The new schema no longer has that position.
+        }
+        instance.view.dispatch(tr.setMeta('addToHistory', false));
+      },
       onCreate: ({ editor: instance }) => {
-        if (provider && getCollabStatus(provider) !== 'unauthorized') handleCreate?.(withDocumentAccess(instance));
+        if (provider && instance.options.extensions === finalExtensions && getCollabStatus(provider) !== 'unauthorized') {
+          handleCreate?.(withDocumentAccess(instance));
+        }
       },
       // setEditable emits 'update' with an empty transaction: only document
       // changes (local or remote) reach onUpdate (see core useInkioEditor).
       onUpdate: ({ editor: instance, transaction, appendedTransactions }) => {
         if (!transaction.docChanged && !appendedTransactions.some((tr) => tr.docChanged)) return;
-        emitUpdate(instance);
+        if (provider && instance.options.extensions === finalExtensions && getCollabStatus(provider) !== 'unauthorized') emitUpdate(instance);
       },
     },
     [finalExtensions],
   );
 
+  // useEditor swaps instances in an effect. The registration identity covers
+  // both the session/provider and the requested extensions, even in the same room.
+  const currentEditor = provider && status !== 'unauthorized' && editor?.options.extensions === finalExtensions && !editor.isDestroyed
+    ? withDocumentAccess(editor) : null;
   useEffect(() => {
-    if (editor && !editor.isDestroyed) editor.setEditable(canEdit);
-  }, [editor, canEdit]);
-
-  // useEditor can retain the previous view until its effect swaps extensions.
-  // Do not expose that view under another room, account or deployment.
-  const currentEditor = provider && status !== 'unauthorized' && editor?.extensionManager.extensions.some(
-    (extension) => extension.name === 'collaborationCaret' && extension.options.provider === provider,
-  ) ? withDocumentAccess(editor) : null;
+    if (currentEditor && !currentEditor.isDestroyed && currentEditor.options.editable !== canEdit) currentEditor.setEditable(canEdit);
+  }, [currentEditor, canEdit]);
 
   useEffect(() => {
     if (!provider || !currentEditor || currentEditor.isDestroyed || status !== 'synced') return;

@@ -37,7 +37,7 @@ describe('Markdown extension', () => {
 
       const update = vi.fn();
       editor.on('update', update);
-      expect(editor.setMarkdown('# After')).toBe(true);
+      editor.markdown = '# After';
       expect(update).toHaveBeenCalledTimes(1);
       expect(editor.isActive('heading')).toBe(true);
       expect(editor.markdown).toBe('# After');
@@ -52,8 +52,8 @@ describe('Markdown extension', () => {
     const editor = createEditor();
     try {
       const before = editor.state.doc;
-      expect(editor.setMarkdown('a'.repeat(1_000_001))).toBe(false);
-      expect(editor.setMarkdown('[[Missing extension]]')).toBe(false);
+      expect(() => { editor.markdown = 'a'.repeat(1_000_001); }).toThrow();
+      expect(() => { editor.markdown = '[[Missing extension]]'; }).toThrow();
       expect(editor.state.doc).toBe(before);
       expect(editor.markdown).toBe('Before');
     } finally {
@@ -65,7 +65,6 @@ describe('Markdown extension', () => {
     const plain = new Editor({ extensions: schema });
     try {
       expect('markdown' in plain).toBe(false);
-      expect('setMarkdown' in plain).toBe(false);
     } finally {
       plain.destroy();
     }
@@ -83,7 +82,7 @@ describe('Markdown extension', () => {
     }
   });
 
-  it.each(['markdown', 'setMarkdown'])('does not overwrite or evaluate a foreign %s', (key) => {
+  it('does not overwrite or evaluate a foreign markdown property', () => {
     const get = vi.fn();
     let instance: Editor | undefined;
     const foreign = Extension.create({
@@ -91,13 +90,12 @@ describe('Markdown extension', () => {
       priority: 1000,
       onBeforeCreate({ editor }) {
         instance = editor;
-        Object.defineProperty(editor, key, { get });
+        Object.defineProperty(editor, 'markdown', { get });
       },
     });
-    expect(() => new Editor({ extensions: [...schema, Markdown, foreign] })).toThrow(`editor.${key} already exists`);
+    expect(() => new Editor({ extensions: [...schema, Markdown, foreign] })).toThrow('editor.markdown already exists');
     expect(get).not.toHaveBeenCalled();
-    expect(Object.getOwnPropertyDescriptor(instance, key)?.get).toBe(get);
-    expect(Object.getOwnPropertyDescriptor(instance, key === 'markdown' ? 'setMarkdown' : 'markdown')).toBeUndefined();
+    expect(Object.getOwnPropertyDescriptor(instance, 'markdown')?.get).toBe(get);
   });
 });
 
@@ -544,7 +542,6 @@ describe('Markdown input limits', () => {
     const editor = new Editor({ extensions: [Document, Heading, Paragraph, Text, MarkdownPaste] });
     try {
       expect('markdown' in editor).toBe(false);
-      expect('setMarkdown' in editor).toBe(false);
       const nested = `${'> '.repeat(129)}Meeting notes`;
       pastePlainText(editor, nested);
       expect(editor.getText()).toBe(nested);

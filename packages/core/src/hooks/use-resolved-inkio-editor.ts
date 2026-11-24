@@ -1,31 +1,11 @@
-import { getSchema } from '@tiptap/core';
+import { Selection, type EditorState } from '@tiptap/pm/state';
 import { useEditor, type Extensions } from '@tiptap/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { dropUnknownContent } from '../utils/drop-unknown-content';
 import { withDocumentAccess } from '../editor-document';
 import { useCoalescedDocUpdate } from './use-coalesced-doc-update';
 import type { UseInkioEditorOptions } from './use-inkio-editor';
-
-let didWarnExtensionsChurn = false;
-
-/**
- * Fired when the resolved `extensions` array identity changes across renders.
- * Tiptap compares extensions by instance identity, so a new array on every
- * render (e.g. inline callbacks/objects in extension options) forces
- * `setOptions` + a full document redraw per keystroke. Memoize extension
- * inputs with `useMemo`/`useCallback` instead.
- */
-function warnExtensionsChurn() {
-  if (didWarnExtensionsChurn) {
-    return;
-  }
-  didWarnExtensionsChurn = true;
-  console.warn(
-    '[inkio] Editor extensions were recreated between renders. ' +
-      'Pass memoized `extensions` (and stable callbacks/objects in extension options) ' +
-      'to avoid a full document redraw on every keystroke.',
-  );
-}
+import { migrateEditorDocument } from './migrate-editor-document';
 
 export function useResolvedInkioEditor({
   content = '',
@@ -35,20 +15,10 @@ export function useResolvedInkioEditor({
   onChange,
   onUpdate,
   onCreate,
-}: UseInkioEditorOptions & { extensions: Extensions }) {
-
-  // `content` is the initial document, so this runs once.
-  const [initialContent] = useState(() =>
-    (typeof content === 'object' ? dropUnknownContent(content, getSchema(finalExtensions)) : content));
-
-  const prevExtensionsRef = useRef<Extensions | null>(null);
-  const onCreateRef = useRef(onCreate);
+}: UseInkioEditorOptions & { extensions: Extensions }, followContent = false) {
+  const seed = useRef(content);
+  const previous = useRef<EditorState | null>(null);
   const emitUpdate = useCoalescedDocUpdate(onUpdate, onChange);
-
-  useEffect(() => {
-    onCreateRef.current = onCreate;
-  }, [onCreate]);
-
   const editorProps = useMemo(() => ({
     attributes: { class: 'inkio-content', 'aria-label': ariaLabel, 'aria-multiline': 'true' },
   }), [ariaLabel]);
@@ -56,41 +26,58 @@ export function useResolvedInkioEditor({
   const editor = useEditor({
     immediatelyRender: false,
     extensions: finalExtensions,
-    content: initialContent,
+    content: followContent ? content : seed.current,
     editable,
     editorProps,
+    // useEditor destroys the old view before creating its replacement. Take the
+    // last committed document, not a render-time snapshot or the initial prop.
+    onUnmount: ({ editor: instance }) => { previous.current = instance.state; },
+    onBeforeCreate: ({ editor: instance }) => {
+      const old = previous.current;
+      previous.current = null;
+      if (old && !followContent) {
+        instance.setOptions({ content: migrateEditorDocument(old.doc, instance.schema) });
+      } else {
+        const next = instance.options.content;
+        if (next && typeof next === 'object' && !Array.isArray(next)) {
+          instance.setOptions({ content: dropUnknownContent(next, instance.schema) });
+        }
+      }
+      if (old) {
+        instance.once('mount', () => {
+          const { doc, tr } = instance.state;
+          let selection;
+          try {
+            selection = old.selection.getBookmark().resolve(doc);
+          } catch {
+            // A removed node or shorter viewer document may invalidate the old position.
+            selection = Selection.near(doc.resolve(Math.min(old.selection.head, doc.content.size)));
+          }
+          instance.view.dispatch(tr.setSelection(selection).setMeta('addToHistory', false));
+        });
+      }
+    },
     onCreate: ({ editor: editorInstance }) => {
-      onCreateRef.current?.(withDocumentAccess(editorInstance));
+      if (editorInstance.options.extensions === finalExtensions) onCreate?.(withDocumentAccess(editorInstance));
     },
     onUpdate: ({ editor: editorInstance, transaction, appendedTransactions }) => {
       // setEditable also emits 'update' (with an empty transaction) and some
       // internals listen for that; only document changes reach onUpdate.
       if (!transaction.docChanged && !appendedTransactions.some((tr) => tr.docChanged)) return;
-      emitUpdate(editorInstance);
+      if (editorInstance.options.extensions === finalExtensions) emitUpdate(editorInstance);
     },
-  });
+  }, [finalExtensions]);
+
+  // Tiptap replaces the instance in an effect. No render or callback should
+  // expose the old API under the new extensions prop.
+  const current = editor?.options.extensions === finalExtensions && !editor.isDestroyed ? editor : null;
 
   useEffect(() => {
-    if (editor) {
-      editor.setEditable(editable);
+    if (current && !current.isDestroyed) {
+      if (current.options.editorProps !== editorProps) current.setOptions({ editorProps });
+      if (current.options.editable !== editable) current.setEditable(editable);
     }
-  }, [editor, editable]);
+  }, [current, editable, editorProps]);
 
-  useEffect(() => {
-    const nodeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
-      ?.env?.NODE_ENV;
-    if (nodeEnv === 'production') {
-      return;
-    }
-    if (!editor) {
-      prevExtensionsRef.current = finalExtensions;
-      return;
-    }
-    if (prevExtensionsRef.current !== null && prevExtensionsRef.current !== finalExtensions) {
-      warnExtensionsChurn();
-    }
-    prevExtensionsRef.current = finalExtensions;
-  });
-
-  return editor && withDocumentAccess(editor);
+  return current && withDocumentAccess(current);
 }

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { slugifyHeading, getHeadingsFromContent, getHeadingElements } from '../headings';
-import type { JSONContent } from '@tiptap/core';
+import { getSchema, type JSONContent } from '@tiptap/core';
+import { getExtensions } from '../../extensions/get-extensions';
+import { read } from '../../read-document';
 
 describe('slugifyHeading', () => {
   it('converts spaces to hyphens and lowercases', () => {
@@ -112,17 +114,24 @@ describe('getHeadingsFromContent', () => {
     expect(headings.map((h) => h.id)).toEqual(['section', 'section-1', 'section-2']);
   });
 
-  it('clamps heading level to 1-6', () => {
-    const doc: JSONContent = {
-      type: 'doc',
-      content: [
-        { type: 'heading', attrs: { level: 0 }, content: [{ type: 'text', text: 'Too low' }] },
-        { type: 'heading', attrs: { level: 9 }, content: [{ type: 'text', text: 'Too high' }] },
-      ],
-    };
-    const headings = getHeadingsFromContent(doc);
-    expect(headings[0].level).toBe(1);
-    expect(headings[1].level).toBe(6);
+  it('uses the default schema level for invalid attributes, without coercing strings or fractions', () => {
+    const levels = [0, 9, '2', 1.6, 'oops', null, 4];
+    const doc = { type: 'doc', content: levels.map(level => ({ type: 'heading', attrs: { level } })) };
+    expect(getHeadingsFromContent(doc).map(h => h.level)).toEqual([1, 1, 1, 1, 1, 1, 4]);
+  });
+
+  it('walks deeply nested saved content without losing repeated headings or following cycles', () => {
+    const heading = { type: 'heading', content: [{ type: 'text', text: '깊이' }] };
+    let branch: JSONContent = heading;
+    for (let i = 0; i < 10_000; i++) branch = { type: 'blockquote', content: [branch] };
+    const doc: JSONContent = { type: 'doc', content: [branch, heading] };
+    doc.content!.unshift(doc);
+    const expected = [
+      { level: 1, text: '깊이', index: 0, id: '깊이' },
+      { level: 1, text: '깊이', index: 1, id: '깊이-1' },
+    ];
+    expect(getHeadingsFromContent(doc)).toEqual(expected);
+    expect(read(doc, { schema: getSchema(getExtensions()) }).headings).toEqual(expected);
   });
 
   it('handles empty headings with fallback id', () => {

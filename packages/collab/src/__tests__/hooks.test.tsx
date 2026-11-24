@@ -5,6 +5,7 @@ import { act, render, renderHook, waitFor } from '@testing-library/react';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
+import { Markdown } from '@inkio/core/markdown';
 import {
   CollabPresence,
   createCollabProvider,
@@ -83,6 +84,39 @@ describe('useInkioCollaborativeEditor', () => {
     expect(names.filter(name => name === 'paragraph')).toHaveLength(1);
     hook.rerender();
     expect(hook.result.current.editor).toBe(editor);
+  });
+
+  it('never exposes the previous extension set while replacing a synced editor', async () => {
+    const { url } = await startServer();
+    const created = vi.fn();
+    const observed: boolean[] = [];
+    const hook = renderHook(({ markdown }) => {
+      const value = useInkioCollaborativeEditor({
+        docId: 'registration', url, onCreate: created,
+        extensions: { items: markdown ? [...BASE.items, Markdown] : BASE.items, replace: true },
+      });
+      if (value.editor) observed.push(('markdown' in value.editor) === markdown);
+      return value;
+    }, { initialProps: { markdown: false } });
+    onCleanup(hook.unmount);
+    await waitFor(() => expect(hook.result.current.status).toBe('synced'));
+    const provider = hook.result.current.provider;
+    act(() => {
+      hook.result.current.editor!.commands.setContent('<p>Shared</p>');
+      hook.result.current.editor!.commands.setTextSelection({ from: 2, to: 4 });
+    });
+    hook.rerender({ markdown: true });
+    await waitFor(() => expect(hook.result.current.editor).toHaveProperty('markdown', 'Shared'));
+    const installed = hook.result.current.editor;
+    expect(installed?.state.selection).toMatchObject({ from: 2, to: 4 });
+    await waitFor(() => expect(created).toHaveBeenLastCalledWith(installed));
+    hook.rerender({ markdown: true });
+    expect(hook.result.current.editor).toBe(installed);
+    hook.rerender({ markdown: false });
+    await waitFor(() => expect(hook.result.current.editor?.text).toBe('Shared'));
+    expect(hook.result.current.editor).not.toHaveProperty('markdown');
+    expect(hook.result.current.provider).toBe(provider);
+    expect(observed).not.toContain(false);
   });
 
   it('coalesces a burst of updates into one onUpdate with the latest doc', async () => {

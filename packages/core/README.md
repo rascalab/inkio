@@ -75,10 +75,13 @@ import { Markdown } from '@inkio/core/markdown';
 <Editor
   extensions={[Markdown]}
   onCreate={(editor) => {
-    if (editor.setMarkdown('## Hello')) console.log(editor.markdown);
+    editor.markdown = '## Hello';
+    console.log(editor.markdown);
   }}
 />
 ```
+
+Assignment throws if the input cannot be applied. Rejected writes leave the previous document intact.
 
 Use JSON for lossless storage. Markdown preserves supported structures, not every core mark or attribute (for example, text colors are lost).
 The markdown adapter uses `remark/unified` and maps markdown directly to Inkio `JSONContent`.

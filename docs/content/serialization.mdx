@@ -15,8 +15,11 @@ editor.commentIds    // 본문이 참조하는 스레드 ID. 댓글 데이터나
 ```
 
 `text`에는 멘션과 태그가 화면에 표시되는 `@Ada`, `#inkio` 형태로 들어갑니다. 반대로 `mentions`와 `hashTags`는 실제 노드에서만 읽으므로 직접 입력한 `@Ada`는 멘션 목록에 들어가지 않습니다. 같은 문서에서 getter를 다시 읽으면 계산 결과를 재사용합니다. 글자 수를 화면에 표시하려면 `onChange={(editor) => setCount(editor.stats.chars)}`처럼 변경 시점에 읽으세요.
+`mentions`는 ID가 있는 멘션을 읽고, 라벨이 비어 있으면 ID를 라벨로 사용합니다. `hashTags`도 라벨 또는 ID에서 선행 `#`를 제거하며, 빈 태그는 제외합니다.
 
 `summary()`의 기본 한도는 140입니다. `stats.chars`처럼 JavaScript 문자열 길이(UTF-16) 기준이며 `...`도 한도에 포함합니다.
+
+`stats.blocks`는 문서 루트를 제외한 구조 블록 수입니다. 목록 하나에 항목·문단이 하나씩 있으면 3개이며, 이미지·북마크·목차도 각각 1개입니다. 북마크는 제목(없으면 URL)과 설명, 이미지는 캡션(없으면 대체 텍스트)을 미리보기에 포함합니다. 코드 블록에서는 들여쓰기와 빈 줄을 유지합니다.
 
 ## 인스턴스 없이 저장된 JSON 읽기
 
@@ -45,6 +48,8 @@ doc.commentIds       // []
 
 값은 필요할 때 계산하므로 같은 JSON에서 여러 값을 읽을 때는 `doc`을 재사용하세요. 결과는 이 객체에 캐시됩니다. 입력 JSON은 중첩 노드까지 변경하지 말고, 문서가 바뀌면 새 JSON으로 `read(nextJson)`을 호출하세요. 라이브 에디터가 있다면 `read(editor.getJSON())` 대신 `editor.text`처럼 직접 읽으면 됩니다.
 
+커스텀 노드의 `renderText`나 블록 정의까지 반영하려면 그 문서를 만든 스키마를 `read(json, { schema })`로 전달하세요. JSON만으로는 앱에 등록된 확장의 동작을 알 수 없습니다.
+
 ## Markdown 읽고 쓰기
 
 `Markdown`을 `extensions`에 등록하면 `onCreate`로 받는 에디터에서 바로 읽고 쓸 수 있습니다. `@inkio/simple`에서는 `@inkio/simple/markdown`에서 가져오세요.
@@ -57,16 +62,19 @@ import { Markdown } from '@inkio/editor/markdown';
 <Editor
   extensions={[Markdown]}
   onCreate={(editor) => {
-    if (editor.setMarkdown('## 제목')) {
-      console.log(editor.markdown); // '## 제목'
-    }
+    editor.markdown = '## 제목';
+    console.log(editor.markdown); // '## 제목'
   }}
 />
 ```
 
-`setMarkdown(source)`는 현재 문서를 교체합니다. 입력 제한을 넘거나 에디터 스키마에서 지원하지 않는 내용이면 `false`를 반환하고 기존 문서를 유지합니다.
+`editor.markdown = source`는 현재 문서를 교체합니다. 입력 한도, 스키마 또는 편집 플러그인이 변경을 거절하면 예외가 발생하고 기존 문서는 유지됩니다. 사용자가 업로드한 파일처럼 실패할 수 있는 입력은 `try/catch`에서 처리하세요. 대입 성공은 서버 저장이나 무손실 변환을 보장하지 않습니다.
+
+**0.1.1 사용 시 주의:** 이 버전의 `markdown`은 읽기 전용입니다. `setMarkdown()`은 표 크기 제한으로 변경이 거절돼도 `true`를 반환할 수 있으므로, 그 값만 보고 가져온 원본을 삭제하지 마세요.
 
 확장 목록을 변수로 빼면 `const extensions = [Markdown] as const`로 선언하세요. TypeScript가 플러그인 등록 여부를 알 수 있어 `onCreate`에서도 별도 타입 단언이 필요 없습니다.
+확장을 추가하거나 제거하면 바뀐 스키마로 새 인스턴스를 만듭니다. 새 스키마에서 표현할 수 있는 편집 내용과 선택은 이어지지만, 플러그인의 실행 취소 기록까지 이전하는 것은 아닙니다. 외부에 인스턴스를 보관한다면 새 `onCreate` 값으로 교체하세요.
+React에서는 배열 자체가 아니라 등록한 확장 인스턴스를 재사용하세요. `Markdown.configure(...)` 같은 호출은 컴포넌트 밖에 두거나 `useMemo`로 감싸세요.
 
 초기 문서만 불러온다면 `content={parseMarkdown(source)}`를 쓰세요. 에디터 없이 변환할 때는 같은 `/markdown` 진입점의 `parseMarkdown`, `stringifyMarkdown`을 사용합니다. 패키지 루트만 쓰는 화면에는 Markdown 파서가 포함되지 않습니다.
 
@@ -85,6 +93,8 @@ Markdown은 지원하는 문서 구조만 왕복합니다. core 서식도 모두
 구현은 `remark/unified` 기반이며 HTML bridge를 사용하지 않습니다.
 인라인 목차 블록은 `::toc`로 저장하고, 깊이 설정이 있으면 `::toc{maxLevel="4"}`처럼 보존합니다.
 `[가이드][docs]` 같은 참조형 링크와 이미지도 정의를 찾아 가져옵니다. 알 수 없는 `:이름`이나 `:::블록` 구문은 본문에서 지우지 않고 원문 텍스트로 남깁니다.
+
+이미지 캡션은 Markdown에서도 읽을 수 있는 강조 문단으로 내보냅니다. Inkio는 바로 옆 주석을 이용해 캡션과 이미지 크기·정렬을 복원합니다. 문장 중간의 이미지는 Inkio에서 블록이므로 앞뒤 문단과 나뉩니다. 접기 블록의 열린 상태는 `<details open>`으로 유지합니다.
 
 지원하지 않는 이미지 URL은 텍스트로 남기고 나머지 문서를 보존합니다.
 외부에서 받은 Markdown은 입력 크기를 제한하고, 가져오기가 실패하면 저장 문서로 덮어쓰지

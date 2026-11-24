@@ -1,7 +1,7 @@
 import { type Extensions, type JSONContent } from '@tiptap/core';
 import { generateHTML } from '@tiptap/html';
 import sanitizeHtml from 'sanitize-html';
-import { slugifyHeading, type HeadingItem } from '../headings/headings';
+import { headingLabel, slugifyHeading, type HeadingItem } from '../headings/headings';
 import { escapeHtml } from '../utils/html';
 import { assertTableSize, clampTableSpan, normalizeJsonTables, TableBounds, TableContentError } from '../utils/table-bounds';
 import {
@@ -227,10 +227,13 @@ function sanitizeInkioHtml(html: string): Pick<StaticContentRenderResult, 'html'
     },
     exclusiveFilter(frame) {
       if (frame.tag === 'input' && frame.attribs.type !== 'checkbox') return true;
+      // The sanitizer accumulates each retained frame's text into its parent.
+      // Give a hard break a text boundary without changing its HTML.
+      if (frame.tag === 'br') frame.text = '\n';
       const id = frame.attribs.id;
       if (id) reserved.add(id);
       if (/^h[1-6]$/.test(frame.tag)) {
-        rendered.push({ position: frame.tagPosition, level: Number(frame.tag[1]), text: frame.text.trim(), id });
+        rendered.push({ position: frame.tagPosition, level: Number(frame.tag[1]), text: headingLabel(frame.text), id });
       }
       return false;
     },

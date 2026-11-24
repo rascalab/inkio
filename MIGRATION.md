@@ -1,5 +1,11 @@
 # Migration
 
+## 0.1.1 → 0.2.0
+
+- **Breaking:** `editor.setMarkdown(source)` has been removed. With `Markdown` registered, assign `editor.markdown = source` instead. Replace boolean success checks with `try/catch`: a rejected assignment throws and leaves the previous document intact. Successful assignment does not indicate persistence to a server.
+- In 0.1.1 specifically, assignment was not supported, and `setMarkdown()` could report success for a rejected table. Keep the original JSON or import file; do not regenerate it from an exported preview.
+- Regenerate stored previews and block counts from the original JSON. Counts now include all built-in block nodes (nested containers included, document root excluded). Pass `{ schema }` to `read` if custom node renderers affect your index.
+
 ## 0.0.9 → 0.1.1
 
 - **Extension lists now add to the defaults**, including in `@inkio/core`. If you supplied a complete schema (or intentionally removed a default extension), pass `extensions={{ items: extensions, replace: true }}`. To add Markdown, pass only `extensions={[Markdown]}`.

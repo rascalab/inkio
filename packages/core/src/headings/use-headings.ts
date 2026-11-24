@@ -19,12 +19,16 @@ export function stepMayAffectHeadings(doc: ProseMirrorNode, step: Step): boolean
     slice?: { content?: { descendants?: (f: (node: ProseMirrorNode) => boolean | void) => void } };
   };
 
-  // AttrStep-style steps carry only `pos` (e.g. code language, task check):
-  // they matter only when targeting a heading itself.
+  // AttrStep carries only a target position. Changing an inline reference's
+  // label can change the enclosing heading just as changing its level can.
   if (s.from === undefined || s.to === undefined) {
     if (typeof s.pos === 'number') {
-      const node = doc.nodeAt(s.pos);
-      return node?.type.name === 'heading';
+      const $pos = doc.resolve(s.pos);
+      if ($pos.nodeAfter?.type.name === 'heading') return true;
+      for (let depth = $pos.depth; depth > 0; depth--) {
+        if ($pos.node(depth).type.name === 'heading') return true;
+      }
+      return false;
     }
     return true;
   }
@@ -32,26 +36,13 @@ export function stepMayAffectHeadings(doc: ProseMirrorNode, step: Step): boolean
   // The range touches an existing heading (edit inside one, or a delete
   // spanning across one).
   let hit = false;
-  doc.nodesBetween(Math.max(0, s.from - 1), Math.min(doc.content.size, s.to + 1), (node) => {
-    if (node.type.name === 'heading') {
-      hit = true;
-      return false;
-    }
-    return true;
-  });
-  if (hit) return true;
-
-  // Inserted content containing block nodes (paste, split, drop).
-  const descendants = s.slice?.content?.descendants;
-  if (typeof descendants === 'function') {
-    s.slice!.content!.descendants!((node) => {
-      if (node.isBlock) {
-        hit = true;
-        return false;
-      }
-      return true;
-    });
-  }
+  const inspect = (node: ProseMirrorNode) => {
+    if (node.type.name === 'heading') hit = true;
+    return !hit && !node.isTextblock;
+  };
+  doc.nodesBetween(Math.max(0, s.from - 1), Math.min(doc.content.size, s.to + 1), inspect);
+  // A paste/split can add headings without touching an existing one.
+  if (!hit) s.slice?.content?.descendants?.(inspect);
   return hit;
 }
 
@@ -79,16 +70,16 @@ export function useHeadings(source: Editor | null | undefined, maxLevel = 3) {
     };
     update();
     // The `transaction` event (unlike `update`) exposes steps, so plain
-    // paragraph typing skips the full-doc walk entirely. Positions are
-    // checked against `transaction.before`: a deleted heading is gone from
-    // the new doc, so range checks must run on the pre-step document.
+    // paragraph typing skips the full-doc walk entirely. Each step's
+    // positions refer to its own input document, not the initial transaction
+    // document (or the result, where a deleted heading may already be gone).
     const onTransaction = ({ transaction }: { transaction?: Transaction } = {}) => {
       if (!transaction) {
         update();
         return;
       }
       if (!transaction.docChanged) return;
-      const relevant = transaction.steps.some((step) => stepMayAffectHeadings(transaction.before, step));
+      const relevant = transaction.steps.some((step, i) => stepMayAffectHeadings(transaction.docs[i], step));
       if (relevant) {
         update();
       }

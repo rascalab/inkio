@@ -29,6 +29,10 @@ export interface WikiLinkOptions {
   messages?: InkioCoreMessageOverrides | InkioMessageOverrides;
 }
 
+function displayHref(value: unknown): string {
+  return typeof value === 'string' && isSafeUrl(value) ? value : '';
+}
+
 export const WikiLinkDisplay = Node.create<WikiLinkOptions>({
   name: 'wikiLink',
 
@@ -81,24 +85,21 @@ export const WikiLinkDisplay = Node.create<WikiLinkOptions>({
     ];
   },
 
-  renderHTML({ HTMLAttributes }) {
-    const { href, ...rest } = HTMLAttributes;
-    const rawHref = typeof href === 'string' ? href : '';
-    // Never render an unsafe href, even if it bypassed create/parse guards.
-    // Drop it from both the attribute and the text output.
-    const safeAttrs = rawHref && isSafeUrl(rawHref) ? { href: rawHref } : {};
-    const safeText = rawHref && isSafeUrl(rawHref) ? rawHref : '';
-    return ['span', mergeAttributes(this.options.HTMLAttributes, rest, safeAttrs, { 'data-wiki-link': '' }), safeText];
+  renderHTML({ node, HTMLAttributes }) {
+    const href = displayHref(node.attrs.href);
+    return ['span', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+      'data-wiki-link': '', href: href || null,
+    }), href];
   },
 
   addNodeView() {
     return ({ node, HTMLAttributes }) => {
       const dom = document.createElement('span');
-      let currentHref = String(node.attrs.href ?? '').trim();
+      let currentHref: string;
 
       // 기본 속성 적용
       Object.entries(mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, { 'data-wiki-link': '' })).forEach(([key, value]) => {
-        if (value !== null && value !== undefined) {
+        if (key !== 'href' && value !== null && value !== undefined) {
           dom.setAttribute(key, String(value));
         }
       });
@@ -106,15 +107,20 @@ export const WikiLinkDisplay = Node.create<WikiLinkOptions>({
       // 커서 스타일만 동적으로 적용 (나머지는 CSS에서 처리)
       dom.style.cursor = this.options.onClick ? 'pointer' : 'default';
 
-      // 텍스트 설정
-      dom.textContent = currentHref;
+      const updateHref = (value: unknown) => {
+        currentHref = displayHref(value);
+        dom.textContent = currentHref;
+        if (currentHref) dom.setAttribute('href', currentHref);
+        else dom.removeAttribute('href');
+      };
+      updateHref(node.attrs.href);
 
       // 클릭 이벤트 핸들러
       const clickHandler = (event: Event) => {
         event.preventDefault();
         event.stopPropagation();
-        if (currentHref.length > 0 && isSafeUrl(currentHref)) {
-          this.options.onClick?.(currentHref);
+        if (currentHref) {
+          this.options.onClick?.(currentHref.trim());
         }
       };
 
@@ -126,8 +132,7 @@ export const WikiLinkDisplay = Node.create<WikiLinkOptions>({
         dom,
         update(updatedNode) {
           if (updatedNode.type.name !== 'wikiLink') return false;
-          currentHref = String(updatedNode.attrs.href ?? '').trim();
-          dom.textContent = currentHref;
+          updateHref(updatedNode.attrs.href);
           return true;
         },
         destroy() {

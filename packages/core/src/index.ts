@@ -49,6 +49,7 @@ export { useInkioEditor } from './hooks/use-inkio-editor';
 export type { UseInkioEditorOptions } from './hooks/use-inkio-editor';
 export { useReadOnlyContentSync } from './hooks/use-read-only-content-sync';
 export { useCoalescedDocUpdate } from './hooks/use-coalesced-doc-update';
+export { useStableExtensions } from './hooks/use-stable-extensions';
 
 // Context (Optional convenience)
 export { InkioProvider, useInkioContext } from './context/InkioProvider';

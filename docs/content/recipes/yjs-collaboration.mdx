@@ -9,11 +9,11 @@ Node.js 24, pnpm 12.10.0, Git, OpenSSL이 필요합니다.
 
 ## 1. 로컬 서버 시작하기
 
-첫 번째 터미널에서 Inkio `v0.1.1`의 참조 서버를 켭니다.
+첫 번째 터미널에서 Inkio `v0.2.0`의 참조 서버를 켭니다.
 
 ```bash
-git clone --branch v0.1.1 --depth 1 https://github.com/rascalab/inkio.git inkio-v0.1.1
-cd inkio-v0.1.1
+git clone --branch v0.2.0 --depth 1 https://github.com/rascalab/inkio.git inkio-v0.2.0
+cd inkio-v0.2.0
 pnpm install --frozen-lockfile
 pnpm --filter example-collab-server build
 
@@ -36,7 +36,7 @@ pnpm --filter example-collab-server start
 ```bash
 pnpm create vite@latest inkio-yjs-client --template react --no-interactive
 cd inkio-yjs-client
-pnpm add @inkio/collab@0.1.1 @inkio/core@0.1.1 yjs@^13.6.13
+pnpm add @inkio/collab@0.2.0 @inkio/core@0.2.0 yjs@^13.6.13
 ```
 
 `src/main.jsx`를 아래 코드로 교체합니다.

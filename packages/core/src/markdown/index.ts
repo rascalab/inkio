@@ -1,8 +1,9 @@
-import { Extension, type Editor, type JSONContent } from '@tiptap/core';
+import { Extension, type Editor, type ExtensionConfig, type JSONContent } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { EditorExtensionAccess, InkioEditor } from '../editor-document';
 import { normalizeCalloutColor, normalizeCalloutIcon } from '../extensions/callout-schema';
 import { UPLOAD_PLACEHOLDER_PREFIX } from '../extensions/image-block-shared';
+import { inlineReferenceText } from '../serialization';
 import { escapeHtml } from '../utils/html';
 import { isSafeUrl } from '../utils/url-safety';
 import { unified } from 'unified';
@@ -26,6 +27,7 @@ type MdastNode = {
   alt?: string | null;
   name?: string;
   identifier?: string;
+  label?: string;
   attributes?: Record<string, string | null | undefined>;
   position?: { start: { offset?: number; column: number }; end: { offset?: number } };
   children?: MdastNode[];
@@ -35,6 +37,35 @@ type MdastNode = {
 // strike the words between two ranges ("3~5일, 7~9일"). The writer uses `~~`.
 const markdownParser = unified()
   .use(remarkParse)
+  // Tokenize before backslash escapes lose their source positions or GFM
+  // splits a URL into a link. Use remark's opaque inline-literal buffer with
+  // string content: references decode, but emphasis and links do not.
+  .data('micromarkExtensions', [{ text: { 91: {
+    tokenize(effects, ok, nok) {
+      const inside: typeof ok = (code) => {
+        if (code === null || code <= -3 || code === 91) return nok(code);
+        effects.consume(code);
+        return code === 93 ? close : inside;
+      };
+      const close: typeof ok = (code) => {
+        if (code !== 93) return nok(code);
+        effects.consume(code);
+        effects.exit('chunkString');
+        effects.exit('htmlText');
+        return ok;
+      };
+      return (first) => {
+        effects.enter('htmlText');
+        effects.enter('chunkString', { contentType: 'string' });
+        effects.consume(first);
+        return (second) => {
+          if (second !== 91) return nok(second);
+          effects.consume(second);
+          return inside;
+        };
+      };
+    },
+  } } }])
   .use(remarkGfm, { singleTilde: false })
   .use(remarkDirective);
 
@@ -77,14 +108,15 @@ const createMarkdownStringifier = (gfm: { tablePipeAlign: boolean }) => unified(
   .use(remarkStringify, {
     bullet: '-',
     fences: true,
-    emphasis: '*',
+    // Adjacent strong and emphasis runs must not form one delimiter run.
+    emphasis: '_',
     listItemIndent: 'one',
     resourceLink: true,
     strong: '*',
     handlers: {
-      text: (node, _parent, state, info) =>
-        state
-          .safe(node.value, info)
+      text: (node, _parent, state, info) => (node as MdastNode).name === 'wikiLink'
+        ? node.value
+        : state.safe(node.value, info)
           .replace(NEEDLESS_TILDE_ESCAPE_RE, '~')
           .replace(NEEDLESS_UNDERSCORE_ESCAPE_RE, '_'),
       // Serialize only actual details nodes. A text or code example stays in
@@ -98,7 +130,7 @@ const createMarkdownStringifier = (gfm: { tablePipeAlign: boolean }) => unified(
           ...info,
           now: { line: info.now.line + 3, column: 1 + info.lineShift },
         });
-        return `<details>\n<summary>${summary}</summary>\n\n${body ? `${body}\n` : ''}</details>`;
+        return `${html.value}\n<summary>${summary}</summary>\n\n${body ? `${body}\n` : ''}</details>`;
       },
     },
   })
@@ -124,13 +156,14 @@ type DetailsMarker = {
 function findDetailsMarkers(markdown: string): DetailsMarker[] {
   const markers: DetailsMarker[] = [];
   const pending: DetailsMarker[] = [];
-  let opener: { start: number; end: number; summaryStart?: number } | undefined;
+  let opener: { start: number; end: number; open: boolean; summaryStart?: number } | undefined;
   let previousLineStart = -1;
   let prefixEnd = -1;
 
   walkMdast(detailsScanner.parse(markdown) as MdastNode, (node) => {
     const tag = node.type === 'html' ? node.value?.toLowerCase() : undefined;
-    if (tag !== '<details>' && tag !== '<summary>' && tag !== '</summary>' && tag !== '</details>') return;
+    const opening = tag === '<details>' || tag === '<details open>';
+    if (!opening && tag !== '<summary>' && tag !== '</summary>' && tag !== '</details>') return;
     const startPoint = node.position?.start;
     const start = startPoint?.offset;
     const end = node.position?.end.offset;
@@ -145,8 +178,8 @@ function findDetailsMarkers(markdown: string): DetailsMarker[] {
     DETAILS_LINE_END.lastIndex = end;
     const endsLine = DETAILS_LINE_END.test(markdown);
 
-    if (tag === '<details>' && start <= prefixEnd) {
-      opener = { start, end };
+    if (opening && start <= prefixEnd) {
+      opener = { start, end, open: tag === '<details open>' };
     } else if (tag === '<summary>' && opener && opener.summaryStart === undefined) {
       if (/^[\t >\r\n]*$/.test(markdown.slice(opener.end, start))) opener.summaryStart = end;
       else opener = undefined;
@@ -155,9 +188,9 @@ function findDetailsMarkers(markdown: string): DetailsMarker[] {
         // Follow the old plain-text summary semantics. Keep existing HTML
         // references for remark to decode once, and encode attribute syntax.
         const summary = markdown.slice(opener.summaryStart, start)
-          .replace(/<[^<>]*>/g, '').trim()
+          .replace(/<[^<>]*>/g, '')
           .replace(/["\\\r\n]/g, (char) => `&#${char.charCodeAt(0)};`);
-        const marker = { start: opener.start, end, opening: `::${DETAILS_START}{summary="${summary}"}` };
+        const marker = { start: opener.start, end, opening: `::${DETAILS_START}{summary="${summary}"${opener.open ? ' open=true' : ''}}` };
         markers.push(marker);
         pending.push(marker);
       }
@@ -305,10 +338,6 @@ function pushInlineNode(nodes: JSONContent[], node: JSONContent | null) {
   nodes.push(node);
 }
 
-function ensureParagraphContent(content: JSONContent[]): JSONContent[] | undefined {
-  return content.length > 0 ? content : undefined;
-}
-
 function ensureBlockContent(content: JSONContent[]): JSONContent[] {
   return content.length > 0 ? content : [{ type: 'paragraph' }];
 }
@@ -328,89 +357,90 @@ function withMark(marks: JsonMark[], mark: JsonMark): JsonMark[] {
   return [...marks, mark];
 }
 
-/**
- * Scan `[[name]]` in a single pass; brackets or line breaks end a candidate.
- * A later opener can start a complete link even after an incomplete one.
- * Mentions and hashtags deliberately stay text because they're ambiguous.
- */
-function textWithWikiLinks(value: string, marks: JsonMark[]): JSONContent[] {
-  const out: JSONContent[] = [];
-  let textStart = 0;
-  let open = -1;
-  for (let index = value.indexOf('[['); index >= 0 && index < value.length; index += 1) {
-    const char = value[index];
-    if (char === '[') {
-      open = value[index + 1] === '[' ? index : -1;
-      if (open !== -1) index += 1;
-    } else if (char === ']') {
-      if (open !== -1 && index > open + 2 && value[index + 1] === ']') {
-        const href = value.slice(open + 2, index).trim();
-        if (isSafeUrl(href)) {
-          const text = createTextNode(value.slice(textStart, open), marks);
-          if (text) out.push(text);
-          out.push({ type: 'wikiLink', attrs: { href } });
-          textStart = index + 2;
-        }
-        index += 1;
-      }
-      open = -1;
-    } else if (char === '\n' || char === '\r') {
-      open = -1;
-    }
-  }
-  const text = createTextNode(value.slice(textStart), marks);
-  if (text) out.push(text);
-  return out;
-}
-
-function mdastInlineToJson(nodes: MdastNode[] = [], marks: JsonMark[] = []): JSONContent[] {
+function mdastInlineToJson(nodes: MdastNode[] = [], schema?: Editor['schema'], marks: JsonMark[] = []): JSONContent[] {
   const content: JSONContent[] = [];
 
-  for (const node of nodes) {
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
     switch (node.type) {
       case 'text':
-        textWithWikiLinks(node.value ?? '', marks).forEach((child) =>
-          pushInlineNode(content, child),
-        );
+        pushInlineNode(content, createTextNode(node.value ?? '', marks));
         break;
       case 'break':
         content.push({ type: 'hardBreak' });
         break;
-      case 'inlineCode':
-        pushInlineNode(content, createTextNode(node.value ?? '', withMark(marks, { type: 'code' })));
+      case 'inlineCode': {
+        // Standalone output targets the core schema, where inline code is
+        // exclusive. A live editor can explicitly allow other marks with it.
+        const code = schema?.marks.code;
+        const compatible = code && marks.length ? marks.filter(mark => {
+          const outer = code.schema.marks[mark.type];
+          return !outer || (!code.excludes(outer) && !outer.excludes(code));
+        }) : [];
+        pushInlineNode(content, createTextNode(node.value ?? '', withMark(compatible, { type: 'code' })));
         break;
+      }
       case 'strong':
-        mdastInlineToJson(node.children, withMark(marks, { type: 'bold' })).forEach((child) =>
+        mdastInlineToJson(node.children, schema, withMark(marks, { type: 'bold' })).forEach((child) =>
           pushInlineNode(content, child),
         );
         break;
       case 'emphasis':
-        mdastInlineToJson(node.children, withMark(marks, { type: 'italic' })).forEach((child) =>
+        mdastInlineToJson(node.children, schema, withMark(marks, { type: 'italic' })).forEach((child) =>
           pushInlineNode(content, child),
         );
         break;
       case 'delete':
-        mdastInlineToJson(node.children, withMark(marks, { type: 'strike' })).forEach((child) =>
+        mdastInlineToJson(node.children, schema, withMark(marks, { type: 'strike' })).forEach((child) =>
           pushInlineNode(content, child),
         );
         break;
       case 'link': {
         const linkMark = toLinkMark(node);
         const nextMarks = linkMark ? withMark(marks, linkMark) : marks;
-        mdastInlineToJson(node.children, nextMarks).forEach((child) =>
+        mdastInlineToJson(node.children, schema, nextMarks).forEach((child) =>
           pushInlineNode(content, child),
         );
         break;
       }
-      case 'image':
-        pushInlineNode(content, createTextNode(node.alt ?? node.url ?? '', marks));
+      case 'image': {
+        const src = node.url ?? '';
+        const attrs: NonNullable<JSONContent['attrs']> = { src, alt: node.alt ?? null, title: node.title ?? null };
+        const meta = nodes[i + 1]?.type === 'html' && IMAGE_META.exec(nodes[i + 1].value ?? '');
+        const caption = meta && meta[3] && nodes[i + 2]?.type === 'emphasis' ? nodes[i + 2].children : undefined;
+        // GFM may auto-link a URL in plain caption text. An image or another
+        // edited construct must go through normal conversion, not disappear.
+        if (meta && (!meta[3] || caption?.every((child) => child.type === 'text' ||
+          (child.type === 'link' && child.children?.length === 1 && child.children[0].type === 'text')))) {
+          i++;
+          if (meta[1]) attrs.width = meta[1];
+          if (meta[2]) attrs.align = meta[2];
+          if (caption) {
+            attrs.caption = caption.map((child) => child.value ?? child.children?.[0].value).join('');
+            i++;
+          }
+        }
+        if (isSafeUrl(src) && !src.startsWith(UPLOAD_PLACEHOLDER_PREFIX)) content.push({ type: 'imageBlock', attrs });
+        else pushInlineNode(content, createTextNode([node.alt, attrs.caption].filter(Boolean).join(' '), marks));
         break;
-      case 'html':
-        pushInlineNode(content, createTextNode(node.value ?? '', marks));
+      }
+      case 'footnoteReference':
+        pushInlineNode(content, createTextNode(`[^${node.label ?? node.identifier}]`, marks));
         break;
+      case 'html': {
+        const literal = node.value ?? '';
+        // Real HTML starts with '<'; only the wiki tokenizer buffers [[...]].
+        const href = literal.startsWith('[[') && literal.endsWith(']]') ? literal.slice(2, -2).trim() : '';
+        if (isSafeUrl(href) && !/[[\]\r\n]/.test(href)) {
+          content.push({ type: 'wikiLink', attrs: { href }, ...(marks.length ? { marks } : {}) });
+        } else {
+          pushInlineNode(content, createTextNode(literal, marks));
+        }
+        break;
+      }
       default:
         if (node.children) {
-          mdastInlineToJson(node.children, marks).forEach((child) => pushInlineNode(content, child));
+          mdastInlineToJson(node.children, schema, marks).forEach((child) => pushInlineNode(content, child));
         } else if (node.value) {
           pushInlineNode(content, createTextNode(node.value, marks));
         }
@@ -421,40 +451,36 @@ function mdastInlineToJson(nodes: MdastNode[] = [], marks: JsonMark[] = []): JSO
   return content;
 }
 
-function paragraphFromInline(nodes: MdastNode[] = []): JSONContent {
-  const content = mdastInlineToJson(nodes);
-  return content.length > 0
-    ? { type: 'paragraph', content }
-    : { type: 'paragraph' };
-}
-
-function isStandaloneImage(node: MdastNode): boolean {
-  return node.type === 'paragraph'
-    && Array.isArray(node.children)
-    && node.children.length === 1
-    && node.children[0].type === 'image';
-}
-
-function imageNodeToJson(node: MdastNode): JSONContent {
-  const src = node.url ?? '';
-  // Rejected URLs never become image nodes. An empty alt needs an empty
-  // paragraph, not a text node with an empty string (invalid in ProseMirror).
-  if (!isSafeUrl(src)) {
-    const alt = createTextNode(node.alt ?? '');
-    return alt ? { type: 'paragraph', content: [alt] } : { type: 'paragraph' };
+// GFM permits images wherever text can occur; the editor's images are blocks.
+// Split only at images, preserving the marks and order of the text on either side.
+function blocksFromInline(nodes: MdastNode[] | undefined, schema?: Editor['schema'], type = 'paragraph', attrs?: JSONContent['attrs']): JSONContent[] {
+  const inline = mdastInlineToJson(nodes, schema);
+  const blocks: JSONContent[] = [];
+  let start = 0;
+  for (let i = 0; i < inline.length; i++) {
+    if (inline[i].type !== 'imageBlock') continue;
+    if (i > start) blocks.push({ type, ...(attrs && { attrs }), content: inline.slice(start, i) });
+    blocks.push(inline[i]);
+    start = i + 1;
   }
-  return {
-    type: 'imageBlock',
-    attrs: {
-      src,
-      alt: node.alt ?? null,
-      title: node.title ?? null,
-    },
-  };
+  if (start < inline.length || !blocks.length) {
+    const block: JSONContent = { type };
+    if (attrs) block.attrs = attrs;
+    if (inline.length) block.content = start ? inline.slice(start) : inline;
+    blocks.push(block);
+  }
+  return blocks;
 }
+
+// This exact, adjacent comment carries editor-only layout. The caption following
+// it is ordinary visible emphasis in any Markdown reader, not hidden metadata.
+const IMAGE_WIDTH = '[1-9]\\d(?:\\.\\d{1,16})?%';
+const VALID_IMAGE_WIDTH = new RegExp(`^${IMAGE_WIDTH}$`);
+const IMAGE_META = new RegExp(`^<!-- inkio:image(?: width=(${IMAGE_WIDTH}))?(?: align=(left|right))?( caption)? -->$`);
 
 function listItemToJson(node: MdastNode, task: boolean, budget: MarkdownReadBudget): JSONContent {
-  const content = ensureBlockContent(mdastBlocksToJson(node.children, budget));
+  const content = mdastBlocksToJson(node.children, budget);
+  if (content[0]?.type !== 'paragraph') content.unshift({ type: 'paragraph' });
   return {
     type: task ? 'taskItem' : 'listItem',
     ...(task ? { attrs: { checked: Boolean(node.checked) } } : {}),
@@ -480,16 +506,6 @@ function splitListChildren(node: MdastNode): Array<{ task: boolean; children: Md
   return groups;
 }
 
-function tableCellToJson(node: MdastNode, type: 'tableHeader' | 'tableCell'): JSONContent {
-  const inline = mdastInlineToJson(node.children ?? []);
-  return {
-    type,
-    content: [
-      inline.length > 0 ? { type: 'paragraph', content: inline } : { type: 'paragraph' },
-    ],
-  };
-}
-
 function directiveToJson(node: MdastNode, budget: MarkdownReadBudget): JSONContent[] {
   if (node.name === 'callout') {
     // Same write boundary as the callout commands: markdown import must not
@@ -508,7 +524,7 @@ function directiveToJson(node: MdastNode, budget: MarkdownReadBudget): JSONConte
   const bodyContent = ensureBlockContent(mdastBlocksToJson(node.children, budget));
   return [{
     type: 'details',
-    attrs: { open: false },
+    attrs: { open: node.attributes?.open === 'true' },
     content: [
       summary ? { type: 'detailsSummary', content: [summary] } : { type: 'detailsSummary' },
       { type: 'detailsContent', content: bodyContent },
@@ -517,7 +533,7 @@ function directiveToJson(node: MdastNode, budget: MarkdownReadBudget): JSONConte
 }
 
 type TableSpan = { row: number; column: number; colspan: number; rowspan: number };
-type MarkdownReadBudget = { spanEntries: number; spanCells: number };
+type MarkdownReadBudget = { spanEntries: number; spanCells: number; schema?: Editor['schema'] };
 const MAX_READ_SPAN_ENTRIES = 100_000;
 const MAX_READ_SPAN_CELLS = 1_000_000;
 
@@ -574,7 +590,7 @@ function applyTableSpans(rows: JSONContent[], spans: TableSpan[], budget: Markdo
         const cell = rows[r].content?.[c];
         const isOrigin = r === row && c === column;
         fits = Boolean(cell && cell !== covered && !cell.attrs
-          && (isOrigin || !cell.content?.some((block) => block.content?.length)));
+          && (isOrigin || !cell.content?.some((block) => block.type !== 'paragraph' || block.content?.length)));
       }
     }
     if (!fits) continue;
@@ -727,20 +743,25 @@ function mdastBlocksToJson(nodes: MdastNode[] | undefined, budget: MarkdownReadB
     }
     switch (node.type) {
       case 'heading':
-        content.push({
-          type: 'heading',
-          attrs: { level: Math.min(Math.max(node.depth ?? 1, 1), 6) },
-          content: ensureParagraphContent(mdastInlineToJson(node.children ?? [])),
-        });
+        blocksFromInline(node.children, budget.schema, 'heading', { level: Math.min(Math.max(node.depth ?? 1, 1), 6) })
+          .forEach((child) => content.push(child));
         break;
       case 'paragraph':
-        if (isStandaloneImage(node)) {
-          content.push(imageNodeToJson(node.children![0]));
-          break;
-        }
-
-        content.push(paragraphFromInline(node.children));
+        blocksFromInline(node.children, budget.schema).forEach((child) => content.push(child));
         break;
+      case 'footnoteDefinition': {
+        const body = mdastBlocksToJson(node.children, budget);
+        const label = `[^${node.label ?? node.identifier}]:`;
+        const first = body[0];
+        if (first?.type === 'paragraph') {
+          const inline = first.content ??= [];
+          const prefix = label + (inline.length ? ' ' : '');
+          if (inline[0]?.type === 'text' && !inline[0].marks?.length) inline[0].text = prefix + inline[0].text;
+          else inline.unshift({ type: 'text', text: prefix });
+        } else body.unshift({ type: 'paragraph', content: [{ type: 'text', text: label }] });
+        body.forEach((child) => content.push(child));
+        break;
+      }
       case 'blockquote':
         content.push({
           type: 'blockquote',
@@ -774,9 +795,10 @@ function mdastBlocksToJson(nodes: MdastNode[] | undefined, budget: MarkdownReadB
       case 'table': {
         const rows = (node.children ?? []).map((row, rowIndex) => ({
           type: 'tableRow',
-          content: (row.children ?? []).map((cell) =>
-            tableCellToJson(cell, rowIndex === 0 ? 'tableHeader' : 'tableCell'),
-          ),
+          content: (row.children ?? []).map((cell) => ({
+            type: rowIndex === 0 ? 'tableHeader' : 'tableCell',
+            content: blocksFromInline(cell.children, budget.schema),
+          })),
         }));
         content.push({
           type: 'table',
@@ -797,9 +819,6 @@ function mdastBlocksToJson(nodes: MdastNode[] | undefined, budget: MarkdownReadB
           type: 'paragraph',
           content: node.value ? [{ type: 'text', text: node.value }] : undefined,
         });
-        break;
-      case 'image':
-        content.push(imageNodeToJson(node));
         break;
       default:
         if (node.children) {
@@ -825,8 +844,36 @@ function textFromJson(node: JSONContent | null | undefined): string {
   if (node.type === 'text') {
     return node.text ?? '';
   }
+  if (node.type === 'hardBreak') return '\n';
+  if (node.type === 'bookmark') return String(node.attrs?.title || node.attrs?.url || '');
+  if (!node.content) return inlineReferenceLabel(node) || String(node.attrs?.label ?? '');
 
   return (node.content ?? []).map((child) => textFromJson(child)).join('');
+}
+
+function inlineReferenceLabel(node: JSONContent): string {
+  if (node.type === 'wikiLink') {
+    const { label, href } = node.attrs ?? {};
+    return (typeof label === 'string' && label.trim()) || (typeof href === 'string' ? href.trim() : '');
+  }
+  return inlineReferenceText(node.type, node.attrs) ?? '';
+}
+
+// Merge the Markdown that remains after unsupported marks are dropped, not
+// the editor's original text runs. Shared links and nested marks stay open.
+function appendInline(target: MdastNode[], node: MdastNode): void {
+  const last = target[target.length - 1];
+  if (last?.type === node.type && last.url === node.url && last.name === node.name) {
+    if (last.children && node.children) {
+      for (const child of node.children) appendInline(last.children, child);
+      return;
+    }
+    if (!node.name && (node.type === 'text' || node.type === 'inlineCode')) {
+      last.value = (last.value ?? '') + (node.value ?? '');
+      return;
+    }
+  }
+  target.push(node);
 }
 
 function jsonMarksToMdast(node: MdastNode, marks: JsonMark[] = []): MdastNode {
@@ -878,25 +925,25 @@ function jsonInlineToMdast(nodes: JSONContent[] = []): MdastNode[] {
           break;
         }
 
-        content.push(jsonMarksToMdast({ type: 'text', value: text }, node.marks ?? []));
+        appendInline(content, jsonMarksToMdast({ type: 'text', value: text }, node.marks));
         break;
       }
       case 'hardBreak':
         content.push({ type: 'break' });
         break;
       case 'mention':
-        content.push({ type: 'text', value: `@${node.attrs?.label ?? node.attrs?.id ?? ''}` });
+      case 'hashTag': {
+        const value = inlineReferenceLabel(node);
+        if (value) appendInline(content, jsonMarksToMdast({ type: 'text', value }, node.marks));
         break;
-      case 'hashTag':
-        content.push({ type: 'text', value: `#${String(node.attrs?.label ?? node.attrs?.id ?? '').replace(/^#/, '')}` });
-        break;
+      }
       case 'wikiLink': {
-        const name = String(node.attrs?.label ?? node.attrs?.href ?? '').trim();
+        const name = inlineReferenceLabel(node);
         if (!name) {
           break;
         }
         if (/[[\]\r\n]/.test(name) || !isSafeUrl(name)) {
-          content.push({ type: 'text', value: name });
+          appendInline(content, jsonMarksToMdast({ type: 'text', value: name }, node.marks));
           break;
         }
         // The delimiters stay literal for other wiki readers. The payload is
@@ -905,7 +952,7 @@ function jsonInlineToMdast(nodes: JSONContent[] = []): MdastNode[] {
         const label = escapeHtml(name)
           .replace(/[\\`*~:|]/g, (char) => `&#${char.charCodeAt(0)};`)
           .replace(/(?<![\p{L}\p{N}])_|_(?![\p{L}\p{N}])/gu, '&#95;');
-        content.push({ type: 'html', value: `[[${label}]]` });
+        appendInline(content, jsonMarksToMdast({ type: 'text', name: 'wikiLink', value: `[[${label}]]` }, node.marks));
         break;
       }
       default:
@@ -922,19 +969,54 @@ function jsonInlineToMdast(nodes: JSONContent[] = []): MdastNode[] {
 }
 
 function jsonParagraphToMdast(node: JSONContent): MdastNode {
-  return {
-    type: 'paragraph',
-    children: jsonInlineToMdast(node.content ?? []),
-  };
+  const children = jsonInlineToMdast(node.content);
+  if (children[children.length - 1]?.type === 'break') {
+    // CommonMark needs more inline content after a hard break. An empty link
+    // keeps it in this paragraph without adding text or a custom HTML token.
+    children.push({ type: 'link', url: '', children: [] });
+  }
+  return { type: 'paragraph', children };
 }
 
 function jsonListItemToMdast(node: JSONContent, task: boolean): MdastNode {
+  const children = jsonBlocksToMdast(node.content);
+  if (children[0]?.type === 'paragraph' && !children[0].children?.length) {
+    // The paragraph required by the editor isn't needed before a Markdown
+    // heading or image. GFM does require phrasing *after* a checkbox, though.
+    if (children.length > 1 && (!task || children[1].type === 'paragraph')) children.shift();
+    else if (task) children[0].children = [{ type: 'link', url: '', children: [] }];
+  }
   return {
     type: 'listItem',
     spread: false,
     ...(task ? { checked: Boolean(node.attrs?.checked) } : {}),
-    children: jsonBlocksToMdast(node.content ?? []),
+    children,
   };
+}
+
+function jsonImageToMdast(node: JSONContent): MdastNode[] {
+  const attrs = node.attrs ?? {};
+  const alt = typeof attrs.alt === 'string' ? attrs.alt : '';
+  const caption = typeof attrs.caption === 'string' ? attrs.caption : '';
+  if (!isSafeUrl(attrs.src) || attrs.src.startsWith(UPLOAD_PLACEHOLDER_PREFIX)) {
+    const value = [alt, caption].filter(Boolean).join(' ');
+    return value ? [{ type: 'text', value }] : [];
+  }
+  const children: MdastNode[] = [{
+    type: 'image', url: attrs.src, alt, title: typeof attrs.title === 'string' ? attrs.title : null,
+  }];
+  const width = typeof attrs.width === 'string' && VALID_IMAGE_WIDTH.test(attrs.width) ? ` width=${attrs.width}` : '';
+  const align = attrs.align === 'left' || attrs.align === 'right' ? ` align=${attrs.align}` : '';
+  if (width || align || caption) {
+    children.push({ type: 'html', value: `<!-- inkio:image${width}${align}${caption ? ' caption' : ''} -->` });
+    if (caption) {
+      // Entities keep a plain caption literal even at emphasis boundaries or
+      // inside a GFM table (including a pipe, newline, or would-be HTML tag).
+      const label = caption.replace(/[&<>\[\]\\*_`~:|.!@\r\n]|^\s|\s$/gu, (char) => `&#${char.codePointAt(0)};`);
+      children.push({ type: 'html', value: `*${label}*` });
+    }
+  }
+  return children;
 }
 
 function jsonTableCellToMdast(node: JSONContent): MdastNode {
@@ -942,15 +1024,27 @@ function jsonTableCellToMdast(node: JSONContent): MdastNode {
   // blocks: serialize every block (joined by a space) instead of dropping
   // all but the first.
   const inline: MdastNode[] = [];
-  for (const block of node.content ?? []) {
-    if (inline.length > 0) inline.push({ type: 'text', value: ' ' });
-    if (block?.type === 'paragraph') {
-      for (const child of jsonInlineToMdast(block.content ?? [])) inline.push(child);
+  const append = (block: JSONContent) => {
+    let children: MdastNode[];
+    if (block.type === 'imageBlock') children = jsonImageToMdast(block);
+    else if (block.type === 'paragraph' || block.type === 'heading' || block.type === 'detailsSummary') {
+      children = jsonInlineToMdast(block.content);
+    } else if (block.content && block.type !== 'codeBlock') {
+      block.content.forEach(append);
+      return;
     } else {
-      const text = textFromJson(block);
-      if (text) inline.push({ type: 'text', value: text });
+      const value = textFromJson(block);
+      children = value ? [{ type: 'text', value }] : [];
     }
-  }
+    if (!children.length) return;
+    const last = inline[inline.length - 1];
+    if (last && !(last.type === 'text' && /\s$/.test(last.value!))
+      && !(children[0].type === 'text' && /^\s/.test(children[0].value!))) {
+      inline.push({ type: 'text', value: ' ' });
+    }
+    for (const child of children) inline.push(child);
+  };
+  node.content?.forEach(append);
 
   return {
     type: 'tableCell',
@@ -977,8 +1071,8 @@ function jsonDetailsToMdast(node: JSONContent): MdastNode {
   return {
     type: 'html',
     name: 'details',
-    value: '<details>',
-    title: textFromJson(summaryNode).trim(),
+    value: node.attrs?.open === true ? '<details open>' : '<details>',
+    title: textFromJson(summaryNode),
     children: jsonBlocksToMdast(contentNode?.content ?? [{ type: 'paragraph' }]),
   };
 }
@@ -1039,27 +1133,10 @@ function jsonBlocksToMdast(nodes: JSONContent[] = []): MdastNode[] {
       case 'horizontalRule':
         content.push({ type: 'thematicBreak' });
         break;
-      case 'imageBlock': {
-        const src = node.attrs?.src;
-        const alt = typeof node.attrs?.alt === 'string' ? node.attrs.alt : '';
-        if (typeof src !== 'string' || !isSafeUrl(src) || src.startsWith(UPLOAD_PLACEHOLDER_PREFIX)) {
-          content.push({ type: 'paragraph', children: alt ? [{ type: 'text', value: alt }] : [] });
-          break;
-        }
-        // `image` is phrasing content: placed directly in the root it makes
-        // remark join every block without blank lines, merging the whole
-        // document into one paragraph on re-import.
-        content.push({
-          type: 'paragraph',
-          children: [{
-            type: 'image',
-            url: src,
-            alt,
-            title: typeof node.attrs?.title === 'string' ? node.attrs.title : null,
-          }],
-        });
+      case 'imageBlock':
+        // A root-level phrasing node would merge surrounding Markdown blocks.
+        content.push({ type: 'paragraph', children: jsonImageToMdast(node) });
         break;
-      }
       case 'table': {
         const { rows, spans } = jsonTableToMdast(node);
         if (spans.length > 0) {
@@ -1129,11 +1206,9 @@ function jsonBlocksToMdast(nodes: JSONContent[] = []): MdastNode[] {
       default:
         if (node.content) {
           jsonBlocksToMdast(node.content).forEach((child) => content.push(child));
-        } else if (node.text) {
-          content.push({
-            type: 'paragraph',
-            children: [{ type: 'text', value: node.text }],
-          });
+        } else {
+          const value = textFromJson(node);
+          if (value) content.push({ type: 'paragraph', children: [{ type: 'text', value }] });
         }
         break;
     }
@@ -1157,7 +1232,7 @@ function parseToMdast(markdown: string): MdastNode {
   if (markdown.length > MAX_MARKDOWN_CHARS) {
     throw new RangeError('Cannot read Markdown: the document exceeds 1,000,000 characters.');
   }
-  return /<details>/i.test(markdown)
+  return /<details(?: open)?>/i.test(markdown)
     ? parseDetails(markdown)
     : finishParsedTree(markdownParser.parse(markdown) as MdastNode, markdown);
 }
@@ -1167,18 +1242,16 @@ function stringifyFromMdast(root: MdastNode): string {
   return String(stringifier.stringify(root as Parameters<typeof stringifier.stringify>[0])).trim();
 }
 
+function readMarkdown(source: string, schema?: Editor['schema']): JSONContent {
+  const root = parseToMdast(source);
+  const budget = { spanEntries: MAX_READ_SPAN_ENTRIES, spanCells: MAX_READ_SPAN_CELLS, schema };
+  return { type: 'doc', content: ensureBlockContent(mdastBlocksToJson(root.children, budget)) };
+}
+
 /** Creates an adapter with the same input limits and HTML rules as {@link parseMarkdown}. */
 export function createMarkdownAdapter() {
   return {
-    parse(markdown: string): JSONContent {
-      const root = parseToMdast(markdown);
-      const budget = { spanEntries: MAX_READ_SPAN_ENTRIES, spanCells: MAX_READ_SPAN_CELLS };
-      const content = ensureBlockContent(mdastBlocksToJson(root.children, budget));
-      return {
-        type: 'doc',
-        content,
-      };
-    },
+    parse: parseMarkdown,
     stringify(content: JSONContent): string {
       return stringifyFromMdast(toMdastRoot(content));
     },
@@ -1195,7 +1268,7 @@ export function createMarkdownAdapter() {
  * 1,000,000 candidate table span cells across the document.
  */
 export function parseMarkdown(markdown: string): JSONContent {
-  return createMarkdownAdapter().parse(markdown);
+  return readMarkdown(markdown);
 }
 
 /**
@@ -1207,11 +1280,22 @@ export function stringifyMarkdown(content: JSONContent): string {
 }
 
 export type MarkdownAccess = {
-  readonly markdown: string;
-  setMarkdown(source: string): boolean;
+  markdown: string;
 };
 
 export type MarkdownEditor<T extends Editor = InkioEditor> = T & MarkdownAccess;
+
+type InheritedConfig<O, S, N extends string> = Partial<ExtensionConfig<O, S>> & { name?: N; onBeforeCreate?: never };
+
+// configure and ordinary extend inherit the installer. If extend overrides
+// onBeforeCreate, Tiptap's original (unbranded) overload remains available.
+type MarkdownExtension<O = any, S = any, N extends string = 'inkioMarkdown'> = {
+  name: N;
+  configure(options?: Partial<O>): MarkdownExtension<O, S, N>;
+  extend<Options = O, Storage = S, const Name extends string = N>(
+    config?: InheritedConfig<Options, Storage, Name> | (() => InheritedConfig<Options, Storage, Name>),
+  ): MarkdownExtension<Options, Storage, N | Name>;
+} & EditorExtensionAccess<MarkdownAccess> & Extension<O, S>;
 
 const markdownEditors = new WeakSet<Editor>();
 
@@ -1220,42 +1304,35 @@ export const Markdown = Extension.create({
   name: 'inkioMarkdown',
   onBeforeCreate({ editor }) {
     if (markdownEditors.has(editor)) return;
-    for (const key of ['markdown', 'setMarkdown']) {
-      if (key in editor) {
-        throw new TypeError(`Cannot install Inkio Markdown: editor.${key} already exists.`);
-      }
+    if ('markdown' in editor) {
+      throw new TypeError('Cannot install Inkio Markdown: editor.markdown already exists.');
     }
 
     let cachedDoc: Editor['state']['doc'] | undefined;
     let cachedMarkdown: string;
-    Object.defineProperties(editor, {
-      markdown: {
-        get(): string {
-          const { doc } = editor.state;
-          if (doc !== cachedDoc) {
-            cachedMarkdown = stringifyMarkdown(doc.toJSON());
-            cachedDoc = doc;
-          }
-          return cachedMarkdown;
-        },
+    Object.defineProperty(editor, 'markdown', {
+      get(): string {
+        const { doc } = editor.state;
+        if (doc !== cachedDoc) {
+          cachedMarkdown = stringifyMarkdown(doc.toJSON());
+          cachedDoc = doc;
+        }
+        return cachedMarkdown;
       },
-      setMarkdown: {
-        value(source: string): boolean {
-          let doc: Editor['state']['doc'];
-          try {
-            doc = editor.schema.nodeFromJSON(parseMarkdown(source));
-            doc.check();
-          } catch {
-            // Unsupported nodes and parser limits must not clear the current document.
-            return false;
-          }
-          return editor.commands.setContent(doc);
-        },
+      set(source: string) {
+        const doc = editor.schema.nodeFromJSON(readMarkdown(source, editor.schema));
+        doc.check();
+        const before = editor.state.doc;
+        if (doc.eq(before)) return;
+        // Commands report dispatch, not acceptance by the transaction filters.
+        if (!editor.commands.setContent(doc) || editor.state.doc === before) {
+          throw new RangeError('Cannot set Markdown: the editor rejected the replacement.');
+        }
       },
     });
     markdownEditors.add(editor);
   },
-}) as Extension & EditorExtensionAccess<MarkdownAccess>;
+}) as MarkdownExtension;
 
 // Markdown copied as plain text: a block marker at the start of a line, or a
 // span only Markdown writes. Prose with a stray `*` or `-` stays prose.
@@ -1289,7 +1366,7 @@ export const MarkdownPaste = Extension.create({
             }
             let content: JSONContent[];
             try {
-              content = parseMarkdown(text).content ?? [];
+              content = readMarkdown(text, editor.schema).content ?? [];
             } catch {
               // Declining lets ProseMirror use the original clipboard slice.
               return false;
@@ -1306,4 +1383,4 @@ export const MarkdownPaste = Extension.create({
       }),
     ];
   },
-});
+}) as Extension & { name: 'markdownPaste' };

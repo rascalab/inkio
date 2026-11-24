@@ -47,8 +47,16 @@ for (const pkg of ['simple', 'editor']) {
       }
     }
     console.log(`[consumer] @inkio/${pkg} ${name}: initial ${bytes} B / ${gzip} B gzip; all JS ${totalGzip} B gzip`);
-    // Text extraction needs neither React nor an editor, even behind a lazy import.
-    if (name === 'read' && totalGzip > 2_000) throw new Error('Text-only consumer exceeded 2 kB gzip');
+    if (name === 'read') {
+      // The seven projections include nested block counting, custom schema support and
+      // stack-safe traversal. Keep their cost bounded without bundling any dependency.
+      for (const chunk of chunks.values()) {
+        for (const [id, info] of Object.entries(chunk.modules)) {
+          if (info.renderedLength && id.includes('/node_modules/')) throw new Error(`Document reader bundled ${id}`);
+        }
+      }
+      if (totalGzip > 2_850) throw new Error('Document reader exceeded 2,850 bytes gzip');
+    }
     // A read-only import must not pull the editable preset's menus back in.
     if (name === 'Viewer' && gzip > (pkg === 'simple' ? 310_000 : 328_000)) {
       throw new Error(`@inkio/${pkg} Viewer exceeded its initial JS budget`);

@@ -1,6 +1,7 @@
 import type { Editor as TiptapEditor, JSONContent } from '@tiptap/react';
 import { useEffect, useRef } from 'react';
 import { isEqualStaticContent } from '../utils/static-content';
+import { dropUnknownContent } from '../utils/drop-unknown-content';
 
 /**
  * Keeps a read-only editor in step with its `content` prop. Editors read
@@ -12,15 +13,23 @@ export function useReadOnlyContentSync(
   editor: TiptapEditor | null,
   content: string | JSONContent | undefined,
 ) {
-  const appliedRef = useRef(content);
+  const applied = useRef<{ editor: TiptapEditor; content: typeof content } | null>(null);
 
   useEffect(() => {
     if (!editor || editor.isDestroyed || editor.isEditable) return;
-    if (isEqualStaticContent(appliedRef.current, content)) return;
-    appliedRef.current = content;
+    const previous = applied.current?.editor === editor ? applied.current.content : editor.options.content;
+    if (!Array.isArray(previous) && isEqualStaticContent(previous ?? undefined, content)) {
+      applied.current = { editor, content };
+      return;
+    }
+    let pending = true;
     // React node views render with flushSync, which React refuses inside an effect.
     queueMicrotask(() => {
-      if (!editor.isDestroyed) editor.commands.setContent(content ?? '');
+      if (pending && !editor.isDestroyed && !editor.isEditable) {
+        editor.commands.setContent(dropUnknownContent(content ?? '', editor.schema));
+        applied.current = { editor, content };
+      }
     });
+    return () => { pending = false; };
   }, [editor, content]);
 }
