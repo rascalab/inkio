@@ -46,6 +46,37 @@ describe('inline Markdown representation', () => {
     expect(parseMarkdown('`[[www.example.com]]`').content?.[0]).toEqual(paragraph(text('[[www.example.com]]', 'code')));
   });
 
+  it.each([
+    '[[Guide]](/guide)',
+    '[[Guide]][ref]\n\n[ref]: /guide',
+    String.raw`[\[Guide\]](/guide)`,
+  ])('keeps the bracketed text and destination of the ordinary link %s', (source) => {
+    const doc = documentOf(paragraph({ type: 'text', text: '[Guide]', marks: [{ type: 'link', attrs: { href: '/guide' } }] }));
+    expect(parseMarkdown(source)).toEqual(doc);
+    expect(parseMarkdown(stringifyMarkdown(doc))).toEqual(doc);
+  });
+
+  it('gives a defined inner reference precedence without consuming neighboring wiki links', () => {
+    expect(parseMarkdown('[[Page]] [[Guide]] [[Page]]\n\n[guide]: /guide')).toEqual(documentOf(paragraph(
+      wiki('Page'), text(' ['), { type: 'text', text: 'Guide', marks: [{ type: 'link', attrs: { href: '/guide' } }] },
+      text('] '), wiki('Page'),
+    )));
+  });
+
+  it('keeps nested bracket text inside link and image labels', () => {
+    const source = '[See [[Guide]] here](/guide)\n\n![See [[Guide]] here][pic]\n\n[pic]: /cover.png';
+    expect(parseMarkdown(source)).toEqual(documentOf(
+      paragraph({ type: 'text', text: 'See [[Guide]] here', marks: [{ type: 'link', attrs: { href: '/guide' } }] }),
+      { type: 'imageBlock', attrs: { src: '/cover.png', alt: 'See [[Guide]] here', title: null } },
+    ));
+  });
+
+  it('ignores escaped wiki delimiters and allows wiki links next to non-link syntax', () => {
+    expect(parseMarkdown(String.raw`\[[Escaped]] [[Open\]] [[Page]](unclosed`)).toEqual(documentOf(paragraph(
+      text('[[Escaped]] [[Open]] '), wiki('Page'), text('(unclosed'),
+    )));
+  });
+
   it('keeps wiki punctuation literal without creating a link for an unsafe scheme', () => {
     const target = 'my_page *A* & `B` #x :note | end';
     const doc = documentOf(paragraph(text('first:'), wiki(target), text('!')));
@@ -86,6 +117,40 @@ describe('live Markdown writes', () => {
       expect(update).toHaveBeenCalledTimes(1);
       editor.markdown = String.raw`\[\[plain]]`;
       expect(editor.state.doc.textContent).toBe('[[plain]]');
+    } finally { editor.destroy(); }
+  });
+
+  it('can assign a bracketed CommonMark link without a wiki extension', () => {
+    const editor = new Editor({ extensions: [...getExtensions(), Markdown] }) as MarkdownEditor<Editor>;
+    try {
+      editor.markdown = '[[Guide]](/guide)';
+      const paragraph = editor.state.doc.firstChild;
+      expect(paragraph?.childCount).toBe(1);
+      expect(paragraph?.firstChild?.text).toBe('[Guide]');
+      expect(paragraph?.firstChild?.marks[0].attrs.href).toBe('/guide');
+    } finally { editor.destroy(); }
+  });
+
+  it('rejects an appended structural revert but accepts a normalized replacement', () => {
+    const transform = Extension.create({ name: 'transformMarkdown', addProseMirrorPlugins: () => [
+      new Plugin({ appendTransaction: (_transactions, before, after) => {
+        if (after.doc.textContent === 'revert') {
+          const restored = after.schema.nodeFromJSON(before.doc.toJSON());
+          return after.tr.replaceWith(0, after.doc.content.size, restored.content);
+        }
+        if (after.doc.textContent === 'normalize') {
+          return after.tr.insertText('normalized', 1, after.doc.content.size - 1);
+        }
+      } }),
+    ] });
+    const editor = new Editor({ extensions: [...getExtensions(), Markdown, transform], content: '<p>old</p>' }) as MarkdownEditor<Editor>;
+    try {
+      const before = editor.state.doc;
+      expect(() => { editor.markdown = 'revert'; }).toThrow('the editor rejected the replacement');
+      expect(editor.state.doc).not.toBe(before);
+      expect(editor.markdown).toBe('old');
+      editor.markdown = 'normalize';
+      expect(editor.markdown).toBe('normalized');
     } finally { editor.destroy(); }
   });
 

@@ -80,6 +80,10 @@ async function smoke() {
     assert.equal('setMarkdown' in editor, false);
     assert.throws(() => { editor.markdown = rejected; });
     assert.equal(editor.markdown, '## Updated');
+    editor.markdown = '[[Guide]](/guide)';
+    const label = editor.getJSON().content[0].content[0];
+    assert.equal(label.text, '[Guide]');
+    assert.ok(label.marks.some(mark => mark.type === 'link' && mark.attrs.href === '/guide'));
   } finally {
     clearTimeout(timeout);
     root.unmount();

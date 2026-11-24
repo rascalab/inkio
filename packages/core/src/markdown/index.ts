@@ -35,15 +35,21 @@ type MdastNode = {
 
 // A single tilde is not strikethrough here, though GFM allows it: it would
 // strike the words between two ranges ("3~5일, 7~9일"). The writer uses `~~`.
-const markdownParser = unified()
+const createCommonMarkParser = () => unified()
   .use(remarkParse)
+  .use(remarkGfm, { singleTilde: false })
+  .use(remarkDirective);
+
+const createWikiParser = (allowedOpeners?: ReadonlySet<number>) => createCommonMarkParser()
   // Tokenize before backslash escapes lose their source positions or GFM
   // splits a URL into a link. Use remark's opaque inline-literal buffer with
   // string content: references decode, but emphasis and links do not.
   .data('micromarkExtensions', [{ text: { 91: {
     tokenize(effects, ok, nok) {
+      let escaped = false;
       const inside: typeof ok = (code) => {
-        if (code === null || code <= -3 || code === 91) return nok(code);
+        if (code === null || code <= -3 || code === 91 || (code === 93 && escaped)) return nok(code);
+        escaped = code === 92 && !escaped;
         effects.consume(code);
         return code === 93 ? close : inside;
       };
@@ -55,6 +61,7 @@ const markdownParser = unified()
         return ok;
       };
       return (first) => {
+        if (allowedOpeners && !allowedOpeners.has(this.now().offset)) return nok(first);
         effects.enter('htmlText');
         effects.enter('chunkString', { contentType: 'string' });
         effects.consume(first);
@@ -65,9 +72,41 @@ const markdownParser = unified()
         };
       };
     },
-  } } }])
-  .use(remarkGfm, { singleTilde: false })
-  .use(remarkDirective);
+  } } }]);
+
+const commonMarkParser = createCommonMarkParser();
+const wikiParser = createWikiParser();
+
+function parseMarkdownTree(source: string): MdastNode {
+  let opener = source.indexOf('[[');
+  if (opener === -1) return commonMarkParser.parse(source) as MdastNode;
+  // An explicit link or image needs either a resource or a reference definition.
+  if (!source.includes('](') && !source.includes(']:')) return wikiParser.parse(source) as MdastNode;
+
+  // Let CommonMark decide which labels actually resolve, including nested text
+  // and forward references. A GFM bare URL inside [[...]] is not such a label.
+  const tree = commonMarkParser.parse(source) as MdastNode;
+  const allowed = new Set<number>();
+  const advance = (end: number, keep: boolean) => {
+    while (opener !== -1 && opener < end) {
+      if (keep) allowed.add(opener);
+      opener = source.indexOf('[[', opener + 1);
+    }
+  };
+  walkMdast(tree, (node) => {
+    const start = node.position?.start.offset;
+    const end = node.position?.end.offset;
+    if (start === undefined || end === undefined) return;
+    if ((node.type === 'link' && source[start] === '[') || node.type === 'image' ||
+      node.type === 'linkReference' || node.type === 'imageReference' || node.type === 'footnoteReference') {
+      // The second '[' may itself open a shortcut reference: [[Guide]].
+      advance(start - 1, true);
+      advance(end, false);
+    }
+  });
+  advance(source.length, true);
+  return allowed.size ? createWikiParser(allowed).parse(source) as MdastNode : tree;
+}
 
 // Recognize details tags as inline HTML so a tag doesn't hide a nearby fenced
 // block in an opaque CommonMark HTML block during marker discovery.
@@ -269,10 +308,10 @@ function parseDetails(markdown: string): MdastNode {
     cursor = marker.end;
     shifts.push({ end: offset, shift: cursor - offset });
   }
-  if (parts.length === 0) return finishParsedTree(markdownParser.parse(markdown) as MdastNode, markdown);
+  if (parts.length === 0) return finishParsedTree(parseMarkdownTree(markdown), markdown);
 
   parts.push(markdown.slice(cursor));
-  const root = markdownParser.parse(parts.join('')) as MdastNode;
+  const root = parseMarkdownTree(parts.join(''));
   // Pair markers only as siblings, so enclosing blockquotes, lists, and
   // directives keep exactly their original Markdown container boundaries.
   walkMdast(root, (node) => {
@@ -306,7 +345,7 @@ function parseDetails(markdown: string): MdastNode {
   });
   // Don't leave synthetic text behind if a marker was inside opaque HTML.
   return positions.size > 0
-    ? finishParsedTree(markdownParser.parse(markdown) as MdastNode, markdown)
+    ? finishParsedTree(parseMarkdownTree(markdown), markdown)
     : finishParsedTree(root, markdown, shifts);
 }
 
@@ -1234,7 +1273,7 @@ function parseToMdast(markdown: string): MdastNode {
   }
   return /<details(?: open)?>/i.test(markdown)
     ? parseDetails(markdown)
-    : finishParsedTree(markdownParser.parse(markdown) as MdastNode, markdown);
+    : finishParsedTree(parseMarkdownTree(markdown), markdown);
 }
 
 function stringifyFromMdast(root: MdastNode): string {
@@ -1324,8 +1363,9 @@ export const Markdown = Extension.create({
         doc.check();
         const before = editor.state.doc;
         if (doc.eq(before)) return;
-        // Commands report dispatch, not acceptance by the transaction filters.
-        if (!editor.commands.setContent(doc) || editor.state.doc === before) {
+        // Filters can veto a replacement, or an appended transaction can restore
+        // the old content. Other normalizations need not equal the requested doc.
+        if (!editor.commands.setContent(doc) || editor.state.doc.eq(before)) {
           throw new RangeError('Cannot set Markdown: the editor rejected the replacement.');
         }
       },
@@ -1352,6 +1392,17 @@ export const MarkdownPaste = Extension.create({
       new Plugin({
         key: new PluginKey('markdownPaste'),
         props: {
+          handleDOMEvents: {
+            paste(view) {
+              // A native paste may beat selectionchange after a click. Flush
+              // ProseMirror's own observer before it parses the clipboard
+              // against the previous block (and before any handlePaste hook).
+              if (!view.composing) {
+                (view as typeof view & { domObserver: { flush(): void } }).domObserver.flush();
+              }
+              return false;
+            },
+          },
           handlePaste: (view, event) => {
             const clipboard = event.clipboardData;
             const text = clipboard?.getData('text/plain');

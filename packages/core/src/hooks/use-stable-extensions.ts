@@ -1,13 +1,21 @@
 import { useMemo, useRef } from 'react';
-import type { ExtensionsInput } from '../utils/extensions-input';
+import type { CoreExtensions, ExtensionsInput } from '../utils/extensions-input';
+
+function sameExtensions(a?: Readonly<CoreExtensions>, b?: Readonly<CoreExtensions>): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
 
 /** A new prop container is not a new registration. Extension instances, order and replace mode are. */
 export function useStableExtensions(input?: ExtensionsInput): ExtensionsInput | undefined {
   const replace = !!(input && 'items' in input && input.replace);
   const list = input && 'items' in input ? input.items : input;
   const previous = useRef(list);
-  const last = previous.current;
-  if (list !== last && (!last || !list || last.length !== list.length || list.some((ext, i) => ext !== last[i]))) {
+  if (!sameExtensions(list, previous.current)) {
     previous.current = list;
   }
   const items = previous.current;

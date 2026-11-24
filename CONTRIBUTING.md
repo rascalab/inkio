@@ -78,15 +78,18 @@ pnpm security:audit
 pnpm release:smoke
 ```
 
-`pnpm verify` is the quick subset and includes the reference collaboration server smoke. `pnpm verify:full` also audits the lockfile, runs Chromium and Firefox E2E and WebKit workbench E2E, and checks package exports and bundle budgets. Package smoke installs tarballs with strict peers, loads every CommonJS JS entry and resolves CSS assets on React 19.3, and checks the non-image editor packages on React 18. The browser collaboration runtime and the optional Node Vite plugin have separate budgets.
+`pnpm verify` is the quick subset and includes the reference collaboration server smoke. `pnpm verify:full` also audits the lockfile, runs editor and image-workbench E2E in Chromium, Firefox and WebKit, and checks package exports and bundle budgets. Package smoke installs tarballs with strict peers, loads every CommonJS JS entry and resolves CSS assets on React 19.3, and checks the non-image editor packages on React 18. The browser collaboration runtime and the optional Node Vite plugin have separate budgets.
 
 Playwright retries on CI to collect failure evidence. A test that passes only on retry still fails the gate; use `pnpm exec playwright test --retries=0` to check first-attempt behavior locally.
+
+Clipboard cases use native copy/paste shortcuts. Korean composition tests use the browser input driver on Chromium and an isolated Firefox automation profile. WebKit checks provisional edits with simulated composition events; it is not a test of the macOS or iOS input method.
 
 After building packages, `pnpm package:budgets` also builds isolated production consumers of each preset's root `read`, `Viewer` and `Editor` exports. Compare the initial JS (raw and gzip) separately from all JS (gzip): deferring code is not the same as removing it. These measurements include React when the consumer uses it, but exclude CSS and framework-specific app code.
 
 ## Releasing
 
 The root, the six packages and `docs` all share one version.
+Before pushing a release candidate, run `pnpm verify:full` locally against the final working tree. Report any failures or skipped coverage separately. Passing the local gates is not approval to change the version, push a tag, or publish.
 
 ```bash
 pnpm release:version 0.0.8   # set the version in all eight package.json files

@@ -35,8 +35,9 @@ export function useResolvedInkioEditor({
     onBeforeCreate: ({ editor: instance }) => {
       const old = previous.current;
       previous.current = null;
-      if (old && !followContent) {
-        instance.setOptions({ content: migrateEditorDocument(old.doc, instance.schema) });
+      const migration = old && !followContent ? migrateEditorDocument(old.doc, instance.schema) : null;
+      if (migration) {
+        instance.setOptions({ content: migration.doc.toJSON() });
       } else {
         const next = instance.options.content;
         if (next && typeof next === 'object' && !Array.isArray(next)) {
@@ -46,12 +47,19 @@ export function useResolvedInkioEditor({
       if (old) {
         instance.once('mount', () => {
           const { doc, tr } = instance.state;
+          let migrated = migration;
+          if (!migrated) {
+            // Viewers reopen the incoming prop, which can contain new content
+            // or features the old schema could not show. Restore a bookmark
+            // only if its destination really is this document.
+            try { migrated = migrateEditorDocument(old.doc, instance.schema); } catch { return; }
+          }
+          if (!migrated.doc.eq(doc)) return;
           let selection;
           try {
-            selection = old.selection.getBookmark().resolve(doc);
+            selection = old.selection.getBookmark().map(migrated.mapping).resolve(doc);
           } catch {
-            // A removed node or shorter viewer document may invalidate the old position.
-            selection = Selection.near(doc.resolve(Math.min(old.selection.head, doc.content.size)));
+            selection = Selection.near(doc.resolve(migrated.mapping.map(old.selection.head)));
           }
           instance.view.dispatch(tr.setSelection(selection).setMeta('addToHistory', false));
         });

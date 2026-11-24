@@ -355,17 +355,17 @@ export const TableMenu = ({
       }
 
       event.preventDefault();
-      // Don't scroll: the scroll listener below would close this menu right
-      // after it opens.
-      const chain = editor.chain().focus(undefined, { scrollIntoView: false });
       if (cell.classList.contains('selectedCell')) {
-        // Keep a selection of several cells, or there is nothing left to merge.
-        chain.run();
+        // WebKit has already moved the DOM caret into the clicked cell.
+        // Sync it to the editor's cell range before the next selectionchange.
+        editor.view.focus();
       } else {
         // Land inside the cell's first textblock (a selection at the cell
         // boundary is not a valid TextSelection).
         const textblock = cell.querySelector('p, h1, h2, h3, h4, h5, h6') ?? cell;
-        chain.setTextSelection(editor.view.posAtDOM(textblock, 0)).run();
+        // Scrolling would immediately dismiss the menu.
+        editor.chain().focus(undefined, { scrollIntoView: false })
+          .setTextSelection(editor.view.posAtDOM(textblock, 0)).run();
       }
       setContextMenu(
         {

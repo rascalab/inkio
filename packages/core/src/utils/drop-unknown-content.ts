@@ -3,7 +3,7 @@ import { Fragment, Node as ProseMirrorNode, type Schema } from '@tiptap/pm/model
 import { normalizeJsonTables } from './table-bounds';
 
 /** What a node with no place in this schema still has to say. */
-function textOf(node: JSONContent): string | null {
+export function unknownNodeText(node: JSONContent): string | null {
   const { label, title, name, url, href } = (node.attrs ?? {}) as Record<string, unknown>;
   const text = [label, title, name, url, href].find((value) => typeof value === 'string' && value.length > 0);
   return (text as string | undefined) ?? null;
@@ -28,7 +28,7 @@ function cleanNode(node: JSONContent, schema: Schema, inline: boolean, unknown: 
       }
       return children;
     }
-    const text = textOf(node);
+    const text = unknownNodeText(node);
     if (!text) return [];
     return inline
       ? [{ type: 'text', text }]

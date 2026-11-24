@@ -61,6 +61,7 @@ function createMockEditor(
     state: { selection: { from: 2 } },
     view: {
       dom,
+      focus: vi.fn(),
       nodeDOM: vi.fn(() => null),
       domAtPos: vi.fn(() => ({ node: table.rows[1].cells[0] })),
       posAtDOM: vi.fn(() => 5),
@@ -216,6 +217,7 @@ describe('TableMenu', () => {
     table.rows[1].cells[1].classList.add('selectedCell');
     fireEvent.contextMenu(table.rows[1].cells[1], { clientX: 40, clientY: 40 });
     await waitFor(() => getByRole('menu'));
+    expect(editor.view.focus).toHaveBeenCalledOnce();
     expect(setTextSelectionSpy).not.toHaveBeenCalled();
 
     fireEvent.contextMenu(table.rows[2].cells[1], { clientX: 40, clientY: 40 });

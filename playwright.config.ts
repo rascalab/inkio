@@ -31,7 +31,6 @@ export default defineConfig({
     },
     {
       name: 'webkit',
-      testMatch: '**/image-editor.spec.ts',
       use: { browserName: 'webkit' },
     },
   ],

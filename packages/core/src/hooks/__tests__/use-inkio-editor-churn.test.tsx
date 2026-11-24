@@ -83,6 +83,19 @@ describe('useInkioEditor extension registration', () => {
     expect(edited.state.doc.textContent).toBe('First editSecond editLast edit');
   });
 
+  it('unregisters an extension when its slot becomes empty', async () => {
+    const hook = renderHook(({ items }) => useInkioEditor({
+      extensions: items, content: '<p>Keep this edit</p>',
+    }), { initialProps: { items: [Markdown] } });
+    await waitFor(() => expect(hook.result.current).toHaveProperty('markdown', 'Keep this edit'));
+
+    hook.rerender({ items: new Array<typeof Markdown>(1) });
+    await waitFor(() => {
+      expect(hook.result.current?.text).toBe('Keep this edit');
+      expect(hook.result.current).not.toHaveProperty('markdown');
+    });
+  });
+
   it('reports only the same-name extension that survived the additive merge', async () => {
     const shadow = Extension.create({ name: Markdown.name });
     const changed = vi.fn();

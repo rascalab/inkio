@@ -1,4 +1,5 @@
-import { devices, expect, test, type Locator } from '@playwright/test';
+import { devices, expect, test, type Browser, type Locator, type Page } from '@playwright/test';
+import { compositionTest } from './composition';
 
 async function selectCommentText(editor: Locator) {
   const phrase = 'This example';
@@ -83,6 +84,8 @@ test('next app router example opens the image editor from an inserted image bloc
   await expect(page.getByTestId('inkio-ie-modal-content')).toBeHidden();
 });
 
+const onePixelPng = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGNgAAIAAAUAAXpeqz8AAAAASUVORK5CYII=';
+
 test('next app router example inserts an image from the slash command without a transaction error', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => {
@@ -113,10 +116,7 @@ test('next app router example inserts an image from the slash command without a 
   await chooser.setFiles({
     name: 'slash-image.png',
     mimeType: 'image/png',
-    buffer: Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGNgAAIAAAUAAXpeqz8AAAAASUVORK5CYII=',
-      'base64',
-    ),
+    buffer: Buffer.from(onePixelPng, 'base64'),
   });
 
   await expect(page.locator('.inkio-image-block-container')).toHaveCount(1);
@@ -168,6 +168,7 @@ test('cells selected in a table merge and split from its menu', async ({ page })
   await expect(page.locator('.inkio-floating-overlay.is-visible')).toHaveCount(0);
 
   await page.mouse.click(second.x + 20, second.y + 15, { button: 'right' });
+  await expect(menu).toBeVisible();
   await expect(editor.locator('.selectedCell')).toHaveCount(2);
   await menu.getByRole('menuitem', { name: '셀 병합' }).click();
   await expect(editor.locator('td[colspan="2"]')).toHaveCount(1);
@@ -175,6 +176,7 @@ test('cells selected in a table merge and split from its menu', async ({ page })
   await editor.locator('td[colspan="2"]').click({ button: 'right' });
   await menu.getByRole('menuitem', { name: '셀 분할' }).click();
   await expect(editor.locator('td[colspan="2"]')).toHaveCount(0);
+  await expect(cells).toHaveCount(6);
 });
 
 async function focusEditorEnd(page: import('@playwright/test').Page) {
@@ -429,24 +431,7 @@ test('next app router example hides a comment thread while its text is deleted',
   await expect(thread).toContainText('On deleted text');
 });
 
-// CDP drives the browser's own composition path, which is what an input method
-// does: the text changes in place until it is committed, unlike keyboard.type.
-async function compose(page: import('@playwright/test').Page, ...steps: string[]) {
-  const cdp = await page.context().newCDPSession(page);
-  const last = steps[steps.length - 1];
-  for (const text of steps) {
-    await cdp.send('Input.imeSetComposition', {
-      text,
-      selectionStart: text.length,
-      selectionEnd: text.length,
-    });
-  }
-  await cdp.send('Input.insertText', { text: last });
-  await cdp.detach();
-}
-
-test('slash menu speaks the editor locale and finds a command typed in Korean', async ({ page, browserName }) => {
-  test.skip(browserName !== 'chromium', 'composition is driven through CDP');
+compositionTest('slash menu speaks the editor locale and finds a command typed in Korean', async ({ page, compose }) => {
   await page.goto('http://localhost:4174/slash-e2e');
   await focusEditorEnd(page);
   await page.keyboard.press('Enter');
@@ -455,7 +440,7 @@ test('slash menu speaks the editor locale and finds a command typed in Korean', 
   await expect(page.locator('.inkio-suggestion-header')).toHaveCount(0);
   await expect(page.getByRole('listbox', { name: '추천 항목' })).toBeVisible();
 
-  await compose(page, 'ㅍ', '표');
+  await compose('ㅍ', '표');
   await expect(page.getByRole('option')).toHaveCount(1);
   await expect(page.getByRole('option')).toHaveText('표');
 
@@ -465,29 +450,40 @@ test('slash menu speaks the editor locale and finds a command typed in Korean', 
   await expect(editor).not.toContainText('/표');
 });
 
-test('slash menu says nothing matched in the editor locale', async ({ page, browserName }) => {
-  test.skip(browserName !== 'chromium', 'composition is driven through CDP');
+compositionTest('slash menu says nothing matched in the editor locale', async ({ page, compose }) => {
   await page.goto('http://localhost:4174/slash-e2e');
   await focusEditorEnd(page);
   await page.keyboard.press('Enter');
 
   await page.keyboard.type('/');
-  await compose(page, 'ㅎ', '하', '핳');
+  await compose('ㅎ', '하', '핳');
   await expect(page.locator('.inkio-suggestion-empty')).toHaveText('검색 결과 없음');
 });
 
-test('Korean composition lands where the caret is', async ({ page, browserName }) => {
-  test.skip(browserName !== 'chromium', 'composition is driven through CDP');
+compositionTest('Korean composition lands where the caret is', async ({ page, compose }) => {
   await page.goto('http://localhost:4174/slash-e2e');
   await focusEditorEnd(page);
+  const editor = page.locator('.ProseMirror').first();
+  const preedit = await editor.evaluateHandle(root => {
+    const text: string[] = [];
+    const capture = (event: Event) => {
+      const value = root.querySelector('p')!.textContent!;
+      // Chromium emits another input with unchanged text on commit.
+      if (event.isTrusted && text[text.length - 1] !== value) text.push(value);
+    };
+    root.addEventListener('compositionstart', () => root.addEventListener('input', capture), { once: true });
+    root.addEventListener('compositionend', () => root.removeEventListener('input', capture), { once: true });
+    return text;
+  });
 
-  await compose(page, 'ㅎ', '하', '한');
-  await compose(page, 'ㄱ', '그', '글');
+  await compose('ㅎ', '하', '한');
+  await expect.poll(() => preedit.jsonValue()).toEqual(['슬래시 시험ㅎ', '슬래시 시험하', '슬래시 시험한']);
+  await compose('ㄱ', '그', '글');
   await page.keyboard.press('Enter');
-  await compose(page, 'ㄷ', '다', '달');
+  await compose('ㄷ', '다', '달');
   await page.keyboard.press('Backspace');
 
-  const paragraphs = page.locator('.ProseMirror').first().locator('p');
+  const paragraphs = editor.locator('p');
   await expect(paragraphs.first()).toHaveText('슬래시 시험한글');
   await expect(paragraphs.nth(1)).toHaveText('');
 });
@@ -505,8 +501,57 @@ const blockOutline = (page: import('@playwright/test').Page) =>
     }),
   );
 
+function touchContext(browser: Browser, viewport = devices['Pixel 7'].viewport) {
+  const name = browser.browserType().name();
+  // Firefox supports touch and narrow viewports, but not isMobile emulation.
+  const device = name === 'firefox' ? { hasTouch: true } : devices[name === 'webkit' ? 'iPhone 13' : 'Pixel 7'];
+  return browser.newContext({ ...device, viewport });
+}
+
+type TouchPoint = { x: number; y: number };
+type TouchPhase = 'touchStart' | 'touchMove' | 'touchEnd' | 'touchCancel';
+
+async function touchDriver(page: Page) {
+  const name = page.context().browser()!.browserType().name();
+  let send: (phase: TouchPhase, point: TouchPoint) => Promise<unknown>;
+  if (name === 'chromium') {
+    const cdp = await page.context().newCDPSession(page);
+    send = (type, point) => cdp.send('Input.dispatchTouchEvent', {
+      type, touchPoints: type === 'touchEnd' || type === 'touchCancel' ? [] : [point],
+    });
+  } else {
+    // Playwright's public Touchscreen only taps. Use the local driver's native
+    // protocols for continuous trusted input and real browser pointer capture.
+    type Session = { send(method: string, params: object): Promise<unknown> };
+    const { _connection } = page as unknown as {
+      _connection: { toImpl(page: Page): { delegate: { _session: Session; _pageProxySession: Session } } };
+    };
+    const driver = _connection.toImpl(page).delegate;
+    send = (type, { x, y }) => {
+      const point = { x: Math.round(x), y: Math.round(y) };
+      return name === 'firefox'
+        ? driver._session.send('Page.dispatchTouchEvent', { type, touchPoints: [point], modifiers: 0 })
+        : driver._pageProxySession.send('Input.dispatchTouchEvent', { type, touchPoints: [{ ...point, id: 0 }] });
+    };
+  }
+  return async (point: TouchPoint) => {
+    await send('touchStart', point);
+    return {
+      async move(x: number, y: number) {
+        const start = point;
+        for (let step = 1; step <= 12; step++) {
+          point = { x: start.x + (x - start.x) * step / 12, y: start.y + (y - start.y) * step / 12 };
+          await send('touchMove', point);
+        }
+      },
+      end: () => send('touchEnd', point),
+      cancel: () => send('touchCancel', point),
+    };
+  };
+}
+
 async function dragBlock(
-  page: import('@playwright/test').Page,
+  page: Page,
   source: string,
   target: string,
   side: 'above' | 'below',
@@ -528,8 +573,6 @@ async function dragBlock(
 }
 
 test.describe('block drag onto a list', () => {
-  test.skip(({ browserName }) => browserName !== 'chromium', 'one drag path is enough');
-
   test.beforeEach(async ({ page }) => {
     await page.goto('http://localhost:4174/block-e2e');
     await expect(blockEditor(page)).toContainText('끝 문단');
@@ -560,21 +603,25 @@ test.describe('block drag onto a list', () => {
   });
 });
 
-test.describe('markdown paste', () => {
-  test.skip(({ browserName }) => browserName !== 'chromium', 'Firefox ignores clipboardData in the ClipboardEvent constructor');
+// Copy writes the test input to the browser clipboard. Pasting with the
+// platform shortcut exercises the native paste event, including rich data.
+async function pasteClipboard(page: Page, plain: string, rich?: string) {
+  await page.evaluate(({ plain, rich }) => {
+    document.addEventListener('copy', event => {
+      event.clipboardData!.setData('text/plain', plain);
+      if (rich) event.clipboardData!.setData('text/html', rich);
+      event.preventDefault();
+    }, { capture: true, once: true });
+  }, { plain, rich });
+  await page.keyboard.press('ControlOrMeta+c');
+  await page.keyboard.press('ControlOrMeta+v');
+}
 
+test.describe('markdown paste', () => {
   async function pasteText(page: import('@playwright/test').Page, target: string, text: string, html?: string) {
     await blockEditor(page).getByText(target, { exact: true }).click();
     await page.keyboard.press('End');
-    await blockEditor(page).evaluate(async (root, [plain, rich]) => {
-      // A real paste comes well after the caret settles; the editor reads the
-      // selection change asynchronously and a paste does not flush it.
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      const clipboardData = new DataTransfer();
-      clipboardData.setData('text/plain', plain);
-      if (rich) clipboardData.setData('text/html', rich);
-      root.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }));
-    }, [text, html] as const);
+    await pasteClipboard(page, text, html);
   }
 
   test.beforeEach(async ({ page }) => {
@@ -596,6 +643,13 @@ test.describe('markdown paste', () => {
     const editor = blockEditor(page);
     await expect(editor.locator('p', { hasText: '끝 문단' })).toHaveText('끝 문단그리고 굵게');
     await expect(editor.locator('p strong')).toHaveText('굵게');
+  });
+
+  test('preserves the destination of a link with a bracketed label', async ({ page }) => {
+    await pasteText(page, '끝 문단', '## 링크\n\n[[Guide]](/guide) · [[Wiki]]');
+    const editor = blockEditor(page);
+    await expect(editor.getByRole('link', { name: '[Guide]', exact: true })).toHaveAttribute('href', '/guide');
+    await expect(editor.locator('[data-wiki-link]')).toHaveText('Wiki');
   });
 
   test('leaves plain sentences, rich copies and code blocks alone', async ({ page }) => {
@@ -621,39 +675,32 @@ test('typing right after a click lands at the click', async ({ page }) => {
   await expect(editor.locator('p', { hasText: '끝' })).toContainText('X');
 });
 
-test('a table inserted from the menu takes Korean and Tab moves between cells', async ({ page, browserName }) => {
-  test.skip(browserName !== 'chromium', 'composition is driven through CDP');
+compositionTest('a table inserted from the menu takes Korean and Tab moves between cells', async ({ page, compose }) => {
   await page.goto('http://localhost:4174/slash-e2e');
   await focusEditorEnd(page);
   await page.keyboard.press('Enter');
   await page.keyboard.type('/');
-  await compose(page, 'ㅍ', '표');
+  await compose('ㅍ', '표');
   await expect(page.getByRole('option')).toHaveCount(1);
   await page.keyboard.press('Enter');
 
   const table = page.locator('.ProseMirror').first().locator('table');
-  await compose(page, 'ㅇ', '이', '이름');
+  await compose('ㅇ', '이', '이름');
   await page.keyboard.press('Tab');
-  await compose(page, 'ㄱ', '가', '값');
+  await compose('ㄱ', '가', '값');
   await expect(table.locator('th').nth(0)).toHaveText('이름');
   await expect(table.locator('th').nth(1)).toHaveText('값');
   await expect(table.locator('tr')).toHaveCount(3);
 });
 
 test.describe('editor surfaces', () => {
-  test.skip(({ browserName }) => browserName !== 'chromium', 'layout and synthetic paste are checked once');
-
   const long = Array.from({ length: 40 }, (_, i) => `문단 ${i}`).join('\n\n');
 
   async function replaceWith(page: import('@playwright/test').Page, markdown: string) {
     const editor = blockEditor(page);
-    await editor.evaluate((root, text) => {
-      const clipboardData = new DataTransfer();
-      clipboardData.setData('text/plain', text);
-      (root as unknown as { editor: { commands: { clearContent: () => void; focus: () => void } } }).editor.commands.clearContent();
-      (root as unknown as { editor: { commands: { focus: () => void } } }).editor.commands.focus();
-      root.dispatchEvent(new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }));
-    }, markdown);
+    await editor.press('ControlOrMeta+a');
+    await page.keyboard.press('Backspace');
+    await pasteClipboard(page, markdown);
     // Tiptap moves focus on the next frame; keys sent before it race the caret.
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   }
@@ -798,7 +845,7 @@ test.describe('editor surfaces', () => {
   });
 
   test('touch lifts a padded block preview, cancels, and then moves the block once', async ({ browser }) => {
-    const context = await browser.newContext(devices['Pixel 7']);
+    const context = await touchContext(browser);
     try {
       const page = await context.newPage();
       await page.goto('http://localhost:4174/block-e2e');
@@ -809,21 +856,14 @@ test.describe('editor surfaces', () => {
       const handle = page.getByRole('button', { name: '블록 핸들' });
       const preview = page.locator('.inkio-block-drag-preview');
       const marker = page.locator('.inkio-block-drop-marker');
-      const cdp = await context.newCDPSession(page);
+      const touch = await touchDriver(page);
       const lift = async () => {
         await source.tap();
         await expect(handle).toBeVisible();
         const grip = (await handle.boundingBox())!;
         const drop = (await target.boundingBox())!;
-        const x = grip.x + grip.width / 2;
-        const y = grip.y + grip.height / 2;
-        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
-        for (let step = 1; step <= 12; step++) {
-          await cdp.send('Input.dispatchTouchEvent', {
-            type: 'touchMove',
-            touchPoints: [{ x: x + (drop.x + 24 - x) * step / 12, y: y + (drop.y + 2 - y) * step / 12 }],
-          });
-        }
+        const finger = await touch({ x: grip.x + grip.width / 2, y: grip.y + grip.height / 2 });
+        await finger.move(drop.x + 24, drop.y + 2);
         await expect(preview).toBeVisible();
         await expect(preview).toContainText('끝 문단');
         const sourceWidth = (await source.boundingBox())!.width;
@@ -835,16 +875,17 @@ test.describe('editor surfaces', () => {
         });
         expect(inset).toBeGreaterThanOrEqual(8);
         await expect(marker).toBeVisible();
+        return finger;
       };
 
-      await lift();
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+      const canceled = await lift();
+      await canceled.cancel();
       await expect(first).toHaveText('앞 문단');
       await expect(preview).toHaveCount(0);
       await expect(marker).toHaveCount(0);
 
-      await lift();
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      const dropped = await lift();
+      await dropped.end();
       await expect(first).toHaveText('끝 문단');
       await expect(source).toHaveCount(1);
       await expect(preview).toHaveCount(0);
@@ -858,7 +899,7 @@ test.describe('editor surfaces', () => {
 
   for (const fill of [true, false]) {
     test(`touch edge-scrolls and drops a long block in ${fill ? 'a fixed-height editor' : 'the page'}`, async ({ browser }) => {
-      const context = await browser.newContext({ ...devices['Pixel 7'], viewport: { width: 393, height: 590 } });
+      const context = await touchContext(browser, { width: 393, height: 590 });
       try {
         const page = await context.newPage();
         await page.goto('http://localhost:4174/block-e2e');
@@ -872,12 +913,13 @@ test.describe('editor surfaces', () => {
         await editor.getByText('끝 문단', { exact: true }).click();
         await page.keyboard.press('End');
         await page.keyboard.insertText(' 길게 잡히는 블록을 만들기 위한 문장입니다.'.repeat(8));
-        for (let i = 0; i < 36; i++) {
-          await page.keyboard.press('Enter');
-          await page.keyboard.insertText(`아래 문단 ${i}`);
-        }
+        // A single paste lays out every drop target before the gesture. On
+        // iOS, ProseMirror can defer Enter until after the next touch begins.
+        const below = Array.from({ length: 36 }, (_, i) => `아래 문단 ${i}`);
+        await pasteClipboard(page, `\n${below.join('\n')}`);
+        await expect(source.locator('xpath=following-sibling::p')).toHaveText(below);
 
-        const cdp = await context.newCDPSession(page);
+        const touch = await touchDriver(page);
         const readScroll = () => fill ? body.evaluate((el) => el.scrollTop) : page.evaluate(() => scrollY);
         const lift = async () => {
           await source.scrollIntoViewIfNeeded();
@@ -888,11 +930,9 @@ test.describe('editor surfaces', () => {
           const viewportHeight = page.viewportSize()!.height;
           const top = fill ? Math.max(box.y, 0) : 0;
           const bottom = fill ? Math.min(box.y + box.height, viewportHeight) : viewportHeight;
-          const from = { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 };
-          const x = box.x + 72;
-          await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] });
-          const move = (y: number) => cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y }] });
-          return { move, up: top + 3, down: bottom - 3 };
+          const finger = await touch({ x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 });
+          const move = (y: number) => finger.move(box.x + 72, y);
+          return { finger, move, up: top + 3, down: bottom - 3 };
         };
 
         let drag = await lift();
@@ -904,7 +944,7 @@ test.describe('editor surfaces', () => {
         const lower = await readScroll();
         await drag.move(drag.up);
         await expect.poll(readScroll).toBeLessThan(lower - 100);
-        await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+        await drag.finger.cancel();
         await expect(preview).toHaveCount(0);
         await expect(marker).toHaveCount(0);
         await expect(source.locator('xpath=following-sibling::p[1]')).toHaveText('아래 문단 0');
@@ -954,7 +994,7 @@ test.describe('editor surfaces', () => {
             }, { capture: true, once: true });
           }),
         }));
-        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        await drag.finger.end();
         const target = await release.evaluate(({ gap }) => gap);
         await release.dispose();
         await expect(source.locator('xpath=preceding-sibling::*[1]')).toHaveText(target.before);
@@ -968,7 +1008,7 @@ test.describe('editor surfaces', () => {
   }
 
   test('touch block menu moves one sibling without dragging or leaving its list', async ({ browser }) => {
-    const context = await browser.newContext({ ...devices['Pixel 7'], viewport: { width: 320, height: 440 } });
+    const context = await touchContext(browser, { width: 320, height: 440 });
     try {
       const page = await context.newPage();
       await page.goto('http://localhost:4174/block-e2e');
@@ -1205,8 +1245,7 @@ test.describe('slash menu inside other blocks', () => {
   });
 });
 
-test('an app can replace every icon the editor draws', async ({ page, browserName }) => {
-  test.skip(browserName !== 'chromium', 'checked once');
+test('an app can replace every icon the editor draws', async ({ page }) => {
   await page.goto('http://localhost:4174/icons-e2e');
   const editor = blockEditor(page);
   await expect(editor).toContainText('끝 문단');
@@ -1253,8 +1292,6 @@ test('an app can replace every icon the editor draws', async ({ page, browserNam
 });
 
 test.describe('writing a document', () => {
-  test.skip(({ browserName }) => browserName !== 'chromium', 'checked once');
-
   type Root = { editor: { commands: { setContent: (doc: unknown) => void; focus: (position?: string) => void }; getJSON: () => { content: { type: string }[] } } };
 
   async function load(page: import('@playwright/test').Page, content: unknown[]) {
@@ -1300,14 +1337,10 @@ test.describe('writing a document', () => {
       await expect(editor.locator(':scope > p').last()).toHaveText('below');
     });
 
-    test(`composing Korean with ${name} selected writes below and keeps it`, async ({ page, browserName }) => {
-      test.skip(browserName !== 'chromium', 'composition is driven through CDP');
+    compositionTest(`composing Korean with ${name} selected writes below and keeps it`, async ({ page, compose }) => {
       const editor = await load(page, [paragraph('앞'), block]);
       await select(editor, 3);
-      const cdp = await page.context().newCDPSession(page);
-      await cdp.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Process', windowsVirtualKeyCode: 229 });
-      await cdp.detach();
-      await compose(page, 'ㅎ', '하', '한');
+      await compose('ㅎ', '하', '한');
       expect(await types(editor)).toEqual(['paragraph', block.type, 'paragraph']);
       await expect(editor.locator(':scope > p').last()).toHaveText('한');
     });
@@ -1336,7 +1369,7 @@ test.describe('writing a document', () => {
 
   const cell = { type: 'tableCell', content: [paragraph('셀')] };
   for (const [name, block, inside] of [
-    ['an image', { type: 'imageBlock', attrs: { src: '/favicon.ico' } }, 'img'],
+    ['an image', { type: 'imageBlock', attrs: { src: `data:image/png;base64,${onePixelPng}` } }, 'img'],
     ['a callout', { type: 'callout', content: [paragraph('콜아웃')] }, 'p'],
     ['a quote', { type: 'blockquote', content: [paragraph('인용')] }, 'p'],
     ['a table', { type: 'table', content: [{ type: 'tableRow', content: [cell, cell] }] }, 'td'],
@@ -1345,12 +1378,15 @@ test.describe('writing a document', () => {
     test(`a click under ${name} at the end makes a line below it`, async ({ page }) => {
       const editor = await load(page, [paragraph('앞'), block]);
       expect(await types(editor)).toEqual(lastBlockTypes);
-      const last = await editor.evaluate((root) => {
-        const rect = root.lastElementChild!.getBoundingClientRect();
-        return { x: rect.left + rect.width / 2, bottom: rect.bottom };
+      if (block.type === 'imageBlock') await editor.locator('img').evaluate((img) => img.decode());
+      const position = await editor.evaluate((root) => {
+        const editorRect = root.getBoundingClientRect();
+        const blockRect = root.lastElementChild!.getBoundingClientRect();
+        return { x: blockRect.left + blockRect.width / 2 - editorRect.left, y: blockRect.bottom + 4 - editorRect.top };
       });
-      await page.mouse.click(last.x, last.bottom + 4);
-      await page.waitForTimeout(100);
+      // Locator coordinates stay relative to the editor as Playwright scrolls the point into view.
+      await editor.click({ position });
+      await expect.poll(() => types(editor)).toEqual([...lastBlockTypes, 'paragraph']);
       await page.keyboard.type('아래 글');
       await expect(editor.locator(':scope > p').last()).toHaveText('아래 글');
     });

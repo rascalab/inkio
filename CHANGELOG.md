@@ -6,6 +6,13 @@ Versioning is unified across the publishable Inkio packages.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-25
+
+- Preserve images, compatible text formatting and selection positions when changing an editor's schema. Removing an extension from a sparse additive list now unregisters it.
+- Detect Markdown replacements reverted by editing plugins. Import bracketed link labels such as `[[Guide]](/guide)` as ordinary Markdown links rather than wiki links.
+- Markdown paste uses the current caret even when a native paste arrives before the browser reports a selection change. Opening a table's context menu in WebKit preserves a multi-cell selection.
+- After inserting an image from the file chooser, typing in WebKit lands at the caret below the image rather than in the preceding block.
+
 ## [0.2.0] - 2026-11-25
 
 - **Breaking:** With `Markdown` registered, replace `editor.setMarkdown(source)` with `editor.markdown = source`. Rejected assignments throw without clearing the document.

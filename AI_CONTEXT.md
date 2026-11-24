@@ -66,7 +66,7 @@ For saved `JSONContent`, import `read` from the core or either preset root. Reus
   - `@inkio/core/markdown`
   - `@inkio/simple/markdown`
   - `@inkio/editor/markdown`
-- Markdown round-trip is guaranteed only for `core` nodes.
+- Use editor JSON for lossless storage. Markdown only preserves supported structures; even core text colors and paragraph alignment can be lost. See the [conversion rules](./docs/content/serialization.mdx).
 - Markdown import/export uses `remark/unified` and direct `JSONContent <-> mdast` mapping.
 
 ## Good Prompt Template

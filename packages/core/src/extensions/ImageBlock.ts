@@ -213,8 +213,16 @@ function queueImageFiles(
           : { id });
         const syncCaret = moveCaret && (view.hasFocus() || (restoreFocus && chooserLeftFocusUnclaimed(view)));
         view.dispatch(insert);
-        // Synchronize the browser selection in this tick, before the next key.
-        if (syncCaret && !editor.isDestroyed && (view.hasFocus() || chooserLeftFocusUnclaimed(view))) view.focus();
+        if (syncCaret && !editor.isDestroyed && (view.hasFocus() || chooserLeftFocusUnclaimed(view))) {
+          view.focus();
+          // WebKit can report the new caret but still target the text before
+          // the image for native input. Explicitly place it in the rendered DOM.
+          const { selection } = view.state;
+          if (selection.empty) {
+            const { node, offset } = view.domAtPos(selection.head);
+            view.dom.ownerDocument.getSelection()?.collapse(node, offset);
+          }
+        }
       }
     } catch (error) {
       if (!controller?.signal.aborted) reportImageUploadError(options, error, 'imageBlock.upload');
