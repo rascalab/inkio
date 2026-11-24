@@ -103,6 +103,7 @@ function SessionHarness({
       >
         save
       </button>
+      {state.originalImage && <span data-testid="loaded-image">{src}</span>}
       <span data-testid="is-dirty">{session.isDirty ? 'true' : 'false'}</span>
       <span data-testid="is-saving">{session.isSaving ? 'true' : 'false'}</span>
       <span data-testid="has-save-error">{session.saveError ? 'true' : 'false'}</span>
@@ -162,7 +163,7 @@ describe('useImageEditorSession', () => {
       </ImageEditorProvider>
     );
     const { rerender } = render(editor('first'));
-    await waitFor(() => { expect(loadImageMock).toHaveBeenCalled(); });
+    await screen.findByTestId('loaded-image');
     fireEvent.click(screen.getByTestId('make-dirty'));
     await act(async () => { fireEvent.click(screen.getByTestId('save')); });
     loadImageMock.mockResolvedValueOnce({ naturalWidth: 120, naturalHeight: 80 } as HTMLImageElement);
@@ -194,6 +195,7 @@ describe('useImageEditorSession', () => {
       </ImageEditorProvider>
     );
     const { rerender, unmount } = render(editor('first'));
+    await screen.findByTestId('loaded-image');
     await act(async () => { fireEvent.click(screen.getByTestId('save')); });
     expect(onSave).toHaveBeenCalledExactlyOnceWith('data:image/png;base64,saved', expect.any(AbortSignal));
     expect(aborted).not.toHaveBeenCalled();
@@ -216,10 +218,8 @@ describe('useImageEditorSession', () => {
       </ImageEditorProvider>,
     );
 
-    await waitFor(() => {
-      expect(loadImageMock).toHaveBeenCalledWith('fixture-image');
-      expect(screen.getByTestId('is-dirty').textContent).toBe('false');
-    });
+    await screen.findByTestId('loaded-image');
+    expect(screen.getByTestId('is-dirty').textContent).toBe('false');
 
     fireEvent.click(screen.getByTestId('make-dirty'));
     await waitFor(() => {
@@ -252,7 +252,7 @@ describe('useImageEditorSession', () => {
         <SessionHarness onDirtyChange={vi.fn()} onSave={onSave} onSaveBlob={onSaveBlob} savePreview={savePreview} />
       </ImageEditorProvider>,
     );
-    await waitFor(() => { expect(loadImageMock).toHaveBeenCalled(); });
+    await screen.findByTestId('loaded-image');
     fireEvent.click(screen.getByTestId('make-dirty'));
     await act(async () => { fireEvent.click(screen.getByTestId('save')); });
 
@@ -276,9 +276,7 @@ describe('useImageEditorSession', () => {
       </ImageEditorProvider>,
     );
 
-    await waitFor(() => {
-      expect(loadImageMock).toHaveBeenCalledWith('fixture-image');
-    });
+    await screen.findByTestId('loaded-image');
     fireEvent.click(screen.getByTestId('open-resize'));
 
     await waitFor(() => {
@@ -299,7 +297,7 @@ describe('useImageEditorSession', () => {
         <SessionHarness onDirtyChange={vi.fn()} onSave={onSave} />
       </ImageEditorProvider>,
     );
-    await waitFor(() => { expect(loadImageMock).toHaveBeenCalled(); });
+    await screen.findByTestId('loaded-image');
     fireEvent.click(screen.getByTestId('make-dirty'));
 
     await act(async () => {
@@ -324,7 +322,7 @@ describe('useImageEditorSession', () => {
         <SessionHarness onDirtyChange={vi.fn()} onSave={vi.fn()} />
       </ImageEditorProvider>,
     );
-    await waitFor(() => { expect(loadImageMock).toHaveBeenCalled(); });
+    await screen.findByTestId('loaded-image');
     fireEvent.click(screen.getByTestId('open-resize'));
     await waitFor(() => { expect(screen.getByTestId('has-crop-draft').textContent).toBe('true'); });
 
@@ -345,7 +343,7 @@ describe('useImageEditorSession', () => {
           <SessionHarness onDirtyChange={vi.fn()} onSave={onSave} />
         </ImageEditorProvider>,
       );
-      await waitFor(() => { expect(loadImageMock).toHaveBeenCalled(); });
+      await screen.findByTestId('loaded-image');
       fireEvent.click(screen.getByTestId('make-dirty'));
 
       await act(async () => { fireEvent.click(screen.getByTestId('save')); });
@@ -374,7 +372,7 @@ describe('useImageEditorSession', () => {
           <SessionHarness onDirtyChange={vi.fn()} onSave={onSave} />
         </ImageEditorProvider>,
       );
-      await waitFor(() => { expect(loadImageMock).toHaveBeenCalled(); });
+      await screen.findByTestId('loaded-image');
       fireEvent.click(screen.getByTestId('open-resize'));
       await waitFor(() => { expect(screen.getByTestId('has-crop-draft').textContent).toBe('true'); });
       fireEvent.click(screen.getByTestId('crop-draft'));
