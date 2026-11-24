@@ -1428,14 +1428,24 @@ test.describe('writing a document', () => {
       paragraph('끝'),
     ]);
     const openMenuOn = async (selector: string) => {
-      const box = (await editor.locator(selector).first().boundingBox())!;
-      await page.mouse.move(box.x + 30, box.y + 8);
-      await page.locator('[aria-label="Block handle"], [aria-label="블록 핸들"]').first().click();
+      const line = editor.locator(`${selector} p`).first();
+      const handle = page.getByRole('button', { name: '블록 핸들', exact: true });
+      await line.hover();
+      // The previous block's handle remains visible until the hover frame
+      // repositions it. Don't move the pointer back to that stale location.
+      await expect.poll(async () => {
+        const [grip, target] = await Promise.all([handle.boundingBox(), line.boundingBox()]);
+        if (!grip || !target) return false;
+        const center = grip.y + grip.height / 2;
+        return center >= target.y && center <= target.y + target.height;
+      }).toBe(true);
+      await handle.click();
     };
 
     await openMenuOn('td');
     await expect(page.getByRole('menuitem')).toHaveText(['삭제', '복제', '위로 한 칸', '아래로 한 칸']);
     await page.keyboard.press('Escape');
+    await expect(page.getByRole('menu')).toHaveCount(0);
 
     await openMenuOn('li');
     await page.getByRole('menuitem', { name: '제목 1' }).click();
