@@ -2,7 +2,9 @@
 
 Inkio is a layered React rich-text editor family built on Tiptap.
 
-[![Inkio block editor showing a release checklist, a draggable heading, and a code block](.github/assets/block-editor.png)](https://rascalab.github.io/inkio/#demo)
+[![Inkio — green and pink aurora over the Indian Ocean, photographed from the International Space Station](.github/assets/inkio-aurora.jpg)](https://rascalab.github.io/inkio/#demo)
+
+[Try the editor](https://rascalab.github.io/inkio/#demo) · [Documentation](https://rascalab.github.io/inkio/getting-started/) · [Cover photo: NASA](https://images.nasa.gov/details/iss073e0831259)
 
 ## Packages
 
