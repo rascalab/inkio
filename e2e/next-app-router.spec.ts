@@ -483,7 +483,9 @@ compositionTest('Korean composition lands where the caret is', async ({ page, im
   await expect(paragraphs.nth(1)).toHaveText('');
 });
 
-const blockEditor = (page: import('@playwright/test').Page) => page.locator('.ProseMirror').first();
+// The server-rendered preview has the same text and ProseMirror class, but no editor instance.
+const blockEditor = (page: import('@playwright/test').Page) =>
+  page.locator('.ProseMirror[contenteditable="true"]').first();
 
 const blockOutline = (page: import('@playwright/test').Page) =>
   blockEditor(page).evaluate((root) =>
