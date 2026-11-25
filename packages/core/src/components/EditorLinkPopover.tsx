@@ -40,6 +40,7 @@ export function EditorLinkPopover({
             side={side}
             sideOffset={sideOffset}
             collisionPadding={8}
+            sticky="always"
             className={container ? 'inkio-popover-content' : 'inkio inkio-popover-content'}
             // Save/Cancel/Escape restore the selection themselves. Outside
             // interactions keep their destination; never queue trigger focus.

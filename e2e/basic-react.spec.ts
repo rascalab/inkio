@@ -65,6 +65,8 @@ test('classic editor keeps the phone toolbar usable and its popover on the edito
   expect(blue).toBeGreaterThan(210);
   expect(alpha).toBe(255);
   await field.fill('https://example.com');
+  // A narrow toolbar can scroll the anchor away while its dialog stays open.
+  await toolbar.getByRole('button').first().scrollIntoViewIfNeeded();
   const save = dialog.getByRole('button', { name: 'Save' });
   await expect(dialog).toBeInViewport({ ratio: 1 });
   await expect(save).toBeInViewport({ ratio: 1 });
