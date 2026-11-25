@@ -1,10 +1,10 @@
-# Inkio
+# inkio
 
-Inkio is a layered React rich-text editor family built on Tiptap.
+Classic and block-based rich text editors for React, built on Tiptap.
 
-[![Inkio — green and pink aurora over the Indian Ocean, photographed from the International Space Station](.github/assets/inkio-aurora.jpg)](https://rascalab.github.io/inkio/#demo)
+[![Try inkio: select a heading in the block editor to open its formatting menu](.github/assets/inkio-demo.png)](https://rascalab.github.io/inkio/#demo)
 
-[Try the editor](https://rascalab.github.io/inkio/#demo) · [Documentation](https://rascalab.github.io/inkio/getting-started/) · [Cover photo: NASA](https://images.nasa.gov/details/iss073e0831259)
+[Try the editor](https://rascalab.github.io/inkio/#demo) · [Documentation](https://rascalab.github.io/inkio/getting-started/)
 
 ## Packages
 
@@ -54,7 +54,7 @@ npm install @inkio/advanced
 
 For Yjs collaboration, install `@inkio/collab` and its `@inkio/core` peer. See the [client and reference server recipe](./docs/content/recipes/yjs-collaboration.mdx).
 
-Inkio owns the Tiptap runtime packages it uses. Normal consumers only need to install the Inkio package they use plus the React peers.
+The presets include their Tiptap runtime. Install the preset you use and its React peers.
 
 ## Quick Start
 
@@ -65,7 +65,7 @@ import { Editor } from '@inkio/simple';
 import '@inkio/simple/minimal.css';
 
 export function SimplePage() {
-  return <Editor content="<p>Hello Inkio</p>" />;
+  return <Editor content="<p>Hello inkio</p>" />;
 }
 ```
 
@@ -78,7 +78,7 @@ import '@inkio/editor/style.css';
 export function EditorPage() {
   return (
     <Editor
-      content="<p>Hello Inkio</p>"
+      content="<p>Hello inkio</p>"
       hashtagItems={({ query }) => [
         { id: query || 'inkio', label: `#${query || 'inkio'}` },
       ]}
@@ -105,7 +105,7 @@ export function EditorWithImages() {
 }
 ```
 
-Without an upload handler Inkio embeds the image as a data URL. For persistent storage, provide `onImageUpload` and return a durable URL; a `blob:` URL stops working after the page closes.
+Without an upload handler, the editor embeds the image as a data URL. For persistent storage, provide `onImageUpload` and return a durable URL; a `blob:` URL stops working after the page closes.
 
 ## Markdown
 

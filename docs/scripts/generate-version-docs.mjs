@@ -87,7 +87,7 @@ for (const tag of git('tag', '--list', 'v*', '--sort=-version:refname').toString
     const gettingStarted = files.some(({ file }) => /^getting-started\.mdx?$/.test(file))
       ? '\n[시작하기](/getting-started)\n'
       : '';
-    writeFileSync(path.join(releaseDir, 'index.mdx'), `# Inkio ${tag}\n\nInkio ${tag} 릴리스의 문서입니다.\n${gettingStarted}`);
+    writeFileSync(path.join(releaseDir, 'index.mdx'), `# inkio ${tag}\n\nInkio ${tag} 릴리스의 문서입니다.\n${gettingStarted}`);
   }
   archived.push(tag);
 }

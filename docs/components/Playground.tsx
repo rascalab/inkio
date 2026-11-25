@@ -37,7 +37,7 @@ export default function Playground({ content }: { content?: string } = {}) {
     <div className="inkio playground-root">
       <header className="playground-header" lang="en">
         <div className="playground-header-left">
-          <h1 className="playground-title">Inkio Playground</h1>
+          <h1 className="playground-title">inkio Playground</h1>
           <Tabs
             id={modeId}
             label="Playground mode"

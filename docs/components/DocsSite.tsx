@@ -11,7 +11,7 @@ const repository = 'https://github.com/rascalab/inkio';
 const footer = (
   <footer className="inkio-site-footer">
     <div className="inkio-site-shell">
-      <strong translate="no">Inkio</strong>
+      <strong translate="no">inkio</strong>
       <nav aria-label="사이트 정보">
         <a href={`${repository}/tags`}>릴리스</a>
         <a href={repository}>GitHub</a>
@@ -35,7 +35,7 @@ export default async function DocsSite({ children, release }: { children: ReactN
         <Navbar
           className="inkio-site-shell inkio-site-nav"
           align="left"
-          logo={<span className="inkio-site-brand" translate="no"><span aria-hidden="true">i</span>Inkio</span>}
+          logo={<span className="inkio-site-brand" translate="no"><span aria-hidden="true">i</span>inkio</span>}
           projectLink={repository}
         >
           {versions.length > 0 && (

@@ -4,7 +4,7 @@ title: Mantine
 
 # Mantine 통합
 
-Mantine 안에서 Inkio를 쓸 때는 high-level package부터 시작하는 편이 가장 안정적입니다.
+Mantine 안에서 inkio를 쓸 때는 high-level package부터 시작하는 편이 가장 안정적입니다.
 
 ```bash
 pnpm add @mantine/core @mantine/hooks @inkio/editor react react-dom
@@ -22,7 +22,7 @@ import './inkio-mantine.css';
 
 ## 디자인 토큰 연결
 
-아래 파일을 Inkio CSS **다음에** 불러오면 폰트, primary 색, radius, 그림자,
+아래 파일을 inkio CSS **다음에** 불러오면 폰트, primary 색, radius, 그림자,
 배경·글자·테두리 색을 Mantine 테마(`createTheme`)에 연결할 수 있습니다.
 Mantine 변수는 색 스킴을 따르므로 라이트와 다크(`--inkio-dark-*`) 토큰을 같은 변수에 연결합니다.
 
@@ -82,11 +82,11 @@ Mantine 변수는 색 스킴을 따르므로 라이트와 다크(`--inkio-dark-*
 
 위 `.inkio` 선택자는 에디터와 `body` 아래 `.inkio` 포털에 각각 적용됩니다.
 Mantine 토큰을 `cssVariablesSelector`로 특정 래퍼에만 정의했다면, 그 아래에 없는
-Inkio 포털에서도 토큰을 읽을 수 있게 전역 범위에 정의하거나 별도의 포털 규칙을 두세요.
+inkio 포털에서도 토큰을 읽을 수 있게 전역 범위에 정의하거나 별도의 포털 규칙을 두세요.
 
 ## 다크 모드 동기화
 
-Mantine은 `<html data-mantine-color-scheme>` 속성으로, Inkio는 `theme` prop(또는 `.dark` 클래스)으로 다크 모드를 판단합니다. 위에서 연결한 색은 Mantine을 바로 따라가지만 콜아웃, 멘션, 코드 하이라이트처럼 Inkio 고유 색은 `theme`을 넘겨야 함께 바뀝니다.
+Mantine은 `<html data-mantine-color-scheme>` 속성으로, inkio는 `theme` prop(또는 `.dark` 클래스)으로 다크 모드를 판단합니다. 위에서 연결한 색은 Mantine을 바로 따라가지만 콜아웃, 멘션, 코드 하이라이트처럼 inkio 고유 색은 `theme`을 넘겨야 함께 바뀝니다.
 
 ```tsx
 import { useComputedColorScheme } from '@mantine/core';
@@ -104,12 +104,12 @@ export function MyEditor() {
 
 Mantine 기본값에서는 `--inkio-layer-*` 연결이 메뉴를 popover 레벨(300)로, 이미지
 모달을 overlay 레벨(400) 위로 올립니다. Mantine `Modal`·`Drawer`의 `zIndex`를
-오버라이드했다면 Inkio 레이어도 맞춰 주세요. 에디터 조상에 대한 잘림이나 스태킹
+오버라이드했다면 inkio 레이어도 맞춰 주세요. 에디터 조상에 대한 잘림이나 스태킹
 컨텍스트는 z-index만으로 해결되지 않습니다.
 
 ## 연결하지 않는 토큰
 
-콜아웃, 멘션, 해시태그, 위키링크, 댓글 하이라이트, 코드 블록 배경은 Inkio의 라이트·다크 팔레트를 그대로 씁니다. Mantine 색으로 바꾸려면 같은 방식으로 라이트 토큰과 `--inkio-dark-*` 토큰을 함께 덮어씁니다.
+콜아웃, 멘션, 해시태그, 위키링크, 댓글 하이라이트, 코드 블록 배경은 inkio의 라이트·다크 팔레트를 그대로 씁니다. Mantine 색으로 바꾸려면 같은 방식으로 라이트 토큰과 `--inkio-dark-*` 토큰을 함께 덮어씁니다.
 
 ```css
 .inkio {

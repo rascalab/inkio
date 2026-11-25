@@ -40,7 +40,7 @@ function StackBlitzEmbedInner({ title, files, openFile }: StackBlitzProject) {
         container,
         {
           title,
-          description: `Inkio ${title} example`,
+          description: `inkio ${title} example`,
           template: 'node',
           files: projectFiles,
         },

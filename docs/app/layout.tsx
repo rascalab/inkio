@@ -7,8 +7,8 @@ import './docs-theme-overrides.css';
 
 export const metadata = {
   title: {
-    default: 'Inkio',
-    template: '%s - Inkio',
+    default: 'inkio',
+    template: '%s - inkio',
   },
   description: 'A customizable React rich text editor toolkit',
 };

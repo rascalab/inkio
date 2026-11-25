@@ -4,7 +4,7 @@ export type PlaygroundLocale = 'ko' | 'en';
 export const PLAYGROUND_INITIAL_CONTENT = {
   type: 'doc',
   content: [
-    { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Inkio Playground' }] },
+    { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'inkio Playground' }] },
     { type: 'tocBlock', attrs: { maxLevel: 3 } },
     {
       type: 'paragraph',

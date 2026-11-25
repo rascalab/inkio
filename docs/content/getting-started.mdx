@@ -33,7 +33,7 @@ npm install @inkio/image-editor "react@^19.3.0" "react-dom@^19.3.0"
 
 `CommentPanel`이나 comment i18n처럼 advanced export를 직접 import할 때만 `@inkio/advanced`를 추가 설치합니다.
 
-Inkio는 자신이 사용하는 Tiptap runtime을 직접 소유합니다. 일반 사용자는 React peer만 맞추면 됩니다.
+inkio는 자신이 사용하는 Tiptap runtime을 직접 소유합니다. 일반 사용자는 React peer만 맞추면 됩니다.
 
 ## 스타일
 
@@ -68,7 +68,7 @@ Simple:
 import { Editor } from '@inkio/simple';
 
 export function Page() {
-  return <Editor content="<p>Hello Inkio</p>" />;
+  return <Editor content="<p>Hello inkio</p>" />;
 }
 ```
 
@@ -80,7 +80,7 @@ import { Editor } from '@inkio/editor';
 export function Page() {
   return (
     <Editor
-      content="<p>Hello Inkio</p>"
+      content="<p>Hello inkio</p>"
       hashtagItems={({ query }) => [
         { id: query || 'inkio', label: `#${query || 'inkio'}` },
       ]}
@@ -95,12 +95,12 @@ export function Page() {
 - `Editor`의 `content`는 초기 문서입니다. 마운트 후 상태는 에디터가 소유하며, 외부에서 값을 바꾸려면 `onCreate` 인스턴스의 `editor.commands.setContent()`를 쓰세요. `Viewer`는 `content`가 바뀌면 다시 그립니다.
 - `@inkio/editor`는 notion-like surface 기본값을 가집니다.
 - `@inkio/simple`은 classic toolbar surface 기본값을 가집니다.
-- shell / panel / field 같은 chrome surface는 패키지 간에 공통 Inkio token을 공유합니다.
+- shell / panel / field 같은 chrome surface는 패키지 간에 공통 inkio token을 공유합니다.
 - `@inkio/image-editor`는 fullscreen overlay 구조지만 같은 surface 계층을 씁니다.
 - `@inkio/editor` CSS는 advanced preset 스타일을 이미 포함합니다.
 - `justify` alignment는 지원하지 않습니다.
 - math는 내장하지 않습니다. 필요하면 [Tiptap Mathematics](https://tiptap.dev/docs/editor/extensions/nodes/mathematics)를 직접 조합하세요.
 
-문서 저장, 인증·권한, 이미지 저장소, 관리자 화면은 Inkio가 제공하지 않습니다.
+문서 저장, 인증·권한, 이미지 저장소, 관리자 화면은 inkio가 제공하지 않습니다.
 예제는 편집기 연결 방법을 보여 줍니다. 운영 앱에서는 필요한 저장 경로와 서버를 따로
 구현하세요. [통합 레시피](/recipes)와 [실시간 협업 서버](/collaboration#서버)를 참고하세요.
