@@ -1,5 +1,5 @@
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/core';
 import type {
   InkioLocaleInput,
@@ -180,7 +180,7 @@ export const BlockHandleActionMenu = ({
   blockFingerprint,
 }: BlockHandleActionMenuProps) => {
   const [position, setPosition] = useState({ top: 0, left: 0 });
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const ui = useInkioCoreUi({
@@ -392,12 +392,9 @@ export const BlockHandleActionMenu = ({
   // component), so reset keyboard state whenever the target block changes.
   // Focus rests on the menu, not an item: the first item is delete, and Enter
   // right after opening must not take the block. Arrow keys enter the list.
-  useEffect(() => {
+  useLayoutEffect(() => {
     setActiveIndex(-1);
-    const frame = requestAnimationFrame(() => {
-      menuRef.current?.focus();
-    });
-    return () => cancelAnimationFrame(frame);
+    menuRef.current?.focus({ preventScroll: true });
   }, [blockPos]);
 
   const updatePosition = useCallback(() => {
@@ -426,7 +423,7 @@ export const BlockHandleActionMenu = ({
     setPosition({ top: next.top, left: next.left });
   }, [anchorRect, anchorResolver, onClose]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     updatePosition();
 
     return autoUpdateOverlayPosition({
@@ -439,7 +436,7 @@ export const BlockHandleActionMenu = ({
   useDismissableLayer({
     refs: [menuRef],
     onDismiss: onClose,
-    armDelayMs: 0,
+    capture: true,
     escape: false,
   });
 

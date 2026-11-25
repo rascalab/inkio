@@ -12,6 +12,8 @@ Versioning is unified across the publishable Inkio packages.
 - Detect Markdown replacements reverted by editing plugins. Import bracketed link labels such as `[[Guide]](/guide)` as ordinary Markdown links rather than wiki links.
 - Markdown paste uses the current caret even when a native paste arrives before the browser reports a selection change. Opening a table's context menu in WebKit preserves a multi-cell selection.
 - After inserting an image from the file chooser, typing in WebKit lands at the caret below the image rather than in the preceding block.
+- Keep the link dialog and its Save button inside a narrow viewport when the editor is inside a filtered container.
+- Dismiss the block menu on an outside tap even when the browser emits no mouse event. Escape returns focus to the editor as soon as the menu appears.
 
 ## [0.2.0] - 2026-11-25
 

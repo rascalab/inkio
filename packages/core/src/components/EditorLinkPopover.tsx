@@ -35,33 +35,36 @@ export function EditorLinkPopover({
     }}>
       <Popover.Trigger asChild>{children}</Popover.Trigger>
       <Popover.Portal container={container}>
-        <Popover.Content
-          side={side}
-          sideOffset={sideOffset}
-          className={container ? 'inkio-popover-content' : 'inkio inkio-popover-content'}
-          // Save/Cancel/Escape restore the selection themselves. Outside
-          // interactions keep their destination; never queue trigger focus.
-          onCloseAutoFocus={(event) => event.preventDefault()}
-          onEscapeKeyDown={(event) => {
-            event.preventDefault();
-            if (!event.isComposing) closeToEditor();
-          }}
-        >
-          <BubbleMenuLinkInputPopover
-            initialUrl={initialUrl}
-            placeholder={messages.placeholder}
-            cancelLabel={messages.cancel}
-            saveLabel={messages.save}
-            invalidUrlLabel={messages.invalidUrl}
-            onSave={(href) => {
-              const chain = editor.chain();
-              if (initialUrl) chain.extendMarkRange('link');
-              chain.setLink({ href }).run();
-              closeToEditor();
+        <div className="inkio-link-portal">
+          <Popover.Content
+            side={side}
+            sideOffset={sideOffset}
+            collisionPadding={8}
+            className={container ? 'inkio-popover-content' : 'inkio inkio-popover-content'}
+            // Save/Cancel/Escape restore the selection themselves. Outside
+            // interactions keep their destination; never queue trigger focus.
+            onCloseAutoFocus={(event) => event.preventDefault()}
+            onEscapeKeyDown={(event) => {
+              event.preventDefault();
+              if (!event.isComposing) closeToEditor();
             }}
-            onCancel={closeToEditor}
-          />
-        </Popover.Content>
+          >
+            <BubbleMenuLinkInputPopover
+              initialUrl={initialUrl}
+              placeholder={messages.placeholder}
+              cancelLabel={messages.cancel}
+              saveLabel={messages.save}
+              invalidUrlLabel={messages.invalidUrl}
+              onSave={(href) => {
+                const chain = editor.chain();
+                if (initialUrl) chain.extendMarkRange('link');
+                chain.setLink({ href }).run();
+                closeToEditor();
+              }}
+              onCancel={closeToEditor}
+            />
+          </Popover.Content>
+        </div>
       </Popover.Portal>
     </Popover.Root>
   );

@@ -1,4 +1,6 @@
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
+
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 export type DismissReason = 'outside' | 'escape';
 
@@ -65,12 +67,12 @@ export function useDismissableLayer({
   const stopPropagation = escapeOptions.stopPropagation ?? false;
   const preventDefault = escapeOptions.preventDefault ?? false;
 
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (!enabled || typeof document === 'undefined') {
       return;
     }
 
-    const handlePointerDown = (event: MouseEvent) => {
+    const handlePointerDown = (event: PointerEvent) => {
       const currentRefs = refsRef.current;
       // Without any mounted layer element there is nothing to be outside of.
       if (!currentRefs.some((ref) => ref.current)) return;
@@ -89,7 +91,7 @@ export function useDismissableLayer({
     let armed = false;
     const arm = () => {
       armed = true;
-      document.addEventListener('mousedown', handlePointerDown, capture);
+      document.addEventListener('pointerdown', handlePointerDown, capture);
     };
     const timer = armDelayMs === undefined ? null : setTimeout(arm, armDelayMs);
     if (timer === null) arm();
@@ -100,7 +102,7 @@ export function useDismissableLayer({
 
     return () => {
       if (timer !== null) clearTimeout(timer);
-      if (armed) document.removeEventListener('mousedown', handlePointerDown, capture);
+      if (armed) document.removeEventListener('pointerdown', handlePointerDown, capture);
       if (escapeEnabled) document.removeEventListener('keydown', handleKeyDown, capture);
     };
   }, [enabled, armDelayMs, capture, escapeEnabled, insideOnly, stopPropagation, preventDefault]);

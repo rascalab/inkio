@@ -31,21 +31,24 @@ afterEach(() => {
 });
 
 describe('useDismissableLayer', () => {
-  it('dismisses on outside mousedown but not inside', () => {
+  it.each(['touch', 'mouse', 'pen'])('dismisses once for an outside %s pointer, but not inside', (pointerType) => {
     const onDismiss = vi.fn();
     const { getByTestId } = render(<Harness onDismiss={onDismiss} />);
 
-    fireEvent.mouseDown(getByTestId('inner'));
+    fireEvent.pointerDown(getByTestId('inner'), { pointerType });
     expect(onDismiss).not.toHaveBeenCalled();
 
+    fireEvent.pointerDown(getByTestId('outside'), { pointerType });
+    expect(onDismiss).toHaveBeenCalledWith('outside', expect.objectContaining({ pointerType }));
+    // A mouse or compatibility mouse event can follow the pointer event.
     fireEvent.mouseDown(getByTestId('outside'));
-    expect(onDismiss).toHaveBeenCalledWith('outside', expect.any(MouseEvent));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
   it('treats every ref as inside', () => {
     const onDismiss = vi.fn();
     const { getByTestId } = render(<Harness withTrigger onDismiss={onDismiss} />);
-    fireEvent.mouseDown(getByTestId('trigger'));
+    fireEvent.pointerDown(getByTestId('trigger'));
     expect(onDismiss).not.toHaveBeenCalled();
   });
 
@@ -54,13 +57,13 @@ describe('useDismissableLayer', () => {
     const onDismiss = vi.fn();
     const { getByTestId } = render(<Harness onDismiss={onDismiss} armDelayMs={100} />);
 
-    fireEvent.mouseDown(getByTestId('outside'));
+    fireEvent.pointerDown(getByTestId('outside'));
     expect(onDismiss).not.toHaveBeenCalled();
 
     act(() => {
       vi.advanceTimersByTime(100);
     });
-    fireEvent.mouseDown(getByTestId('outside'));
+    fireEvent.pointerDown(getByTestId('outside'));
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
@@ -110,8 +113,8 @@ describe('useDismissableLayer', () => {
     const onDismiss = vi.fn();
     const { getByTestId } = render(<Harness onDismiss={onDismiss} capture />);
     const outside = getByTestId('outside');
-    outside.addEventListener('mousedown', (event) => event.stopPropagation());
-    fireEvent.mouseDown(outside);
+    outside.addEventListener('pointerdown', (event) => event.stopPropagation());
+    fireEvent.pointerDown(outside);
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
@@ -120,16 +123,16 @@ describe('useDismissableLayer', () => {
     const { getByTestId, rerender, unmount } = render(
       <Harness onDismiss={onDismiss} enabled={false} />,
     );
-    fireEvent.mouseDown(getByTestId('outside'));
+    fireEvent.pointerDown(getByTestId('outside'));
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onDismiss).not.toHaveBeenCalled();
 
     rerender(<Harness onDismiss={onDismiss} enabled />);
-    fireEvent.mouseDown(getByTestId('outside'));
+    fireEvent.pointerDown(getByTestId('outside'));
     expect(onDismiss).toHaveBeenCalledTimes(1);
 
     unmount();
-    fireEvent.mouseDown(document.body);
+    fireEvent.pointerDown(document.body);
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
@@ -143,7 +146,7 @@ describe('useDismissableLayer', () => {
       vi.advanceTimersByTime(100);
     });
     rerender(<Harness onDismiss={second} armDelayMs={100} />);
-    fireEvent.mouseDown(getByTestId('outside'));
+    fireEvent.pointerDown(getByTestId('outside'));
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledTimes(1);
   });

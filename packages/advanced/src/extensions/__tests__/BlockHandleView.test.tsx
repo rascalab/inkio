@@ -27,6 +27,11 @@ function openMenu(blockPos = editor.state.doc.firstChild!.nodeSize) {
 }
 
 describe('BlockHandleActionMenu', () => {
+  it('focuses the menu as soon as it mounts so the first key reaches it', () => {
+    openMenu();
+    expect(document.activeElement).toBe(screen.getByRole('menu'));
+  });
+
   it('converts the block beside the handle rather than the current selection', () => {
     editor.commands.setTextSelection(2);
     openMenu();

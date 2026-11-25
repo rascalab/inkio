@@ -95,18 +95,13 @@ test('next app router example inserts an image from the slash command without a 
   await page.goto('http://localhost:4174');
 
   const editor = page.locator('.ProseMirror').first();
-  await editor.evaluate((node) => {
-    const element = node as HTMLElement;
-    element.focus();
-    const selection = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(element);
-    range.collapse(false);
-    selection?.removeAllRanges();
-    selection?.addRange(range);
-  });
+  const lastItem = editor.locator('li p').last();
+  await lastItem.click({ clickCount: 3 });
+  await page.keyboard.press('ArrowRight');
   await page.keyboard.press('Enter');
   await page.keyboard.press('Enter');
+  await expect(editor.locator(':scope > :last-child')).toHaveJSProperty('tagName', 'P');
+  await expect(editor.locator(':scope > p').last()).toHaveText('');
   await page.keyboard.type('/image');
   await expect(page.getByRole('option', { name: 'Image' })).toBeVisible();
 
@@ -961,6 +956,7 @@ test.describe('editor surfaces', () => {
           const menu = page.getByRole('menu');
           await expect(menu).toBeVisible();
           await expect(source).toHaveJSProperty('tagName', 'P');
+          // Tap the inert page margin: WebKit need not synthesize a mousedown here.
           await page.touchscreen.tap(4, 4);
           await expect(menu).toHaveCount(0);
         }
@@ -1446,6 +1442,7 @@ test.describe('writing a document', () => {
     await expect(page.getByRole('menuitem')).toHaveText(['삭제', '복제', '위로 한 칸', '아래로 한 칸']);
     await page.keyboard.press('Escape');
     await expect(page.getByRole('menu')).toHaveCount(0);
+    await expect(editor).toBeFocused();
 
     await openMenuOn('li');
     await page.getByRole('menuitem', { name: '제목 1' }).click();
