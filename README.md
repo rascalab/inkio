@@ -2,6 +2,8 @@
 
 Inkio is a layered React rich-text editor family built on Tiptap.
 
+[![Inkio block editor showing a release checklist, a draggable heading, and a code block](.github/assets/block-editor.png)](https://rascalab.github.io/inkio/#demo)
+
 ## Packages
 
 - `@inkio/editor`
